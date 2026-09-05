@@ -155,6 +155,21 @@
   .oct { font-family: var(--mono); font-size: 10px; fill: var(--muted); }
   .bass-fret { font-family: var(--mono); font-size: 12px; color: var(--text); }
 
+  .seccion { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 9px; margin-bottom: 10px; background: var(--surface-2); }
+  .sec-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .sec-tipo { width: auto; min-width: 150px; text-transform: capitalize; }
+  .sec-btns { display: flex; gap: 4px; }
+  .vuelta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .ac-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 3px 5px 3px 8px; }
+  .ac-chip .ac-nom { width: 62px; background: transparent; border: none; padding: 2px 0; font-family: var(--display); font-weight: 700; font-size: 14px; }
+  .ac-chip .ac-com { width: 48px; background: transparent; border: none; padding: 2px 0; font-family: var(--mono); font-size: 12px; }
+  .ac-chip .ac-x, .ac-chip .ac-cp { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .versos { display: grid; gap: 5px; justify-items: start; }
+  .verso { display: grid; grid-template-columns: minmax(0,1fr) 150px auto; gap: 6px; align-items: center; width: 100%; }
+  .verso .v-ac { font-family: var(--mono); font-size: 12.5px; color: var(--accent); }
+  .verso .v-txt { font-size: 14px; }
+  #letraTitulo { font-family: var(--display); font-weight: 700; font-size: 18px; }
+  @media (max-width: 700px) { .verso { grid-template-columns: minmax(0,1fr) 88px auto; } }
   .seq-scroll { overflow-x: auto; }
   .seq { display: grid; grid-template-columns: 86px repeat(var(--steps, 16), minmax(16px, 1fr)); gap: 3px; align-items: center; min-width: max-content; }
   .seq .rl { font-family: var(--mono); font-size: 11px; color: var(--muted); padding-right: 6px; white-space: nowrap; position: sticky; left: 0; background: var(--surface); z-index: 1; }
@@ -265,6 +280,7 @@
           <option value="pad">Teclado · Pad</option>
           <option value="piano">Teclado · Piano (acordes)</option>
           <option value="lead">Teclado · Piano lead (dos manos y melodía)</option>
+          <option value="letra">Letra y acordes</option>
         </select>
         <div class="hint" id="modeHint"></div>
         <div class="row"><button class="ghost" id="testTone">Probar sonido</button><span class="diag" id="audioDiag">audio: sin iniciar</span></div>
@@ -445,6 +461,32 @@
           <div class="hint">SHIFT + SCALES → Key A · Aeol · Non-S Ignore: sólo suenan las teclas de la escala mientras buscas la melodía. · SHIFT + CHORDS (1-3-5, Key A, Aeolian) para que la izquierda haga el acorde con un dedo. · ARP 1/8 UP + LATCH para arpegiar la derecha. · Swing 55–57 % en el ARP. · OCT − para que la izquierda llegue al bajo en el de 25. · Grabar aquí con «● Grabar con el MPK»: lo que toques bajo el punto de división va a la izquierda, lo de arriba a la melodía.</div>
         </div>
       </div>
+      <!-- Letra y acordes -->
+      <div class="panel" data-modes="letra">
+        <div class="kb-head">
+          <span class="lbl">Letra y acordes · para leer y tocar con la guitarra</span>
+          <span class="lbl" id="letraResumen"></span>
+        </div>
+        <div class="field">
+          <span class="lbl">Título</span>
+          <input type="text" id="letraTitulo" placeholder="sin título" autocomplete="off">
+        </div>
+        <div id="secciones"></div>
+        <div class="actions">
+          <button class="ghost" id="addSeccion">+ Añadir sección</button>
+          <span class="hint">Cada sección lleva su vuelta de acordes con los compases que dura cada uno, y debajo los versos con su cifra al lado.</span>
+        </div>
+        <div class="saved">
+          <span class="lbl">Letras guardadas</span>
+          <div class="row"><input type="text" id="letraName" placeholder="nombre, ej. la del puente"><button class="ghost" id="saveLetra" style="flex:0 0 auto">Guardar</button></div>
+          <div class="row"><select id="savedLetras"></select><button class="ghost" id="delLetra" style="flex:0 0 auto">Borrar</button></div>
+        </div>
+        <div class="actions">
+          <button class="primary" id="expLetraPdf">PDF · sólo la letra con acordes</button>
+          <button class="ghost" id="copyLetra">Copiar como texto</button>
+          <span class="hint">La letra también sale en el PDF grande, junto a la ficha técnica.</span>
+        </div>
+      </div>
       <!-- Bajo digital: secuenciador de notas -->
       <div class="panel" data-modes="bajod">
         <div class="kb-head">
@@ -590,9 +632,13 @@
   // Cifrado en letras, para leer como en las partituras de guitarra. El parser de acordes
   // escritos a mano sigue entendiendo sólo español: es ida y vuelta interna, no se muestra.
   const LETRAS = ['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+  const SOSTEN = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  // Tonalidades de sostenidos: G D A E B F#. Las demás se escriben con bemoles, que es como
+  // se cifra en pop y en guitarra. Sólo importa para las notas de dentro de un acorde.
+  const conSostenidos = raiz => [7,2,9,4,11,6].includes(raiz);
   // Nombres en letras que acepta el campo de escribir a mano, además de do re mi
   const LETRA_PC = { c:0,'c*':1, db:1, d:2,'d*':3, eb:3, e:4, f:5,'f*':6, gb:6, g:7,'g*':8, ab:8, a:9,'a*':10, bb:10, b:11 };
-  const nota    = pc => S.notacion === 'en' ? LETRAS[pc] : NAMES[pc];
+  const nota    = (pc, raiz) => S.notacion === 'en' ? (raiz !== undefined && conSostenidos(raiz) ? SOSTEN[pc] : LETRAS[pc]) : NAMES[pc];
   const notaCap = pc => S.notacion === 'en' ? LETRAS[pc] : cap(NAMES[pc]);
   const BLACK = new Set([1,3,6,8,10]);
   const cap = s => s[0].toUpperCase() + s.slice(1);
@@ -612,7 +658,7 @@
     return S.voicing === 4 ? [...iv, seventhOf(pc, q)] : iv;
   };
   const chordNotes = (pc, q) => intervals(pc, q).map(i => (pc + i) % 12);
-  const notesText = (pc, q) => chordNotes(pc, q).map(n => nota(n)).join(' ');
+  const notesText = (pc, q) => chordNotes(pc, q).map(n => nota(n, pc)).join(' ');
   // Voicing "de piano": inversión y octava que menos dedos mueven respecto del acorde anterior (Guía 1 día 8–9, Guía 2 4.6)
   const centerMidi = () => 48 + (S.kbKeys===37 ? 12 : 0) + 4;   // alrededor del mi central del registro elegido
   function voiceNear(pc, q, prev) {
@@ -633,7 +679,7 @@
   }
   const voicedSeq = (seq) => { let prev = null; return seq.map(c => { const v = S.piano.autoInv ? voiceNear(c.pc, c.q, prev) : { notes: intervals(c.pc,c.q).map(i=>48+(S.kbKeys===37?12:0)+c.pc+i), inv:0 }; prev = v.notes; return v; }); };
   const movedFingers = (prevNotes, notes) => notes.filter(m => !prevNotes.includes(m)).length;
-  const voicingText = v => v.notes.map(m => nota(m%12)).join(' ') + (v.inv ? ` (${v.inv}ª inv.)` : '');
+  const voicingText = (v, raiz) => v.notes.map(m => nota(m%12, raiz)).join(' ') + (v.inv ? ` (${v.inv}ª inv.)` : '');
   // Banco de progresiones de las guías (Am, teclas blancas) para reconocer «la vuelta madre» y compañía
   const BANK = [
     ['La vuelta madre', 'Am F C G'], ['Se hunde y vuelve', 'Am G F G'], ['Termina en sombra', 'Am F C Em'], ['La vuelta luminosa', 'C G Am F'],
@@ -699,6 +745,7 @@
     drums: { len:1, on:true, kit:'cr78', name:'', pat:{ kick:new Array(64).fill(0), snare:new Array(64).fill(0), hh:new Array(64).fill(0), oh:new Array(64).fill(0) } },
     swing: 0,
     piano: { autoInv:true, manera:3, lh:'none' },
+    letra: { titulo:'', secciones:[] },
     lead: { lh:'root13', rh:'melody', split:12, tool:'note', mel:new Array(128).fill(-1), acc:new Array(128).fill(0) },
     bassd: { own:false, bpm:72, bars:4, len:1, oct:0, tool:'note', grid:new Array(64).fill(-1), acc:new Array(64).fill(0), slide:new Array(64).fill(0), withDrums:true } };
   const bassBpm = () => S.mode==='bajod' && S.bassd.own ? S.bassd.bpm : S.bpm;
@@ -1512,7 +1559,7 @@
     Object.entries(LH).forEach(([k,t])=> lc.append(el('button',{class:'chip','aria-pressed':String(k===S.piano.lh), onclick:()=>{ S.piano.lh=k; renderPianoPanel(); }}, t)));
     $('autoInv').checked = S.piano.autoInv;
     const vs = voicedSeq(S.prog); let prev=null;
-    $('pianoVoicings').textContent = S.prog.length ? 'Voicings: ' + S.prog.map((c,i)=>{ const v=vs[i]; const mv = prev ? ` (mueve ${movedFingers(prev,v.notes)})` : ''; prev=v.notes; return `${chordLabel(c.pc,c.q)} = ${voicingText(v)}${mv}`; }).join('  ·  ') : 'Guarda acordes y aquí verás cómo se tocan con el mínimo movimiento de dedos.';
+    $('pianoVoicings').textContent = S.prog.length ? 'Voicings: ' + S.prog.map((c,i)=>{ const v=vs[i]; const mv = prev ? ` (mueve ${movedFingers(prev,v.notes)})` : ''; prev=v.notes; return `${chordLabel(c.pc,c.q)} = ${voicingText(v, c.pc)}${mv}`; }).join('  ·  ') : 'Guarda acordes y aquí verás cómo se tocan con el mínimo movimiento de dedos.';
   }
   $('autoInv').addEventListener('change', e=>{ S.piano.autoInv = e.target.checked; renderAll(); if (S.mode==='piano') renderPianoPanel(); });
 
@@ -1581,16 +1628,17 @@
   $('delLead').addEventListener('click', ()=>{ if ($('savedLeads').value==='') return; const list=store.get('rueda.leads'); list.splice(+$('savedLeads').value,1); store.set('rueda.leads',list); renderSaved('savedLeads','rueda.leads'); });
 
   // ───────── Modos ─────────
-  const MODE_HINT = { beat:'Programa o carga el beat; este tempo y estos compases quedan para el resto.', bajod:'Sólo para tocar y programar una línea; sin sugerencias de acordes.', pad:'Rueda, teclado, MIDI y progresión completa.', piano:'La rueda sugiere pensando en piano: pocos dedos que se mueven, inversiones y las maneras de la Guía 2.', lead:'Dos manos: la izquierda hace el bajo o el acorde, la derecha la melodía; se programa o se graba desde el MPK.' };
+  const MODE_HINT = { letra:'Escribe la letra por secciones y anota al lado los acordes de guitarra, con sus compases.', beat:'Programa o carga el beat; este tempo y estos compases quedan para el resto.', bajod:'Sólo para tocar y programar una línea; sin sugerencias de acordes.', pad:'Rueda, teclado, MIDI y progresión completa.', piano:'La rueda sugiere pensando en piano: pocos dedos que se mueven, inversiones y las maneras de la Guía 2.', lead:'Dos manos: la izquierda hace el bajo o el acorde, la derecha la melodía; se programa o se graba desde el MPK.' };
   function setMode(m) {
     if (typeof rec !== 'undefined' && rec) stopRec();
     S.mode = m; $('mode').value = m;
     S.inst = m==='bajod' ? 'bajod' : (m==='piano'||m==='lead') ? 'piano' : $('inst').value; if (m==='pad'||m==='piano') S.keysMode = m;
     if (m==='piano') renderPianoPanel();
     if (m==='lead') renderLead();
+    if (m==='letra') renderLetra();
     document.querySelectorAll('[data-modes]').forEach(n=> n.classList.toggle('off', !n.getAttribute('data-modes').split(' ').includes(m)));
-    document.querySelector('.grid').classList.toggle('two', m==='beat' || m==='bajod' || m==='lead');
-    document.body.classList.remove('mode-beat','mode-bajod','mode-pad','mode-piano','mode-lead'); document.body.classList.add('mode-'+m);
+    document.querySelector('.grid').classList.toggle('two', m==='beat' || m==='bajod' || m==='lead' || m==='letra');
+    document.body.classList.remove('mode-beat','mode-bajod','mode-pad','mode-piano','mode-lead','mode-letra'); document.body.classList.add('mode-'+m);
     window.scrollTo({ top: 0 });
     $('modeHint').textContent = MODE_HINT[m];
     if (m==='bajod') renderBassSeq();
@@ -1831,13 +1879,20 @@
     if (S.keysMode==='piano' || S.mode==='piano' || S.mode==='lead') {
       sp(); h('Piano · cómo se toca');
       const M = MANERAS[S.piano.manera]; p(`Manera ${S.piano.manera} · ${M.n}: ${M.hint} · Mano izquierda: ${LH[M.lh||S.piano.lh]} · Inversiones automáticas: ${S.piano.autoInv?'sí':'no'}`);
-      if (S.prog.length) { const vs=voicedSeq(S.prog); let prev=null; S.prog.forEach((c,i)=>{ const mv = prev ? ` · mueve ${movedFingers(prev,vs[i].notes)} dedo(s)` : ''; m(`${chordLabel(c.pc,c.q).padEnd(8)} ${voicingText(vs[i])}${mv}`); prev=vs[i].notes; }); }
+      if (S.prog.length) { const vs=voicedSeq(S.prog); let prev=null; S.prog.forEach((c,i)=>{ const mv = prev ? ` · mueve ${movedFingers(prev,vs[i].notes)} dedo(s)` : ''; m(`${chordLabel(c.pc,c.q).padEnd(8)} ${voicingText(vs[i], c.pc)}${mv}`); prev=vs[i].notes; }); }
       const bm = S.prog.length ? BANK.find(([n,pr])=>pr===S.prog.map(chordCode).join(' ')) : null; if (bm) p(`Esta vuelta está en el banco de las guías como «${bm[0]}».`);
     }
     if (S.lead.mel.some(r=>r>=0) || S.mode==='lead') {
       sp(); h('Piano lead');
       p(`Izquierda: ${({none:'nada',root13:'raíz en 1 y 3',block:'acorde en bloque',oct:'octavas',bumba:'bum-ba-di-da',broken:'acordes rotos'})[S.lead.lh]} · Derecha: ${({melody:'melodía',chord:'acorde con la manera',arp:'arpegio 1-3-5-8'})[S.lead.rh]} · división del teclado en la tecla ${S.lead.split+1} · escala ${keyName(S.key)}`);
       for (let b=0;b<leadBarsTotal();b++) { const cells=Array.from({length:8},(_,i)=>{ const r=S.lead.mel[b*8+i]; return r<0?'·':nota((leadBaseMidi()+r)%12)+(r>=12?'′':'')+(S.lead.acc[b*8+i]?'>':''); }); const c=chordAtBar(b); m(`compás ${b+1} (${c?chordLabel(c.pc,c.q):'—'}): ${cells.join(' ')}`); }
+    }
+    if (S.letra.secciones.some(x=>x.lineas.some(l=>l.t.trim()) || x.vuelta.length)) {
+      sp(); h('Letra y acordes' + (S.letra.titulo ? ' · ' + S.letra.titulo : ''));
+      S.letra.secciones.forEach(sec => {
+        p(sec.tipo.toUpperCase() + (sec.vuelta.length ? '   ' + sec.vuelta.map(a=>`${a.n||'?'} x${fmtLen(a.c)} comp.`).join('   ') : ''));
+        sec.lineas.forEach(l => { const t=(l.t||'').trim(), a=(l.a||'').trim(); if (t||a) m(a.padEnd(14) + t); });
+      });
     }
     sp(); h('Batería');
     p(`Sonido: ${({analog:'Analógica',cr78:'CR-78 minimalista','808':'TR-808',linn:'LinnDrum'})[S.drums.kit]||S.drums.kit} · patrón: ${S.drums.name||'propio'} · largo ${S.drums.len} compás(es) · 16 casillas por compás · ${S.bpm} bpm`);
@@ -1888,9 +1943,109 @@
     } catch (err) { $('midiFileInfo').textContent = 'No pude leer ese archivo: ' + err.message; }
   });
 
-  buildKeyboard(); buildWheel(); fillSelects(); renderAll(); renderBassSeq();
-  // Instrumento de entrada: ?modo=beat|bajod|pad|piano|lead (lo usa la portada para entrar directo a un paso)
-  const MODOS = ['beat','bajod','pad','piano','lead'];
+
+  // ───────── Letra y acordes ─────────
+  // Pensado para leer y tocar con la guitarra: la cifra va al lado del verso, y cada
+  // sección lleva su vuelta con los compases que dura cada acorde.
+  const TIPOS = ['intro','estrofa','pre-estribillo','estribillo','puente','solo','final'];
+  const seccionNueva = (tipo='estrofa') => ({ tipo, vuelta:[], lineas:[{t:'',a:''}] });
+  const compasesDe = sec => sec.vuelta.reduce((a,x)=>a+(+x.c||0), 0);
+
+  function letraResumen() {
+    const secs = S.letra.secciones;
+    if (!secs.length) { $('letraResumen').textContent = 'sin secciones todavía'; return; }
+    const comp = secs.reduce((a,x)=>a+compasesDe(x), 0);
+    const versos = secs.reduce((a,x)=>a+x.lineas.filter(l=>l.t.trim()).length, 0);
+    $('letraResumen').textContent = `${secs.length} sección(es) · ${versos} verso(s) · ${fmtLen(comp)} compás(es)`;
+  }
+
+  function renderLetra() {
+    if (!S.letra.secciones.length) S.letra.secciones.push(seccionNueva());
+    const cont = $('secciones'); cont.innerHTML = '';
+    $('letraTitulo').value = S.letra.titulo;
+
+    S.letra.secciones.forEach((sec, si) => {
+      const caja = el('div', {class:'seccion'});
+
+      const cab = el('div', {class:'sec-cab'});
+      const sel = el('select', {class:'sec-tipo', 'aria-label':'Tipo de sección', onchange:e=>{ sec.tipo = e.target.value; }});
+      TIPOS.forEach(t => sel.append(el('option', {value:t}, t)));
+      sel.value = sec.tipo;
+      cab.append(sel);
+      const btns = el('div', {class:'sec-btns'});
+      btns.append(el('button', {class:'tiny', title:'subir', onclick:()=>{ const a=S.letra.secciones; if (si>0) { [a[si-1],a[si]]=[a[si],a[si-1]]; renderLetra(); } }}, '↑'));
+      btns.append(el('button', {class:'tiny', title:'bajar', onclick:()=>{ const a=S.letra.secciones; if (si<a.length-1) { [a[si+1],a[si]]=[a[si],a[si+1]]; renderLetra(); } }}, '↓'));
+      btns.append(el('button', {class:'tiny', title:'quitar la sección', onclick:()=>{ S.letra.secciones.splice(si,1); renderLetra(); }}, '✕'));
+      cab.append(btns);
+      caja.append(cab);
+
+      const fila = el('div', {class:'vuelta'});
+      fila.append(el('span', {class:'lbl'}, 'Vuelta'));
+      sec.vuelta.forEach((ac, ai) => {
+        const chip = el('span', {class:'ac-chip'});
+        chip.append(el('input', {type:'text', class:'ac-nom', value:ac.n, placeholder:'Am', 'aria-label':'Acorde', autocomplete:'off', oninput:e=>{ ac.n = e.target.value; }}));
+        chip.append(el('span', {class:'ac-x'}, '×'));
+        chip.append(el('input', {type:'number', class:'ac-com', value:String(ac.c), min:'0.5', step:'0.5', 'aria-label':'Compases', oninput:e=>{ ac.c = +e.target.value || 0; letraResumen(); }}));
+        chip.append(el('span', {class:'ac-cp'}, 'comp.'));
+        chip.append(el('button', {class:'tiny', title:'quitar el acorde', onclick:()=>{ sec.vuelta.splice(ai,1); renderLetra(); }}, '✕'));
+        fila.append(chip);
+      });
+      fila.append(el('button', {class:'chip', onclick:()=>{ sec.vuelta.push({n:'', c:1}); renderLetra(); }}, '+ acorde'));
+      const traer = el('button', {class:'chip', onclick:()=>{ if (!S.prog.length) return; sec.vuelta = S.prog.map(c=>({n:chordLabel(c.pc,c.q), c:c.len})); renderLetra(); }}, 'traer de la rueda');
+      if (!S.prog.length) { traer.setAttribute('disabled',''); traer.title = 'Primero guarda acordes en la rueda'; }
+      fila.append(traer);
+      caja.append(fila);
+
+      const versos = el('div', {class:'versos'});
+      sec.lineas.forEach((ln, li) => {
+        const r = el('div', {class:'verso'});
+        r.append(el('input', {type:'text', class:'v-txt', value:ln.t, placeholder:'escribe el verso…', 'aria-label':'Verso', oninput:e=>{ ln.t = e.target.value; letraResumen(); }}));
+        r.append(el('input', {type:'text', class:'v-ac', value:ln.a, placeholder:'Am  F', 'aria-label':'Acordes de este verso', autocomplete:'off', oninput:e=>{ ln.a = e.target.value; }}));
+        r.append(el('button', {class:'tiny', title:'quitar el verso', onclick:()=>{ sec.lineas.splice(li,1); if (!sec.lineas.length) sec.lineas.push({t:'',a:''}); renderLetra(); }}, '✕'));
+        versos.append(r);
+      });
+      versos.append(el('button', {class:'chip', onclick:()=>{ sec.lineas.push({t:'',a:''}); renderLetra(); }}, '+ verso'));
+      caja.append(versos);
+
+      cont.append(caja);
+    });
+    letraResumen();
+  }
+
+  const letraTexto = () => {
+    const out = [S.letra.titulo || 'Sin título'];
+    S.letra.secciones.forEach(sec => {
+      out.push('');
+      out.push('[' + sec.tipo.toUpperCase() + ']' + (sec.vuelta.length ? '  ' + sec.vuelta.map(a=>`${a.n||'?'} x${fmtLen(a.c)}`).join('  ') : ''));
+      sec.lineas.forEach(l => { const t=(l.t||'').trim(), a=(l.a||'').trim(); if (t||a) out.push(a.padEnd(14) + t); });
+    });
+    return out.join('\n');
+  };
+
+  function letraLines() {
+    const L = [];
+    L.push({text: S.letra.titulo || 'Sin título', size:20, font:'F2', gap:2});
+    L.push({text:`${new Date().toLocaleDateString('es-CL')} · ${S.bpm} bpm · tonalidad ${keyName(S.key)}`, size:9, gap:10});
+    if (!S.letra.secciones.some(x=>x.lineas.some(l=>l.t.trim()) || x.vuelta.length)) L.push({text:'(todavía no hay nada escrito)', size:10});
+    S.letra.secciones.forEach(sec => {
+      L.push({text: sec.tipo.toUpperCase() + (sec.vuelta.length ? '   ' + sec.vuelta.map(a=>`${a.n||'?'} x${fmtLen(a.c)} comp.`).join('   ') : ''), size:11, font:'F2', gap:3});
+      sec.lineas.forEach(l => { const t=(l.t||'').trim(), a=(l.a||'').trim(); if (t||a) L.push({text: a.padEnd(14) + t, size:10, font:'F3'}); });
+      L.push({text:'', size:7});
+    });
+    return L;
+  }
+
+  $('letraTitulo').addEventListener('input', e=>{ S.letra.titulo = e.target.value; });
+  $('addSeccion').addEventListener('click', ()=>{ S.letra.secciones.push(seccionNueva()); renderLetra(); });
+  $('saveLetra').addEventListener('click', ()=>{ const name=$('letraName').value.trim() || S.letra.titulo.trim() || ('letra '+new Date().toLocaleDateString()); const list=store.get('rueda.letras'); list.push({name, letra: JSON.parse(JSON.stringify(S.letra))}); store.set('rueda.letras', list); renderSaved('savedLetras','rueda.letras'); $('letraName').value=''; });
+  $('savedLetras').addEventListener('change', e=>{ const it=store.get('rueda.letras')[+e.target.value]; if (!it) return; S.letra = it.letra; renderLetra(); });
+  $('delLetra').addEventListener('click', ()=>{ const v=$('savedLetras').value; if (v==='') return; const list=store.get('rueda.letras'); list.splice(+v,1); store.set('rueda.letras', list); renderSaved('savedLetras','rueda.letras'); });
+  $('expLetraPdf').addEventListener('click', ()=>deliver(`denavilab-letra-${stamp()}.pdf`, makePdf(letraLines()), 'application/pdf'));
+  $('copyLetra').addEventListener('click', async ()=>{ const b=$('copyLetra'); try { await navigator.clipboard.writeText(letraTexto()); b.textContent='Copiado'; } catch(e) { b.textContent='No se pudo copiar'; } setTimeout(()=>b.textContent='Copiar como texto', 1400); });
+
+  buildKeyboard(); buildWheel(); fillSelects(); renderAll(); renderBassSeq(); renderSaved('savedLetras','rueda.letras'); renderLetra();
+  // Instrumento de entrada: ?modo=beat|bajod|pad|piano|lead|letra (lo usa la portada para entrar directo a un paso)
+  const MODOS = ['beat','bajod','pad','piano','lead','letra'];
   const pedido = new URLSearchParams(location.search).get('modo');
   setMode(MODOS.includes(pedido) ? pedido : 'beat');
 })();

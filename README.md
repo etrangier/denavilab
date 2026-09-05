@@ -9,6 +9,8 @@ Sitio: https://denavilab.neocities.org
   entró: la de Schair (sin teclado, termina en guitarra y letra) o la de Rolando (con MPK).
   Se elige con `data-para` en el marcado y `data-quien` en `<html>`, que fija el guardián.
 - `app.html` — el taller entero, en un único archivo autónomo. Pide sesión.
+  Modos: `beat`, `bajod`, `pad`, `piano`, `lead` y `letra` (letra y acordes de guitarra,
+  por secciones, con los compases que dura cada acorde; sale en PDF y en texto).
 - `estilo.css`, `acceso.js` — compartidos por la portada y la guía. `app.html` no los usa:
   lleva todo dentro para que la función de descargar la página siga funcionando.
 
