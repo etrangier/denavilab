@@ -168,3 +168,10 @@ html[data-quien="rolando"] li[data-para~="rolando"] { display: list-item; }
 .arch-notas { font-size: 12.5px; color: var(--muted); }
 .arch-meta { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
 @media (max-width: 700px) { .archivo { grid-template-columns: auto minmax(0,1fr); } .arch-meta { grid-column: 2; } }
+
+/* ── Quién es quién ── */
+.integrantes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 22px; margin: 0 0 22px; }
+.integrante { display: grid; gap: 3px; align-content: start; }
+.integrante .nom { font-family: var(--display); font-weight: 700; font-size: 15.5px; }
+.integrante .hace { color: var(--muted); font-size: 13.5px; max-width: 42ch; }
+@media (max-width: 700px) { .integrantes { grid-template-columns: 1fr; gap: 14px; } }
