@@ -2,6 +2,18 @@
 <html lang="es">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="rueda-standalone" content="1"><meta name="description" content="DenaviLAB: maquetea beats, bajo y acordes con el Akai MPK mini desde cualquier sitio.">
 <title>DenaviLAB</title>
+<script>
+(() => {
+  // Puerta del taller. Sólo se aplica cuando la página se sirve por web: el archivo
+  // descargado (file://) sigue abriéndose solo, que es como se usa el MIDI sin conexión.
+  if (!/^https?:$/.test(location.protocol)) return;
+  const VALIDOS = ['rolando', 'schair'];
+  let quien = null;
+  try { quien = localStorage.getItem('denavilab.sesion'); } catch (e) {}
+  if (!VALIDOS.includes(quien)) location.replace('index.html');
+})();
+</script>
+
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
   :root {
