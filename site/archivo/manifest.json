@@ -1,0 +1,4 @@
+{
+  "_comentario": "Índice del archivo compartido. Cada archivo .mid o .pdf que se suba a site/archivo/ se anota aquí y aparece en archivo.html. Los campos son: nombre (cómo se lee en la página), archivo (el nombre real dentro de site/archivo/), tipo ('midi' o 'pdf'), fecha (AAAA-MM-DD), de (quién lo subió) y notas (una línea de contexto).",
+  "archivos": []
+}
