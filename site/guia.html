@@ -6,12 +6,13 @@
 <title>DenaviLAB · trabajo guiado</title>
 <script>
 (() => {
-  // Puerta: sin sesión, de vuelta a la portada. Va aquí arriba y sin defer para que no
-  // alcance a dibujarse nada antes de rebotar.
+  // Puerta + quién entró. Va aquí arriba y sin defer: rebota antes de dibujar nada, y deja
+  // marcado en <html> a quién le toca la ruta, para que no parpadee la del otro.
   const VALIDOS = ['rolando', 'schair'];
   let quien = null;
   try { quien = localStorage.getItem('denavilab.sesion'); } catch (e) {}
   if (!VALIDOS.includes(quien)) location.replace('index.html');
+  else document.documentElement.dataset.quien = quien;
 })();
 </script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -22,7 +23,96 @@
 
   <a class="volver" href="index.html">&larr; DenaviLAB</a>
 
-  <section>
+  <!-- ═══════════ Ruta de Schair ═══════════ -->
+  <section data-para="schair">
+    <p class="quien">Ruta de Schair</p>
+    <h2>Trabajo guiado</h2>
+    <p class="intro">Armar la maqueta sin tocar un teclado: todo con el ratón, dibujando en casillas. La idea es dejar la base sonando —batería, acordes, bajo— para después ponerle guitarra y letra encima, y mandarlo todo a Logic.</p>
+
+    <div class="steps">
+
+      <details class="step">
+        <summary>
+          <span class="num"></span>
+          <span class="ti">El pulso</span>
+          <span class="chev"></span>
+          <span class="why">Una batería recta, de las de siempre. Es la cuadrícula sobre la que cae todo lo demás.</span>
+        </summary>
+        <div class="body">
+          <p>Un <b>compás</b> son cuatro tiempos: cuentas «uno-dos-tres-cuatro» y empieza otro. Cada tiempo se parte en cuatro casillas. Haz clic en una casilla para poner o quitar un golpe. No hace falta teclado para nada de esto.</p>
+          <p>El patrón de rock de toda la vida: <b>bombo</b> en el 1 y el 3, <b>caja</b> en el 2 y el 4, <b>hi-hat</b> en cada corchea. Para que suene a banda y no a máquina, elige el kit <b>LinnDrum</b> —es el más seco y con más pegada de los tres—.</p>
+          <p class="tip"><b>Consejo:</b> pon primero sólo el bombo y déjalo dando vueltas hasta que te aburra. Recién ahí mete la caja. Cambia una cosa a la vez.</p>
+          <p class="aviso"><b>Ojo con el tempo:</b> el tempo llega hasta 150. Para rock clásico va sobrado, pero un tema rápido de Green Day anda por 170–180 y ahí no alcanza. Si lo necesitas, dímelo y subimos el tope.</p>
+          <a class="btn" href="app.html?modo=beat">Ir a la batería</a>
+        </div>
+      </details>
+
+      <details class="step">
+        <summary>
+          <span class="num"></span>
+          <span class="ti">Los acordes</span>
+          <span class="chev"></span>
+          <span class="why">Cuatro acordes dando vueltas. De aquí sale lo que después cantas y tocas en la guitarra.</span>
+        </summary>
+        <div class="body">
+          <p>La rueda te propone a dónde ir. Haz clic en un acorde para escucharlo y <b>Guardar</b> cuando te guste; con cuatro ya tienes una vuelta. La cuña violeta son los acordes que viven en la misma tonalidad: entre ellos siempre suenan bien.</p>
+          <p>Un acorde aquí se nombra por su nota de abajo: «Lam» es <i>la do mi</i>, «Fa» es <i>fa la do</i>. La <b>m</b> es menor; sin letra es mayor. Es el mismo Am, F, C, G que usas en la guitarra, escrito en español.</p>
+          <p class="aviso"><b>Ojo con las bandas de referencia:</b> las que hay —Portishead, Massive Attack, Depeche Mode…— son todas de un mundo bastante lejos del tuyo. La que más se te acerca es <b>New Order</b>: mayor, luminosa, se mueve en I–IV–V, que es la cocina del rock clásico y del punk melódico. Empieza por ahí. Si quieres, te armo un perfil de banda de verdad para lo que escuchas.</p>
+          <p class="tip"><b>Consejo:</b> pasa el cursor por cualquier acorde de la rueda y verás sus teclas en miniatura antes de tocarlo.</p>
+          <a class="btn" href="app.html?modo=pad">Ir a la rueda</a>
+        </div>
+      </details>
+
+      <details class="step">
+        <summary>
+          <span class="num"></span>
+          <span class="ti">El bajo</span>
+          <span class="chev"></span>
+          <span class="why">Una nota por acorde, pegada al bombo. Con eso la base ya camina sola.</span>
+        </summary>
+        <div class="body">
+          <p>Para maquetar, el bajo es <b>una nota por acorde</b>: la que le da el nombre. Para Lam, <i>la</i>; para Fa, <i>fa</i>. Va en el tiempo 1, junto con el bombo.</p>
+          <p>No lo escribas a mano: pulsa <b>«Generar desde los acordes»</b> y lo saca solo de la vuelta que guardaste en el paso anterior. Por eso este paso va después y no antes. Luego muévelo, ponle acentos, o alarga notas juntando casillas iguales.</p>
+          <p class="tip"><b>Consejo:</b> cuando ya suene, prueba tocarlo en el 1 y el 3 en vez de sólo en el 1. Es lo que hace que un bajo de rock empuje en vez de acompañar.</p>
+          <a class="btn" href="app.html?modo=bajod">Ir al bajo</a>
+        </div>
+      </details>
+
+      <details class="step pendiente">
+        <summary>
+          <span class="num"></span>
+          <span class="ti">La guitarra y la letra <span class="marca">por construir</span></span>
+          <span class="chev"></span>
+          <span class="why">Escribir la letra y poner los acordes encima, como en un cancionero.</span>
+        </summary>
+        <div class="body">
+          <p>Aquí va a ir lo tuyo: una hoja donde escribes <b>la letra</b> y colocas <b>los acordes de guitarra encima</b>, en cifrado normal (Am, C, G, D), alineados con la sílaba donde entra cada cambio. Los acordes saldrían ya propuestos desde la vuelta del paso 2, y podrías corregirlos a mano.</p>
+          <p>La idea es que esa hoja viaje con la maqueta: que se exporte junto al MIDI y salga también en el PDF, para llevarla al ensayo o para cantar encima mientras suena la base.</p>
+          <p class="aviso"><b>Todavía no está construido.</b> Es la siguiente pieza que hay que hacer, y por eso este paso no tiene botón. Cuando lo hablemos, defínelo tú: si quieres el diagrama de cada acorde en el mástil, si la letra va por secciones (verso, coro, puente), y si necesitas que el acorde suene al pulsarlo.</p>
+        </div>
+      </details>
+
+      <details class="step">
+        <summary>
+          <span class="num"></span>
+          <span class="ti">A Logic</span>
+          <span class="chev"></span>
+          <span class="why">Exportas el MIDI, lo arrastras a la sesión y ahí se graba la guitarra y la voz de verdad.</span>
+        </summary>
+        <div class="body">
+          <p>En el panel de la izquierda, <b>Exportar</b>. «MIDI · todas las pistas» te da un archivo con batería, bajo y acordes por separado. Arrástralo a la sesión y cámbiale los instrumentos por los buenos.</p>
+          <p>Lo de aquí es una maqueta: sirve para no perder la idea y para tener una base sobre la cual cantar y grabar. Los sonidos definitivos van en el DAW.</p>
+          <p class="tip"><b>Consejo:</b> saca también el <b>PDF</b>. Trae los acordes, el tempo y las notas de cada pista, y es lo más rápido para pasarle la idea a alguien.</p>
+          <a class="btn" href="app.html">Abrir el taller</a>
+        </div>
+      </details>
+
+    </div>
+  </section>
+
+  <!-- ═══════════ Ruta de Rolando ═══════════ -->
+  <section data-para="rolando">
+    <p class="quien">Ruta de Rolando</p>
     <h2>Trabajo guiado</h2>
     <p class="intro">El orden en que suele armarse una maqueta. Abre cada paso para ver qué hacer; el botón te deja en el instrumento correcto. Puedes saltarte los que quieras.</p>
 
@@ -106,11 +196,13 @@
     </div>
   </section>
 
+  <!-- ═══════════ Común a los dos ═══════════ -->
   <section>
     <h2>Antes de empezar</h2>
     <div class="needs">
       <ul>
-        <li><b>El teclado.</b> Un Akai MPK mini de 25 o 37 teclas, por USB. Las teclas tocan notas, los pads hacen la batería, los knobs y la rueda de pitch se pueden asignar. Sin teclado también funciona: se toca con el ratón.</li>
+        <li data-para="rolando"><b>El teclado.</b> Un Akai MPK mini de 25 o 37 teclas, por USB. Las teclas tocan notas, los pads hacen la batería, los knobs y la rueda de pitch se pueden asignar. Sin teclado también funciona: se toca con el ratón.</li>
+        <li data-para="schair"><b>No necesitas teclado.</b> Todo se puede hacer con el ratón: las casillas de la batería y del bajo se pintan a clic, y los acordes se eligen en la rueda. Si algún día conectas el MPK mini por USB, funciona; pero no hace falta.</li>
         <li><b>El navegador.</b> Para que el MIDI y las descargas funcionen, ábrelo en <b>Opera, Chrome o Edge</b>. Safari no soporta Web MIDI.</li>
         <li><b>Dónde se guarda.</b> Beats, líneas de bajo, progresiones y melodías quedan en este navegador, en este computador. No hay cuenta ni nube: si cambias de máquina, no viajan.</li>
         <li><b>La notación.</b> Las notas van en español y en minúscula —<i>do re mi</i>—, y el asterisco es una tecla negra: <code>fa*</code> es la negra a la derecha de fa.</li>

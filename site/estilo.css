@@ -111,3 +111,22 @@ dialog .error { color: var(--err); font-size: 13px; min-height: 1.2em; margin: -
   .step .chev { display: none; }
   .step .body { margin-left: 16px; }
 }
+
+/* ── Rutas personalizadas: sólo se ve la del que entró ── */
+[data-para] { display: none; }
+html[data-quien="schair"]  [data-para~="schair"],
+html[data-quien="rolando"] [data-para~="rolando"] { display: block; }
+/* los <li> deben recuperar su viñeta, no volverse bloque */
+html[data-quien="schair"]  li[data-para~="schair"],
+html[data-quien="rolando"] li[data-para~="rolando"] { display: list-item; }
+
+.quien { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px; }
+
+/* ── Paso todavía no construido ── */
+.step.pendiente { border-style: dashed; }
+.step.pendiente .num { background: transparent; border: 1px dashed var(--muted); color: var(--muted); }
+.step.pendiente .ti { color: var(--muted); }
+.step.pendiente .marca { font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; margin-left: 8px; white-space: nowrap; }
+.aviso { border-left: 3px solid var(--accent); padding-left: 10px; color: var(--muted); font-size: 13.5px; }
+.aviso b { color: var(--accent); }
