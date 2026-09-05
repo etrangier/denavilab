@@ -359,6 +359,10 @@
         <button class="ghost" id="expMidiOne">MIDI · sólo esta pista</button>
         <button class="ghost" id="expMidiAll">MIDI · todas las pistas</button>
         <button class="ghost" id="expPdf">PDF · notas y ficha técnica</button>
+        <span class="lbl" style="margin-top:6px">La maqueta entera, en un archivo</span>
+        <button class="ghost" id="expProyecto">Guardar la maqueta (.denavi)</button>
+        <label class="ghost" for="impProyecto" style="display:block; text-align:center; border-radius:6px; padding:8px 12px; border:1px solid var(--line); cursor:pointer">Abrir una maqueta guardada</label>
+        <input type="file" id="impProyecto" accept=".denavi,.json" hidden>
         <div class="hint" id="expInfo">El MIDI se abre en Logic (arrastra el archivo a la sesión). Dentro de claude.ai la descarga .mid puede estar bloqueada; en ese caso usa «Abrir en una pestaña aparte» o la página descargada.</div>
       </div>
     </section>
@@ -732,14 +736,25 @@
       'Rock clásico': { bpm:[110,150,128], sello:'I–IV–V de manual, con el bVII prestado que le da el aire setentero.', pref:'major',
         M: { I:{IV:35,V:30,bVII:20,vi:15}, IV:{I:40,V:30,bVII:20,vi:10}, V:{I:50,IV:30,vi:20}, vi:{I:35,IV:35,V:30}, ii:{V:45,IV:30,I:25}, iii:{IV:50,vi:50}, 'vii°':{I:100}, bVII:{IV:45,I:45,bVI:10}, bVI:{bVII:60,I:40}, iv:{I:100}, bIII:{bVII:50,IV:50} },
         m: { i:{VII:30,VI:25,iv:25,III:20}, VII:{VI:40,i:35,III:25}, VI:{VII:40,i:30,III:30}, III:{VII:40,VI:35,i:25}, iv:{i:45,III:30,VII:25}, v:{i:55,iv:45}, V:{i:70,VI:30}, bII:{i:100}, 'ii°':{V:60,i:40}, IV:{i:50,VII:50} } },
+      'La Ley': { bpm:[90,135,112], sello:'Rock chileno de los noventa: menor con aire, y estribillos que se abren al mayor.', pref:'minor',
+        m: { i:{VI:30,iv:25,VII:20,III:15,V:10}, VI:{iv:35,VII:35,III:30}, VII:{i:45,VI:30,III:25}, III:{VI:40,VII:30,iv:30}, iv:{i:40,V:25,VI:20,VII:15}, v:{i:55,iv:45}, V:{i:70,VI:30}, bII:{i:100}, 'ii°':{V:60,i:40}, IV:{i:50,V:50} },
+        M: { I:{vi:30,IV:30,V:25,ii:15}, IV:{V:35,I:35,vi:30}, V:{I:45,vi:35,IV:20}, vi:{IV:40,V:30,I:30}, ii:{V:50,IV:30,I:20}, iii:{vi:45,IV:35,ii:20}, 'vii°':{I:100}, bVII:{IV:50,I:50}, bVI:{bVII:60,I:40}, iv:{I:70,vi:30}, bIII:{bVII:50,IV:50} } },
+    },
+    'Anime': {
       'Anime · J-pop': { bpm:[130,175,155], sello:'La vuelta IV–V–iii–vi, que es la firma del opening: sube, se emociona y cae en el relativo menor.', pref:'major',
         M: { I:{IV:30,vi:25,ii:20,iii:15,V:10}, IV:{V:40,iii:20,ii:20,I:20}, V:{I:40,iii:30,vi:30}, vi:{ii:30,IV:30,V:25,I:15}, ii:{V:50,iii:25,I:25}, iii:{vi:45,IV:30,ii:25}, 'vii°':{I:60,iii:40}, bVII:{I:50,IV:50}, bVI:{bVII:60,I:40}, iv:{I:60,vi:40}, bIII:{IV:50,bVII:50} },
         m: { i:{VI:30,III:25,iv:20,VII:15,V:10}, VI:{iv:35,VII:35,III:30}, VII:{III:40,i:35,VI:25}, III:{VI:40,VII:30,iv:30}, iv:{V:35,i:35,VI:30}, v:{i:60,VI:40}, V:{i:60,VI:40}, bII:{i:100}, 'ii°':{V:60,i:40}, IV:{V:50,i:50} } },
+      'Balada de anime': { bpm:[60,95,78], sello:'Lenta y sentida: la vuelta sube por IV–V y cae en el menor; el ii–V aparece en cada respiro.', pref:'major',
+        M: { I:{vi:30,IV:25,iii:20,ii:15,V:10}, IV:{V:40,iii:25,ii:20,I:15}, V:{I:40,iii:30,vi:30}, vi:{IV:30,ii:30,V:25,I:15}, ii:{V:50,iii:25,I:25}, iii:{vi:50,IV:30,ii:20}, 'vii°':{I:60,iii:40}, bVII:{I:50,IV:50}, bVI:{bVII:50,I:50}, iv:{I:60,vi:40}, bIII:{IV:50,bVII:50} },
+        m: { i:{VI:30,iv:25,III:20,VII:15,V:10}, VI:{iv:35,VII:35,III:30}, VII:{III:40,i:35,VI:25}, III:{VI:45,iv:30,VII:25}, iv:{V:35,i:35,VI:30}, v:{i:60,iv:40}, V:{i:65,VI:35}, bII:{i:100}, 'ii°':{V:65,i:35}, IV:{V:50,i:50} } },
     },
     'Bedroom pop': {
       'Mac DeMarco': { bpm:[80,110,96], sello:'Mayor relajado: I – IV – iii, con el ii y el vi entrando de lado.', pref:'major',
         M: { I:{IV:35,iii:20,ii:20,vi:15,V:10}, IV:{I:40,iii:20,V:20,bVII:20}, iii:{IV:40,vi:35,ii:25}, ii:{V:45,I:30,iii:25}, vi:{ii:35,IV:35,I:30}, V:{I:50,IV:25,vi:25}, 'vii°':{I:60,iii:40}, bVII:{IV:50,I:50}, bVI:{I:50,bVII:50}, iv:{I:70,vi:30}, bIII:{IV:100} },
         m: { i:{iv:30,VI:25,III:25,VII:20}, iv:{i:40,VII:30,VI:30}, VI:{III:40,VII:30,i:30}, III:{VI:40,iv:30,i:30}, VII:{i:50,III:30,VI:20}, v:{i:60,VI:40}, V:{i:100}, bII:{i:100}, 'ii°':{V:100}, IV:{i:50,VI:50} } },
+      'boy pablo': { bpm:[100,135,118], sello:'Indie luminoso de guitarra: I–V–vi–IV con el ii entrando de lado y todo muy arriba.', pref:'major',
+        M: { I:{IV:30,V:25,vi:25,ii:20}, IV:{I:35,V:30,vi:20,ii:15}, V:{vi:35,I:35,IV:30}, vi:{IV:35,ii:25,V:20,I:20}, ii:{V:45,IV:30,I:25}, iii:{vi:40,IV:35,ii:25}, 'vii°':{I:100}, bVII:{IV:50,I:50}, bVI:{bVII:60,I:40}, iv:{I:70,vi:30}, bIII:{IV:50,bVII:50} },
+        m: { i:{VI:30,III:25,VII:25,iv:20}, VI:{VII:35,III:35,iv:30}, VII:{i:45,III:30,VI:25}, III:{VI:40,VII:35,iv:25}, iv:{i:45,VI:30,VII:25}, v:{i:60,VI:40}, V:{i:65,VI:35}, bII:{i:100}, 'ii°':{V:60,i:40}, IV:{i:50,VII:50} } },
       'Talk Talk': { bpm:[70,100,84], sello:'Dos acordes que respiran: I – IV o i – iv, y silencio como parte del acorde.', pref:'major',
         M: { I:{IV:40,ii:20,vi:20,bVII:20}, IV:{I:55,ii:25,vi:20}, ii:{IV:40,I:40,V:20}, vi:{IV:40,I:35,ii:25}, bVII:{IV:50,I:50}, V:{I:60,IV:40}, iii:{IV:60,vi:40}, 'vii°':{I:100}, bVI:{bVII:50,I:50}, iv:{I:100}, bIII:{IV:100} },
         m: { i:{iv:30,VI:25,VII:25,III:20}, iv:{i:50,VI:25,VII:25}, VI:{i:40,VII:30,iv:30}, VII:{i:50,VI:25,iv:25}, III:{iv:40,VI:30,i:30}, v:{i:100}, V:{i:100}, bII:{i:100}, 'ii°':{i:100}, IV:{i:60,VII:40} } },
@@ -1207,6 +1222,9 @@
     'Rock · hi-hat abierto al final': { kick:[0,8], snare:[4,12], hh:[0,2,4,6,8,10,12], oh:[14] },
     'Anime · marcha alegre': { kick:[0,6,8], snare:[4,12], hh:[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15], oh:[] },
     'Balada · medio tiempo': { kick:[0,10], snare:[8], hh:[0,2,4,6,8,10,12,14], oh:[] },
+    'boy pablo · indie liviano': { kick:[0,8,11], snare:[4,12], hh:[0,2,4,6,8,10,12,14], oh:[14] },
+    'La Ley · rock noventero': { kick:[0,7,8], snare:[4,12], hh:[0,2,4,6,8,10,12,14], oh:[] },
+    'Balada de anime · lenta y abierta': { kick:[0,10], snare:[4,12], hh:[0,4,8,12], oh:[14] },
     'Vacío': { kick:[], snare:[], hh:[], oh:[] },
   };
   // Cada quien ve las suyas. «ambos» es lo que sirve a los dos.
@@ -1218,6 +1236,7 @@
     'Green Day · punk directo':'schair', 'Punk rápido · a todo tren':'schair',
     'Rock clásico · el de siempre':'schair', 'Rock · hi-hat abierto al final':'schair',
     'Anime · marcha alegre':'schair', 'Balada · medio tiempo':'schair',
+    'boy pablo · indie liviano':'ambos', 'La Ley · rock noventero':'ambos', 'Balada de anime · lenta y abierta':'ambos',
   };
   const presetsMios = () => Object.keys(PRESETS).filter(k => { const q = PRESET_PARA[k]; return !q || q === 'ambos' || q === S.quien; });
 
@@ -1952,6 +1971,52 @@
     p('En Logic: arrastra el .mid a la sesión; cada pista llega como región propia y ahí eliges los sonidos definitivos.');
     return L;
   }
+  // ───────── La maqueta entera en un archivo ─────────
+  // Un .denavi es JSON: lleva el proyecto completo, no sólo una pista. Sirve para
+  // pasárselo al otro por donde sea y para tener biblioteca fuera del navegador.
+  const FORMATO = 1;
+  function proyectoActual() {
+    return { formato:FORMATO, app:'DenaviLAB', guardado:new Date().toISOString(), por:S.quien,
+      titulo: S.letra.titulo || '',
+      musica: { genre:S.genre, band:S.band, bpm:S.bpm, bars:S.bars, key:S.key, root:S.root, qual:S.qual,
+                voicing:S.voicing, defLen:S.defLen, kbKeys:S.kbKeys, notacion:S.notacion, swing:S.swing },
+      prog: S.prog, drums: S.drums, bassd: S.bassd, lead: S.lead, piano: S.piano, letra: S.letra };
+  }
+  $('expProyecto').addEventListener('click', ()=>{
+    const nombre = (S.letra.titulo || 'maqueta').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'maqueta';
+    deliver(`${nombre}-${stamp()}.denavi`, JSON.stringify(proyectoActual(), null, 1), 'application/json');
+  });
+  $('impProyecto').addEventListener('change', async e => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    try {
+      const d = JSON.parse(await f.text());
+      if (d.app !== 'DenaviLAB' || !d.musica) throw new Error('no parece una maqueta de DenaviLAB');
+      if (d.formato > FORMATO) throw new Error('viene de una versión más nueva de la app');
+      // Primero género y banda, porque applyBand() vacía la progresión y pisa el tempo
+      // con el de la banda. Todo lo guardado se aplica encima, después.
+      S.genre = d.musica.genre; $('genre').value = S.genre;
+      fillBands();
+      if (GENRES[S.genre] && GENRES[S.genre][d.musica.band]) { S.band = d.musica.band; $('band').value = S.band; applyBand(); }
+      Object.assign(S, d.musica);
+      S.prog = (d.prog || []).map(c => ({...c}));
+      if (d.drums) S.drums = d.drums;
+      if (d.bassd) S.bassd = d.bassd;
+      if (d.lead)  S.lead  = d.lead;
+      if (d.piano) S.piano = d.piano;
+      if (d.letra) S.letra = d.letra;
+      S.cand = null;
+      $('bpm').value = S.bpm; $('bpmVal').textContent = S.bpm; $('bpmRange').textContent = `${S.band}: ${band().bpm[0]}–${band().bpm[1]} bpm`;
+      $('root').value = S.root; $('qual').value = S.qual;
+      $('drumKit').value = KITS[S.drums.kit] ? S.drums.kit : 'cr78';
+      $('swing').value = S.swing || 0; $('swingVal').textContent = (S.swing||0) + '%';
+      buildKeyboard(); buildWheel(); renderAll(); renderSeq(); renderBassSeq(); llenarProgsDeLetra(); renderLetra();
+      $('expInfo').textContent = `Abierta «${f.name}»` + (d.por ? ` · la guardó ${d.por}` : '') + (d.guardado ? ` el ${new Date(d.guardado).toLocaleDateString('es-CL')}` : '') + '.';
+    } catch (err) {
+      $('expInfo').textContent = 'No pude abrir ese archivo: ' + (err.message || err);
+    }
+    e.target.value = '';
+  });
+
   $('expPdf').addEventListener('click', ()=>deliver(`rueda-ficha-${stamp()}.pdf`, makePdf(projectLines()), 'application/pdf'));
 
   // ───────── Importar beat desde archivo MIDI (formato SMF 0/1) ─────────

@@ -32,6 +32,16 @@ Ojo: el workflow usa `cleanup: false`, así que un archivo borrado de `site/` si
 ## Abrir en local
 Doble clic en `site/app.html` con Opera, Chrome o Edge (MIDI y descargas funcionan directo). Safari no soporta Web MIDI.
 
+## El formato .denavi
+
+`Exportar → Guardar la maqueta` baja un `.denavi`: JSON con el proyecto entero (progresión,
+batería, bajo, melodía, letra, tempo, tonalidad, banda). `Abrir una maqueta guardada` lo
+restaura. Lleva `formato` para poder versionarlo; abrir uno más nuevo se rechaza.
+
+Al importar, el orden importa: primero se aplican género y banda (porque `applyBand()`
+vacía la progresión y fija el tempo de la banda) y sólo después se escribe encima lo
+guardado.
+
 ## La puerta del taller
 
 La portada (`index.html`) es de acceso libre. Los enlaces al taller piden nombre y clave;
