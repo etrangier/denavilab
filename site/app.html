@@ -204,6 +204,7 @@
   .right { display: grid; gap: 14px; }
   .grid.two { grid-template-columns: 250px minmax(0,1fr); }
   [data-modes].off { display: none !important; }
+  body:not([data-quien="rolando"]) [data-solo="rolando"] { display: none !important; }
   .saved { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
   .saved input[type=file] { font-size: 12px; color: var(--muted); }
   .bass-seq .rl { text-align: right; }
@@ -349,7 +350,7 @@
         <div class="chips" id="lenChips"></div>
         <div class="hint">Para cambiar uno en particular, usa − y + en su casilla de la progresión.</div>
       </div>
-      <div class="field" data-modes="pad piano">
+      <div class="field" data-modes="pad piano" data-solo="rolando">
         <span class="lbl">Atajo</span>
         <button class="ghost" id="preset26">Mi base «26 ag impro» · 77 BPM · Am F C G</button>
       </div>
@@ -579,6 +580,7 @@
             <div class="chips" id="drumLenChips"></div>
           </div>
         </div>
+        <div class="tipbox" id="beatConsejo"></div>
         <div class="seq-scroll"><div class="seq" id="seq"></div></div>
         <div class="actions">
           <button class="primary" id="playDrums">▶ Sólo batería</button>
@@ -745,7 +747,7 @@
   };
 
   // ───────── Estado ─────────
-  const S = { notacion: (() => { try { return localStorage.getItem('denavilab.notacion') === 'en' ? 'en' : 'es'; } catch (e) { return 'es'; } })(), genre:'Trip hop', band:'Portishead', bpm:72, inst:'pad', root:5, qual:'M', key:{tonic:9, mode:'m'}, bars:4, defLen:1, loop:true, prog:[], cand:null, keysMode:'pad', hover:null, playing:-1, voicing:3, kbKeys:37,
+  const S = { quien: (() => { try { const q = localStorage.getItem('denavilab.sesion'); return q === 'rolando' || q === 'schair' ? q : 'rolando'; } catch (e) { return 'rolando'; } })(), notacion: (() => { try { return localStorage.getItem('denavilab.notacion') === 'en' ? 'en' : 'es'; } catch (e) { return 'es'; } })(), genre:'Trip hop', band:'Portishead', bpm:72, inst:'pad', root:5, qual:'M', key:{tonic:9, mode:'m'}, bars:4, defLen:1, loop:true, prog:[], cand:null, keysMode:'pad', hover:null, playing:-1, voicing:3, kbKeys:37,
     mode:'beat',
     drums: { len:1, on:true, kit:'cr78', name:'', pat:{ kick:new Array(64).fill(0), snare:new Array(64).fill(0), hh:new Array(64).fill(0), oh:new Array(64).fill(0) } },
     swing: 0,
@@ -1207,11 +1209,50 @@
     'Balada · medio tiempo': { kick:[0,10], snare:[8], hh:[0,2,4,6,8,10,12,14], oh:[] },
     'Vacío': { kick:[], snare:[], hh:[], oh:[] },
   };
+  // Cada quien ve las suyas. «ambos» es lo que sirve a los dos.
+  const PRESET_PARA = {
+    'Mi base «26 ag impro» (trip hop)':'rolando', 'Portishead · lento y con aire':'rolando',
+    'Massive Attack · break pesado':'rolando', 'Pet Shop Boys · four on the floor':'rolando',
+    'Depeche Mode · máquina seca':'rolando', 'New Order · disco con hi-hat abierto':'rolando',
+    'Mac DeMarco · batería de garaje':'ambos', 'Talk Talk · casi nada':'ambos', 'Vacío':'ambos',
+    'Green Day · punk directo':'schair', 'Punk rápido · a todo tren':'schair',
+    'Rock clásico · el de siempre':'schair', 'Rock · hi-hat abierto al final':'schair',
+    'Anime · marcha alegre':'schair', 'Balada · medio tiempo':'schair',
+  };
+  const presetsMios = () => Object.keys(PRESETS).filter(k => { const q = PRESET_PARA[k]; return !q || q === 'ambos' || q === S.quien; });
+
   function loadPreset(name) {
     const p = PRESETS[name]; const len = S.drums.len;
     ROWS.forEach(([id])=>{ const arr = new Array(64).fill(0); for (let b=0;b<len;b++) p[id].forEach(s=>arr[b*16+s]=1); S.drums.pat[id]=arr; });
     S.drums.name = name; renderSeq();
   }
+  // Un consejo que va cambiando a medida que se arma el beat. No es un tutorial aparte:
+  // mira lo que hay puesto en la rejilla y dice lo siguiente que suele tocar hacer.
+  const VOZ = {
+    rolando: { vacio:'Para trip hop, el bombo no tiene por qué ir en el 1 y el 3: prueba dos golpes juntos y uno tarde, y deja el resto en silencio.',
+               lleno:'Ya suena. Ahora quita la mitad de los hi-hats: en este mundo el aire vale más que el relleno.' },
+    schair:  { vacio:'Para rock, empieza clásico: bombo en el 1 y en el 3. Marca sólo esos dos y escúchalo dar vueltas.',
+               lleno:'Ya está de pie. Prueba mover un golpe de bombo media casilla adelante: eso es lo que separa el punk del metrónomo.' },
+  };
+  function consejoBeat() {
+    const caja = $('beatConsejo'); if (!caja) return;
+    const n = S.drums.len * 16;
+    const cuenta = id => S.drums.pat[id].slice(0, n).filter(Boolean).length;
+    const k = cuenta('kick'), c = cuenta('snare'), h = cuenta('hh') + cuenta('oh');
+    const voz = VOZ[S.quien] || VOZ.rolando;
+    let t;
+    if (!k && !c && !h) t = '<b>Empieza por el bombo.</b> ' + voz.vacio;
+    else if (k && !c && !h) t = '<b>Ya tienes el suelo.</b> Ahora la caja: en el 2 y en el 4, que son la primera casilla del segundo y del cuarto tiempo. Con eso ya hay batería.';
+    else if (!k && c) t = '<b>Te falta el suelo.</b> La caja sola no sostiene nada: pon el bombo antes de seguir.';
+    else if (!k && !c && h) t = '<b>Eso es el reloj, no la batería.</b> El hi-hat marca el tiempo, pero quien manda son el bombo y la caja. Ponlos primero.';
+    else if (k && c && !h) t = '<b>Ya se sostiene.</b> Si quieres que corra, pon el hi-hat en cada corchea: las casillas 1, 3, 5, 7… de cada tiempo.';
+    // «lleno» de verdad: bombo y caja apretados, o todo junto pasado de vueltas. Un hi-hat
+    // en cada semicorchea no es exceso, así que no cuenta igual que un golpe de bombo.
+    else if (k + c > n * 0.5 || k + c + h > n * 1.6) t = '<b>Está muy lleno.</b> ' + voz.lleno;
+    else t = '<b>Ya tienes un beat.</b> Déjalo dando vueltas un rato largo antes de tocarlo más. Si a las diez vueltas no te aburre, está bueno; si te aburre, quita un golpe en vez de añadir dos.';
+    caja.innerHTML = t;
+  }
+
   function renderSeq() {
     const steps = S.drums.len*16; const box = $('seq'); box.innerHTML=''; box.style.setProperty('--steps', steps);
     box.append(el('div',{class:'rl'},''));
@@ -1220,11 +1261,12 @@
       box.append(el('div',{class:'rl'}, label));
       for (let s=0;s<steps;s++) {
         const b = el('button',{class:'st'+(s%4===0?' beat':'')+(s%16===0&&s>0?' bar2':'')+(S.drums.pat[id][s]?' on':''), 'data-s':s, 'data-r':id, 'aria-label':`${label} casilla ${s+1}`, 'aria-pressed':String(!!S.drums.pat[id][s]),
-          onclick:()=>{ S.drums.pat[id][s] = S.drums.pat[id][s]?0:1; b.classList.toggle('on'); b.setAttribute('aria-pressed', String(!!S.drums.pat[id][s])); if (S.drums.pat[id][s]) { ensureAudio(); unlockAudio(); DRUM[id](ctx.currentTime+0.03); } }});
+          onclick:()=>{ S.drums.pat[id][s] = S.drums.pat[id][s]?0:1; b.classList.toggle('on'); consejoBeat(); b.setAttribute('aria-pressed', String(!!S.drums.pat[id][s])); if (S.drums.pat[id][s]) { ensureAudio(); unlockAudio(); DRUM[id](ctx.currentTime+0.03); } }});
         box.append(b);
       }
     });
     $('drumBpm').textContent = S.bpm;
+    consejoBeat();
     const lc = $('drumLenChips'); lc.innerHTML='';
     [1,2,4].forEach(n=> lc.append(el('button',{class:'chip','aria-pressed':String(n===S.drums.len), onclick:()=>{ if (n>S.drums.len) ROWS.forEach(([id])=>{ const old=S.drums.len*16; for (let s=old;s<n*16;s++) S.drums.pat[id][s]=S.drums.pat[id][s%old]; }); S.drums.len=n; renderSeq(); }}, n===1?'1 compás':n+' compases')));
     const dn = $('drumsNow'); if (dn) dn.textContent = S.drums.name || 'patrón propio';
@@ -1376,9 +1418,9 @@
   $('drumsOn2').addEventListener('change', e=>{ S.drums.on = e.target.checked; $('drumsOn').checked = e.target.checked; });
   $('drumKit').addEventListener('change', e=>{ S.drums.kit = e.target.value; });
   $('clearDrums').addEventListener('click', ()=>loadPreset('Vacío'));
-  Object.keys(PRESETS).forEach(k=>$('drumPreset').append(el('option',{value:k},k)));
+  presetsMios().forEach(k=>$('drumPreset').append(el('option',{value:k},k)));
   $('drumPreset').addEventListener('change', e=>loadPreset(e.target.value));
-  loadPreset(Object.keys(PRESETS)[0]);
+  $('drumPreset').value = 'Vacío'; loadPreset('Vacío');   // se empieza con el patrón en blanco
   $('copy').addEventListener('click', async ()=>{ try { await navigator.clipboard.writeText($('summary').textContent); $('copy').textContent='Copiado'; setTimeout(()=>$('copy').textContent='Copiar',1200); } catch(e) { $('copy').textContent='No se pudo copiar'; } });
   $('preset26').addEventListener('click', ()=>{
     S.genre='Trip hop'; S.band='Portishead'; $('genre').value=S.genre; fillBands();
@@ -2059,6 +2101,7 @@
   $('expLetraPdf').addEventListener('click', ()=>deliver(`denavilab-letra-${stamp()}.pdf`, makePdf(letraLines()), 'application/pdf'));
   $('copyLetra').addEventListener('click', async ()=>{ const b=$('copyLetra'); try { await navigator.clipboard.writeText(letraTexto()); b.textContent='Copiado'; } catch(e) { b.textContent='No se pudo copiar'; } setTimeout(()=>b.textContent='Copiar como texto', 1400); });
 
+  document.body.dataset.quien = S.quien;
   buildKeyboard(); buildWheel(); fillSelects(); renderAll(); renderBassSeq(); renderSaved('savedLetras','rueda.letras'); llenarProgsDeLetra(); renderLetra();
   // Instrumento de entrada: ?modo=beat|bajod|pad|piano|lead|letra (lo usa la portada para entrar directo a un paso)
   const MODOS = ['beat','bajod','pad','piano','lead','letra'];
