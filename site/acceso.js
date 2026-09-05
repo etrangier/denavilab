@@ -31,7 +31,7 @@
       salir.addEventListener('click', () => { try { localStorage.removeItem(CLAVE_SESION); } catch (e) {} pintarSesion(); });
       sesionEl.append(salir);
     } else {
-      sesionEl.innerHTML = '<span class="candado">&#128274;</span> Las dos secciones piden nombre y clave.';
+      sesionEl.innerHTML = '<span class="candado">&#128274;</span> La portada es libre; el resto pide nombre y clave.';
     }
   }
 

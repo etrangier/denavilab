@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DenaviLAB · archivo</title>
+<script>
+(() => {
+  const VALIDOS = ['rolando', 'schair'];
+  let quien = null;
+  try { quien = localStorage.getItem('denavilab.sesion'); } catch (e) {}
+  if (!VALIDOS.includes(quien)) location.replace('index.html');
+  else document.documentElement.dataset.quien = quien;
+})();
+</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+<div class="wrap">
+
+  <a class="volver" href="index.html">&larr; DenaviLAB</a>
+
+  <section>
+    <h2>Nuestro material</h2>
+    <p class="intro">Lo que hay guardado, en dos sitios distintos: lo de este computador y lo que compartimos los dos. No es lo mismo, y conviene saber cuál es cuál.</p>
+  </section>
+
+  <section>
+    <h2>En este navegador</h2>
+    <p class="intro">Los proyectos que has guardado tú, en esta máquina. Desde cualquiera de ellos puedes volver al taller y exportar el MIDI o el PDF cuando quieras.</p>
+    <div id="local"></div>
+    <p class="aviso"><b>Sólo viven aquí.</b> No viajan a la otra máquina ni a otro navegador, y se pierden si borras los datos del sitio. Para que algo llegue al otro, exporta el archivo y súbelo al archivo compartido de abajo.</p>
+  </section>
+
+  <section>
+    <h2>Archivo compartido</h2>
+    <p class="intro">Los <code>.mid</code> y <code>.pdf</code> que están publicados en el sitio: estos sí los vemos los dos, desde donde sea.</p>
+    <div id="compartido"><p class="hint">Cargando…</p></div>
+  </section>
+
+  <footer>
+    <span>DenaviLAB &middot; Denavi, Concepción</span>
+    <span class="sesion" id="sesion"></span>
+  </footer>
+
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const el = (t, a = {}, ...k) => { const n = document.createElement(t); for (const [x, v] of Object.entries(a)) { if (x === 'class') n.className = v; else n.setAttribute(x, v); } k.forEach(c => n.append(c)); return n; };
+
+  const COLECCIONES = [
+    { clave:'rueda.progs',  titulo:'Progresiones', modo:'pad',   pie:'vueltas de acordes guardadas en la rueda' },
+    { clave:'rueda.beats',  titulo:'Beats',        modo:'beat',  pie:'patrones de batería' },
+    { clave:'rueda.bass',   titulo:'Líneas de bajo', modo:'bajod', pie:'bajo programado' },
+    { clave:'rueda.leads',  titulo:'Melodías',     modo:'lead',  pie:'piano lead, dos manos y melodía' },
+    { clave:'rueda.letras', titulo:'Letras',       modo:'letra', pie:'letra por secciones con sus acordes' },
+  ];
+
+  const leer = clave => { try { return JSON.parse(localStorage.getItem(clave) || '[]'); } catch (e) { return []; } };
+
+  function pintarLocal() {
+    const cont = $('local'); cont.innerHTML = '';
+    let total = 0;
+    COLECCIONES.forEach(col => {
+      const items = leer(col.clave); total += items.length;
+      const caja = el('div', {class:'coleccion'});
+      const cab = el('div', {class:'col-cab'});
+      cab.append(el('span', {class:'col-ti'}, col.titulo));
+      cab.append(el('span', {class:'col-n'}, items.length ? items.length + ' guardada(s)' : 'ninguna todavía'));
+      caja.append(cab);
+      caja.append(el('p', {class:'col-pie'}, col.pie));
+      if (items.length) {
+        const lista = el('div', {class:'col-items'});
+        items.forEach(it => lista.append(el('span', {class:'item'}, it.name || '(sin nombre)')));
+        caja.append(lista);
+      }
+      const a = el('a', {class:'btn ghost', href:'app.html?modo=' + col.modo}, items.length ? 'Abrir en el taller' : 'Empezar una');
+      caja.append(a);
+      cont.append(caja);
+    });
+    if (!total) cont.prepend(el('p', {class:'hint'}, 'Todavía no has guardado nada en este navegador.'));
+  }
+
+  async function pintarCompartido() {
+    const cont = $('compartido');
+    let datos = null;
+    try {
+      const r = await fetch('archivo/manifest.json', {cache:'no-store'});
+      if (!r.ok) throw new Error(r.status);
+      datos = await r.json();
+    } catch (e) {
+      cont.innerHTML = '';
+      cont.append(el('p', {class:'aviso'}, 'No pude leer el índice del archivo compartido. Si abriste esta página con doble clic desde el disco, es normal: necesita estar servida por web.'));
+      return;
+    }
+    const archivos = (datos && datos.archivos) || [];
+    cont.innerHTML = '';
+    if (!archivos.length) {
+      cont.append(el('p', {class:'hint'}, 'Todavía no hay nada subido.'));
+      const c = el('div', {class:'needs'});
+      const ul = el('ul');
+      ul.append(el('li', {}, 'Neocities no guarda archivos por su cuenta: lo compartido es lo que está en el repositorio.'));
+      ul.append(el('li', {}, 'Para subir uno, copia el .mid o el .pdf a site/archivo/, anótalo en archivo/manifest.json y haz push a main.'));
+      ul.append(el('li', {}, 'Las instrucciones completas están en site/archivo/LEEME.md.'));
+      c.append(ul); cont.append(c);
+      return;
+    }
+    const lista = el('div', {class:'archivos'});
+    archivos.forEach(f => {
+      const fila = el('a', {class:'archivo', href:'archivo/' + f.archivo, download:''});
+      fila.append(el('span', {class:'arch-tipo'}, (f.tipo || '').toUpperCase()));
+      const med = el('span', {class:'arch-med'});
+      med.append(el('span', {class:'arch-nom'}, f.nombre || f.archivo));
+      if (f.notas) med.append(el('span', {class:'arch-notas'}, f.notas));
+      fila.append(med);
+      fila.append(el('span', {class:'arch-meta'}, [f.de, f.fecha].filter(Boolean).join(' · ')));
+      lista.append(fila);
+    });
+    cont.append(lista);
+  }
+
+  pintarLocal();
+  pintarCompartido();
+})();
+</script>
+<script src="acceso.js" defer></script>
+</body>
+</html>

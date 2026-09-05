@@ -35,7 +35,7 @@ h1 { font-family: var(--display); font-weight: 700; font-size: clamp(32px, 7vw, 
 .oye a:hover, .oye a:focus-visible { border-color: var(--accent); color: var(--accent); }
 
 /* ── Las dos puertas ── */
-.doors { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 0 0 14px; }
+.doors { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin: 0 0 14px; }
 .door { display: grid; gap: 6px; align-content: start; text-decoration: none; color: var(--text);
         background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 22px; box-shadow: var(--shadow); transition: border-color .15s, transform .15s; }
 .door:hover, .door:focus-visible { border-color: var(--accent); transform: translateY(-2px); }
@@ -149,3 +149,22 @@ html[data-quien="rolando"] li[data-para~="rolando"] { display: list-item; }
 .lecciones { display: grid; gap: 9px; }
 .fuente { color: var(--muted); font-size: 12.5px; font-style: italic; margin: 0 0 16px; }
 @media (max-width: 700px) { .leccion > summary { grid-template-columns: auto 1fr; } }
+
+/* ── Archivo ── */
+.coleccion { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 8px; justify-items: start; margin-bottom: 10px; }
+.col-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; width: 100%; }
+.col-ti { font-family: var(--display); font-weight: 700; font-size: 17px; }
+.col-n { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.col-pie { margin: 0; color: var(--muted); font-size: 13px; }
+.col-items { display: flex; flex-wrap: wrap; gap: 6px; }
+.col-items .item { font-family: var(--mono); font-size: 11.5px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+.archivos { display: grid; gap: 8px; }
+.archivo { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 12px; align-items: center; text-decoration: none; color: var(--text);
+           background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; transition: border-color .15s; }
+.archivo:hover, .archivo:focus-visible { border-color: var(--accent); }
+.arch-tipo { font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--accent-ink); background: var(--accent); border-radius: 4px; padding: 3px 7px; }
+.arch-med { display: grid; gap: 2px; min-width: 0; }
+.arch-nom { font-weight: 600; }
+.arch-notas { font-size: 12.5px; color: var(--muted); }
+.arch-meta { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+@media (max-width: 700px) { .archivo { grid-template-columns: auto minmax(0,1fr); } .arch-meta { grid-column: 2; } }

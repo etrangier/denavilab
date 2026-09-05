@@ -11,7 +11,11 @@ Sitio: https://denavilab.neocities.org
 - `app.html` — el taller entero, en un único archivo autónomo. Pide sesión.
   Modos: `beat`, `bajod`, `pad`, `piano`, `lead` y `letra` (letra y acordes de guitarra,
   por secciones, con los compases que dura cada acorde; sale en PDF y en texto).
-- `estilo.css`, `acceso.js` — compartidos por la portada y la guía. `app.html` no los usa:
+- `archivo.html` — el archivo. Pide sesión. Lista los proyectos guardados en ese
+  navegador (localStorage) y los `.mid` / `.pdf` publicados en `site/archivo/`.
+- `archivo/` — el archivo compartido: los ficheros y su `manifest.json`. Ver
+  `site/archivo/LEEME.md` para cómo se sube uno.
+- `estilo.css`, `acceso.js` — compartidos por la portada, la guía y el archivo. `app.html` no los usa:
   lleva todo dentro para que la función de descargar la página siga funcionando.
 
 La guía enlaza a la app con `?modo=beat|bajod|pad|piano|lead` para entrar directo a un

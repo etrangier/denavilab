@@ -471,6 +471,11 @@
           <span class="lbl">Título</span>
           <input type="text" id="letraTitulo" placeholder="sin título" autocomplete="off">
         </div>
+        <div class="field">
+          <span class="lbl">Partir de un proyecto guardado</span>
+          <div class="row"><select id="letraDesdeProg" aria-label="Progresión guardada"></select><button class="ghost" id="cargarProg" style="flex:0 0 auto">Traer sus acordes</button></div>
+          <div class="hint" id="cargarProgInfo">Toma la vuelta y el tempo de una progresión que ya hayas guardado; después «traer de la rueda» la copia a la sección que quieras.</div>
+        </div>
         <div id="secciones"></div>
         <div class="actions">
           <button class="ghost" id="addSeccion">+ Añadir sección</button>
@@ -1635,7 +1640,7 @@
     S.inst = m==='bajod' ? 'bajod' : (m==='piano'||m==='lead') ? 'piano' : $('inst').value; if (m==='pad'||m==='piano') S.keysMode = m;
     if (m==='piano') renderPianoPanel();
     if (m==='lead') renderLead();
-    if (m==='letra') renderLetra();
+    if (m==='letra') { llenarProgsDeLetra(); renderLetra(); }
     document.querySelectorAll('[data-modes]').forEach(n=> n.classList.toggle('off', !n.getAttribute('data-modes').split(' ').includes(m)));
     document.querySelector('.grid').classList.toggle('two', m==='beat' || m==='bajod' || m==='lead' || m==='letra');
     document.body.classList.remove('mode-beat','mode-bajod','mode-pad','mode-piano','mode-lead','mode-letra'); document.body.classList.add('mode-'+m);
@@ -2037,13 +2042,24 @@
 
   $('letraTitulo').addEventListener('input', e=>{ S.letra.titulo = e.target.value; });
   $('addSeccion').addEventListener('click', ()=>{ S.letra.secciones.push(seccionNueva()); renderLetra(); });
+  function llenarProgsDeLetra() { const sel=$('letraDesdeProg'); sel.innerHTML=''; const list=store.get('rueda.progs'); sel.append(el('option',{value:''}, list.length ? '— elegir —' : '— no hay progresiones guardadas —')); list.forEach((it,i)=>sel.append(el('option',{value:i}, it.name))); }
+  $('cargarProg').addEventListener('click', ()=>{
+    const v=$('letraDesdeProg').value; if (v==='') return;
+    const it=store.get('rueda.progs')[+v]; if (!it) return;
+    S.prog = it.prog.map(c=>({...c})); S.cand=null;
+    if (it.bpm) { S.bpm=it.bpm; $('bpm').value=it.bpm; $('bpmVal').textContent=it.bpm; }
+    if (it.key) S.key = it.key;
+    if (!S.letra.titulo) { S.letra.titulo = it.name; }
+    renderLetra();
+    $('cargarProgInfo').textContent = `Traída «${it.name}»: ${S.prog.map(c=>chordLabel(c.pc,c.q)).join(' – ')}. Ahora pulsa «traer de la rueda» en la sección que quieras.`;
+  });
   $('saveLetra').addEventListener('click', ()=>{ const name=$('letraName').value.trim() || S.letra.titulo.trim() || ('letra '+new Date().toLocaleDateString()); const list=store.get('rueda.letras'); list.push({name, letra: JSON.parse(JSON.stringify(S.letra))}); store.set('rueda.letras', list); renderSaved('savedLetras','rueda.letras'); $('letraName').value=''; });
   $('savedLetras').addEventListener('change', e=>{ const it=store.get('rueda.letras')[+e.target.value]; if (!it) return; S.letra = it.letra; renderLetra(); });
   $('delLetra').addEventListener('click', ()=>{ const v=$('savedLetras').value; if (v==='') return; const list=store.get('rueda.letras'); list.splice(+v,1); store.set('rueda.letras', list); renderSaved('savedLetras','rueda.letras'); });
   $('expLetraPdf').addEventListener('click', ()=>deliver(`denavilab-letra-${stamp()}.pdf`, makePdf(letraLines()), 'application/pdf'));
   $('copyLetra').addEventListener('click', async ()=>{ const b=$('copyLetra'); try { await navigator.clipboard.writeText(letraTexto()); b.textContent='Copiado'; } catch(e) { b.textContent='No se pudo copiar'; } setTimeout(()=>b.textContent='Copiar como texto', 1400); });
 
-  buildKeyboard(); buildWheel(); fillSelects(); renderAll(); renderBassSeq(); renderSaved('savedLetras','rueda.letras'); renderLetra();
+  buildKeyboard(); buildWheel(); fillSelects(); renderAll(); renderBassSeq(); renderSaved('savedLetras','rueda.letras'); llenarProgsDeLetra(); renderLetra();
   // Instrumento de entrada: ?modo=beat|bajod|pad|piano|lead|letra (lo usa la portada para entrar directo a un paso)
   const MODOS = ['beat','bajod','pad','piano','lead','letra'];
   const pedido = new URLSearchParams(location.search).get('modo');
