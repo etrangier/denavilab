@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DenaviLAB · trabajo guiado</title>
+<script>
+(() => {
+  // Puerta: sin sesión, de vuelta a la portada. Va aquí arriba y sin defer para que no
+  // alcance a dibujarse nada antes de rebotar.
+  const VALIDOS = ['rolando', 'schair'];
+  let quien = null;
+  try { quien = localStorage.getItem('denavilab.sesion'); } catch (e) {}
+  if (!VALIDOS.includes(quien)) location.replace('index.html');
+})();
+</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+<div class="wrap">
+
+  <a class="volver" href="index.html">&larr; DenaviLAB</a>
+
+  <section>
+    <h2>Trabajo guiado</h2>
+    <p class="intro">El orden en que suele armarse una maqueta. Abre cada paso para ver qué hacer; el botón te deja en el instrumento correcto. Puedes saltarte los que quieras.</p>
+
+    <div class="steps">
+
+      <details class="step">
+        <summary>
+          <span class="num"></span>
+          <span class="ti">El pulso</span>
+          <span class="chev"></span>
+          <span class="why">La batería primero: es la cuadrícula sobre la que cae todo lo demás.</span>
+        </summary>
+        <div class="body">
+          <p>Un <b>compás</b> son cuatro tiempos: cuentas «uno-dos-tres-cuatro» y empieza otro. Cada tiempo se parte en cuatro casillas. Haz clic en una casilla para poner o quitar un golpe.</p>
+          <p>El patrón más usado de la historia, por si no sabes por dónde empezar: <b>bombo</b> en el 1 y el 3, <b>caja</b> en el 2 y el 4, <b>hi-hat</b> en cada corchea. Elige un kit —el CR-78 es el más minimalista— y ajusta el tempo.</p>
+          <p class="tip"><b>Consejo:</b> graba una cosa a la vez. Primero el bombo, escúchalo dando vueltas, y recién entonces la caja.</p>
+          <a class="btn" href="app.html?modo=beat">Ir a la batería</a>
+        </div>
+      </details>
+
+      <details class="step">
+        <summary>
+          <span class="num"></span>
+          <span class="ti">La vuelta de acordes</span>
+          <span class="chev"></span>
+          <span class="why">Cuatro acordes que dan vueltas: de ahí sale el color de la canción.</span>
+        </summary>
+        <div class="body">
+          <p>Elige una <b>banda de referencia</b> —Portishead, Massive Attack, Mac DeMarco…— y la rueda se pinta: verde es a dónde suele ir esa banda desde donde estás, y el porcentaje es cuán seguido. Sin color no está prohibido; es terreno para improvisar.</p>
+          <p>Haz clic en un acorde para probarlo, y <b>Guardar</b> cuando te guste. Con cuatro ya tienes una vuelta. La cuña violeta son los acordes que viven en tu tonalidad y siempre suenan bien juntos.</p>
+          <p class="tip"><b>Consejo:</b> pasa el cursor por cualquier acorde de la rueda y verás sus teclas en miniatura, antes de tocarlo.</p>
+          <a class="btn" href="app.html?modo=pad">Ir a la rueda</a>
+        </div>
+      </details>
+
+      <details class="step">
+        <summary>
+          <span class="num"></span>
+          <span class="ti">El bajo</span>
+          <span class="chev"></span>
+          <span class="why">Una nota por acorde, en el 1, junto con el bombo. Con eso ya camina.</span>
+        </summary>
+        <div class="body">
+          <p>Para maquetar, el bajo es <b>una tecla por acorde</b>: la que le da el nombre. Para Lam, <i>la</i>; para Fa, <i>fa</i>. Va en el tiempo 1, pegada al bombo.</p>
+          <p>No hace falta escribirlo a mano: <b>«Generar desde los acordes»</b> lo saca solo de la vuelta que guardaste en el paso anterior. Después muévelo, ponle acentos o alarga notas juntando casillas iguales.</p>
+          <p class="tip"><b>Consejo:</b> cuando te salga, prueba tocarlo en el 1 y el 3, o subir una octava en el último compás. Es el truco más barato para que una vuelta no aburra.</p>
+          <a class="btn" href="app.html?modo=bajod">Ir al bajo</a>
+        </div>
+      </details>
+
+      <details class="step">
+        <summary>
+          <span class="num"></span>
+          <span class="ti">La melodía</span>
+          <span class="chev"></span>
+          <span class="why">Opcional. Dos manos sobre la vuelta, y una línea que se te quede pegada.</span>
+        </summary>
+        <div class="body">
+          <p>En <b>Piano lead</b> el teclado se parte en dos: la mano izquierda hace el acorde en la zona grave, la derecha busca la melodía arriba. Cada casilla es una corchea.</p>
+          <p>Los colores te dicen dónde pisar: <b>verde</b> son notas del acorde de ese compás (suenan seguro), <b>amarillo</b> notas de la escala (suenan bien), gris es fuera de la tonalidad.</p>
+          <p class="tip"><b>Consejo:</b> en el MPK, <code>SHIFT + SCALES</code> hace que sólo suenen las teclas de la escala. Buscar la melodía se vuelve mucho más fácil.</p>
+          <a class="btn" href="app.html?modo=lead">Ir al piano lead</a>
+        </div>
+      </details>
+
+      <details class="step">
+        <summary>
+          <span class="num"></span>
+          <span class="ti">A Logic</span>
+          <span class="chev"></span>
+          <span class="why">Exportas el MIDI, lo arrastras a la sesión y ahí empieza el trabajo de verdad.</span>
+        </summary>
+        <div class="body">
+          <p>En el panel de la izquierda, <b>Exportar</b>. «MIDI · todas las pistas» te da un archivo con batería, bajo y acordes separados. Arrástralo a la sesión de Logic y asigna los instrumentos buenos.</p>
+          <p>También puedes sacar un <b>PDF</b> con la ficha técnica: los acordes, el tempo y las notas de cada pista, para tenerlo en papel o mandárselo a alguien.</p>
+          <p class="tip"><b>Ojo:</b> la descarga <code>.mid</code> necesita Opera, Chrome o Edge. Si algo se bloquea, usa «Abrir en una pestaña aparte» y exporta desde ahí.</p>
+          <a class="btn" href="app.html">Abrir el taller</a>
+        </div>
+      </details>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>Antes de empezar</h2>
+    <div class="needs">
+      <ul>
+        <li><b>El teclado.</b> Un Akai MPK mini de 25 o 37 teclas, por USB. Las teclas tocan notas, los pads hacen la batería, los knobs y la rueda de pitch se pueden asignar. Sin teclado también funciona: se toca con el ratón.</li>
+        <li><b>El navegador.</b> Para que el MIDI y las descargas funcionen, ábrelo en <b>Opera, Chrome o Edge</b>. Safari no soporta Web MIDI.</li>
+        <li><b>Dónde se guarda.</b> Beats, líneas de bajo, progresiones y melodías quedan en este navegador, en este computador. No hay cuenta ni nube: si cambias de máquina, no viajan.</li>
+        <li><b>La notación.</b> Las notas van en español y en minúscula —<i>do re mi</i>—, y el asterisco es una tecla negra: <code>fa*</code> es la negra a la derecha de fa.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    <span>DenaviLAB &middot; Denavi, Concepción</span>
+    <span class="sesion" id="sesion"></span>
+  </footer>
+
+</div>
+
+<script src="acceso.js" defer></script>
+</body>
+</html>

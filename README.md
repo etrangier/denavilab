@@ -4,10 +4,14 @@ Maqueta beats, bajo digital y acordes (pad / piano / piano lead) con el Akai MPK
 Sitio: https://denavilab.neocities.org
 
 ## Qué hay en `site/`
-- `index.html` — la portada: qué es el proyecto y las dos puertas de entrada (ruta guiada o directo al taller).
-- `app.html` — la app entera, en un único archivo autónomo.
+- `index.html` — la portada: DenaviLAB, quiénes son Denavi, y las dos puertas. Acceso libre.
+- `guia.html` — el trabajo guiado: los cinco pasos y la preparación. Pide sesión.
+- `app.html` — el taller entero, en un único archivo autónomo. Pide sesión.
+- `estilo.css`, `acceso.js` — compartidos por la portada y la guía. `app.html` no los usa:
+  lleva todo dentro para que la función de descargar la página siga funcionando.
 
-La portada enlaza a la app con `?modo=beat|bajod|pad|piano|lead` para entrar directo a un instrumento. Si el parámetro falta o no es válido, arranca en `beat`.
+La guía enlaza a la app con `?modo=beat|bajod|pad|piano|lead` para entrar directo a un
+instrumento. Si el parámetro falta o no es válido, arranca en `beat`.
 
 ## Cómo se actualiza
 1. Edita lo que toque en `site/`.

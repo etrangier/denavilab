@@ -3,287 +3,40 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="DenaviLAB: el taller de maquetas de Denavi, banda de Concepción. Batería, bajo, pad y piano con el Akai MPK mini, exportable a MIDI.">
+<meta name="description" content="DenaviLAB · el taller de maqueteo de Denavi, banda de Concepción.">
 <title>DenaviLAB</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<style>
-  :root {
-    --bg: #14131b; --surface: #1d1b26; --surface-2: #26232f; --line: #322e3f;
-    --text: #ede9f3; --muted: #9b95ab;
-    --accent: #e8a94a; --accent-ink: #1a1207; --accent-soft: rgba(232,169,74,.18);
-    --ok: #6fbf9a; --err: #ff8a8a;
-    --shadow: 0 10px 30px rgba(0,0,0,.35);
-    --display: "Bricolage Grotesque", "Avenir Next", "Helvetica Neue", sans-serif;
-    --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
-    --mono: "IBM Plex Mono", "SF Mono", Menlo, monospace;
-  }
-  @media (prefers-color-scheme: light) {
-    :root:not([data-theme="dark"]) {
-      --bg: #f3f1ed; --surface: #ffffff; --surface-2: #f7f5f1; --line: #dcd8d0;
-      --text: #1e1b28; --muted: #6d6879;
-      --accent: #b8731a; --accent-ink: #fff; --accent-soft: rgba(184,115,26,.16);
-      --ok: #2f8f63; --err: #b3261e;
-      --shadow: 0 10px 30px rgba(40,30,10,.10);
-    }
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--body); font-size: 15px; line-height: 1.5; }
-  .wrap { max-width: 880px; margin: 0 auto; padding: 40px 20px 64px; }
-
-  /* Portada */
-  header { display: grid; gap: 14px; padding-bottom: 28px; }
-  .mark { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-  h1 { font-family: var(--display); font-weight: 700; font-size: clamp(32px, 7vw, 46px); letter-spacing: -.02em; margin: 0; }
-  .mark .who { font-family: var(--mono); font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 3px 10px; }
-  .lede { font-size: 17px; max-width: 60ch; margin: 0; text-wrap: pretty; }
-  .lede b { color: var(--accent); font-weight: 600; }
-  .sub { color: var(--muted); max-width: 62ch; margin: 0; }
-
-  /* Quiénes somos */
-  .banda { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; display: grid; gap: 14px; margin-bottom: 32px; }
-  .banda h2 { margin: 0; }
-  .banda p { margin: 0; max-width: 66ch; }
-  .banda .quienes { display: flex; flex-wrap: wrap; gap: 8px 10px; }
-  .banda .quienes span { font-family: var(--mono); font-size: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; }
-  .oye { display: flex; flex-wrap: wrap; gap: 10px; }
-  .oye a { text-decoration: none; font-family: var(--mono); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase;
-           color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 7px 13px; transition: border-color .15s, color .15s; }
-  .oye a:hover, .oye a:focus-visible { border-color: var(--accent); color: var(--accent); }
-
-  /* Las dos puertas */
-  .doors { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 0 0 14px; }
-  .door { display: grid; gap: 6px; align-content: start; text-decoration: none; color: var(--text);
-          background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; box-shadow: var(--shadow); transition: border-color .15s, transform .15s; }
-  .door:hover, .door:focus-visible { border-color: var(--accent); transform: translateY(-2px); }
-  .door:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-  .door.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-  .door .t { font-family: var(--display); font-weight: 700; font-size: 21px; }
-  .door .d { font-size: 13.5px; color: var(--muted); }
-  .door.primary .d { color: var(--accent-ink); opacity: .85; }
-  .door .go { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; margin-top: 6px; }
-
-  /* Estado de la sesión */
-  .sesion { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin: 0 0 34px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .sesion .candado { color: var(--accent); }
-  .sesion button { font: inherit; background: none; border: none; border-bottom: 1px solid var(--line); color: var(--text); cursor: pointer; padding: 0 0 1px; }
-  .sesion button:hover { border-color: var(--accent); color: var(--accent); }
-
-  /* Qué hay dentro */
-  .what { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 44px; }
-  .what a { text-decoration: none; color: var(--text); background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 3px; transition: border-color .15s; }
-  .what a:hover, .what a:focus-visible { border-color: var(--accent); }
-  .what .n { font-family: var(--display); font-weight: 700; font-size: 15px; }
-  .what .k { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
-
-  /* Ruta guiada */
-  section { margin-bottom: 44px; }
-  h2 { font-family: var(--display); font-weight: 700; font-size: 22px; margin: 0 0 6px; }
-  .intro { color: var(--muted); max-width: 64ch; margin: 0 0 18px; }
-  .steps { display: grid; gap: 10px; counter-reset: paso; }
-  .step { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-  .step > summary { cursor: pointer; padding: 14px 16px; display: grid; grid-template-columns: auto 1fr auto; gap: 4px 14px; align-items: center; list-style: none; }
-  .step > summary::-webkit-details-marker { display: none; }
-  .step > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-  .step .num { counter-increment: paso; font-family: var(--mono); font-size: 12px; color: var(--accent-ink); background: var(--accent); width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; }
-  .step .num::before { content: counter(paso); }
-  .step .ti { font-family: var(--display); font-weight: 700; font-size: 17px; }
-  .step .why { grid-column: 2; font-size: 13.5px; color: var(--muted); }
-  .step .chev { font-family: var(--mono); font-size: 11px; color: var(--muted); }
-  .step .chev::before { content: "abrir +"; }
-  .step[open] .chev { color: var(--accent); }
-  .step[open] .chev::before { content: "cerrar \2212"; }
-  .step .body { padding: 0 16px 16px 54px; display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 14px; margin: 0 16px 16px 54px; }
-  .step .body p { margin: 0; max-width: 66ch; }
-  .step .body b { color: var(--text); font-weight: 600; }
-  .step .body .tip { border-left: 3px solid var(--ok); padding-left: 10px; color: var(--muted); font-size: 13.5px; }
-  .step .body .tip b { color: var(--ok); }
-  .btn { justify-self: start; text-decoration: none; font-family: var(--body); font-weight: 600; font-size: 14px;
-         background: var(--accent); color: var(--accent-ink); border-radius: 6px; padding: 8px 14px; display: inline-block; border: 1px solid var(--accent); cursor: pointer; }
-  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .btn.ghost { background: transparent; color: var(--text); border-color: var(--line); font-weight: 400; }
-  .btn.ghost:hover { border-color: var(--accent); }
-
-  /* Antes de empezar */
-  .needs { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; display: grid; gap: 10px; }
-  .needs ul { margin: 0; padding-left: 18px; display: grid; gap: 7px; }
-  .needs li { max-width: 70ch; }
-  .needs b { font-weight: 600; }
-  code { font-family: var(--mono); font-size: .9em; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
-
-  footer { border-top: 1px solid var(--line); padding-top: 18px; color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 18px; justify-content: space-between; }
-  footer a { color: var(--muted); }
-
-  /* Puerta con llave */
-  dialog { background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 0;
-           box-shadow: var(--shadow); width: min(380px, calc(100vw - 32px)); }
-  dialog::backdrop { background: rgba(0,0,0,.6); }
-  dialog form { padding: 22px; display: grid; gap: 14px; }
-  dialog h2 { margin: 0; font-size: 20px; }
-  dialog .por { color: var(--muted); font-size: 13.5px; margin: -6px 0 0; }
-  dialog label { display: grid; gap: 5px; font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-  dialog input { font: inherit; font-family: var(--body); font-size: 15px; text-transform: none; letter-spacing: normal;
-                 background: var(--surface-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 9px 11px; width: 100%; }
-  dialog input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-  dialog .fila { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
-  dialog .error { color: var(--err); font-size: 13px; min-height: 1.2em; margin: -6px 0 0; }
-
-  @media (max-width: 700px) {
-    .wrap { padding: 28px 16px 48px; }
-    .doors { grid-template-columns: 1fr; }
-    .what { grid-template-columns: 1fr 1fr; }
-    .step > summary { grid-template-columns: auto 1fr; }
-    .step .chev { display: none; }
-    .step .body { padding-left: 16px; margin-left: 16px; }
-  }
-</style>
+<link rel="stylesheet" href="estilo.css">
 </head>
 <body>
 <div class="wrap">
 
-  <header>
-    <div class="mark">
-      <h1>DenaviLAB</h1>
-      <span class="who">taller privado</span>
-    </div>
-    <p class="lede">El taller donde <b>Denavi</b> maqueta sus ideas: batería programable, bajo programable, pad y piano, tocados con el Akai MPK mini y exportados a <b>MIDI</b> para terminarlos en Logic.</p>
-    <p class="sub">No hace falta saber teoría. La rueda de acordes propone a dónde ir, la batería y el bajo se dibujan en casillas, y todo sale en un archivo que arrastras a tu sesión. Los sonidos de aquí son mínimos a propósito: los definitivos van en el DAW.</p>
-  </header>
+  <div class="mark">
+    <h1>DenaviLAB</h1>
+    <span class="who">taller privado</span>
+  </div>
 
-  <div class="banda">
-    <h2>Denavi</h2>
-    <p>Banda de <b>Concepción</b>, formada por Rolando Chaparro Gehren y Schair Nuñez Olave. Esta herramienta es de uso interno de los dos: sirve para dejar una idea armada —pulso, vuelta de acordes, bajo, melodía— y pasarla al DAW sin perder el impulso.</p>
-    <div class="quienes">
-      <span>Rolando Chaparro Gehren</span>
-      <span>Schair Nuñez Olave</span>
-    </div>
-    <div class="oye">
-      <a href="https://soundcloud.com/denavi-records" target="_blank" rel="noopener noreferrer">SoundCloud &#8599;</a>
-      <a href="https://open.spotify.com/intl-es/artist/20XBfjC875fSJ0HzqENuFu" target="_blank" rel="noopener noreferrer">Spotify &#8599;</a>
-    </div>
+  <p class="lede">El taller de maqueteo de <b>Denavi</b>, banda de Concepción formada por Rolando Chaparro Gehren y Schair Nuñez Olave.</p>
+
+  <div class="oye">
+    <a href="https://soundcloud.com/denavi-records" target="_blank" rel="noopener noreferrer">SoundCloud &#8599;</a>
+    <a href="https://open.spotify.com/intl-es/artist/20XBfjC875fSJ0HzqENuFu" target="_blank" rel="noopener noreferrer">Spotify &#8599;</a>
   </div>
 
   <nav class="doors">
-    <a class="door primary" href="app.html?modo=beat" data-privado>
-      <span class="t">Empezar guiado</span>
-      <span class="d">Cinco pasos, de un pulso vacío a un MIDI en Logic. Si es tu primera vez, por aquí.</span>
-      <span class="go">Paso 1 &middot; la batería &rarr;</span>
+    <a class="door primary" href="guia.html" data-privado>
+      <span class="t">Trabajo guiado</span>
+      <span class="d">Cinco pasos, de un pulso vacío a un MIDI en Logic.</span>
+      <span class="go">Entrar &rarr;</span>
     </a>
     <a class="door" href="app.html" data-privado>
-      <span class="t">Entrar directo</span>
-      <span class="d">Al taller, con todo abierto. Para cuando ya sabes qué vienes a hacer.</span>
-      <span class="go">Abrir el taller &rarr;</span>
+      <span class="t">Trabajo directo</span>
+      <span class="d">Al taller, con todo abierto.</span>
+      <span class="go">Entrar &rarr;</span>
     </a>
   </nav>
 
   <p class="sesion" id="sesion"></p>
-
-  <div class="what">
-    <a href="app.html?modo=beat" data-privado><span class="n">Beat</span><span class="k">CR-78 &middot; 808 &middot; LinnDrum</span></a>
-    <a href="app.html?modo=bajod" data-privado><span class="n">Bajo</span><span class="k">rejilla &middot; acento &middot; ligado</span></a>
-    <a href="app.html?modo=pad" data-privado><span class="n">Pad</span><span class="k">rueda de acordes</span></a>
-    <a href="app.html?modo=piano" data-privado><span class="n">Piano</span><span class="k">acordes &middot; lead &middot; dos manos</span></a>
-  </div>
-
-  <section>
-    <h2>La ruta guiada</h2>
-    <p class="intro">El orden en que suele armarse una maqueta. Abre cada paso para ver qué hacer; el botón te deja en el instrumento correcto. Puedes saltarte los que quieras.</p>
-
-    <div class="steps">
-
-      <details class="step">
-        <summary>
-          <span class="num"></span>
-          <span class="ti">El pulso</span>
-          <span class="chev"></span>
-          <span class="why">La batería primero: es la cuadrícula sobre la que cae todo lo demás.</span>
-        </summary>
-        <div class="body">
-          <p>Un <b>compás</b> son cuatro tiempos: cuentas «uno-dos-tres-cuatro» y empieza otro. Cada tiempo se parte en cuatro casillas. Haz clic en una casilla para poner o quitar un golpe.</p>
-          <p>El patrón más usado de la historia, por si no sabes por dónde empezar: <b>bombo</b> en el 1 y el 3, <b>caja</b> en el 2 y el 4, <b>hi-hat</b> en cada corchea. Elige un kit —el CR-78 es el más minimalista— y ajusta el tempo.</p>
-          <p class="tip"><b>Consejo:</b> graba una cosa a la vez. Primero el bombo, escúchalo dando vueltas, y recién entonces la caja.</p>
-          <a class="btn" href="app.html?modo=beat" data-privado>Ir a la batería</a>
-        </div>
-      </details>
-
-      <details class="step">
-        <summary>
-          <span class="num"></span>
-          <span class="ti">La vuelta de acordes</span>
-          <span class="chev"></span>
-          <span class="why">Cuatro acordes que dan vueltas: de ahí sale el color de la canción.</span>
-        </summary>
-        <div class="body">
-          <p>Elige una <b>banda de referencia</b> —Portishead, Massive Attack, Mac DeMarco…— y la rueda se pinta: verde es a dónde suele ir esa banda desde donde estás, y el porcentaje es cuán seguido. Sin color no está prohibido; es terreno para improvisar.</p>
-          <p>Haz clic en un acorde para probarlo, y <b>Guardar</b> cuando te guste. Con cuatro ya tienes una vuelta. La cuña violeta son los acordes que viven en tu tonalidad y siempre suenan bien juntos.</p>
-          <p class="tip"><b>Consejo:</b> pasa el cursor por cualquier acorde de la rueda y verás sus teclas en miniatura, antes de tocarlo.</p>
-          <a class="btn" href="app.html?modo=pad" data-privado>Ir a la rueda</a>
-        </div>
-      </details>
-
-      <details class="step">
-        <summary>
-          <span class="num"></span>
-          <span class="ti">El bajo</span>
-          <span class="chev"></span>
-          <span class="why">Una nota por acorde, en el 1, junto con el bombo. Con eso ya camina.</span>
-        </summary>
-        <div class="body">
-          <p>Para maquetar, el bajo es <b>una tecla por acorde</b>: la que le da el nombre. Para Lam, <i>la</i>; para Fa, <i>fa</i>. Va en el tiempo 1, pegada al bombo.</p>
-          <p>No hace falta escribirlo a mano: <b>«Generar desde los acordes»</b> lo saca solo de la vuelta que guardaste en el paso anterior. Después muévelo, ponle acentos o alarga notas juntando casillas iguales.</p>
-          <p class="tip"><b>Consejo:</b> cuando te salga, prueba tocarlo en el 1 y el 3, o subir una octava en el último compás. Es el truco más barato para que una vuelta no aburra.</p>
-          <a class="btn" href="app.html?modo=bajod" data-privado>Ir al bajo</a>
-        </div>
-      </details>
-
-      <details class="step">
-        <summary>
-          <span class="num"></span>
-          <span class="ti">La melodía</span>
-          <span class="chev"></span>
-          <span class="why">Opcional. Dos manos sobre la vuelta, y una línea que se te quede pegada.</span>
-        </summary>
-        <div class="body">
-          <p>En <b>Piano lead</b> el teclado se parte en dos: la mano izquierda hace el acorde en la zona grave, la derecha busca la melodía arriba. Cada casilla es una corchea.</p>
-          <p>Los colores te dicen dónde pisar: <b>verde</b> son notas del acorde de ese compás (suenan seguro), <b>amarillo</b> notas de la escala (suenan bien), gris es fuera de la tonalidad.</p>
-          <p class="tip"><b>Consejo:</b> en el MPK, <code>SHIFT + SCALES</code> hace que sólo suenen las teclas de la escala. Buscar la melodía se vuelve mucho más fácil.</p>
-          <a class="btn" href="app.html?modo=lead" data-privado>Ir al piano lead</a>
-        </div>
-      </details>
-
-      <details class="step">
-        <summary>
-          <span class="num"></span>
-          <span class="ti">A Logic</span>
-          <span class="chev"></span>
-          <span class="why">Exportas el MIDI, lo arrastras a la sesión y ahí empieza el trabajo de verdad.</span>
-        </summary>
-        <div class="body">
-          <p>En el panel de la izquierda, <b>Exportar</b>. «MIDI · todas las pistas» te da un archivo con batería, bajo y acordes separados. Arrástralo a la sesión de Logic y asigna los instrumentos buenos.</p>
-          <p>También puedes sacar un <b>PDF</b> con la ficha técnica: los acordes, el tempo y las notas de cada pista, para tenerlo en papel o mandárselo a alguien.</p>
-          <p class="tip"><b>Ojo:</b> la descarga <code>.mid</code> necesita Opera, Chrome o Edge. Si algo se bloquea, usa «Abrir en una pestaña aparte» y exporta desde ahí.</p>
-          <a class="btn" href="app.html" data-privado>Abrir el taller</a>
-        </div>
-      </details>
-
-    </div>
-  </section>
-
-  <section>
-    <h2>Antes de empezar</h2>
-    <div class="needs">
-      <ul>
-        <li><b>El teclado.</b> Un Akai MPK mini de 25 o 37 teclas, por USB. Las teclas tocan notas, los pads hacen la batería, los knobs y la rueda de pitch se pueden asignar. Sin teclado también funciona: se toca con el ratón.</li>
-        <li><b>El navegador.</b> Para que el MIDI y las descargas funcionen, ábrelo en <b>Opera, Chrome o Edge</b>. Safari no soporta Web MIDI.</li>
-        <li><b>Dónde se guarda.</b> Beats, líneas de bajo, progresiones y melodías quedan en este navegador, en este computador. No hay cuenta ni nube: si cambias de máquina, no viajan.</li>
-        <li><b>La notación.</b> Las notas van en español y en minúscula —<i>do re mi</i>—, y el asterisco es una tecla negra: <code>fa*</code> es la negra a la derecha de fa.</li>
-      </ul>
-    </div>
-  </section>
-
-  <footer>
-    <span>DenaviLAB &middot; Denavi, Concepción</span>
-    <span><a href="https://soundcloud.com/denavi-records" target="_blank" rel="noopener noreferrer">SoundCloud</a> &middot; <a href="https://open.spotify.com/intl-es/artist/20XBfjC875fSJ0HzqENuFu" target="_blank" rel="noopener noreferrer">Spotify</a></span>
-  </footer>
 
 </div>
 
@@ -305,70 +58,6 @@
   </form>
 </dialog>
 
-<script>
-(() => {
-  // Puerta del taller. Es una cortina, no una cerradura: ver el README antes de confiar en esto.
-  const LLAVES = {
-    rolando: '0000000000000000000000000000000000000000000000000000000000000000',
-    schair:  '47d3865e9c149251ef89bbc0b054c76d4efb6cb0a4d390143c78d34394d1e4f6',
-  };
-  const CLAVE_SESION = 'denavilab.sesion';
-  const NOMBRE = { rolando: 'Rolando', schair: 'Schair' };
-
-  const $ = id => document.getElementById(id);
-  const puerta = $('puerta'), sesionEl = $('sesion'), errorEl = $('errorPuerta');
-  let destino = null;
-
-  const leerSesion = () => { try { return localStorage.getItem(CLAVE_SESION); } catch (e) { return null; } };
-  const dentro = () => !!LLAVES[leerSesion()];
-
-  async function huella(texto) {
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(texto));
-    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
-  }
-
-  function pintarSesion() {
-    const u = leerSesion();
-    if (dentro()) {
-      sesionEl.innerHTML = '<span class="candado">&#9679;</span> Dentro como ' + NOMBRE[u] + ' &middot; ';
-      const salir = document.createElement('button');
-      salir.type = 'button'; salir.textContent = 'salir';
-      salir.addEventListener('click', () => { try { localStorage.removeItem(CLAVE_SESION); } catch (e) {} pintarSesion(); });
-      sesionEl.append(salir);
-    } else {
-      sesionEl.innerHTML = '<span class="candado">&#128274;</span> La portada es libre; el taller pide nombre y clave.';
-    }
-  }
-
-  document.addEventListener('click', e => {
-    const enlace = e.target.closest('a[data-privado]');
-    if (!enlace || dentro()) return;
-    e.preventDefault();
-    destino = enlace.getAttribute('href');
-    errorEl.textContent = ''; $('usuario').value = ''; $('clave').value = '';
-    puerta.showModal();
-    $('usuario').focus();
-  });
-
-  $('cancelar').addEventListener('click', () => puerta.close());
-
-  $('formPuerta').addEventListener('submit', async e => {
-    e.preventDefault();
-    const u = $('usuario').value.trim().toLowerCase();
-    const c = $('clave').value;
-    if (!LLAVES[u] || await huella('denavilab:' + u + ':' + c) !== LLAVES[u]) {
-      errorEl.textContent = 'Ese nombre y esa clave no calzan.';
-      $('clave').value = ''; $('clave').focus();
-      return;
-    }
-    try { localStorage.setItem(CLAVE_SESION, u); } catch (e2) {}
-    puerta.close();
-    pintarSesion();
-    if (destino) location.href = destino;
-  });
-
-  pintarSesion();
-})();
-</script>
+<script src="acceso.js" defer></script>
 </body>
 </html>

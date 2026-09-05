@@ -1,0 +1,113 @@
+/* DenaviLAB · estilos de la portada y la guía. La app (app.html) lleva los suyos dentro. */
+:root {
+  --bg: #14131b; --surface: #1d1b26; --surface-2: #26232f; --line: #322e3f;
+  --text: #ede9f3; --muted: #9b95ab;
+  --accent: #e8a94a; --accent-ink: #1a1207;
+  --ok: #6fbf9a; --err: #ff8a8a;
+  --shadow: 0 10px 30px rgba(0,0,0,.35);
+  --display: "Bricolage Grotesque", "Avenir Next", "Helvetica Neue", sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f3f1ed; --surface: #ffffff; --surface-2: #f7f5f1; --line: #dcd8d0;
+    --text: #1e1b28; --muted: #6d6879;
+    --accent: #b8731a; --accent-ink: #fff;
+    --ok: #2f8f63; --err: #b3261e;
+    --shadow: 0 10px 30px rgba(40,30,10,.10);
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 820px; margin: 0 auto; padding: 40px 20px 56px; }
+
+/* ── Cabecera ── */
+.mark { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+h1 { font-family: var(--display); font-weight: 700; font-size: clamp(32px, 7vw, 46px); letter-spacing: -.02em; margin: 0; }
+.mark .who { font-family: var(--mono); font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 3px 10px; }
+.lede { font-size: 17px; max-width: 58ch; margin: 0 0 14px; text-wrap: pretty; }
+.lede b { color: var(--accent); font-weight: 600; }
+
+.oye { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 40px; }
+.oye a { text-decoration: none; font-family: var(--mono); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase;
+         color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 7px 13px; transition: border-color .15s, color .15s; }
+.oye a:hover, .oye a:focus-visible { border-color: var(--accent); color: var(--accent); }
+
+/* ── Las dos puertas ── */
+.doors { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 0 0 14px; }
+.door { display: grid; gap: 6px; align-content: start; text-decoration: none; color: var(--text);
+        background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 22px; box-shadow: var(--shadow); transition: border-color .15s, transform .15s; }
+.door:hover, .door:focus-visible { border-color: var(--accent); transform: translateY(-2px); }
+.door:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.door.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.door .t { font-family: var(--display); font-weight: 700; font-size: 21px; }
+.door .d { font-size: 13.5px; color: var(--muted); }
+.door.primary .d { color: var(--accent-ink); opacity: .85; }
+.door .go { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; margin-top: 6px; }
+
+/* ── Estado de la sesión ── */
+.sesion { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sesion .candado { color: var(--accent); }
+.sesion button { font: inherit; background: none; border: none; border-bottom: 1px solid var(--line); color: var(--text); cursor: pointer; padding: 0 0 1px; }
+.sesion button:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Guía ── */
+.volver { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); text-decoration: none; display: inline-block; margin-bottom: 18px; }
+.volver:hover { color: var(--accent); }
+section { margin-bottom: 40px; }
+h2 { font-family: var(--display); font-weight: 700; font-size: 22px; margin: 0 0 6px; }
+.intro { color: var(--muted); max-width: 64ch; margin: 0 0 18px; }
+.steps { display: grid; gap: 10px; counter-reset: paso; }
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.step > summary { cursor: pointer; padding: 14px 16px; display: grid; grid-template-columns: auto 1fr auto; gap: 4px 14px; align-items: center; list-style: none; }
+.step > summary::-webkit-details-marker { display: none; }
+.step > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.step .num { counter-increment: paso; font-family: var(--mono); font-size: 12px; color: var(--accent-ink); background: var(--accent); width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; }
+.step .num::before { content: counter(paso); }
+.step .ti { font-family: var(--display); font-weight: 700; font-size: 17px; }
+.step .why { grid-column: 2; font-size: 13.5px; color: var(--muted); }
+.step .chev { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.step .chev::before { content: "abrir +"; }
+.step[open] .chev { color: var(--accent); }
+.step[open] .chev::before { content: "cerrar \2212"; }
+.step .body { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 14px; margin: 0 16px 16px 54px; }
+.step .body p { margin: 0; max-width: 66ch; }
+.step .body b { color: var(--text); font-weight: 600; }
+.step .body .tip { border-left: 3px solid var(--ok); padding-left: 10px; color: var(--muted); font-size: 13.5px; }
+.step .body .tip b { color: var(--ok); }
+.btn { justify-self: start; text-decoration: none; font-family: var(--body); font-weight: 600; font-size: 14px;
+       background: var(--accent); color: var(--accent-ink); border-radius: 6px; padding: 8px 14px; display: inline-block; border: 1px solid var(--accent); cursor: pointer; }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn.ghost { background: transparent; color: var(--text); border-color: var(--line); font-weight: 400; }
+.btn.ghost:hover { border-color: var(--accent); }
+
+.needs { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; }
+.needs ul { margin: 0; padding-left: 18px; display: grid; gap: 7px; }
+.needs li { max-width: 70ch; }
+code { font-family: var(--mono); font-size: .9em; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+
+footer { border-top: 1px solid var(--line); padding-top: 18px; margin-top: 40px; color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 18px; justify-content: space-between; }
+footer a { color: var(--muted); }
+
+/* ── Puerta con llave ── */
+dialog { background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 0;
+         box-shadow: var(--shadow); width: min(380px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgba(0,0,0,.6); }
+dialog form { padding: 22px; display: grid; gap: 14px; }
+dialog h2 { margin: 0; font-size: 20px; }
+dialog .por { color: var(--muted); font-size: 13.5px; margin: -6px 0 0; }
+dialog label { display: grid; gap: 5px; font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+dialog input { font: inherit; font-family: var(--body); font-size: 15px; text-transform: none; letter-spacing: normal;
+               background: var(--surface-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 9px 11px; width: 100%; }
+dialog input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+dialog .fila { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+dialog .error { color: var(--err); font-size: 13px; min-height: 1.2em; margin: -6px 0 0; }
+
+@media (max-width: 700px) {
+  .wrap { padding: 28px 16px 44px; }
+  .doors { grid-template-columns: 1fr; }
+  .step > summary { grid-template-columns: auto 1fr; }
+  .step .chev { display: none; }
+  .step .body { margin-left: 16px; }
+}
