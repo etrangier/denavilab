@@ -170,6 +170,12 @@
   .verso .v-txt { font-size: 14px; }
   #letraTitulo { font-family: var(--display); font-weight: 700; font-size: 18px; }
   @media (max-width: 700px) { .verso { grid-template-columns: minmax(0,1fr) 88px auto; } }
+  .sug-bajo { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 8px; }
+  .sug-b { display: grid; gap: 3px; text-align: left; font: inherit; color: var(--text); cursor: pointer;
+           background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; transition: border-color .15s; }
+  .sug-b:hover, .sug-b:focus-visible { border-color: var(--accent); }
+  .sug-b-t { font-family: var(--display); font-weight: 700; font-size: 14.5px; }
+  .sug-b-d { font-size: 12.5px; color: var(--muted); }
   .seq-scroll { overflow-x: auto; }
   .seq { display: grid; grid-template-columns: 86px repeat(var(--steps, 16), minmax(16px, 1fr)); gap: 3px; align-items: center; min-width: max-content; }
   .seq .rl { font-family: var(--mono); font-size: 11px; color: var(--muted); padding-right: 6px; white-space: nowrap; position: sticky; left: 0; background: var(--surface); z-index: 1; }
@@ -545,6 +551,10 @@
           </div>
         </div>
         <details class="help"><summary>¿Cómo se lee esto?</summary><p>Para maquetar, el bajo es <b>una tecla por acorde</b>: la que le da el nombre (para Lam, la; para Fa, fa), en el tiempo 1, junto con el bombo. Cada fila es una nota, cada casilla una semicorchea; casillas seguidas iguales hacen una nota larga. Cuando te salga, prueba tocarla en el 1 y el 3, o subir una octava en el último compás. «Generar desde los acordes» te la escribe sola a partir de la progresión del pad.</p></details>
+        <div class="field">
+          <span class="lbl">Sugerencias · <span id="bassSugPor"></span></span>
+          <div class="sug-bajo" id="bassSugs"></div>
+        </div>
         <div class="seq-scroll"><div class="seq bass-seq" id="bassSeq"></div></div>
         <div class="actions">
           <button class="primary" id="playBass">▶ Bajo</button>
@@ -1390,7 +1400,15 @@
     $('play').textContent = '■ Detener'; $('playDrums').textContent = '■ Detener'; $('playBass').textContent = '■ Detener'; $('playLead').textContent = '■ Detener';
     do {   // una pasada; con «loop» se repite hasta Detener
       if (withChords) { let tt = t0; seq.forEach((c,i)=>{ c._i=i; scheduleChord(c, tt, beat); tt += c.len*barDur; }); }
-      if (mode === 'bass') { scheduleBassSeq(t0, totalBars, beat); bassPlayhead(t0, beat, totalBars); }
+      if (mode === 'bass') {
+        bassPlayhead(t0, beat, totalBars);
+        // compás a compás, releyendo la rejilla: lo que cambies entra en la vuelta siguiente
+        for (let b=0; b<totalBars && !stopFlag; b++) {
+          scheduleBassSeq(t0 + b*barDur, 1, beat, b);
+          const falta = (t0 + (b+1)*barDur - 0.08 - ctx.currentTime)*1000;
+          if (falta > 0) await wait(falta);
+        }
+      }
       if (mode === 'lead') { scheduleLead(t0, totalBars, beat); leadPlayhead(t0, beat, totalBars); if ($('leadBass').checked && hasBassD()) scheduleBassSeq(t0, totalBars, beat); }
       if (withDrums) { scheduleDrums(t0, totalBars, beat); drumPlayhead(t0, beat, totalBars); }
       if (withChords) {
@@ -1399,7 +1417,7 @@
           S.playing=i; renderBars(); renderReadout();
           await wait((seq[i]?seq[i].len:1)*barDur*1000);
         }
-      } else {
+      } else if (mode !== 'bass') {
         await wait(totalBars*barDur*1000);
       }
       t0 += totalBars*barDur;
@@ -1751,12 +1769,73 @@
   // ───────── Bajo digital: secuenciador de notas ─────────
   const BASS_NOTES = ['do','do*','re','re*','mi','fa','fa*','sol','sol*','la','la*','si','do','do*','re','re*','mi'];   // do1 … mi2
   const bassMidi = row => 36 + row + 12*S.bassd.oct;
+  // ───────── Sugerencias del bajo ─────────
+  // Miran lo que hay escrito y la vuelta de acordes, y ofrecen cosas que se aplican de un
+  // clic: notas de partida, octavas, acentos, largo de las notas y ligados.
+  const acordesPorCompas = () => { const seq=[]; S.prog.forEach(c=>{ const n=Math.max(1,Math.round(c.len)); for (let i=0;i<n;i++) seq.push(c); }); return seq; };
+  const raizDe = b => { const seq=acordesPorCompas(); return seq.length ? seq[b%seq.length].pc : (S.key ? S.key.tonic : 0); };
+  const quintaDe = b => (raizDe(b)+7)%12;
+  const pasosBajo = () => S.bassd.len*16;
+  const hayNotas = () => S.bassd.grid.slice(0, pasosBajo()).some(r=>r>=0);
+  const filas = () => S.bassd.grid.slice(0, pasosBajo()).filter(r=>r>=0);
+  const limpiarBajo = () => { for (let i=0;i<pasosBajo();i++) { S.bassd.grid[i]=-1; S.bassd.acc[i]=0; S.bassd.slide[i]=0; } };
+  const escribir = (b,s,fila,largo=1,acento=0) => { for (let i=0;i<largo && s+i<16;i++) S.bassd.grid[b*16+s+i]=fila; if (acento) S.bassd.acc[b*16+s]=1; };
+
+  function sugerenciasBajo() {
+    const L = [], n = pasosBajo(), compases = S.bassd.len;
+    const nom = pc => nota(pc, raizDe(0));
+    if (!hayNotas()) {
+      L.push({ t:'La raíz en el 1', d:'Una nota por compás, con el bombo. Es el bajo de maqueta de toda la vida: '+Array.from({length:compases},(_,b)=>nom(raizDe(b))).join(' – '),
+        f:()=>{ limpiarBajo(); for (let b=0;b<compases;b++) escribir(b,0,raizDe(b),4,1); } });
+      L.push({ t:'En el 1 y el 3', d:'Dos golpes por compás. Empuja más, y sigue siendo una sola nota por acorde.',
+        f:()=>{ limpiarBajo(); for (let b=0;b<compases;b++) { escribir(b,0,raizDe(b),4,1); escribir(b,8,raizDe(b),4); } } });
+      L.push({ t:'Corcheas que empujan', d:'La raíz repetida en cada corchea. Para lo rápido: llena y no deja aire.',
+        f:()=>{ limpiarBajo(); for (let b=0;b<compases;b++) for (let s=0;s<16;s+=2) escribir(b,s,raizDe(b),2,s===0?1:0); } });
+      L.push({ t:'Raíz y quinta', d:'La raíz en el 1 y la quinta en el 3: '+Array.from({length:compases},(_,b)=>nom(raizDe(b))+'–'+nom(quintaDe(b))).join(' · ')+'. Da movimiento sin salirse.',
+        f:()=>{ limpiarBajo(); for (let b=0;b<compases;b++) { escribir(b,0,raizDe(b),4,1); const q=quintaDe(b), fq=q<raizDe(b)?q+12:q; escribir(b,8,fq<=16?fq:q,4); } } });
+      return L;
+    }
+    const fs = filas(), maxF = Math.max(...fs), minF = Math.min(...fs);
+    if (maxF <= 4) L.push({ t:'Sube todo una octava', d:'Suena igual pero más arriba, por si se pierde contra el bombo.',
+      f:()=>{ for (let i=0;i<n;i++) if (S.bassd.grid[i]>=0) S.bassd.grid[i]+=12; } });
+    if (minF >= 12) L.push({ t:'Baja todo una octava', d:'Más grave y más suelo. Casi siempre es lo que pide una maqueta.',
+      f:()=>{ for (let i=0;i<n;i++) if (S.bassd.grid[i]>=0) S.bassd.grid[i]-=12; } });
+    if (compases > 1) L.push({ t:'Sube el último compás una octava', d:'El truco más barato para que una vuelta no aburra: la última pasada se va arriba.',
+      f:()=>{ const b=compases-1; for (let s=0;s<16;s++) { const i=b*16+s; if (S.bassd.grid[i]>=0 && S.bassd.grid[i]<=4) S.bassd.grid[i]+=12; } } });
+    const acentuados = S.bassd.acc.slice(0,n).filter(Boolean).length;
+    if (acentuados === 0) L.push({ t:'Acentúa el 1 de cada compás', d:'Marca dónde empieza la vuelta. Se nota más de lo que parece.',
+      f:()=>{ for (let b=0;b<compases;b++) { for (let s=0;s<16;s++) { const i=b*16+s; if (S.bassd.grid[i]>=0) { S.bassd.acc[i]=1; break; } } } } });
+    L.push({ t:'Acentúa los contratiempos', d:'Los golpes que caen entre pulso y pulso pegan más fuerte. De ahí sale el groove.',
+      f:()=>{ for (let i=0;i<n;i++) if (S.bassd.grid[i]>=0 && i%4===2) S.bassd.acc[i]=1; } });
+    L.push({ t:'Alarga cada nota hasta la siguiente', d:'Notas largas y ligadas en vez de golpes sueltos: el bajo pasa a sostener en vez de picar.',
+      f:()=>{ let ult=-1; for (let i=0;i<n;i++) { if (S.bassd.grid[i]>=0) ult=S.bassd.grid[i]; else if (ult>=0 && i%16!==0) S.bassd.grid[i]=ult; if (i%16===15) ult=-1; } } });
+    L.push({ t:'Déjalo en los huesos', d:'Sólo el primer golpe de cada compás. Cuando algo no funciona, casi siempre sobra.',
+      f:()=>{ for (let b=0;b<compases;b++) { let vista=false; for (let s=0;s<16;s++) { const i=b*16+s; if (S.bassd.grid[i]<0) continue; if (!vista && (s===0 || S.bassd.grid[i]!==S.bassd.grid[i-1])) { vista=true; continue; } if (vista && s>3) { S.bassd.grid[i]=-1; S.bassd.acc[i]=0; S.bassd.slide[i]=0; } } } } });
+    L.push({ t:'Lleva la segunda mitad a la quinta', d:'Del compás 3 en adelante, la quinta en vez de la raíz. Mueve el bajo sin salirse del acorde.',
+      f:()=>{ for (let b=0;b<compases;b++) { const q=quintaDe(b), r=raizDe(b), fq=(q<r?q+12:q); const fila=fq<=16?fq:q; for (let s=8;s<16;s++) { const i=b*16+s; if (S.bassd.grid[i]>=0) S.bassd.grid[i]=fila; } } } });
+    L.push({ t:'Liga el final con el principio', d:'La última nota se desliza hacia la primera de la vuelta. Cierra el círculo.',
+      f:()=>{ for (let i=n-1;i>=0;i--) if (S.bassd.grid[i]>=0) { S.bassd.slide[i]=1; break; } } });
+    return L;
+  }
+
+  function renderSugsBajo() {
+    const caja = $('bassSugs'); if (!caja) return;
+    caja.innerHTML='';
+    $('bassSugPor').textContent = hayNotas() ? 'sobre lo que llevas escrito' : (S.prog.length ? 'para empezar, sobre tu vuelta de acordes' : 'para empezar (sin acordes guardados, van sobre la tónica)');
+    sugerenciasBajo().forEach(x => {
+      const b = el('button', {class:'sug-b', onclick:()=>{ x.f(); renderBassSeq(); }});
+      b.append(el('span', {class:'sug-b-t'}, x.t));
+      b.append(el('span', {class:'sug-b-d'}, x.d));
+      caja.append(b);
+    });
+  }
+
   function renderBassSeq() {
     const steps = S.bassd.len*16; const box = $('bassSeq'); box.innerHTML=''; box.style.setProperty('--steps', steps);
     box.append(el('div',{class:'rl'},''));
     for (let s=0;s<steps;s++) box.append(el('div',{class:'hd'+(s%4===0?' beat':'')}, s%4===0 ? String((s%16)/4+1) : '·'));
     for (let r=BASS_NOTES.length-1;r>=0;r--) {
-      box.append(el('div',{class:'rl'}, BASS_NOTES[r] + (r>=12?'′':'')));
+      box.append(el('div',{class:'rl'}, nota(r%12) + (r>=12?'′':'')));
       for (let s=0;s<steps;s++) {
         const on = S.bassd.grid[s]===r;
         const b = el('button',{class:'st'+(s%4===0?' beat':'')+(s%16===0&&s>0?' bar2':'')+(on?' on':'')+(on&&S.bassd.acc[s]?' acc':'')+(on&&S.bassd.slide[s]?' slide':''), 'data-s':s, 'aria-label':`${BASS_NOTES[r]} casilla ${s+1}`, 'aria-pressed':String(on),
@@ -1776,6 +1855,7 @@
     $('bassOwnBox').hidden = !S.bassd.own; $('bassBpmVal').textContent = S.bassd.bpm; $('bassBpmRange').value = S.bassd.bpm;
     const bc = $('bassBarChips'); bc.innerHTML='';
     [2,4,8,12,16].forEach(n=> bc.append(el('button',{class:'chip','aria-pressed':String(n===S.bassd.bars), onclick:()=>{ S.bassd.bars=n; renderBassSeq(); }}, String(n))));
+    renderSugsBajo();
     const lc = $('bassLenChips'); lc.innerHTML='';
     [1,2,4].forEach(n=> lc.append(el('button',{class:'chip','aria-pressed':String(n===S.bassd.len), onclick:()=>{ if (n>S.bassd.len) { const old=S.bassd.len*16; for (let s=old;s<n*16;s++) { S.bassd.grid[s]=S.bassd.grid[s%old]; S.bassd.acc[s]=S.bassd.acc[s%old]; S.bassd.slide[s]=S.bassd.slide[s%old]; } } S.bassd.len=n; renderBassSeq(); }}, n===1?'1 compás':n+' compases')));
     const oc2 = $('bassOctChips'); oc2.innerHTML='';
@@ -1808,15 +1888,18 @@
   $('clearBass').addEventListener('click', ()=>{ S.bassd.grid.fill(-1); S.bassd.acc.fill(0); S.bassd.slide.fill(0); renderBassSeq(); });
   $('playBass').addEventListener('click', ()=>play('bass'));
   const swingOff = (s, six) => (s%2 ? S.swing*six*0.66 : 0);   // desplaza las semicorcheas a contratiempo
-  function scheduleBassSeq(t0, totalBars, beat) {
+  // desdeCompas dice qué compás del patrón toca; así se puede programar de uno en uno y
+  // releer la rejilla en cada vuelta, que es lo que hace que editar se oiga al momento.
+  function scheduleBassSeq(t0, totalBars, beat, desdeCompas = 0) {
     const steps = S.bassd.len*16, six = beat/4;
     for (let b=0;b<totalBars;b++) {
+      const patron = (desdeCompas + b) % S.bassd.len;
       let s=0; while (s<16) {
-        const idx=((b%S.bassd.len)*16+s)%steps; const r=S.bassd.grid[idx];
+        const idx=(patron*16+s)%steps; const r=S.bassd.grid[idx];
         if (r<0) { s++; continue; }
-        let n=1; while (s+n<16 && S.bassd.grid[((b%S.bassd.len)*16+s+n)%steps]===r && !S.bassd.acc[((b%S.bassd.len)*16+s+n)%steps]) n++;
+        let n=1; while (s+n<16 && S.bassd.grid[(patron*16+s+n)%steps]===r && !S.bassd.acc[(patron*16+s+n)%steps]) n++;
         const tStart = t0 + (b*16+s)*six + swingOff(s,six);
-        const nextIdx = ((b%S.bassd.len)*16+s+n)%steps; const nextR = S.bassd.grid[nextIdx];
+        const nextIdx = (patron*16+s+n)%steps; const nextR = S.bassd.grid[nextIdx];
         const glideTo = (S.bassd.slide[idx] && nextR>=0 && nextR!==r && s+n<16) ? bassMidi(nextR) : null;
         voice(bassMidi(r), tStart, six*n*(glideTo!==null?1.02:0.9), 'bajod', S.bassd.acc[idx]?0.62:0.42, glideTo!==null ? { glideTo, glideAt: six*n*0.7 } : null); s+=n;
       }
