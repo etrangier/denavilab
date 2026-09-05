@@ -266,8 +266,8 @@
   <div class="errbar" id="errbar" hidden></div>
   <div id="tip" hidden></div>
   <header>
-    <h1>DenaviLAB <span class="sub">· rueda de acordes para el MPK mini</span></h1>
-    <p>Maqueta en MIDI con el MPK mini (25 o 37 teclas): beat, bajo digital y acordes en pad o piano. Sonidos mínimos a propósito; los definitivos van en Logic. Con el MPK conectado, teclas, pads, knobs, rueda de pitch y pedal hacen lo suyo.</p>
+    <h1>DenaviLAB <span class="sub" id="subtitulo"></span></h1>
+    <p id="entradilla"></p>
   </header>
 
   <div class="grid">
@@ -762,9 +762,19 @@
   };
 
   // ───────── Estado ─────────
-  const S = { quien: (() => { try { const q = localStorage.getItem('denavilab.sesion'); return q === 'rolando' || q === 'schair' ? q : 'rolando'; } catch (e) { return 'rolando'; } })(), notacion: (() => { try { return localStorage.getItem('denavilab.notacion') === 'en' ? 'en' : 'es'; } catch (e) { return 'es'; } })(), genre:'Trip hop', band:'Portishead', bpm:72, inst:'pad', root:5, qual:'M', key:{tonic:9, mode:'m'}, bars:4, defLen:1, loop:true, prog:[], cand:null, keysMode:'pad', hover:null, playing:-1, voicing:3, kbKeys:37,
+  const QUIEN = (() => { try { const q = localStorage.getItem('denavilab.sesion'); return q === 'rolando' || q === 'schair' ? q : 'rolando'; } catch (e) { return 'rolando'; } })();
+  // Con qué abre el taller cada uno: su mundo, no el del otro.
+  const POR_DEFECTO = {
+    rolando: { genre:'Trip hop', band:'Portishead', bpm:72,  kit:'cr78',  notacion:'es' },
+    schair:  { genre:'Rock',     band:'Green Day',  bpm:172, kit:'analog', notacion:'en' },
+  };
+  const D = POR_DEFECTO[QUIEN];
+  // La notación guardada manda sobre la de partida: si la cambió, se respeta.
+  const notacionGuardada = (() => { try { return localStorage.getItem('denavilab.notacion'); } catch (e) { return null; } })();
+
+  const S = { quien: QUIEN, notacion: notacionGuardada === 'en' || notacionGuardada === 'es' ? notacionGuardada : D.notacion, genre:D.genre, band:D.band, bpm:D.bpm, inst:'pad', root:5, qual:'M', key:{tonic:9, mode:'m'}, bars:4, defLen:1, loop:true, prog:[], cand:null, keysMode:'pad', hover:null, playing:-1, voicing:3, kbKeys:37,
     mode:'beat',
-    drums: { len:1, on:true, kit:'cr78', name:'', pat:{ kick:new Array(64).fill(0), snare:new Array(64).fill(0), hh:new Array(64).fill(0), oh:new Array(64).fill(0) } },
+    drums: { len:1, on:true, kit:D.kit, name:'', pat:{ kick:new Array(64).fill(0), snare:new Array(64).fill(0), hh:new Array(64).fill(0), oh:new Array(64).fill(0) } },
     swing: 0,
     piano: { autoInv:true, manera:3, lh:'none' },
     letra: { titulo:'', secciones:[] },
@@ -1403,6 +1413,8 @@
   // ───────── Controles ─────────
   function fillSelects() {
     const g = $('genre'); Object.keys(GENRES).forEach(k=>g.append(el('option',{value:k},k)));
+    if (!GENRES[S.genre]) S.genre = Object.keys(GENRES)[0];
+    g.value = S.genre;
     const r = $('root'); NAMES.forEach((n,i)=>r.append(el('option',{value:i},n)));
     r.value = S.root;
     fillBands();
@@ -1435,6 +1447,7 @@
   $('playDrums').addEventListener('click', ()=>play('drums'));
   $('drumsOn').addEventListener('change', e=>{ S.drums.on = e.target.checked; $('drumsOn2').checked = e.target.checked; });
   $('drumsOn2').addEventListener('change', e=>{ S.drums.on = e.target.checked; $('drumsOn').checked = e.target.checked; });
+  $('drumKit').value = S.drums.kit;
   $('drumKit').addEventListener('change', e=>{ S.drums.kit = e.target.value; });
   $('clearDrums').addEventListener('click', ()=>loadPreset('Vacío'));
   presetsMios().forEach(k=>$('drumPreset').append(el('option',{value:k},k)));
@@ -2167,6 +2180,10 @@
   $('copyLetra').addEventListener('click', async ()=>{ const b=$('copyLetra'); try { await navigator.clipboard.writeText(letraTexto()); b.textContent='Copiado'; } catch(e) { b.textContent='No se pudo copiar'; } setTimeout(()=>b.textContent='Copiar como texto', 1400); });
 
   document.body.dataset.quien = S.quien;
+  $('subtitulo').textContent = S.quien === 'schair' ? '· el taller de maquetas' : '· rueda de acordes para el MPK mini';
+  $('entradilla').textContent = S.quien === 'schair'
+    ? 'Arma la base para tus canciones —batería, bajo y acordes— sin tocar ninguno de esos instrumentos: se dibuja con el mouse. Los sonidos de aquí son mínimos a propósito; sirven para no perder la idea y para cantar y tocar encima.'
+    : 'Maqueta en MIDI con el MPK mini (25 o 37 teclas): beat, bajo digital y acordes en pad o piano. Sonidos mínimos a propósito; los definitivos van en Logic. Con el MPK conectado, teclas, pads, knobs, rueda de pitch y pedal hacen lo suyo.';
   buildKeyboard(); buildWheel(); fillSelects(); renderAll(); renderBassSeq(); renderSaved('savedLetras','rueda.letras'); llenarProgsDeLetra(); renderLetra();
   // Instrumento de entrada: ?modo=beat|bajod|pad|piano|lead|letra (lo usa la portada para entrar directo a un paso)
   const MODOS = ['beat','bajod','pad','piano','lead','letra'];
