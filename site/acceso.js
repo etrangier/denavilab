@@ -3,7 +3,7 @@
    del visitante y se puede sortear. Ver el README. */
 (() => {
   const LLAVES = {
-    rolando: '0000000000000000000000000000000000000000000000000000000000000000',
+    rolando: '9b5999aa401660f7719125fa8c0a6f8db317063f1a0bba928ec3efa93b048883',
     schair:  '47d3865e9c149251ef89bbc0b054c76d4efb6cb0a4d390143c78d34394d1e4f6',
   };
   const NOMBRE = { rolando: 'Rolando', schair: 'Schair' };
