@@ -26,9 +26,13 @@
     const u = leerSesion();
     if (dentro()) {
       sesionEl.innerHTML = '<span class="candado">&#9679;</span> Dentro como ' + NOMBRE[u] + ' &middot; ';
+      const enPortada = /(^|\/)(index\.html)?$/.test(location.pathname);
       const salir = document.createElement('button');
-      salir.type = 'button'; salir.textContent = 'salir';
-      salir.addEventListener('click', () => { try { localStorage.removeItem(CLAVE_SESION); } catch (e) {} pintarSesion(); });
+      salir.type = 'button'; salir.textContent = enPortada ? 'salir' : 'cambiar sesión';
+      salir.addEventListener('click', () => {
+        try { localStorage.removeItem(CLAVE_SESION); } catch (e) {}
+        if (enPortada) pintarSesion(); else location.href = 'index.html';
+      });
       sesionEl.append(salir);
     } else {
       sesionEl.innerHTML = '<span class="candado">&#128274;</span> La portada es libre; el resto pide nombre y clave.';
@@ -62,6 +66,9 @@
       if (destino) location.href = destino;
     });
   }
+
+  const atras = $('navAtras');
+  if (atras) atras.addEventListener('click', () => { if (history.length > 1) history.back(); else location.href = 'index.html'; });
 
   pintarSesion();
 })();

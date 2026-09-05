@@ -55,6 +55,14 @@
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--body); font-size: 14px; line-height: 1.45; }
+  .navbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding-bottom: 4px; border-bottom: 1px solid var(--line); }
+  .navlink { font: inherit; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+             background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; color: var(--text); text-decoration: none; cursor: pointer; }
+  .navlink:hover, .navlink:focus-visible { border-color: var(--accent); color: var(--accent); }
+  .navsesion { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .navsesion button { font: inherit; background: none; border: none; border-bottom: 1px solid var(--line); color: var(--text); cursor: pointer; padding: 0 0 1px; }
+  .navsesion button:hover { border-color: var(--accent); color: var(--accent); }
+  @media (max-width: 700px) { .navsesion { margin-left: 0; flex-basis: 100%; } }
   .app { max-width: 1320px; margin: 0 auto; padding: 20px 20px 48px; display: grid; gap: 18px; }
   header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 20px; }
   h1 { font-family: var(--display); font-weight: 700; font-size: 26px; letter-spacing: -.01em; margin: 0; text-wrap: balance; }
@@ -269,6 +277,13 @@
 
 
 <div class="app">
+  <nav class="navbar" id="navbar" hidden>
+    <button class="navlink" id="navAtras" type="button">&larr; Atrás</button>
+    <a class="navlink" href="index.html">Portada</a>
+    <a class="navlink" href="guia.html">Trabajo guiado</a>
+    <a class="navlink" href="archivo.html">Archivo</a>
+    <span class="navsesion" id="navSesion"></span>
+  </nav>
   <div class="errbar" id="errbar" hidden></div>
   <div id="tip" hidden></div>
   <header>
@@ -2263,6 +2278,14 @@
   $('copyLetra').addEventListener('click', async ()=>{ const b=$('copyLetra'); try { await navigator.clipboard.writeText(letraTexto()); b.textContent='Copiado'; } catch(e) { b.textContent='No se pudo copiar'; } setTimeout(()=>b.textContent='Copiar como texto', 1400); });
 
   document.body.dataset.quien = S.quien;
+  if (/^https?:$/.test(location.protocol)) {
+    $('navbar').hidden = false;
+    $('navAtras').addEventListener('click', ()=>{ if (history.length > 1) history.back(); else location.href = 'index.html'; });
+    const nombre = { rolando:'Rolando', schair:'Schair' }[S.quien] || S.quien;
+    $('navSesion').append(document.createTextNode('Dentro como ' + nombre + ' · '));
+    const cambiar = el('button', {type:'button', onclick:()=>{ try { localStorage.removeItem('denavilab.sesion'); } catch (e) {} location.href = 'index.html'; }}, 'cambiar sesión');
+    $('navSesion').append(cambiar);
+  }
   $('subtitulo').textContent = S.quien === 'schair' ? '· el taller de maquetas' : '· rueda de acordes para el MPK mini';
   $('entradilla').textContent = S.quien === 'schair'
     ? 'Arma la base para tus canciones —batería, bajo y acordes— sin tocar ninguno de esos instrumentos: se dibuja con el mouse. Los sonidos de aquí son mínimos a propósito; sirven para no perder la idea y para cantar y tocar encima.'
