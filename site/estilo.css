@@ -179,3 +179,12 @@ html[data-quien="rolando"] li[data-para~="rolando"] { display: list-item; }
 .integrante .nom { font-family: var(--display); font-weight: 700; font-size: 15.5px; }
 .integrante .hace { color: var(--muted); font-size: 13.5px; max-width: 42ch; }
 @media (max-width: 700px) { .integrantes { grid-template-columns: 1fr; gap: 14px; } }
+
+/* ── Texto de lectura justificado ── */
+.lede, .intro, .integrante .hace,
+.step .body p, .leccion .cuerpo p,
+.needs li, .fuente {
+  text-align: justify;
+  text-justify: inter-word;
+  hyphens: auto;
+}
