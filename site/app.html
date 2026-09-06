@@ -2362,15 +2362,18 @@
   }
 
   async function driveSubir(nombre, texto) {
-    const meta = { name: nombre, parents: [DRIVE.carpeta] };
-    const linde = '-------denavi' + Date.now();
-    const cuerpo =
-      `--${linde}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n` +
-      `--${linde}\r\nContent-Type: application/json\r\n\r\n${texto}\r\n--${linde}--`;
-    const r = await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name', {
-      method: 'POST', headers: { 'Content-Type': 'multipart/related; boundary=' + linde }, body: cuerpo });
-    if (!r.ok) throw new Error('no se pudo guardar (' + r.status + ')');
-    return r.json();
+    // 1) Crear el archivo (metadata) en el endpoint estándar — el mismo dominio/ruta que la
+    //    lista, que ya funciona, así que si esto pasa, el permiso y la red están bien.
+    const rMeta = await driveFetch('https://www.googleapis.com/drive/v3/files?fields=id,name', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: nombre, parents: [DRIVE.carpeta] }) });
+    if (!rMeta.ok) throw new Error('no se pudo crear el archivo (' + rMeta.status + ')');
+    const info = await rMeta.json();
+    // 2) Subir el contenido a ese archivo ya creado.
+    const rMedia = await driveFetch(`https://www.googleapis.com/upload/drive/v3/files/${info.id}?uploadType=media`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: texto });
+    if (!rMedia.ok) { try { await driveFetch('https://www.googleapis.com/drive/v3/files/' + info.id, { method:'DELETE' }); } catch (e) {} throw new Error('no se pudo subir el contenido (' + rMedia.status + ')'); }
+    return info;
   }
 
   async function driveBajar(id) {
@@ -2408,7 +2411,7 @@
       const base = (S.letra.titulo || 'maqueta').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'maqueta';
       $('biblioInfo').textContent = 'Guardando…';
       try { const f = await driveSubir(`${base}-${stamp()}.denavi`, JSON.stringify(proyectoActual(), null, 1)); $('biblioInfo').textContent = `Guardada «${f.name}» en la biblioteca.`; await biblioRefrescar(); }
-      catch (e) { $('biblioInfo').textContent = 'No se pudo guardar: ' + e.message; }
+      catch (e) { $('biblioInfo').textContent = /fetch/i.test(e.message) ? 'No se pudo guardar: la petición no llegó a Google. Suele ser una extensión del navegador (un bloqueador) tapando googleapis.com — prueba en una ventana de incógnito, o reintenta.' : 'No se pudo guardar: ' + e.message; }
     });
     $('biblioAbrir').addEventListener('click', async () => {
       const id = $('biblioLista').value; if (!id) return;
