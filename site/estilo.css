@@ -258,3 +258,7 @@ html[data-quien="invitado"] .solo-invitado { display: block; }
 .prin-mas { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .prin-reset { margin: 16px 0 0; text-align: right; }
 .prin-reset button { font: inherit; font-size: 12px; color: var(--muted); background: none; border: none; cursor: pointer; text-decoration: underline; }
+
+/* consejos de artistas en el modo principiante */
+.prin-cita { margin: 10px 0 0; padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--surface-2); border-radius: 0 8px 8px 0; font-size: 13px; }
+.prin-cita .prin-quien { display: block; margin-top: 4px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .03em; color: var(--accent); text-transform: uppercase; }
