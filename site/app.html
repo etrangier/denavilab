@@ -553,6 +553,7 @@
         <div class="actions">
           <button class="primary" id="playLead">▶ Piano lead</button>
           <label class="hint"><input type="checkbox" class="loopChk" checked> loop</label>
+          <label class="hint"><input type="checkbox" class="metronChk"> metrónomo</label>
           <label class="hint"><input type="checkbox" id="leadDrums" checked> con batería</label>
           <label class="hint"><input type="checkbox" id="leadBass"> con bajo digital</label>
           <button class="ghost" id="clearLead">Limpiar melodía</button>
@@ -807,6 +808,7 @@
         <div class="actions">
           <button class="primary" id="play">▶ Reproducir</button>
           <label class="hint"><input type="checkbox" class="loopChk" checked> loop</label>
+          <label class="hint"><input type="checkbox" class="metronChk"> metrónomo</label>
           <button class="ghost" id="undo">Quitar último</button>
           <button class="ghost" id="clear">Limpiar</button>
           <button class="ghost" id="copy">Copiar</button>
@@ -970,6 +972,7 @@
     piano: { autoInv:true, manera:3, lh:'none' },
     letra: { titulo:'', secciones:[], concepto:'', tema:'', apuntes:'', libreta:'', ref:null },
     guitar: { prog:[], sel:0, withDrums:false, instrumento:'acustica', capo:0, metron:false, strum:['D','','D','U','','U','D','U'] },
+    metron: false,
     lead: { lh:'root13', rh:'melody', split:12, tool:'note', mel:new Array(128).fill(-1), acc:new Array(128).fill(0) },
     bassd: { own:false, bpm:72, bars:4, len:1, oct:0, tool:'note', grid:new Array(64).fill(-1), acc:new Array(64).fill(0), slide:new Array(64).fill(0), withDrums:true } };
   const bassBpm = () => S.mode==='bajod' && S.bassd.own ? S.bassd.bpm : S.bpm;
@@ -1664,6 +1667,7 @@
       if (withChords) { let tt = t0; seq.forEach((c,i)=>{ c._i=i; scheduleChord(c, tt, beat); tt += c.len*barDur; }); }
       if (rec && rec.metron) scheduleMetronomo(t0, beat, totalBars || S.bars);
       if (mode==='guitarra' && S.guitar.metron) scheduleMetronomo(t0, beat, totalBars || 1);
+      if ((mode==='all' || mode==='lead') && S.metron) scheduleMetronomo(t0, beat, totalBars || S.bars);
       if (mode === 'guitarra') scheduleGuit(t0, totalBars, beat);
       if (mode === 'bass') {
         bassPlayhead(t0, beat, totalBars);
@@ -1745,6 +1749,7 @@
   $('candPlay').addEventListener('click', ()=>play('all'));
   $('candHear').addEventListener('click', ()=>{ if (!S.cand) return; ensureAudio(); const beat=60/S.bpm; scheduleChord({pc:S.cand.pc,q:S.cand.q,len:1}, ctx.currentTime+0.02, beat); });
   $('play').addEventListener('click', ()=>play('all'));
+  document.querySelectorAll('.metronChk').forEach(c=>c.addEventListener('change', e=>{ S.metron = e.target.checked; document.querySelectorAll('.metronChk').forEach(o=>o.checked=S.metron); }));
   document.querySelectorAll('.loopChk').forEach(c=>c.addEventListener('change', e=>{ S.loop = e.target.checked; document.querySelectorAll('.loopChk').forEach(o=>o.checked=S.loop); }));
   $('playDrums').addEventListener('click', ()=>play('drums'));
   $('drumsOn').addEventListener('change', e=>{ S.drums.on = e.target.checked; $('drumsOn2').checked = e.target.checked; });
