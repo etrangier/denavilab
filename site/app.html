@@ -183,6 +183,14 @@
   .tecnicas { display: grid; gap: 6px; margin: 4px 0 6px; }
   .tec-tip { font-size: 12.5px; color: var(--muted); border-left: 3px solid var(--key-line); padding-left: 10px; }
   .tec-tip b { color: var(--text); }
+  .tec-escritura, .libreta-box { border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); margin: 2px 0; }
+  .tec-escritura > summary, .libreta-box > summary { cursor: pointer; padding: 9px 12px; font-family: var(--display); font-weight: 700; font-size: 14px; list-style: none; }
+  .tec-escritura > summary::-webkit-details-marker, .libreta-box > summary::-webkit-details-marker { display: none; }
+  .tec-body { padding: 0 12px 12px; display: grid; gap: 8px; }
+  .tec-sub { margin: 2px 0; color: var(--muted); font-size: 12.5px; }
+  .principios > summary { cursor: pointer; font-family: var(--mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+  .principios[open] > summary { color: var(--accent); }
+  .principios > div { display: grid; gap: 6px; margin-top: 8px; }
   .sug-bajo { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 8px; }
   .sug-b { display: grid; gap: 3px; text-align: left; font: inherit; color: var(--text); cursor: pointer;
            background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; transition: border-color .15s; }
@@ -539,6 +547,24 @@
           <button class="ghost" id="addSeccion">+ Añadir sección</button>
           <span class="hint">Cada sección lleva su vuelta de acordes con los compases que dura cada uno, y debajo los versos con su cifra al lado.</span>
         </div>
+        <details class="tec-escritura">
+          <summary>Técnicas de escritura · <span id="tecRefNombre">—</span></summary>
+          <div class="tec-body">
+            <div class="field"><span class="lbl">Referencia (estilo y banda)</span><select id="letraRef" aria-label="Estilo de referencia"></select></div>
+            <div id="tecContenido"></div>
+            <details class="principios"><summary>Principios de trabajo (a lo Rick Rubin)</summary><div id="tecPrincipios"></div></details>
+          </div>
+        </details>
+        <details class="libreta-box">
+          <summary>Libreta · notas, ideas y borradores</summary>
+          <div class="tec-body">
+            <textarea id="letraLibreta" rows="6" placeholder="Todo lo que no es la letra todavía: ideas, versos sueltos, un título, algo que leíste, una imagen. Se guarda con el proyecto y viaja en la biblioteca." style="width:100%; background:var(--surface-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:9px 11px; font:inherit; line-height:1.5; resize:vertical"></textarea>
+            <div class="actions">
+              <button class="ghost" id="expLibretaPdf">PDF · la libreta</button>
+              <span class="hint">La libreta viaja dentro del proyecto: al «Guardar en la biblioteca» la ven los dos en el Archivo.</span>
+            </div>
+          </div>
+        </details>
         <div class="saved">
           <span class="lbl">Letras guardadas</span>
           <div class="row"><input type="text" id="letraName" placeholder="nombre, ej. la del puente"><button class="ghost" id="saveLetra" style="flex:0 0 auto">Guardar</button></div>
@@ -851,6 +877,14 @@
         M: { I:{IV:40,ii:20,vi:20,bVII:20}, IV:{I:55,ii:25,vi:20}, ii:{IV:40,I:40,V:20}, vi:{IV:40,I:35,ii:25}, bVII:{IV:50,I:50}, V:{I:60,IV:40}, iii:{IV:60,vi:40}, 'vii°':{I:100}, bVI:{bVII:50,I:50}, iv:{I:100}, bIII:{IV:100} },
         m: { i:{iv:30,VI:25,VII:25,III:20}, iv:{i:50,VI:25,VII:25}, VI:{i:40,VII:30,iv:30}, VII:{i:50,VI:25,iv:25}, III:{iv:40,VI:30,i:30}, v:{i:100}, V:{i:100}, bII:{i:100}, 'ii°':{i:100}, IV:{i:60,VII:40} } },
     },
+    'Alternativo': {
+      'Thom Yorke': { bpm:[70,110,88], sello:'Menor con cromatismos: acordes que se deslizan medio tono, tónica que no llega, aire y desasosiego.', pref:'minor',
+        m: { i:{bII:25,VII:20,iv:20,VI:20,v:15}, bII:{i:50,VII:30,VI:20}, VII:{VI:35,i:35,iv:30}, iv:{bII:30,i:30,VII:20,VI:20}, VI:{VII:35,iv:30,III:35}, III:{VI:40,VII:30,iv:30}, v:{i:55,iv:45}, V:{i:60,VI:40}, 'ii°':{V:50,i:50}, IV:{i:50,VII:50} },
+        M: { I:{iii:25,vi:25,bVII:20,IV:15,V:15}, iii:{vi:40,IV:35,ii:25}, vi:{IV:35,bVII:30,iii:20,I:15}, IV:{I:35,V:30,iv:20,bVII:15}, bVII:{IV:45,I:35,bVI:20}, V:{vi:50,I:50}, ii:{V:50,IV:50}, 'vii°':{I:100}, bVI:{bVII:60,I:40}, iv:{I:60,vi:40}, bIII:{IV:50,bVII:50} } },
+      'Damon Albarn': { bpm:[80,120,100], sello:'Melancolía mayor-menor: la vuelta luminosa que se nubla, mucho iii y vi, bajo que camina.', pref:'major',
+        M: { I:{iii:25,vi:25,IV:25,ii:15,V:10}, iii:{vi:40,IV:30,ii:30}, vi:{IV:35,ii:25,iii:20,I:20}, IV:{I:35,V:25,iii:20,ii:20}, ii:{V:45,IV:30,I:25}, V:{I:45,vi:35,IV:20}, 'vii°':{I:60,iii:40}, bVII:{IV:50,I:50}, bVI:{bVII:60,I:40}, iv:{I:70,vi:30}, bIII:{IV:50,bVII:50} },
+        m: { i:{III:30,VI:25,iv:20,VII:15,v:10}, III:{VI:40,VII:30,iv:30}, VI:{iv:35,III:30,VII:35}, iv:{i:40,VII:30,VI:30}, VII:{i:45,III:30,VI:25}, v:{i:60,iv:40}, V:{i:65,VI:35}, bII:{i:100}, 'ii°':{V:60,i:40}, IV:{i:50,VII:50} } },
+    },
   };
 
   // ───────── Estado ─────────
@@ -869,7 +903,7 @@
     drums: { len:1, on:true, kit:D.kit, name:'', pat:{ kick:new Array(64).fill(0), snare:new Array(64).fill(0), hh:new Array(64).fill(0), oh:new Array(64).fill(0) } },
     swing: 0,
     piano: { autoInv:true, manera:3, lh:'none' },
-    letra: { titulo:'', secciones:[], concepto:'', tema:'', apuntes:'' },
+    letra: { titulo:'', secciones:[], concepto:'', tema:'', apuntes:'', libreta:'', ref:null },
     guitar: { prog:[], sel:0, withDrums:false },
     lead: { lh:'root13', rh:'melody', split:12, tool:'note', mel:new Array(128).fill(-1), acc:new Array(128).fill(0) },
     bassd: { own:false, bpm:72, bars:4, len:1, oct:0, tool:'note', grid:new Array(64).fill(-1), acc:new Array(64).fill(0), slide:new Array(64).fill(0), withDrums:true } };
@@ -1346,6 +1380,11 @@
     'Anime · opening veloz': { kick:[0,4,8,10,12], snare:[4,12], hh:[0,2,4,6,8,10,12,14], oh:[14] },
     'Balada de anime · lenta y abierta': { kick:[0,10], snare:[4,12], hh:[0,4,8,12], oh:[14] },
     'Balada de anime · piano y escobillas': { kick:[0,8], snare:[12], hh:[0,2,4,6,8,10,12,14], oh:[] },
+    // ── Alternativo (Rolando) ──
+    'Thom Yorke · pulso nervioso': { kick:[0,6,8], snare:[4,12], hh:[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15], oh:[] },
+    'Thom Yorke · 5/4 quebrado': { kick:[0,5,8,13], snare:[4,12,15], hh:[0,2,4,6,8,10,12,14], oh:[10] },
+    'Damon Albarn · downtempo melancólico': { kick:[0,10], snare:[4,12], hh:[0,2,4,6,8,10,12,14], oh:[7] },
+    'Damon Albarn · britpop relajado': { kick:[0,8], snare:[4,12], hh:[0,2,4,6,8,10,12,14], oh:[14] },
     'Vacío': { kick:[], snare:[], hh:[], oh:[] },
   };
   // Cada quien ve las suyas. «ambos» es lo que sirve a los dos.
@@ -1353,7 +1392,7 @@
   // anime. Bedroom pop (Mac DeMarco, boy pablo, Talk Talk) es de los dos. 'Vacío' también.
   const PRESET_PARA = {};
   Object.keys(PRESETS).forEach(k => {
-    if (/^(Portishead|Massive Attack|Pet Shop Boys|Depeche Mode|New Order)/.test(k) || k.startsWith('Mi base')) PRESET_PARA[k] = 'rolando';
+    if (/^(Portishead|Massive Attack|Pet Shop Boys|Depeche Mode|New Order|Thom Yorke|Damon Albarn)/.test(k) || k.startsWith('Mi base')) PRESET_PARA[k] = 'rolando';
     else if (/^(Green Day|Rock clásico|La Ley|Anime|Balada de anime)/.test(k)) PRESET_PARA[k] = 'schair';
     else PRESET_PARA[k] = 'ambos';   // Mac DeMarco, boy pablo, Talk Talk y Vacío
   });
@@ -2345,6 +2384,8 @@
     $('letraConcepto').value = S.letra.concepto || '';
     $('letraTema').value = S.letra.tema || '';
     $('letraApuntes').value = S.letra.apuntes || '';
+    $('letraLibreta').value = S.letra.libreta || '';
+    llenarLetraRef(); renderTecnicas();
 
     S.letra.secciones.forEach((sec, si) => {
       const caja = el('div', {class:'seccion'});
@@ -2395,6 +2436,58 @@
     letraResumen(); actualizarTecnicas();
   }
 
+  // ───────── Técnicas de escritura (síntesis en español de oficio conocido) ─────────
+  // Redactado con mis palabras a partir de técnicas de songwriting habituales; sin citar
+  // texto con derechos. Por banda, con respaldo por género y principios generales.
+  const PRINCIPIOS = [
+    'Anota sin juzgar. La primera versión es material crudo, no la canción: recoge todo y eliges después.',
+    'Menos es más. Quita hasta que empiece a doler; lo que queda suele ser lo bueno.',
+    'La emoción manda sobre la técnica. Si una línea «mal hecha» te mueve, se queda.',
+    'Sirve a la canción, no al ego. La mejor idea puede no ser tuya, y da igual de quién sea.',
+    'Trabaja rápido y cierra. Una maqueta terminada enseña más que una perfecta a medias.',
+    'La restricción libera. Ponte un límite —dos acordes, ocho versos, una sola imagen— y la idea aparece.',
+  ];
+  const TEC_GENERO = {
+    'Trip hop': ['Pocas palabras, mucho espacio: deja que la música respire entre frase y frase.', 'Repetición hipnótica: un mismo verso dicho dos veces cambia de sentido con otra música debajo.', 'Imágenes de ciudad y de noche; la voz como textura, no como sermón.'],
+    'Synth pop': ['El gancho lo es todo: el estribillo se canta a la primera o no es estribillo.', 'Contraste: letra melancólica sobre música brillante engancha más que las dos tristes.', 'Frases cortas, directas, coreables.'],
+    'Bedroom pop': ['Tono de diario: háblale a alguien, en primera persona, como en una conversación.', 'Detalles cotidianos y concretos (una calle, una hora, un objeto) valen más que una idea abstracta.', 'La imperfección es parte del encanto: no lo pulas hasta matarlo.'],
+    'Rock': ['Actitud y energía: verbos fuertes, primera persona, algo en contra de qué empujar.', 'Estribillo de gritar: pocas palabras que quepan en un aliento.', 'Un «yo» frente a un «mundo» o un «tú»: el conflicto mueve la canción.'],
+    'Anime': ['Emoción grande y directa, sin miedo a lo sentimental.', 'Metáforas de cielo, viento, promesa, distancia; crescendo hacia el estribillo.', 'Esperanza aun en lo triste: la caída y el volver a levantarse.'],
+    'Alternativo': ['Cut-up: escribe frases sueltas, córtalas y recolócalas al azar; quédate con lo que suene bien aunque no «signifique».', 'Ambigüedad a propósito: una imagen desconcertante pega más que una explicación.', 'La duda como tema; repetir una frase hasta que cambie de piel.'],
+  };
+  const TEC_BANDA = {
+    'Portishead': ['Intimidad y paranoia: susurrar algo incómodo.', 'Repite el mismo verso; que cambie la música, no la palabra.'],
+    'Massive Attack': ['Frases como consignas, dichas de lejos.', 'El silencio entre líneas dice tanto como la línea.'],
+    'Pet Shop Boys': ['Ironía elegante y mirada social: cuenta una historia pequeña con distancia.', 'Todo se juega en el gancho; el resto lo sostiene.'],
+    'Depeche Mode': ['Deseo y culpa; lo sagrado y lo carnal en la misma frase.', 'Estribillo simple y grave, casi un mantra.'],
+    'New Order': ['La letra puede ser opaca: el bajo y la melodía llevan la emoción.', 'Frases que suenan bien aunque no cierren del todo.'],
+    'Mac DeMarco': ['Humor y desapego: háblale a alguien directo, sin solemnidad.', 'Lo mundano como poesía: lo pequeño dicho con cariño.'],
+    'Talk Talk': ['Menos letra, más aire; la palabra justa en el momento justo.', 'Deja frases sin terminar: el que escucha las cierra.'],
+    'boy pablo': ['Enamoramiento adolescente, ligero y honesto.', 'Inglés simple o español simple: la torpeza suena verdadera.'],
+    'Green Day': ['Frustración universal en primera persona; que cualquiera se reconozca.', 'Estribillo que se grita entero de una vez.'],
+    'La Ley': ['Metáfora amplia y sensual; el amor como fuerza o como herida.', 'Estribillo que se abre; el verso que aprieta.'],
+    'Thom Yorke': ['Cut-up radical: junta frases que no deberían ir juntas.', 'Repite una línea hasta que dé miedo; deja que la ansiedad hable.', 'No expliques: nombra imágenes y vete.'],
+    'Damon Albarn': ['Escribe como observador o personaje: un tipo, un barrio, una escena, y tú mirando.', 'Melancolía con distancia irónica: triste pero sin drama.', 'Detalle cotidiano (traslada lo inglés a tu Concepción) como ancla de la emoción.'],
+  };
+  function tecRefActual() {
+    const r = (S.letra.ref && GENRES[S.letra.ref.genre] && GENRES[S.letra.ref.genre][S.letra.ref.band]) ? S.letra.ref : { genre:S.genre, band:S.band };
+    return r;
+  }
+  function llenarLetraRef() {
+    const sel = $('letraRef'); if (!sel) return; sel.innerHTML='';
+    const cur = tecRefActual();
+    Object.entries(GENRES).forEach(([g, bandas])=>{ const og=el('optgroup',{label:g}); Object.keys(bandas).forEach(b=>{ const o=el('option',{value:g+'||'+b}, b); if (g===cur.genre && b===cur.band) o.selected=true; og.append(o); }); sel.append(og); });
+  }
+  function renderTecnicas() {
+    const cur = tecRefActual();
+    if ($('tecRefNombre')) $('tecRefNombre').textContent = cur.band;
+    const cont = $('tecContenido'); if (cont) {
+      const tips = (TEC_BANDA[cur.band] || []).concat(TEC_GENERO[cur.genre] || []);
+      cont.innerHTML = '<p class="tec-sub">Cómo escribe ' + cur.band + ' (y su estilo). Son puntos de partida, no reglas.</p>' + tips.map(t=>'<div class="tec-tip">'+t+'</div>').join('');
+    }
+    const pr = $('tecPrincipios'); if (pr) pr.innerHTML = PRINCIPIOS.map(t=>'<div class="tec-tip">'+t+'</div>').join('');
+  }
+
   function actualizarTecnicas() {
     const caja = $('letraTecnicas'); if (!caja) return;
     const analisis = S.letra.secciones.map(sec=>({ sec, a:analizarSeccion(sec) }));
@@ -2432,6 +2525,15 @@
   $('letraConcepto').addEventListener('input', e=>{ S.letra.concepto = e.target.value; });
   $('letraTema').addEventListener('input', e=>{ S.letra.tema = e.target.value; });
   $('letraApuntes').addEventListener('input', e=>{ S.letra.apuntes = e.target.value; });
+  $('letraLibreta').addEventListener('input', e=>{ S.letra.libreta = e.target.value; });
+  $('letraRef').addEventListener('change', e=>{ const [g,b]=e.target.value.split('||'); S.letra.ref={genre:g,band:b}; renderTecnicas(); });
+  function libretaLines() {
+    const L = [{text:(S.letra.titulo?S.letra.titulo+' · ':'')+'Libreta', size:18, font:'F2', gap:2},
+               {text:new Date().toLocaleDateString('es-CL')+(S.letra.concepto?' · '+S.letra.concepto:''), size:9, gap:10}];
+    (S.letra.libreta||'(vacía)').split('\n').forEach(l=>L.push({text:l||' ', size:11, font:'F3'}));
+    return L;
+  }
+  $('expLibretaPdf').addEventListener('click', ()=>deliver(`denavilab-libreta-${stamp()}.pdf`, makePdf(libretaLines()), 'application/pdf'));
 
   const letraTexto = () => {
     const out = [S.letra.titulo || 'Sin título'];
