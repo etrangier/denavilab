@@ -119,6 +119,7 @@
   .split-line { stroke: var(--accent); stroke-width: 3; }
   .slot.sug text { fill: var(--text); }
   .slot.cur path { fill: var(--accent); stroke: var(--accent); }
+  .slot.sonando path { stroke: var(--ok); stroke-width: 3.5; filter: brightness(1.12); }
   .slot.last path { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 5 3; }
   .cand { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 6px 4px; }
   .tipbox { margin: 6px 6px 0; padding: 8px 12px; border-left: 3px solid var(--ok); background: color-mix(in srgb, var(--surface-2) 75%, transparent); border-radius: 0 8px 8px 0; font-size: 13px; color: var(--text); }
@@ -1075,6 +1076,10 @@
   const ROLE_MAJ = { I:['la casa','todo se aquieta'], vi:['la casa triste','la misma casa con la luz apagada'], IV:['se aleja','aire, salir a caminar'], ii:['se aleja','prepara la vuelta'], V:['tira de vuelta','pide volver a casa'], iii:['nublado','entre la casa y el aire'], 'vii°':['tenso y raro','casi no se usa solo'], bVII:['prestado, nublado','Mac DeMarco y Bowie viven de él'], bVI:['prestado, oscuro','viene del menor'], iv:['prestado, melancólico','el IV que se pone triste'], bIII:['prestado','sorpresa luminosa'] };
   const roleOf = (pc, q) => { const d = degreeOf(pc, q); if (!d) return ['fuera de la tonalidad', 'no vive en esta casa: escúchalo antes de decidir']; return (S.key.mode==='m' ? ROLE_M : ROLE_MAJ)[d] || ['', '']; };
   const heat = (t, line=false) => { const h = 55 + 85*t, sat = 70, l = line ? 55 : 45, a = line ? 0.5 + 0.5*t : 0.18 + 0.62*t; return `hsla(${h.toFixed(0)}, ${sat}%, ${l}%, ${a.toFixed(2)})`; };
+  function resaltarRueda(c) {
+    Object.values(slots).forEach(s=>s.g.classList.remove('sonando'));
+    if (c && slots[c.pc+c.q]) slots[c.pc+c.q].g.classList.add('sonando');
+  }
   function paintWheel() {
     const cur = focus(); const sug = suggestions();
     for (const [id,{g,p}] of Object.entries(slots)) { g.classList.remove('inkey','sug','cur','dim','last'); p.textContent=''; g.querySelector('path').style.fill=''; g.querySelector('path').style.stroke=''; }
@@ -1531,12 +1536,14 @@
     if (ctx.state !== 'running') { showErr('El navegador mantiene el audio en pausa (estado: ' + ctx.state + '). Toca «Probar sonido» o cualquier tecla del dibujo y vuelve a intentar.'); }
     stopFlag=false; isPlaying = true; const beat = 60/(mode==='bass' ? bassBpm() : S.bpm), barDur = beat*4; let t0 = ctx.currentTime + 0.1;
     if (mode === 'lead' && !S.prog.length) { $('leadProg').textContent = 'Primero guarda una progresión en Pad o Piano.'; isPlaying=false; return; }
-    const withChords = mode === 'all' && (S.prog.length > 0 || !!S.cand);
-    const seq = withChords ? [...S.prog, ...(S.cand && remaining()>0 ? [{pc:S.cand.pc, q:S.cand.q, len:Math.min(S.defLen, remaining())}] : [])] : [];
-    const totalBars = withChords ? seq.reduce((a,c)=>a+c.len,0) : mode==='lead' ? leadBarsTotal() : mode==='guitarra' ? guitBars() : (mode==='bass' ? bassBars() : S.bars);
-    const withDrums = mode === 'drums' || (mode==='all' && S.drums.on) || (mode==='bass' && S.bassd.withDrums) || (mode==='lead' && $('leadDrums').checked) || (mode==='guitarra' && S.guitar.withDrums);
+    let withChords, seq, totalBars, withDrums;
     $('play').textContent = '■ Detener'; $('playDrums').textContent = '■ Detener'; $('playBass').textContent = '■ Detener'; $('playLead').textContent = '■ Detener'; $('playGuit').textContent = '■ Detener'; $('candPlay').textContent = '■ Detener';
     do {   // una pasada; con «loop» se repite hasta Detener
+      // Se relee el estado en cada vuelta: agregar/cambiar/quitar un acorde entra en la siguiente pasada
+      withChords = mode === 'all' && (S.prog.length > 0 || !!S.cand);
+      seq = withChords ? [...S.prog, ...(S.cand && remaining()>0 ? [{pc:S.cand.pc, q:S.cand.q, len:Math.min(S.defLen, remaining())}] : [])] : [];
+      totalBars = withChords ? (seq.reduce((a,c)=>a+c.len,0) || S.bars) : mode==='lead' ? leadBarsTotal() : mode==='guitarra' ? guitBars() : (mode==='bass' ? bassBars() : S.bars);
+      withDrums = mode === 'drums' || (mode==='all' && S.drums.on) || (mode==='bass' && S.bassd.withDrums) || (mode==='lead' && $('leadDrums').checked) || (mode==='guitarra' && S.guitar.withDrums);
       if (withChords) { let tt = t0; seq.forEach((c,i)=>{ c._i=i; scheduleChord(c, tt, beat); tt += c.len*barDur; }); }
       if (mode === 'guitarra') scheduleGuit(t0, totalBars, beat);
       if (mode === 'bass') {
@@ -1561,9 +1568,10 @@
       if (withChords) {
         for (let i=0;i<seq.length;i++) {
           if (stopFlag) break;
-          S.playing=i; renderBars(); renderReadout();
+          S.playing=i; renderBars(); renderReadout(); resaltarRueda(seq[i]);
           await wait((seq[i]?seq[i].len:1)*barDur*1000);
         }
+        resaltarRueda(null);
       } else if (mode !== 'bass' && mode !== 'drums') {
         await wait(totalBars*barDur*1000);
       }
