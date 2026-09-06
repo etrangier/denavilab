@@ -1082,7 +1082,7 @@
   // La notación guardada manda sobre la de partida: si la cambió, se respeta.
   const notacionGuardada = (() => { try { return localStorage.getItem('denavilab.notacion'); } catch (e) { return null; } })();
 
-  const S = { quien: QUIEN, notacion: notacionGuardada === 'en' || notacionGuardada === 'es' ? notacionGuardada : D.notacion, genre:D.genre, band:D.band, animo:'Sin definir', bpm:D.bpm, inst:'pad', root:5, qual:'M', key:{tonic:9, mode:'m'}, bars:4, defLen:1, loop:true, prog:[], cand:null, keysMode:'pad', hover:null, playing:-1, voicing:3, kbKeys:37,
+  const S = { quien: QUIEN, notacion: notacionGuardada === 'en' || notacionGuardada === 'es' ? notacionGuardada : D.notacion, genre:D.genre, band:D.band, animo:'Sin definir', bpm:D.bpm, bpmFijado:false, inst:'pad', root:5, qual:'M', key:{tonic:9, mode:'m'}, bars:4, defLen:1, loop:true, prog:[], cand:null, keysMode:'pad', hover:null, playing:-1, voicing:3, kbKeys:37,
     mode:'beat',
     mix: { mute:{drums:false,bass:false,chords:false,guitar:false,lead:false}, solo:{drums:false,bass:false,chords:false,guitar:false,lead:false} },
     drums: { len:1, on:true, kit:D.kit, name:'', pat:{ kick:new Array(64).fill(0), snare:new Array(64).fill(0), hh:new Array(64).fill(0), oh:new Array(64).fill(0) } },
@@ -1095,6 +1095,23 @@
     bassd: { own:false, bpm:72, bars:4, len:1, oct:0, tool:'note', grid:new Array(64).fill(-1), acc:new Array(64).fill(0), slide:new Array(64).fill(0), withDrums:true } };
   const bassBpm = () => S.mode==='bajod' && S.bassd.own ? S.bassd.bpm : S.bpm;
   const bassBars = () => S.mode==='bajod' && S.bassd.own ? S.bassd.bars : S.bars;
+  // Un solo tempo de proyecto, mostrado igual en todas las secciones.
+  function syncBpmUI() {
+    const v = S.bpm;
+    if ($('bpm')) $('bpm').value = v;
+    if ($('bpmVal')) $('bpmVal').textContent = v;
+    if ($('guitBpm')) $('guitBpm').value = v;
+    if ($('guitBpmVal')) $('guitBpmVal').textContent = v;
+    if ($('drumBpm')) $('drumBpm').textContent = v;
+    if ($('bassBpm')) $('bassBpm').textContent = bassBpm();
+  }
+  // fijar=true cuando es una decisión de tempo (deslizador, ánimo, cargar algo); las
+  // sugerencias de banda/género sólo mueven el tempo si aún no hay uno definido.
+  function setBpm(v, fijar) {
+    v = Math.max(40, Math.min(220, Math.round(+v || S.bpm)));
+    S.bpm = v; if (fijar) S.bpmFijado = true; syncBpmUI();
+  }
+  const sugerirBpm = v => { if (!S.bpmFijado) setBpm(v); };
   // ¿esta pista suena en la mezcla? (mute/solo tipo Songsterr)
   const haySolo = () => Object.values(S.mix.solo).some(Boolean);
   const suena = tr => haySolo() ? S.mix.solo[tr] : !S.mix.mute[tr];
@@ -1142,7 +1159,7 @@
     const a = ANIMOS[nombre];
     $('animoSello').textContent = a ? a.sello : '';
     if (!a) return;
-    S.bpm = a.bpm; $('bpm').value = a.bpm; $('bpmVal').textContent = a.bpm; if ($('bassBpm')) $('bassBpm').textContent = bassBpm();
+    setBpm(a.bpm, true); if ($('bassBpm')) $('bassBpm').textContent = bassBpm();
     S.bars = a.bars;
     if (!S.prog.length) { S.key = { ...S.key, mode:a.mode }; }   // sin acordes aún: fija el modo sugerido
     renderAll();
@@ -1956,15 +1973,15 @@
     b.value = S.band; applyBand();
   }
   function applyBand() {
-    const [lo,hi,def] = band().bpm; S.bpm = def; $('bpm').min = Math.min(lo,50); $('bpm').max = Math.max(hi,190);
-    $('bpm').value = def; $('bpmVal').textContent = def; $('bpmRange').textContent = `${S.band}: ${lo}–${hi} bpm`;
+    const [lo,hi,def] = band().bpm; $('bpm').min = Math.min(lo,50); $('bpm').max = Math.max(hi,190);
+    $('bpmRange').textContent = `${S.band}: ${lo}–${hi} bpm`;
     $('sello').textContent = band().sello;
-    if (S.animo && ANIMOS[S.animo]) { const a=ANIMOS[S.animo]; S.bpm=a.bpm; $('bpm').value=a.bpm; $('bpmVal').textContent=a.bpm; S.bars=a.bars; }
+    if (!S.bpmFijado) { if (S.animo && ANIMOS[S.animo]) { S.bars = ANIMOS[S.animo].bars; setBpm(ANIMOS[S.animo].bpm); } else setBpm(def); }
     S.key = defaultKey() || S.key; S.prog = [];
   }
   $('genre').addEventListener('change', e=>{ S.genre=e.target.value; fillBands(); renderAll(); });
   $('band').addEventListener('change', e=>{ S.band=e.target.value; applyBand(); renderAll(); });
-  $('bpm').addEventListener('input', e=>{ S.bpm=+e.target.value; $('bpmVal').textContent=S.bpm; paintWheel(); renderBars(); });
+  $('bpm').addEventListener('input', e=>{ setBpm(e.target.value, true); paintWheel(); renderBars(); });
   $('inst').addEventListener('change', e=>{ S.inst=e.target.value; renderReadout(); renderBars(); });
   const instLabel = () => S.mode==='piano' ? 'Piano' : S.mode==='lead' ? 'Piano lead' : S.mode==='bajod' ? 'Bajo digital' : S.mode==='beat' ? 'Batería' : $('inst').selectedOptions[0].textContent;
   $('root').addEventListener('change', e=>{ S.root=+e.target.value; S.key=defaultKey()||S.key; S.prog=[]; renderAll(); });
@@ -2010,7 +2027,7 @@
     $('bpmRange').textContent = `${banda}: ${bnd.bpm[0]}–${bnd.bpm[1]} bpm`; $('sello').textContent = bnd.sello;
     let bpm = bnd.bpm[2], bars = 4;
     if (S.animo && ANIMOS[S.animo]) { bpm = ANIMOS[S.animo].bpm; bars = ANIMOS[S.animo].bars; }   // el ánimo manda si está puesto
-    S.bpm = bpm; $('bpm').value = bpm; $('bpmVal').textContent = bpm; S.bars = bars;
+    setBpm(bpm, true); S.bars = bars;
     $('drumBpm').textContent = bpm; if ($('bassBpm')) $('bassBpm').textContent = bassBpm();
     renderAll();
   }
@@ -2019,7 +2036,7 @@
   $('copy').addEventListener('click', async ()=>{ try { await navigator.clipboard.writeText($('summary').textContent); $('copy').textContent='Copiado'; setTimeout(()=>$('copy').textContent='Copiar',1200); } catch(e) { $('copy').textContent='No se pudo copiar'; } });
   $('preset26').addEventListener('click', ()=>{
     S.genre='Trip hop'; S.band='Portishead'; $('genre').value=S.genre; fillBands();
-    S.bpm=77; $('bpm').value=77; $('bpmVal').textContent=77; if (S.mode!=='pad' && S.mode!=='piano') setMode('pad');
+    setBpm(77); if (S.mode!=='pad' && S.mode!=='piano') setMode('pad');
     S.root=9; S.qual='m'; $('root').value=9; $('qual').value='m'; S.key={tonic:9,mode:'m'}; S.bars=4;
     S.cand=null; S.defLen=1; S.prog=[{pc:9,q:'m',len:1},{pc:5,q:'M',len:1},{pc:0,q:'M',len:1},{pc:7,q:'M',len:1}]; $('drumPreset').value=Object.keys(PRESETS)[0]; loadPreset(Object.keys(PRESETS)[0]); renderAll();
   });
@@ -2051,7 +2068,7 @@
     if (knobLearn) { KNOB[knobLearn] = cc; knobLearn = null; renderKnobs(); return; }
     if (cc === 64) { if (val >= 64) sustainOn = true; else releaseSustain(); return; }
     if (cc === 1) { const mult = 1 + val/127*2; liveNotes.forEach(v=>v.filt(mult)); return; }
-    if (cc === KNOB.bpm) { S.bpm = Math.round(50 + val/127*100); $('bpm').value=S.bpm; $('bpmVal').textContent=S.bpm; paintWheel(); renderBars(); if (S.mode==='bajod') renderBassSeq(); }
+    if (cc === KNOB.bpm) { setBpm(Math.round(50 + val/127*100), true); paintWheel(); renderBars(); if (S.mode==='bajod') renderBassSeq(); }
     else if (cc === KNOB.swing) { S.swing = Math.round(val/127*12)*5/100; $('swing').value=Math.round(S.swing*100); $('swingVal').textContent=Math.round(S.swing*100)+'%'; }
     else if (cc === KNOB.vol) { ensureAudio(); master.gain.setTargetAtTime(val/127*1.2, ctx.currentTime, 0.02); }
     else if (cc === KNOB.bright) { liveNotes.forEach(v=>v.filt(0.5 + val/127*2)); }
@@ -2292,7 +2309,7 @@
   $('playLead').addEventListener('click', ()=>play('lead'));
   $('clearLead').addEventListener('click', ()=>{ S.lead.mel.fill(-1); S.lead.acc.fill(0); renderLead(); });
   $('saveLead').addEventListener('click', ()=>{ const name=$('leadName').value.trim()||('melodía '+new Date().toLocaleDateString()); const list=store.get('rueda.leads'); list.push({name, mel:S.lead.mel, acc:S.lead.acc, lh:S.lead.lh, rh:S.lead.rh, split:S.lead.split, prog:S.prog, key:S.key, bpm:S.bpm}); store.set('rueda.leads',list); $('leadName').value=''; renderSaved('savedLeads','rueda.leads'); $('savedLeads').value=String(list.length-1); });
-  $('savedLeads').addEventListener('change', e=>{ const it=store.get('rueda.leads')[+e.target.value]; if (!it) return; Object.assign(S.lead,{mel:it.mel, acc:it.acc, lh:it.lh, rh:it.rh, split:it.split}); if (it.prog) { S.prog=it.prog; S.key=it.key; S.bpm=it.bpm; $('bpm').value=it.bpm; $('bpmVal').textContent=it.bpm; } renderAll(); renderLead(); });
+  $('savedLeads').addEventListener('change', e=>{ const it=store.get('rueda.leads')[+e.target.value]; if (!it) return; Object.assign(S.lead,{mel:it.mel, acc:it.acc, lh:it.lh, rh:it.rh, split:it.split}); if (it.prog) { S.prog=it.prog; S.key=it.key; setBpm(it.bpm, true); } renderAll(); renderLead(); });
   $('delLead').addEventListener('click', ()=>{ if ($('savedLeads').value==='') return; const list=store.get('rueda.leads'); list.splice(+$('savedLeads').value,1); store.set('rueda.leads',list); renderSaved('savedLeads','rueda.leads'); });
 
   // ───────── Modos ─────────
@@ -2604,14 +2621,14 @@
   }
 
   $('saveBeat').addEventListener('click', ()=>{ const name=$('beatName').value.trim()||('beat '+new Date().toLocaleDateString()); registrarBeat(S.drums.name); const list=store.get('rueda.beats'); list.push({name, len:S.drums.len, kit:S.drums.kit, bpm:S.bpm, pat:S.drums.pat}); store.set('rueda.beats',list); $('beatName').value=''; renderSaved('savedBeats','rueda.beats'); $('savedBeats').value=String(list.length-1); S.drums.name=name; });
-  $('savedBeats').addEventListener('change', e=>{ const it=store.get('rueda.beats')[+e.target.value]; if (!it) return; S.drums.len=it.len; S.drums.kit=KITS[it.kit]?it.kit:'cr78'; $('drumKit').value=S.drums.kit; S.drums.pat=it.pat; S.drums.name=it.name; if (it.bpm) { S.bpm=it.bpm; $('bpm').value=it.bpm; $('bpmVal').textContent=it.bpm; } renderSeq(); });
+  $('savedBeats').addEventListener('change', e=>{ const it=store.get('rueda.beats')[+e.target.value]; if (!it) return; S.drums.len=it.len; S.drums.kit=KITS[it.kit]?it.kit:'cr78'; $('drumKit').value=S.drums.kit; S.drums.pat=it.pat; S.drums.name=it.name; if (it.bpm) setBpm(it.bpm, true); renderSeq(); });
   $('delBeat').addEventListener('click', ()=>{ const i=+$('savedBeats').value; if (isNaN(i)||$('savedBeats').value==='') return; const list=store.get('rueda.beats'); list.splice(i,1); store.set('rueda.beats',list); renderSaved('savedBeats','rueda.beats'); });
   $('saveBass').addEventListener('click', ()=>{ const name=$('bassName').value.trim()||('bajo '+new Date().toLocaleDateString()); const list=store.get('rueda.bass'); list.push({name, len:S.bassd.len, grid:S.bassd.grid, acc:S.bassd.acc, slide:S.bassd.slide, oct:S.bassd.oct, swing:S.swing, own:S.bassd.own, bpm:S.bassd.bpm, bars:S.bassd.bars}); store.set('rueda.bass',list); $('bassName').value=''; renderSaved('savedBass','rueda.bass'); $('savedBass').value=String(list.length-1); });
   $('savedBass').addEventListener('change', e=>{ const it=store.get('rueda.bass')[+e.target.value]; if (!it) return; Object.assign(S.bassd, {len:it.len, grid:it.grid, acc:it.acc||new Array(64).fill(0), slide:it.slide||new Array(64).fill(0), oct:it.oct||0, own:it.own, bpm:it.bpm, bars:it.bars}); if (it.swing!==undefined) S.swing=it.swing; renderBassSeq(); });
   $('delBass').addEventListener('click', ()=>{ const i=+$('savedBass').value; if ($('savedBass').value==='') return; const list=store.get('rueda.bass'); list.splice(i,1); store.set('rueda.bass',list); renderSaved('savedBass','rueda.bass'); });
   renderSaved('savedBeats','rueda.beats'); renderSaved('savedBass','rueda.bass'); renderSaved('savedProgs','rueda.progs'); renderSaved('savedLeads','rueda.leads');
   $('saveProg').addEventListener('click', ()=>{ if (!S.prog.length) return; { const u=usoGet(); u.progs=(u.progs||0)+1; if (S.prog.length>=2) { const t=(u.trans=u.trans||{m:{},M:{}})[S.key.mode]=(u.trans[S.key.mode]||{}); const dl=degreeOf(S.prog[S.prog.length-1].pc,S.prog[S.prog.length-1].q), d0=degreeOf(S.prog[0].pc,S.prog[0].q); if (dl&&d0){ t[dl]=t[dl]||{}; t[dl][d0]=(t[dl][d0]||0)+1; } } usoSet(u); } const name=$('progName').value.trim()||(S.prog.map(c=>chordLabel(c.pc,c.q)).join(' ')); const list=store.get('rueda.progs'); list.push({name, prog:S.prog, key:S.key, genre:S.genre, band:S.band, bpm:S.bpm, bars:S.bars, voicing:S.voicing, defLen:S.defLen, inst:S.inst, mode:S.mode, root:S.root, qual:S.qual}); store.set('rueda.progs',list); $('progName').value=''; renderSaved('savedProgs','rueda.progs'); $('savedProgs').value=String(list.length-1); });
-  $('savedProgs').addEventListener('change', e=>{ const it=store.get('rueda.progs')[+e.target.value]; if (!it) return; S.genre=it.genre; $('genre').value=S.genre; fillBands(); S.band=it.band; $('band').value=S.band; S.bpm=it.bpm; $('bpm').value=it.bpm; $('bpmVal').textContent=it.bpm; S.bars=it.bars; S.voicing=it.voicing; S.defLen=it.defLen; S.root=it.root; S.qual=it.qual; $('root').value=S.root; $('qual').value=S.qual; S.key=it.key; S.prog=it.prog.map(c=>({...c})); S.cand=null; if (it.mode==='pad'||it.mode==='piano') { if (it.mode==='pad') $('inst').value = ['pad','lead','uke'].includes(it.inst)?it.inst:'pad'; setMode(it.mode); } else renderAll(); });
+  $('savedProgs').addEventListener('change', e=>{ const it=store.get('rueda.progs')[+e.target.value]; if (!it) return; S.genre=it.genre; $('genre').value=S.genre; fillBands(); S.band=it.band; $('band').value=S.band; setBpm(it.bpm, true); S.bars=it.bars; S.voicing=it.voicing; S.defLen=it.defLen; S.root=it.root; S.qual=it.qual; $('root').value=S.root; $('qual').value=S.qual; S.key=it.key; S.prog=it.prog.map(c=>({...c})); S.cand=null; if (it.mode==='pad'||it.mode==='piano') { if (it.mode==='pad') $('inst').value = ['pad','lead','uke'].includes(it.inst)?it.inst:'pad'; setMode(it.mode); } else renderAll(); });
   $('delProg').addEventListener('click', ()=>{ if ($('savedProgs').value==='') return; const list=store.get('rueda.progs'); list.splice(+$('savedProgs').value,1); store.set('rueda.progs',list); renderSaved('savedProgs','rueda.progs'); });
 
   // ───────── Exportar MIDI (SMF formato 1, 480 ticks por negra) ─────────
@@ -2841,7 +2858,7 @@
       ROWS.forEach(([id])=>S.drums.pat[id]=new Array(64).fill(0)); let used=0;
       notes.forEach(n=>{ const id=MAP[n.note]; if (!id) return; const s=Math.round(n.tick/(tpb/4)); if (s<len*16) { S.drums.pat[id][s]=1; used++; } });
       S.drums.len = len; S.drums.name = f.name.replace(/\.midi?$/i,'');
-      if (bpm) { S.bpm=bpm; $('bpm').value=bpm; $('bpmVal').textContent=bpm; }
+      if (bpm) setBpm(bpm, true);
       renderSeq(); $('midiFileInfo').textContent = used ? `«${f.name}»: ${used} golpes en ${len} compás(es)${bpm?` · ${bpm} bpm`:''}. Si el archivo no usa las notas estándar de batería, no verás golpes.` : `«${f.name}» no trae notas de batería estándar (35/36, 38/40, 42/44, 46).`;
     } catch (err) { $('midiFileInfo').textContent = 'No pude leer ese archivo: ' + err.message; }
   });
@@ -3108,7 +3125,7 @@
     const v=$('letraDesdeProg').value; if (v==='') return;
     const it=store.get('rueda.progs')[+v]; if (!it) return;
     S.prog = it.prog.map(c=>({...c})); S.cand=null;
-    if (it.bpm) { S.bpm=it.bpm; $('bpm').value=it.bpm; $('bpmVal').textContent=it.bpm; }
+    if (it.bpm) setBpm(it.bpm, true);
     if (it.key) S.key = it.key;
     if (!S.letra.titulo) { S.letra.titulo = it.name; }
     renderLetra();
@@ -3339,8 +3356,7 @@
   function guitDiatonicos() { return DIATONIC[S.key.mode].map(id=>({ ...chordOfDegree(id), id })); }
   // Aplica género/banda/ánimo desde la sección de guitarra SIN borrar ninguna progresión
   function guitAplicaContexto() {
-    const [lo,hi,def] = band().bpm; S.bpm = def;
-    if (S.animo && ANIMOS[S.animo]) S.bpm = ANIMOS[S.animo].bpm;
+    if (!S.bpmFijado) { const [lo,hi,def] = band().bpm; setBpm((S.animo && ANIMOS[S.animo]) ? ANIMOS[S.animo].bpm : def); }
     if (!S.guitar.prog.length) S.key = defaultKey() || S.key;   // clave para las sugerencias, sin tocar acordes ya puestos
   }
 
@@ -3507,11 +3523,11 @@
   // Controles del modo guitarra
   $('guitInstr').addEventListener('change', e=>{ S.guitar.instrumento=e.target.value; S.guitar.prog.forEach(c=>{ c.frets=formaDe(c.pc,c.q); c.name=nombreGuit(c.pc,c.q); }); renderGuitarra(); });
   $('guitCapo').addEventListener('change', e=>{ S.guitar.capo=+e.target.value; renderGuitarra(); });
-  $('guitBpm').addEventListener('input', e=>{ S.bpm=+e.target.value; $('guitBpmVal').textContent=S.bpm; $('bpm').value=S.bpm; $('bpmVal').textContent=S.bpm; });
+  $('guitBpm').addEventListener('input', e=>{ setBpm(e.target.value, true); });
   $('guitMetron').addEventListener('change', e=>{ S.guitar.metron=e.target.checked; });
   if ($('guitGenre')) $('guitGenre').addEventListener('change', e=>{ if (!GENRES[e.target.value]) return; S.genre=e.target.value; if (!GENRES[S.genre][S.band]) S.band=Object.keys(GENRES[S.genre])[0]; if ($('genre')) $('genre').value=S.genre; guitAplicaContexto(); renderGuitarra(); });
   if ($('guitBand')) $('guitBand').addEventListener('change', e=>{ S.band=e.target.value; if ($('band')) $('band').value=S.band; guitAplicaContexto(); renderGuitarra(); });
-  if ($('guitAnimo')) $('guitAnimo').addEventListener('change', e=>{ S.animo=e.target.value; const a=ANIMOS[S.animo]; if (a){ S.bpm=a.bpm; S.bars=a.bars; if (!S.guitar.prog.length) S.key={...S.key, mode:a.mode}; } if ($('animo')) { $('animo').value=S.animo; $('animoSello').textContent=(ANIMOS[S.animo]||{}).sello||''; } renderGuitarra(); });
+  if ($('guitAnimo')) $('guitAnimo').addEventListener('change', e=>{ S.animo=e.target.value; const a=ANIMOS[S.animo]; if (a){ setBpm(a.bpm, true); S.bars=a.bars; if (!S.guitar.prog.length) S.key={...S.key, mode:a.mode}; } if ($('animo')) { $('animo').value=S.animo; $('animoSello').textContent=(ANIMOS[S.animo]||{}).sello||''; } renderGuitarra(); });
   $('guitAdd').addEventListener('click', ()=>{ const r=parseGuit($('guitNuevo').value); if (!r) { $('guitResumen').textContent='no reconocí ese acorde'; return; } const g=S.guitar; g.prog.push(acordeNuevo(r.pc,r.q)); g.sel=g.prog.length-1; $('guitNuevo').value=''; renderGuitarra(); sonarAcorde(g.prog[g.sel]); });
   $('guitNuevo').addEventListener('keydown', e=>{ if (e.key==='Enter') $('guitAdd').click(); });
   $('clearGuit').addEventListener('click', ()=>{ S.guitar.prog=[]; S.guitar.sel=0; renderGuitarra(); });
@@ -3532,7 +3548,7 @@
     const aut = PAR.get('autor'); if (aut && GENRES[S.genre] && GENRES[S.genre][aut]) { S.band = aut; }
     if ($('genre') && typeof fillBands==='function') { $('genre').value = S.genre; fillBands(); if ($('band')) $('band').value = S.band; applyBand(); }
     const ani = PAR.get('animo'); if (ani && ANIMOS[ani]) { if ($('animo')) { $('animo').value = ani; } if (typeof aplicarAnimo==='function') aplicarAnimo(ani); else S.animo = ani; }
-    const bpm = +PAR.get('bpm'); if (bpm>=50 && bpm<=190) { S.bpm = bpm; if ($('bpm')) { $('bpm').value = bpm; $('bpmVal').textContent = bpm; } }
+    const bpm = +PAR.get('bpm'); if (bpm>=50 && bpm<=190) setBpm(bpm, true);
     const comp = +PAR.get('compases'); if ([2,4,8,12,16].includes(comp)) S.bars = comp;
     if (typeof renderAll==='function') renderAll();
     if (PAR.get('guia')==='principiante') document.body.classList.add('modo-principiante');
