@@ -62,6 +62,11 @@ h1 { font-family: var(--display); font-weight: 700; font-size: clamp(32px, 7vw, 
   .ai-btn { font: inherit; font-family: var(--mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; cursor: pointer; flex: 0 0 auto;
             background: transparent; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px 13px; transition: border-color .15s, color .15s; }
   .ai-btn:hover, .ai-btn:focus-visible { border-color: var(--accent); color: var(--accent); }
+  a.ai-btn { display: inline-block; text-decoration: none; }
+  .ai-elige { flex: 1 1 100%; display: grid; gap: 8px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .ai-elige-lbl { font-size: 12.5px; color: var(--muted); }
+  .ai-elige-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ai-elige-btns .ai-btn { flex: 1 1 auto; text-align: center; }
 
 /* ── Estado de la sesión ── */
 .sesion { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

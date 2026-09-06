@@ -85,10 +85,18 @@
   }
 
   const verInvitado = $('verInvitado');
+  const invElige = $('invElige');
+  function elegirInvitado() {
+    if (verInvitado) verInvitado.hidden = true;
+    if (invElige) invElige.hidden = false;
+  }
   if (verInvitado) verInvitado.addEventListener('click', () => {
     try { localStorage.setItem(CLAVE_SESION, 'invitado'); } catch (e) {}
-    location.href = 'app.html';
+    elegirInvitado();
+    pintarSesion();
   });
+  // Si ya venía como invitado, mostrar directamente la elección en vez del botón de entrada.
+  if (leerSesion() === 'invitado') elegirInvitado();
 
   const atras = $('navAtras');
   if (atras) atras.addEventListener('click', () => { if (history.length > 1) history.back(); else location.href = 'index.html'; });
