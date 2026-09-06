@@ -234,3 +234,27 @@ html[data-quien="rolando"] li[data-para~="rolando"] { display: list-item; }
 .solo-invitado { display: none; }
 html[data-quien="invitado"] .solo-banda { display: none; }
 html[data-quien="invitado"] .solo-invitado { display: block; }
+/* ── Modo principiante (guía) ── */
+.principiante { border: 1px solid var(--accent); border-radius: 14px; padding: 20px 22px; margin: 6px 0 30px; background: var(--surface-2); }
+.prin-pasos { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
+.prin-paso { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; opacity: .5; }
+.prin-paso.abierto { opacity: 1; }
+.prin-cab { display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
+.prin-num { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; background: var(--line); color: var(--text); display: grid; place-items: center; font-family: var(--mono); font-size: 13px; }
+.prin-paso.abierto .prin-num { background: var(--accent); color: var(--accent-ink); }
+.prin-paso.hecho .prin-num::after { content: '✓'; }
+.prin-paso.hecho .prin-num { font-size: 0; }
+.prin-paso.hecho .prin-num::after { font-size: 14px; }
+.prin-t { font-family: var(--display); font-weight: 700; font-size: 15px; }
+.prin-cuerpo { padding: 0 14px 14px 50px; display: none; }
+.prin-paso.abierto .prin-cuerpo { display: block; }
+.prin-cuerpo p { margin: 6px 0; font-size: 14px; }
+.prin-cuerpo .tip { font-size: 13px; color: var(--muted); }
+.prin-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.prin-chips button { font: inherit; font-size: 13px; cursor: pointer; background: var(--surface-2); color: var(--text); border: 1px solid var(--line); border-radius: 20px; padding: 7px 14px; transition: border-color .15s, background .15s; }
+.prin-chips button:hover, .prin-chips button.sel { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+.prin-chips button small { display: block; font-size: 10.5px; opacity: .8; margin-top: 1px; }
+.prin-eco { font-size: 13px; color: var(--accent); min-height: 1em; }
+.prin-mas { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.prin-reset { margin: 16px 0 0; text-align: right; }
+.prin-reset button { font: inherit; font-size: 12px; color: var(--muted); background: none; border: none; cursor: pointer; text-decoration: underline; }

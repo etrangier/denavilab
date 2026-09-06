@@ -2475,6 +2475,7 @@
   // ───────── Panel de administración (sólo Rolando): changelog + bugs ─────────
   const CHANGELOG = [
     { fecha:'2026-09-07', items:[
+      'Guía: nuevo «Modo principiante» para empezar de cero — elige ánimo y estilo, revelado paso a paso, y abre el taller ya preparado (ánimo/género/bpm por URL).',
       'Archivo: fuera de la portada y sólo para Schair y Rolando (el invitado ya no entra).',
       'Nuevo género Lo-fi hip hop (sin autor fijo) y nuevo autor Martin Lee Gore (Depeche Mode) en Synth pop.',
       'Nuevo estado de ánimo: Concentración (para leer o trabajar).',
@@ -3437,7 +3438,20 @@
   renderModosTabs(); buildKeyboard(); buildWheel(); fillSelects(); renderAll(); renderBassSeq(); renderSaved('savedLetras','rueda.letras'); llenarProgsDeLetra(); renderLetra(); renderSaved('savedGuit','rueda.guitar');
   // Instrumento de entrada: ?modo=beat|bajod|pad|piano|lead|letra|guitarra (lo usa la portada para entrar directo a un paso)
   const MODOS = ['beat','bajod','pad','piano','lead','letra','guitarra'];
-  const pedido = new URLSearchParams(location.search).get('modo');
+  const PAR = new URLSearchParams(location.search);
+  // Parámetros de entrada (los usa la ruta Principiante para dejar todo preparado):
+  // ?genero= &autor= &animo= &bpm= &compases= &modo=
+  (() => {
+    const gen = PAR.get('genero'); if (gen && GENRES[gen]) { S.genre = gen; if ($('genre')) $('genre').value = gen; if (!GENRES[gen][S.band]) S.band = Object.keys(GENRES[gen])[0]; }
+    const aut = PAR.get('autor'); if (aut && GENRES[S.genre] && GENRES[S.genre][aut]) { S.band = aut; }
+    if ($('genre') && typeof fillBands==='function') { $('genre').value = S.genre; fillBands(); if ($('band')) $('band').value = S.band; applyBand(); }
+    const ani = PAR.get('animo'); if (ani && ANIMOS[ani]) { if ($('animo')) { $('animo').value = ani; } if (typeof aplicarAnimo==='function') aplicarAnimo(ani); else S.animo = ani; }
+    const bpm = +PAR.get('bpm'); if (bpm>=50 && bpm<=190) { S.bpm = bpm; if ($('bpm')) { $('bpm').value = bpm; $('bpmVal').textContent = bpm; } }
+    const comp = +PAR.get('compases'); if ([2,4,8,12,16].includes(comp)) S.bars = comp;
+    if (typeof renderAll==='function') renderAll();
+    if (PAR.get('guia')==='principiante') document.body.classList.add('modo-principiante');
+  })();
+  const pedido = PAR.get('modo');
   setMode(MODOS.includes(pedido) ? pedido : 'beat');
 })();
 </script>

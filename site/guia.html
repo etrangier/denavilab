@@ -29,6 +29,74 @@
     <span class="navsesion sesion" id="sesion"></span>
   </nav>
 
+  <!-- ═══════════ Principiante (para todos) ═══════════ -->
+  <section class="principiante" id="principiante">
+    <p class="quien">Para empezar de cero</p>
+    <h2>Modo principiante</h2>
+    <p class="intro">Nunca hiciste una maqueta: no importa. Aquí no hay que saber nada de música. Vas paso a paso, eligiendo cómo quieres que suene, y el taller te va abriendo las cosas de a poco y dándote consejos mientras improvisas. Puedes guardar el avance cuando quieras.</p>
+
+    <ol class="prin-pasos">
+
+      <li class="prin-paso abierto" data-paso="1">
+        <div class="prin-cab"><span class="prin-num">1</span><span class="prin-t">¿Qué quieres que sienta la canción?</span></div>
+        <div class="prin-cuerpo">
+          <p>Elige un ánimo. Con eso el taller ya te propone un estilo, una velocidad (bpm) y cuántos compases dura la vuelta. Todo se puede cambiar después.</p>
+          <div class="prin-chips" id="prinAnimos"></div>
+          <p class="prin-eco" id="prinAnimoEco"></p>
+        </div>
+      </li>
+
+      <li class="prin-paso" data-paso="2">
+        <div class="prin-cab"><span class="prin-num">2</span><span class="prin-t">¿De qué color? (el estilo)</span></div>
+        <div class="prin-cuerpo">
+          <p>Un mismo ánimo suena distinto según la banda de referencia. Elige la que más te guste; guía a la rueda de acordes sin encerrarte en nada.</p>
+          <div class="prin-chips" id="prinGeneros"></div>
+        </div>
+      </li>
+
+      <li class="prin-paso" data-paso="3">
+        <div class="prin-cab"><span class="prin-num">3</span><span class="prin-t">Arma tu primera vuelta de acordes</span></div>
+        <div class="prin-cuerpo">
+          <p>Abro la rueda ya preparada con tu ánimo y tu estilo. Ahí, cada acorde que tocas te dice si es «casa», «tensión» o «sorpresa», y la rueda te propone a dónde ir. Elige cuatro que te gusten y pulsa <b>Guardar</b>. No hay manera de equivocarse: escucha y quédate con lo que te suene bien.</p>
+          <a class="btn" id="prinAbrirRueda" href="app.html?modo=pad&guia=principiante" target="_self">Abrir la rueda preparada &rarr;</a>
+          <p class="tip">Consejo: parte por el primer acorde que te propone (el más «seguro») y ve sumando. Con dos acordes ya hay canción.</p>
+        </div>
+      </li>
+
+      <li class="prin-paso" data-paso="4">
+        <div class="prin-cab"><span class="prin-num">4</span><span class="prin-t">Ponle un pulso (la batería)</span></div>
+        <div class="prin-cuerpo">
+          <p>Una batería simple hace que todo suene a canción. Se dibuja a clic, o cargas un patrón base y lo mueves. Encima de la rejilla hay un consejo que cambia según lo que llevas puesto.</p>
+          <a class="btn" id="prinAbrirBeat" href="app.html?modo=beat&guia=principiante" target="_self">Abrir la batería &rarr;</a>
+        </div>
+      </li>
+
+      <li class="prin-paso" data-paso="5">
+        <div class="prin-cab"><span class="prin-num">5</span><span class="prin-t">Guarda tu avance</span></div>
+        <div class="prin-cuerpo">
+          <p>En cada sección, abajo, hay un botón <b>Guardar</b>: le pones un nombre y queda en este navegador (aunque entres como invitado). Puedes tener varias versiones y volver a cualquiera. Nada se sube a internet.</p>
+          <p class="tip">Cuando ya tengas acordes + batería, prueba el botón <b>Reproducir todo</b> del taller: suena todo junto, y puedes silenciar o aislar cada instrumento.</p>
+        </div>
+      </li>
+
+      <li class="prin-paso" data-paso="6">
+        <div class="prin-cab"><span class="prin-num">6</span><span class="prin-t">Cuando quieras más</span></div>
+        <div class="prin-cuerpo">
+          <p>Ya sabes lo esencial. A tu ritmo, el taller tiene más: un <b>bajo</b> que se genera solo desde tus acordes, <b>guitarra</b> con el mástil y el rasgueo, <b>piano/teclados</b> con maneras de tocar, un <b>piano lead</b> para la melodía, y una <b>libreta de letras</b>. Entra por «Trabajo directo» y prueba de a una.</p>
+          <div class="prin-mas">
+            <a class="btn ghost" href="app.html?modo=bajod&guia=principiante" target="_self">El bajo</a>
+            <a class="btn ghost" href="app.html?modo=guitarra&guia=principiante" target="_self">La guitarra</a>
+            <a class="btn ghost" href="app.html?modo=piano&guia=principiante" target="_self">El piano</a>
+            <a class="btn ghost" href="app.html?modo=lead&guia=principiante" target="_self">El lead</a>
+            <a class="btn ghost" href="app.html?modo=letra&guia=principiante" target="_self">La letra</a>
+          </div>
+        </div>
+      </li>
+
+    </ol>
+    <p class="prin-reset"><button type="button" id="prinReset">Empezar de nuevo</button></p>
+  </section>
+
   <!-- ═══════════ Ruta de Schair ═══════════ -->
   <section data-para="schair">
     <p class="quien">Ruta de Schair</p>
@@ -330,6 +398,93 @@
 
 </div>
 
+<script>
+/* Modo principiante: elección de ánimo y estilo con revelado progresivo. */
+(() => {
+  const $ = id => document.getElementById(id);
+  const sec = $('principiante'); if (!sec) return;
+  const CLAVE = 'denavilab.principiante';
+
+  // ánimo → sello + estilos sugeridos (género/autor). Los bpm/compases los aplica el taller desde el ánimo.
+  const ANIMOS = {
+    'Luminoso':     { eco:'Alegre y abierto · ~122 bpm · 4 compases', op:[['Synth pop','New Order'],['Bedroom pop','boy pablo'],['Rock','Green Day']] },
+    'Nostálgico':   { eco:'Dulce y algo triste · ~92 bpm · 8 compases', op:[['Bedroom pop','Mac DeMarco'],['Synth pop','Pet Shop Boys'],['Alternativo','Damon Albarn']] },
+    'Melancólico':  { eco:'Triste con belleza · ~82 bpm · 4 compases', op:[['Trip hop','Portishead'],['Alternativo','Thom Yorke'],['Synth pop','Depeche Mode']] },
+    'Soñador':      { eco:'Flotante y lento · ~76 bpm · 8 compases', op:[['Bedroom pop','Talk Talk'],['Lo-fi hip hop','Lo-fi (para estudiar)'],['Synth pop','Martin Lee Gore']] },
+    'Concentración':{ eco:'Para leer o trabajar · ~82 bpm · 8 compases', op:[['Lo-fi hip hop','Lo-fi (para estudiar)'],['Bedroom pop','Mac DeMarco'],['Trip hop','Massive Attack']] },
+    'Enérgico':     { eco:'Directo y con fuerza · ~150 bpm · 4 compases', op:[['Rock','Green Day'],['Anime','Anime · J-pop'],['Synth pop','New Order']] },
+  };
+
+  const estado = (() => { try { return JSON.parse(localStorage.getItem(CLAVE)) || {}; } catch (e) { return {}; } })();
+  const guardar = () => { try { localStorage.setItem(CLAVE, JSON.stringify(estado)); } catch (e) {} };
+
+  const pasos = [...sec.querySelectorAll('.prin-paso')];
+  const abrirHasta = n => pasos.forEach(p => { const k = +p.dataset.paso; p.classList.toggle('abierto', k <= n); p.classList.toggle('hecho', k < n); });
+
+  const linkBase = () => {
+    const p = new URLSearchParams();
+    if (estado.animo) p.set('animo', estado.animo);
+    if (estado.genero) p.set('genero', estado.genero);
+    if (estado.autor) p.set('autor', estado.autor);
+    p.set('guia', 'principiante');
+    return p.toString();
+  };
+  const fijarLinks = () => {
+    const qs = linkBase();
+    const set = (id, modo) => { const a = $(id); if (a) a.href = `app.html?modo=${modo}&${qs}`; };
+    set('prinAbrirRueda','pad'); set('prinAbrirBeat','beat');
+    sec.querySelectorAll('.prin-mas a').forEach(a => { const modo = new URL(a.href, location).searchParams.get('modo'); a.href = `app.html?modo=${modo}&${qs}`; });
+  };
+
+  // Paso 1: ánimos
+  const cA = $('prinAnimos');
+  Object.keys(ANIMOS).forEach(nom => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = nom;
+    if (estado.animo === nom) b.classList.add('sel');
+    b.addEventListener('click', () => {
+      estado.animo = nom; estado.genero = null; estado.autor = null;
+      cA.querySelectorAll('button').forEach(x => x.classList.remove('sel')); b.classList.add('sel');
+      $('prinAnimoEco').textContent = ANIMOS[nom].eco;
+      pintarGeneros(nom); guardar(); fijarLinks(); abrirHasta(2);
+    });
+    cA.append(b);
+  });
+
+  function pintarGeneros(nom) {
+    const cG = $('prinGeneros'); cG.innerHTML = '';
+    ANIMOS[nom].op.forEach(([gen, aut]) => {
+      const b = document.createElement('button'); b.type = 'button';
+      b.innerHTML = aut + '<small>' + gen + '</small>';
+      if (estado.genero === gen && estado.autor === aut) b.classList.add('sel');
+      b.addEventListener('click', () => {
+        estado.genero = gen; estado.autor = aut;
+        cG.querySelectorAll('button').forEach(x => x.classList.remove('sel')); b.classList.add('sel');
+        guardar(); fijarLinks(); abrirHasta(6);
+      });
+      cG.append(b);
+    });
+  }
+
+  // Restaurar avance
+  if (estado.animo && ANIMOS[estado.animo]) {
+    $('prinAnimoEco').textContent = ANIMOS[estado.animo].eco;
+    pintarGeneros(estado.animo);
+    abrirHasta(estado.genero ? 6 : 2);
+    fijarLinks();
+  } else {
+    abrirHasta(1);
+  }
+
+  $('prinReset').addEventListener('click', () => {
+    try { localStorage.removeItem(CLAVE); } catch (e) {}
+    estado.animo = estado.genero = estado.autor = null;
+    $('prinAnimoEco').textContent = '';
+    cA.querySelectorAll('button').forEach(x => x.classList.remove('sel'));
+    $('prinGeneros').innerHTML = '';
+    abrirHasta(1);
+  });
+})();
+</script>
 <script src="acceso.js" defer></script>
 </body>
 </html>
