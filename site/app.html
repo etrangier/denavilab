@@ -141,6 +141,19 @@
   .cand { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 6px 4px; }
   .tipbox { margin: 6px 6px 0; padding: 8px 12px; border-left: 3px solid var(--ok); background: color-mix(in srgb, var(--surface-2) 75%, transparent); border-radius: 0 8px 8px 0; font-size: 13px; color: var(--text); }
   .tipbox:empty { display: none; }
+  .consejos-wrap { margin: 2px 0 0; }
+  .consejos-head { display: flex; align-items: center; gap: 10px; margin: 6px 6px 4px; }
+  .consejos-head .lbl { font-family: var(--mono); font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); flex: 1 1 auto; }
+  .consejos-clear { font: inherit; font-size: 11px; color: var(--muted); background: none; border: none; cursor: pointer; text-decoration: underline; flex: 0 0 auto; }
+  .consejos { display: grid; gap: 6px; margin: 0 6px; }
+  .consejos:empty { display: none; }
+  .consejo-card { position: relative; padding: 8px 30px 8px 12px; border-left: 3px solid var(--ok); background: color-mix(in srgb, var(--surface-2) 75%, transparent); border-radius: 0 8px 8px 0; font-size: 13px; color: var(--text); animation: consejoIn .28s ease; }
+  .consejo-card b { color: var(--ok); font-weight: 600; }
+  .consejo-card.aviso { border-left-color: var(--accent); }
+  .consejo-card.aviso b { color: var(--accent); }
+  .consejo-x { position: absolute; top: 4px; right: 5px; width: 22px; height: 22px; border: none; background: none; color: var(--muted); font-size: 17px; line-height: 1; cursor: pointer; border-radius: 5px; padding: 0; }
+  .consejo-x:hover { color: var(--text); background: color-mix(in srgb, var(--muted) 22%, transparent); }
+  @keyframes consejoIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
   .tipbox b { color: var(--ok); font-weight: 600; }
   .help { margin: 8px 6px 0; color: var(--muted); font-size: 12.5px; }
   .help summary { cursor: pointer; color: var(--text); font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
@@ -775,6 +788,10 @@
           <span class="lbl">Sugerencias · <span id="bassSugPor"></span></span>
           <div class="sug-bajo" id="bassSugs"></div>
         </div>
+        <div class="consejos-wrap">
+          <div class="consejos-head" id="consejosBajoHead" hidden><span class="lbl">Consejos según lo que llevas · se van sumando</span><button type="button" class="consejos-clear" id="consejosBajoClear">limpiar todos</button></div>
+          <div class="consejos" id="bassConsejo"></div>
+        </div>
         <div class="seq-scroll"><div class="seq bass-seq" id="bassSeq"></div></div>
         <div class="actions">
           <button class="primary" id="playBass">▶ Bajo</button>
@@ -832,7 +849,10 @@
             <div class="chips" id="drumLenChips"></div>
           </div>
         </div>
-        <div class="tipbox" id="beatConsejo"></div>
+        <div class="consejos-wrap" data-modes="beat">
+          <div class="consejos-head" id="consejosHead" hidden><span class="lbl">Consejos según lo que llevas · se van sumando</span><button type="button" class="consejos-clear" id="consejosClear">limpiar todos</button></div>
+          <div class="consejos" id="beatConsejo"></div>
+        </div>
         <div class="seq-scroll"><div class="seq" id="seq"></div></div>
         <div class="actions">
           <button class="primary" id="playDrums">▶ Sólo batería</button>
@@ -1691,24 +1711,61 @@
     schair:  { vacio:'Para rock, empieza clásico: bombo en el 1 y en el 3. Marca sólo esos dos y escúchalo dar vueltas.',
                lleno:'Ya está de pie. Prueba mover un golpe de bombo media casilla adelante: eso es lo que separa el punk del metrónomo.' },
   };
-  function consejoBeat() {
-    const caja = $('beatConsejo'); if (!caja) return;
+  // Consejo del momento según lo que llevas tocado (clave estable + si es aviso)
+  function tipBeatActual() {
     const n = S.drums.len * 16;
     const cuenta = id => S.drums.pat[id].slice(0, n).filter(Boolean).length;
     const k = cuenta('kick'), c = cuenta('snare'), h = cuenta('hh') + cuenta('oh');
     const voz = VOZ[S.quien] || VOZ.rolando;
-    let t;
-    if (!k && !c && !h) t = '<b>Empieza por el bombo.</b> ' + voz.vacio;
-    else if (k && !c && !h) t = '<b>Ya tienes el suelo.</b> Ahora la caja: en el 2 y en el 4, que son la primera casilla del segundo y del cuarto tiempo. Con eso ya hay batería.';
-    else if (!k && c) t = '<b>Te falta el suelo.</b> La caja sola no sostiene nada: pon el bombo antes de seguir.';
-    else if (!k && !c && h) t = '<b>Eso es el reloj, no la batería.</b> El hi-hat marca el tiempo, pero quien manda son el bombo y la caja. Ponlos primero.';
-    else if (k && c && !h) t = '<b>Ya se sostiene.</b> Si quieres que corra, pon el hi-hat en cada corchea: las casillas 1, 3, 5, 7… de cada tiempo.';
-    // «lleno» de verdad: bombo y caja apretados, o todo junto pasado de vueltas. Un hi-hat
-    // en cada semicorchea no es exceso, así que no cuenta igual que un golpe de bombo.
-    else if (k + c > n * 0.5 || k + c + h > n * 1.6) t = '<b>Está muy lleno.</b> ' + voz.lleno;
-    else t = '<b>Ya tienes un beat.</b> Déjalo dando vueltas un rato largo antes de tocarlo más. Si a las diez vueltas no te aburre, está bueno; si te aburre, quita un golpe en vez de añadir dos.';
-    caja.innerHTML = t;
+    if (!k && !c && !h) return { key:'vacio', html:'<b>Empieza por el bombo.</b> ' + voz.vacio };
+    if (!k && c)        return { key:'sinsuelo', aviso:true, html:'<b>Te falta el suelo.</b> La caja sola no sostiene nada: pon el bombo antes de seguir.' };
+    if (!k && !c && h)  return { key:'reloj', aviso:true, html:'<b>Eso es el reloj, no la batería.</b> El hi-hat marca el tiempo, pero quien manda son el bombo y la caja. Ponlos primero.' };
+    if (k && !c)        return { key:'suelo', html:'<b>Ya tienes el suelo.</b> Ahora la caja: en el 2 y en el 4 (primera casilla del segundo y del cuarto tiempo). Con eso ya hay batería.' };
+    if (k + c > n * 0.5 || k + c + h > n * 1.6) return { key:'lleno', aviso:true, html:'<b>Está muy lleno.</b> ' + voz.lleno };
+    if (k && c && h < 4) return { key:'sostiene', html:'<b>Ya se sostiene.</b> Si quieres que corra, pon el hi-hat en cada corchea: las casillas 1, 3, 5, 7… de cada tiempo.' };
+    if (k && c)          return { key:'corre', html:'<b>Ya corre.</b> Para darle aire, prueba un <b>hi-hat abierto</b> en la «y» del 4 (la última corchea del compás), o adelanta un bombo medio tiempo antes de la caja para que empuje.' };
+    return { key:'beat', html:'<b>Ya tienes un beat.</b> Déjalo dando vueltas un rato largo antes de tocarlo más. Si a las diez vueltas no te aburre, está bueno; si te aburre, quita un golpe en vez de añadir dos.' };
   }
+  // Consejos que se van sumando (no se borran); cada uno se quita con su × y no vuelve.
+  function crearConsejero(cajaId, headId) {
+    let tips = []; const cerrados = new Set();
+    function render() {
+      const caja = $(cajaId); if (!caja) return; caja.innerHTML = '';
+      tips.slice().reverse().forEach(t => {          // el más nuevo, arriba
+        const card = el('div', { class:'consejo-card' + (t.aviso ? ' aviso' : '') });
+        card.innerHTML = t.html;
+        card.append(el('button', { class:'consejo-x', type:'button', 'aria-label':'quitar consejo', title:'quitar', onclick:()=>{ cerrados.add(t.key); tips = tips.filter(x=>x.key!==t.key); render(); } }, '×'));
+        caja.append(card);
+      });
+      const head = $(headId); if (head) head.hidden = tips.length === 0;
+    }
+    return {
+      push(t){ if (t && t.key && !cerrados.has(t.key) && !tips.some(x=>x.key===t.key)) tips.push(t); render(); },
+      clear(){ tips.forEach(t=>cerrados.add(t.key)); tips = []; render(); },
+    };
+  }
+  const consejeroBeat = crearConsejero('beatConsejo', 'consejosHead');
+  const consejeroBajo = crearConsejero('bassConsejo', 'consejosBajoHead');
+  function consejoBeat() { if ($('beatConsejo')) consejeroBeat.push(tipBeatActual()); }
+
+  // Consejo del momento para el bajo, según lo que llevas programado
+  function tipBajoActual() {
+    const n = S.bassd.len * 16;
+    const g = S.bassd.grid.slice(0, n);
+    const notas = g.filter(r=>r>=0).length;
+    const acentos = S.bassd.acc.slice(0, n).filter(Boolean).length;
+    const ligados = S.bassd.slide.slice(0, n).filter(Boolean).length;
+    if (notas === 0) {
+      if (S.prog && S.prog.length) return { key:'genera', html:'<b>Ya tienes acordes.</b> Pulsa «Generar desde los acordes» y el bajo sale solo: la raíz de cada acorde en su compás. Después lo mueves a gusto.' };
+      return { key:'vacio', html:'<b>Empieza por la raíz en el 1.</b> Una nota por compás —la que le da el nombre al acorde— junto al bombo. Con eso el bajo ya camina.' };
+    }
+    if (notas > n * 0.6) return { key:'lleno', aviso:true, html:'<b>Está muy cargado.</b> El bajo respira mejor con aire: quita golpes hasta dejar lo justo. En una maqueta, una o dos notas por compás suelen bastar.' };
+    if (notas <= S.bassd.len) return { key:'ancla', html:'<b>Ya tienes el ancla.</b> Para que empuje, repite la nota también en el 3 de cada compás (casilla 8). Sigue siendo una sola nota por acorde.' };
+    if (!acentos) return { key:'acento', html:'<b>Marca el 1.</b> Ponle un <b>acento</b> a la primera nota de cada compás (herramienta «Acento ›»): se nota más de lo que parece dónde empieza la vuelta.' };
+    if (!ligados) return { key:'ligado', html:'<b>Para que fluya</b>, prueba un <b>ligado</b> (herramienta «Ligado ~») de la última nota hacia la primera de la vuelta: cierra el círculo y suena más humano.' };
+    return { key:'listo', html:'<b>Suena.</b> Déjalo girar con el beat. Si algo no cuadra, casi siempre sobra una nota, no falta.' };
+  }
+  function consejoBajo() { if ($('bassConsejo')) consejeroBajo.push(tipBajoActual()); }
 
   function renderSeq() {
     const steps = S.drums.len*16; const box = $('seq'); box.innerHTML=''; box.style.setProperty('--steps', steps);
@@ -1928,6 +1985,8 @@
   $('drumKit').value = S.drums.kit;
   $('drumKit').addEventListener('change', e=>{ S.drums.kit = e.target.value; });
   $('clearDrums').addEventListener('click', ()=>{ snapBeat(); loadPreset('Vacío'); });
+  if ($('consejosClear')) $('consejosClear').addEventListener('click', ()=>consejeroBeat.clear());
+  if ($('consejosBajoClear')) $('consejosBajoClear').addEventListener('click', ()=>consejeroBajo.clear());
   function agruparPresets() {
     const sel = $('drumPreset'); const prev = sel.value; sel.innerHTML = '';
     const grupos = {}; presetsMios().forEach(k=>{ const banda = k.includes(' · ') ? k.split(' · ')[0] : k; (grupos[banda] = grupos[banda] || []).push(k); });
@@ -2396,7 +2455,7 @@
     $('bassOwnBox').hidden = !S.bassd.own; $('bassBpmVal').textContent = S.bassd.bpm; $('bassBpmRange').value = S.bassd.bpm;
     const bc = $('bassBarChips'); bc.innerHTML='';
     [2,4,8,12,16].forEach(n=> bc.append(el('button',{class:'chip','aria-pressed':String(n===S.bassd.bars), onclick:()=>{ S.bassd.bars=n; renderBassSeq(); }}, String(n))));
-    renderSugsBajo(); renderPresetsBajo(); if (typeof renderMixer==='function') renderMixer();
+    renderSugsBajo(); renderPresetsBajo(); if (typeof consejoBajo==='function') consejoBajo(); if (typeof renderMixer==='function') renderMixer();
     const lc = $('bassLenChips'); lc.innerHTML='';
     [1,2,4].forEach(n=> lc.append(el('button',{class:'chip','aria-pressed':String(n===S.bassd.len), onclick:()=>{ if (n>S.bassd.len) { const old=S.bassd.len*16; for (let s=old;s<n*16;s++) { S.bassd.grid[s]=S.bassd.grid[s%old]; S.bassd.acc[s]=S.bassd.acc[s%old]; S.bassd.slide[s]=S.bassd.slide[s%old]; } } S.bassd.len=n; renderBassSeq(); }}, n===1?'1 compás':n+' compases')));
     const oc2 = $('bassOctChips'); oc2.innerHTML='';
@@ -2497,6 +2556,7 @@
   // ───────── Panel de administración (sólo Rolando): changelog + bugs ─────────
   const CHANGELOG = [
     { fecha:'2026-09-07', items:[
+      'Consejos en vivo (batería y bajo): ahora se van sumando a medida que tocas —no se borran— y cada uno se quita con una × (y no vuelve); con «limpiar todos». Más consejos según el patrón.',
       'Modo principiante: revelado de a un paso — sólo se muestra el paso actual, los ya hechos se pliegan (clic para revisar) y los siguientes se despliegan al llegar; con indicador «Paso N de 6» y barra de progreso.',
       'Modo principiante: un consejo breve y atribuido por paso, destilado de lecturas de Rick Rubin, Mac DeMarco, Martin Gore, Damon Albarn y guías de bedroom pop.',
       'Mezcla: ahora tiene su propia pestaña «▶ Mezcla» (antes estaba escondida en Rueda/Piano). Lista las pistas programadas y las reproduce juntas o por separado (M silenciar / S aislar).',
