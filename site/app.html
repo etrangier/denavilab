@@ -459,6 +459,7 @@
         <span class="lbl">Sonido</span>
         <select id="inst">
           <option value="pad">Pad</option>
+          <option value="coro">Voces · coro</option>
           <option value="bajoe" hidden>Bajo eléctrico</option>
           <option value="bajod" hidden>Bajo digital</option>
           <option value="piano" hidden>Piano</option>
@@ -1536,8 +1537,9 @@
     ensureAudio(); unlockAudio(); stopPreview();
     const t = ctx.currentTime + 0.02;
     if (S.inst==='bajoe' || S.inst==='bajod') { const root = midiOfKey(keyIndexOfPc(c.pc)) - 24; previewVoices.push(voice(root, t, dur||0.5, S.inst, 0.4)); return; }
-    const kind = S.inst==='pad' ? 'pad' : S.inst==='lead' ? 'lead' : S.inst==='uke' ? 'uke' : 'piano';
-    const g = S.inst==='pad' ? 0.12 : 0.18; const d = dur || (S.inst==='pad' ? 1.1 : 0.7);
+    const kind = S.inst==='pad' ? 'pad' : S.inst==='coro' ? 'coro' : S.inst==='lead' ? 'lead' : S.inst==='uke' ? 'uke' : 'piano';
+    const esPad = S.inst==='pad' || S.inst==='coro';
+    const g = esPad ? 0.12 : 0.18; const d = dur || (esPad ? 1.1 : 0.7);
     vocesDeAcorde(c).forEach((m,i)=> previewVoices.push(voice(m, t + i*0.012, d, kind, g)));
   }
   function propose(c) {
@@ -1602,10 +1604,14 @@
     const mk = (type, det=0, oct=0, lvl=1) => { const o=ctx.createOscillator(); o.type=type; o.frequency.value=freq(m+oct*12); o.detune.value=det; o._det=det; if (opts && opts.glideTo!==undefined) { o.frequency.setValueAtTime(freq(m+oct*12), t+opts.glideAt); o.frequency.exponentialRampToValueAtTime(freq(opts.glideTo+oct*12), t+dur); } const og=ctx.createGain(); og.gain.value=lvl; o.connect(og); og.connect(f); oscs.push(o); };
     let a=0.005, rel=0.25, sus=gainV*0.5, dec=0.4;
     switch (kind) {
-      case 'pad':   // Classic Analog Pad: tres sierras desafinadas, ataque lento, filtro que se abre
-        mk('sawtooth',-9,0,.4); mk('sawtooth',9,0,.4); mk('sawtooth',0,-1,.3);
-        f.frequency.setValueAtTime(500,t); f.frequency.linearRampToValueAtTime(1600,t+0.8); f.Q.value=1.2;
-        a=0.45; rel=0.9; sus=gainV*0.85; dec=1.2; break;
+      case 'pad':   // Classic Analog Pad: sierras desafinadas, ataque lento, filtro suave (menos agudo)
+        mk('sawtooth',-8,0,.34); mk('sawtooth',8,0,.34); mk('sawtooth',0,-1,.32); mk('sine',0,-1,.2);
+        f.frequency.setValueAtTime(360,t); f.frequency.linearRampToValueAtTime(1000,t+0.9); f.Q.value=0.7;
+        a=0.5; rel=1.0; sus=gainV*0.82; dec=1.3; break;
+      case 'coro':  // Pad de voces (evoca el «Enjoy the Silence» de Depeche Mode): cálido y coral
+        mk('sawtooth',-6,0,.2); mk('sawtooth',6,0,.2); mk('sawtooth',-13,0,.13); mk('triangle',0,0,.42); mk('sine',0,-1,.22);
+        f.frequency.setValueAtTime(600,t); f.frequency.linearRampToValueAtTime(1150,t+0.7); f.Q.value=3;
+        a=0.45; rel=1.3; sus=gainV*0.8; dec=1.1; break;
       case 'piano': // piano sencillo: fundamental + dos armónicos, ataque instantáneo, cae como una cuerda
         mk('triangle',0,0,.75); mk('sine',0,1,.22); mk('sine',0,2,.07);
         f.frequency.setValueAtTime(2600,t); f.frequency.exponentialRampToValueAtTime(1100,t+0.9); f.Q.value=0.5;
@@ -1963,6 +1969,7 @@
     const nb = Math.round(c.len * 4);                      // pulsos que dura este acorde
     switch (S.inst) {
       case 'pad': keys.forEach(m=>voice(m,t,beat*(nb-0.4),'pad',0.13)); break;
+      case 'coro': keys.forEach(m=>voice(m,t,beat*(nb-0.4),'coro',0.12)); break;
       case 'piano': schedulePianoChord(c, t, beat, keys); break;
       case 'lead': { const arp=[...keys, ...keys.slice(1,-1).reverse()].map(m=>m+12); for (let i=0;i<nb*2;i++) voice(arp[i%arp.length],t+i*beat/2,beat*0.4,'lead',0.12); break; }
       case 'bajoe': for (let b=0;b<nb;b+=4) { voice(root,t+b*beat,beat*2.4,'bajoe',0.5); if (b+2.5<nb) voice(root,t+(b+2.5)*beat,beat*1.2,'bajoe',0.4); } break;
@@ -2695,6 +2702,7 @@
   // ───────── Panel de administración (sólo Rolando): changelog + bugs ─────────
   const CHANGELOG = [
     { fecha:'2026-09-07', items:[
+      'Pad: el «Classic Analog Pad» ahora suena más suave (menos agudo). Nuevo instrumento «Voces · coro» que evoca el pad de voces de «Enjoy the Silence».',
       'Batería: cuadro simulado de la Donner D1 (12 canales en 3 bancos, páginas de 16 pasos hasta 64, voces sintetizadas) que se activa con un toggle y se resalta si se conecta una D1 por MIDI; «Sólo batería» lo reproduce.',
       'Batería: cuantización tipo Donner D1 — eliges la rejilla (1/4, 1/8, 1/16) antes de tocar y los golpes (pad del MPK) caen ahí; botón «Cuantizar lo que hay» para ajustar lo ya puesto.',
       'MPK: candado «🔒 fijar el tempo» para que el knob (K1/CC70) deje de descontrolar el BPM; se activa solo al grabar pads. Los pads siguen cayendo en el cuadro con el tempo fijo.',
@@ -2755,7 +2763,7 @@
   $('delBass').addEventListener('click', ()=>{ const i=+$('savedBass').value; if ($('savedBass').value==='') return; const list=store.get('rueda.bass'); list.splice(i,1); store.set('rueda.bass',list); renderSaved('savedBass','rueda.bass'); });
   renderSaved('savedBeats','rueda.beats'); renderSaved('savedBass','rueda.bass'); renderSaved('savedProgs','rueda.progs'); renderSaved('savedLeads','rueda.leads');
   $('saveProg').addEventListener('click', ()=>{ if (!S.prog.length) return; { const u=usoGet(); u.progs=(u.progs||0)+1; if (S.prog.length>=2) { const t=(u.trans=u.trans||{m:{},M:{}})[S.key.mode]=(u.trans[S.key.mode]||{}); const dl=degreeOf(S.prog[S.prog.length-1].pc,S.prog[S.prog.length-1].q), d0=degreeOf(S.prog[0].pc,S.prog[0].q); if (dl&&d0){ t[dl]=t[dl]||{}; t[dl][d0]=(t[dl][d0]||0)+1; } } usoSet(u); } const name=$('progName').value.trim()||(S.prog.map(c=>chordLabel(c.pc,c.q)).join(' ')); const list=store.get('rueda.progs'); list.push({name, prog:S.prog, key:S.key, genre:S.genre, band:S.band, bpm:S.bpm, bars:S.bars, voicing:S.voicing, defLen:S.defLen, inst:S.inst, mode:S.mode, root:S.root, qual:S.qual}); store.set('rueda.progs',list); $('progName').value=''; renderSaved('savedProgs','rueda.progs'); $('savedProgs').value=String(list.length-1); });
-  $('savedProgs').addEventListener('change', e=>{ const it=store.get('rueda.progs')[+e.target.value]; if (!it) return; S.genre=it.genre; $('genre').value=S.genre; fillBands(); S.band=it.band; $('band').value=S.band; setBpm(it.bpm, true); S.bars=it.bars; S.voicing=it.voicing; S.defLen=it.defLen; S.root=it.root; S.qual=it.qual; $('root').value=S.root; $('qual').value=S.qual; S.key=it.key; S.prog=it.prog.map(c=>({...c})); S.cand=null; if (it.mode==='pad'||it.mode==='piano') { if (it.mode==='pad') $('inst').value = ['pad','lead','uke'].includes(it.inst)?it.inst:'pad'; setMode(it.mode); } else renderAll(); });
+  $('savedProgs').addEventListener('change', e=>{ const it=store.get('rueda.progs')[+e.target.value]; if (!it) return; S.genre=it.genre; $('genre').value=S.genre; fillBands(); S.band=it.band; $('band').value=S.band; setBpm(it.bpm, true); S.bars=it.bars; S.voicing=it.voicing; S.defLen=it.defLen; S.root=it.root; S.qual=it.qual; $('root').value=S.root; $('qual').value=S.qual; S.key=it.key; S.prog=it.prog.map(c=>({...c})); S.cand=null; if (it.mode==='pad'||it.mode==='piano') { if (it.mode==='pad') $('inst').value = ['pad','coro','lead','uke'].includes(it.inst)?it.inst:'pad'; setMode(it.mode); } else renderAll(); });
   $('delProg').addEventListener('click', ()=>{ if ($('savedProgs').value==='') return; const list=store.get('rueda.progs'); list.splice(+$('savedProgs').value,1); store.set('rueda.progs',list); renderSaved('savedProgs','rueda.progs'); });
 
   // ───────── Exportar MIDI (SMF formato 1, 480 ticks por negra) ─────────
