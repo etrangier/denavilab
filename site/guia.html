@@ -33,41 +33,42 @@
   <section class="principiante" id="principiante">
     <p class="quien">Para empezar de cero</p>
     <h2>Modo principiante</h2>
-    <p class="intro">Nunca hiciste una maqueta: no importa. Aquí no hay que saber nada de música. Vas paso a paso, eligiendo cómo quieres que suene, y el taller te va abriendo las cosas de a poco y dándote consejos mientras improvisas. Puedes guardar el avance cuando quieras.</p>
+    <p class="intro">Nunca hiciste una maqueta: no importa. Aquí no hay que saber nada de música. Se empieza por el pulso —la batería— y de ahí, a tu ritmo, se suma lo demás. El taller te da sugerencias y consejos mientras improvisas, pero son eso: sugerencias. Copia, combina, cambia y borra cuando quieras. Puedes guardar el avance en cualquier momento.</p>
 
     <ol class="prin-pasos">
 
       <li class="prin-paso abierto" data-paso="1">
-        <div class="prin-cab"><span class="prin-num">1</span><span class="prin-t">¿Qué quieres que sienta la canción?</span></div>
+        <div class="prin-cab"><span class="prin-num">1</span><span class="prin-t">Empieza por el pulso (la batería)</span></div>
         <div class="prin-cuerpo">
-          <p>Elige un ánimo. Con eso el taller ya te propone un estilo, una velocidad (bpm) y cuántos compases dura la vuelta. Todo se puede cambiar después.</p>
+          <p>Todo nace del ritmo. Abre la batería y ponte a jugar: marca golpes a clic, <b>copia</b> un patrón base de los que trae, <b>combínalo</b> con otro, quítale la mitad, súbele el tempo, empieza de nuevo. No hay orden correcto ni forma «buena» de hacerlo.</p>
+          <p class="tip">La primera versión no tiene que ser buena — tiene que existir. Sigue lo que te llame la atención, no lo que «debería» ir. Encima de la rejilla aparece un consejo que cambia solo: tómalo como una idea, no como una regla. Puedes cambiar cualquier cosa en cualquier momento.</p>
+          <a class="btn" id="prinAbrirBeat" href="app.html?modo=beat&guia=principiante" target="_self">Abrir la batería &rarr;</a>
+        </div>
+      </li>
+
+      <li class="prin-paso" data-paso="2">
+        <div class="prin-cab"><span class="prin-num">2</span><span class="prin-t">¿Qué quieres que sienta la canción?</span></div>
+        <div class="prin-cuerpo">
+          <p>Cuando el pulso te guste, elige un ánimo. Con eso el taller te propone un estilo, una velocidad (bpm) y cuántos compases dura la vuelta. Nada de esto te encierra: todo se cambia después.</p>
           <div class="prin-chips" id="prinAnimos"></div>
           <p class="prin-eco" id="prinAnimoEco"></p>
         </div>
       </li>
 
-      <li class="prin-paso" data-paso="2">
-        <div class="prin-cab"><span class="prin-num">2</span><span class="prin-t">¿De qué color? (el estilo)</span></div>
+      <li class="prin-paso" data-paso="3">
+        <div class="prin-cab"><span class="prin-num">3</span><span class="prin-t">¿De qué color? (el estilo)</span></div>
         <div class="prin-cuerpo">
           <p>Un mismo ánimo suena distinto según la banda de referencia. Elige la que más te guste; guía a la rueda de acordes sin encerrarte en nada.</p>
           <div class="prin-chips" id="prinGeneros"></div>
         </div>
       </li>
 
-      <li class="prin-paso" data-paso="3">
-        <div class="prin-cab"><span class="prin-num">3</span><span class="prin-t">Arma tu primera vuelta de acordes</span></div>
+      <li class="prin-paso" data-paso="4">
+        <div class="prin-cab"><span class="prin-num">4</span><span class="prin-t">Arma tu vuelta de acordes</span></div>
         <div class="prin-cuerpo">
-          <p>Abro la rueda ya preparada con tu ánimo y tu estilo. Ahí, cada acorde que tocas te dice si es «casa», «tensión» o «sorpresa», y la rueda te propone a dónde ir. Elige cuatro que te gusten y pulsa <b>Guardar</b>. No hay manera de equivocarse: escucha y quédate con lo que te suene bien.</p>
+          <p>Abro la rueda ya preparada con tu ánimo y tu estilo. Ahí, cada acorde que tocas te dice si es «casa», «tensión» o «sorpresa», y la rueda te propone a dónde ir. Elige los que te gusten y pulsa <b>Guardar</b>. No hay manera de equivocarse: escucha y quédate con lo que te suene bien.</p>
           <a class="btn" id="prinAbrirRueda" href="app.html?modo=pad&guia=principiante" target="_self">Abrir la rueda preparada &rarr;</a>
           <p class="tip">Consejo: parte por el primer acorde que te propone (el más «seguro») y ve sumando. Con dos acordes ya hay canción.</p>
-        </div>
-      </li>
-
-      <li class="prin-paso" data-paso="4">
-        <div class="prin-cab"><span class="prin-num">4</span><span class="prin-t">Ponle un pulso (la batería)</span></div>
-        <div class="prin-cuerpo">
-          <p>Una batería simple hace que todo suene a canción. Se dibuja a clic, o cargas un patrón base y lo mueves. Encima de la rejilla hay un consejo que cambia según lo que llevas puesto.</p>
-          <a class="btn" id="prinAbrirBeat" href="app.html?modo=beat&guia=principiante" target="_self">Abrir la batería &rarr;</a>
         </div>
       </li>
 
@@ -419,7 +420,7 @@
   const guardar = () => { try { localStorage.setItem(CLAVE, JSON.stringify(estado)); } catch (e) {} };
 
   const pasos = [...sec.querySelectorAll('.prin-paso')];
-  const abrirHasta = n => pasos.forEach(p => { const k = +p.dataset.paso; p.classList.toggle('abierto', k <= n); p.classList.toggle('hecho', k < n); });
+  const abrirHasta = n => pasos.forEach(p => { const k = +p.dataset.paso; p.classList.toggle('abierto', k <= n); p.classList.toggle('hecho', k < n && k > 1); });
 
   const linkBase = () => {
     const p = new URLSearchParams();
@@ -445,7 +446,7 @@
       estado.animo = nom; estado.genero = null; estado.autor = null;
       cA.querySelectorAll('button').forEach(x => x.classList.remove('sel')); b.classList.add('sel');
       $('prinAnimoEco').textContent = ANIMOS[nom].eco;
-      pintarGeneros(nom); guardar(); fijarLinks(); abrirHasta(2);
+      pintarGeneros(nom); guardar(); fijarLinks(); abrirHasta(3);
     });
     cA.append(b);
   });
@@ -469,10 +470,10 @@
   if (estado.animo && ANIMOS[estado.animo]) {
     $('prinAnimoEco').textContent = ANIMOS[estado.animo].eco;
     pintarGeneros(estado.animo);
-    abrirHasta(estado.genero ? 6 : 2);
+    abrirHasta(estado.genero ? 6 : 3);
     fijarLinks();
   } else {
-    abrirHasta(1);
+    abrirHasta(2);
   }
 
   $('prinReset').addEventListener('click', () => {
@@ -481,7 +482,7 @@
     $('prinAnimoEco').textContent = '';
     cA.querySelectorAll('button').forEach(x => x.classList.remove('sel'));
     $('prinGeneros').innerHTML = '';
-    abrirHasta(1);
+    abrirHasta(2);
   });
 })();
 </script>
