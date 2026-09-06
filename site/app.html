@@ -435,7 +435,6 @@
         <span class="lbl">Instrumento</span>
         <select id="mode">
           <option value="beat">Beat · batería</option>
-          <option value="bajod">Bajo digital</option>
           <option value="pad">Teclado · Pad</option>
           <option value="piano">Teclado · Piano (acordes)</option>
           <option value="lead">Teclado · Piano lead (dos manos y melodía)</option>
@@ -1922,12 +1921,13 @@
     'Personal':'empieza simple —bombo en el 1 y el 3— y ve sumando a tu oído.',
   };
   const beatSugGenero = () => BEAT_GENERO[S.genre] || 'empieza simple: bombo en el 1 y el 3.';
+  const htmlVacio = () => '<b>Empieza por el bombo.</b> Para '+S.genre.toLowerCase()+' ('+S.band+'), '+beatSugGenero()+ej('bombo en el <b>1</b> y en el <b>3</b> (las casillas marcadas 1 y 3), y nada más por ahora.');
   function tipBeatActual() {
     const n = S.drums.len * 16;
     const cuenta = id => S.drums.pat[id].slice(0, n).filter(Boolean).length;
     const k = cuenta('kick'), c = cuenta('snare'), h = cuenta('hh') + cuenta('oh');
     const voz = VOZ[S.quien] || VOZ.rolando;
-    if (!k && !c && !h) return { key:'vacio', html:'<b>Empieza por el bombo.</b> Para '+S.genre.toLowerCase()+' ('+S.band+'), '+beatSugGenero()+ej('bombo en el <b>1</b> y en el <b>3</b> (las casillas marcadas 1 y 3), y nada más por ahora.') };
+    if (!k && !c && !h) return { key:'vacio', html:htmlVacio() };
     if (!k && c)        return { key:'sinsuelo', aviso:true, html:'<b>Te falta el suelo.</b> La caja sola no sostiene nada: pon el bombo antes de seguir.' + ej('bombo en el <b>1</b> y el <b>3</b>.') };
     if (!k && !c && h)  return { key:'reloj', aviso:true, html:'<b>Eso es el reloj, no la batería.</b> El hi-hat marca el tiempo, pero quien manda son el bombo y la caja.' + ej('bombo en 1·3, caja en 2·4.') };
     if (k && !c)        return { key:'suelo', html:'<b>Ya tienes el suelo.</b> Ahora la <b>caja</b> en el <b>2</b> y en el <b>4</b> (la primera casilla del segundo y del cuarto tiempo).' + ej('bombo en 1·3 + caja en 2·4 = ya hay batería.') };
@@ -1952,6 +1952,7 @@
     return {
       push(t){ if (t && t.key && !cerrados.has(t.key)) { const ex=tips.find(x=>x.key===t.key); if (ex) { ex.html=t.html; ex.aviso=t.aviso; } else tips.push(t); } render(); },
       clear(){ tips.forEach(t=>cerrados.add(t.key)); tips = []; render(); },
+      refrescar(key, html){ const ex=tips.find(x=>x.key===key); if (ex){ ex.html=html; render(); } },
     };
   }
   const consejeroBeat = crearConsejero('beatConsejo', 'consejosHead');
@@ -2176,8 +2177,8 @@
     if (!S.bpmFijado) { if (S.animo && ANIMOS[S.animo]) { S.bars = ANIMOS[S.animo].bars; setBpm(ANIMOS[S.animo].bpm); } else setBpm(def); }
     S.key = defaultKey() || S.key; S.prog = [];
   }
-  $('genre').addEventListener('change', e=>{ S.genre=e.target.value; fillBands(); renderAll(); if (typeof consejoBeat==='function') consejoBeat(); });
-  $('band').addEventListener('change', e=>{ S.band=e.target.value; applyBand(); renderAll(); if (typeof consejoBeat==='function') consejoBeat(); });
+  $('genre').addEventListener('change', e=>{ S.genre=e.target.value; fillBands(); renderAll(); agruparPresets(); if (typeof consejoBeat==='function') consejoBeat(); if (typeof consejeroBeat!=='undefined') consejeroBeat.refrescar('vacio', htmlVacio()); });
+  $('band').addEventListener('change', e=>{ S.band=e.target.value; applyBand(); renderAll(); agruparPresets(); if (typeof consejoBeat==='function') consejoBeat(); if (typeof consejeroBeat!=='undefined') consejeroBeat.refrescar('vacio', htmlVacio()); });
   function setBpmBloqueo(v) {
     S.bpmBloqueado = v;
     if ($('bpmLock')) $('bpmLock').checked = v;
@@ -2211,11 +2212,19 @@
   if ($('drumQuantNow')) $('drumQuantNow').addEventListener('click', cuantizarBeat);
   if ($('consejosBajoClear')) $('consejosBajoClear').addEventListener('click', ()=>consejeroBajo.clear());
   function agruparPresets() {
-    const sel = $('drumPreset'); const prev = sel.value; sel.innerHTML = '';
-    const grupos = {}; presetsMios().forEach(k=>{ const banda = k.includes(' · ') ? k.split(' · ')[0] : k; (grupos[banda] = grupos[banda] || []).push(k); });
-    Object.entries(grupos).forEach(([g,ks])=>{
-      if (ks.length===1 && ks[0]===g) sel.append(el('option',{value:g}, g));                       // «Mi base…», «Vacío»
-      else { const og=el('optgroup',{label:g}); ks.forEach(k=>og.append(el('option',{value:k}, k.split(' · ').slice(1).join(' · ') || k))); sel.append(og); }
+    const sel = $('drumPreset'); if (!sel) return; const prev = sel.value; sel.innerHTML = '';
+    const grupos = {}; Object.keys(PRESETS).forEach(k=>{ const banda = k.includes(' · ') ? k.split(' · ')[0] : k; (grupos[banda] = grupos[banda] || []).push(k); });
+    const delGenero = Object.keys(GENRES[S.genre]||{});
+    const bandas = Object.keys(grupos);
+    const esVacia = b => grupos[b].length===1 && grupos[b][0]===b;   // «Vacío», «Mi base…»
+    const orden = [
+      ...bandas.filter(b=> delGenero.includes(b) && !esVacia(b)),    // primero las bandas del género elegido
+      ...bandas.filter(b=> !delGenero.includes(b) && !esVacia(b)),   // luego el resto
+      ...bandas.filter(esVacia),                                     // «Vacío» / «Mi base…» al final
+    ];
+    orden.forEach(g=>{ const ks=grupos[g];
+      if (esVacia(g)) { sel.append(el('option',{value:g}, g)); return; }
+      const og=el('optgroup',{label:(delGenero.includes(g)?'★ ':'')+g}); ks.forEach(k=>og.append(el('option',{value:k}, k.split(' · ').slice(1).join(' · ') || k))); sel.append(og);
     });
     if (prev) sel.value = prev;
   }
@@ -2575,6 +2584,7 @@
   // ───────── Modos ─────────
   const MODE_HINT = { guitarra:'Progresión de acordes para guitarra: escríbelos o fíjalos en el mástil, con sus compases; sale en MIDI.', letra:'Escribe la letra por secciones y anota al lado los acordes de guitarra, con sus compases.', beat:'Programa o carga el beat; este tempo y estos compases quedan para el resto.', bajod:'Sólo para tocar y programar una línea; sin sugerencias de acordes.', pad:'Rueda, teclado, MIDI y progresión completa.', piano:'La rueda sugiere pensando en piano: pocos dedos que se mueven, inversiones y las maneras de la Guía 2.', lead:'Dos manos: la izquierda hace el bajo o el acorde, la derecha la melodía; se programa o se graba desde el MPK.', mezcla:'Reproduce todas las pistas que has programado, juntas o por separado (silenciar/aislar cada una).' };
   function setMode(m) {
+    if (m==='bajod') m='beat';   // bajo digital oculto por ahora
     if (typeof rec !== 'undefined' && rec) stopRec();
     S.mode = m; $('mode').value = m;
     document.querySelectorAll('#modosTabs .mtab').forEach(b=>b.setAttribute('aria-current', String(b.dataset.m===m)));
@@ -2835,6 +2845,8 @@
   // ───────── Panel de administración (sólo Rolando): changelog + bugs ─────────
   const CHANGELOG = [
     { fecha:'2026-09-07', items:[
+      'Bajo digital: quitado también del menú desplegable de modo (ya no se puede entrar); setMode redirige a batería por si acaso.',
+      'Batería: el género del menú izquierdo ahora reordena el «Patrón base» de la derecha (los patrones de esa banda/género van primero, con ★); y el consejo pegado se refresca al cambiar de género (antes quedaba en «trip hop»).',
       'Fix: el consejo de la batería ahora es según el género elegido y se actualiza al instante al cambiarlo (antes decía siempre «trip hop»).',
       'Foco en beat/pad/piano: Bajo digital oculto por ahora (sin pestaña). Pad, Piano (y Voces) son pistas separadas en el mezclador: se pueden apilar y silenciar/aislar por separado. Mezclador embebido también en la batería para controlar sin cambiar de pestaña.',
       'Hover: eliminado también en las sugerencias de la derecha (ya no cambian la lectura al pasar el cursor). La miniatura del acorde se cierra de 4 formas: clic en cualquier parte de ella, la ×, Escape, o clic fuera.',
@@ -3816,7 +3828,7 @@
 
   renderModosTabs(); buildKeyboard(); buildWheel(); fillSelects(); renderAll(); renderBassSeq(); renderSaved('savedLetras','rueda.letras'); llenarProgsDeLetra(); renderLetra(); renderSaved('savedGuit','rueda.guitar');
   // Instrumento de entrada: ?modo=beat|bajod|pad|piano|lead|letra|guitarra (lo usa la portada para entrar directo a un paso)
-  const MODOS = ['beat','bajod','pad','piano','lead','letra','guitarra','mezcla'];
+  const MODOS = ['beat','pad','piano','lead','letra','guitarra','mezcla'];
   const PAR = new URLSearchParams(location.search);
   // Parámetros de entrada (los usa la ruta Principiante para dejar todo preparado):
   // ?genero= &autor= &animo= &bpm= &compases= &modo=
