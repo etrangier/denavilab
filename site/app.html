@@ -666,8 +666,9 @@
         <div class="actions">
           <button class="primary" id="playBass">▶ Bajo</button>
           <label class="hint"><input type="checkbox" class="loopChk" checked> loop</label>
+          <button class="ghost" id="recTocarBass">● Grabar tocando (con metrónomo)</button>
           <button class="ghost" id="clearBass">Limpiar</button>
-          <span class="hint">Una nota por casilla; casillas seguidas con la misma nota = una nota larga. Toca el teclado de arriba para escuchar antes de programar.</span>
+          <span class="hint">Programa a clic, <b>o</b> pulsa «Grabar tocando»: suena un metrónomo y lo que toques (mouse o MPK) cae en su casilla en tiempo real.</span>
         </div>
         <div class="saved">
           <span class="lbl">Líneas de bajo guardadas</span>
@@ -1008,7 +1009,7 @@
     for (let k=0;k<S.kbKeys;k++) { const pc=k%12; if (BLACK.has(pc)) blacks.push({k,pc,x:x-BW/2}); else { whites.push({k,pc,x}); x+=W; } }
     svg.setAttribute('viewBox', `0 0 ${x} 132`); svg.style.minWidth = (x>400 ? 560 : 380) + 'px';
     $('kbTitle').textContent = `Akai MPK mini ${S.kbKeys===37?'Plus · 37':'· 25'} teclas · do a do · OCT en 0`;
-    const keyRect = (cls,k,attrs) => { const r=svgEl('rect',{class:cls,id:'k'+k,role:'button',tabindex:'0',...attrs}); r.addEventListener('click',()=>pickKey(k)); r.addEventListener('pointerdown',e=>{ e.preventDefault(); liveOn(liveMidiOf(48+k)); const up=()=>{ liveOff(liveMidiOf(48+k)); window.removeEventListener('pointerup',up); window.removeEventListener('pointercancel',up); }; window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up); }); r.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();pickKey(k);} }); const tt=svgEl('title'); tt.textContent=NAMES[k%12]+' — clic para marcar'; r.append(tt); return r; };
+    const keyRect = (cls,k,attrs) => { const r=svgEl('rect',{class:cls,id:'k'+k,role:'button',tabindex:'0',...attrs}); r.addEventListener('click',()=>pickKey(k)); r.addEventListener('pointerdown',e=>{ e.preventDefault(); liveOn(liveMidiOf(48+k)); grabarNotaBajo(liveMidiOf(48+k)); const up=()=>{ liveOff(liveMidiOf(48+k)); window.removeEventListener('pointerup',up); window.removeEventListener('pointercancel',up); }; window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up); }); r.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();pickKey(k);} }); const tt=svgEl('title'); tt.textContent=NAMES[k%12]+' — clic para marcar'; r.append(tt); return r; };
     for (const w of whites) { svg.append(keyRect('wk',w.k,{x:w.x,y:12,width:W,height:H,rx:3})); const t=svgEl('text',{class:'kl',id:'l'+w.k,x:w.x+W/2,y:12+H-8}); t.textContent=nota(w.pc); svg.append(t); }
     for (const b of blacks) { svg.append(keyRect('bk',b.k,{x:b.x,y:12,width:BW,height:BH,rx:2})); const t=svgEl('text',{class:'kl',id:'l'+b.k,x:b.x+BW/2,y:12+BH-6,style:'fill:#bdb7cc'}); t.textContent=nota(b.pc); svg.append(t); }
     [0,12,24].filter(k=>k<S.kbKeys-1).forEach((k,i)=>{ const w=whites.find(w=>w.k===k); const tx=svgEl('text',{class:'oct',x:w.x+2,y:9}); tx.textContent=`oct ${i+1}`; svg.append(tx); });
@@ -1548,6 +1549,7 @@
       totalBars = withChords ? (seq.reduce((a,c)=>a+c.len,0) || S.bars) : mode==='lead' ? leadBarsTotal() : mode==='guitarra' ? guitBars() : (mode==='bass' ? bassBars() : S.bars);
       withDrums = mode === 'drums' || (mode==='all' && S.drums.on) || (mode==='bass' && S.bassd.withDrums) || (mode==='lead' && $('leadDrums').checked) || (mode==='guitarra' && S.guitar.withDrums);
       if (withChords) { let tt = t0; seq.forEach((c,i)=>{ c._i=i; scheduleChord(c, tt, beat); tt += c.len*barDur; }); }
+      if (rec && rec.metron) scheduleMetronomo(t0, beat, totalBars || S.bars);
       if (mode === 'guitarra') scheduleGuit(t0, totalBars, beat);
       if (mode === 'bass') {
         bassPlayhead(t0, beat, totalBars);
@@ -1681,12 +1683,34 @@
   }
   // Grabación en vivo: acordes con su duración medida al tempo (pad/piano) y pads → casillas del beat
   let rec = null;
+  function metronomo(t, fuerte) {
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='square'; o.frequency.value = fuerte ? 1700 : 1150;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(fuerte?0.20:0.12, t+0.001); g.gain.exponentialRampToValueAtTime(0.0001, t+0.05);
+    o.connect(g).connect(master||ctx.destination); o.start(t); o.stop(t+0.06);
+  }
+  function scheduleMetronomo(t0, beat, totalBars) { for (let b=0;b<totalBars;b++) for (let q=0;q<4;q++) metronomo(t0 + (b*4+q)*beat, q===0); }
+  // Escribe en la rejilla del bajo la nota tocada, cuantizada a la semicorchea (mouse o MIDI)
+  function grabarNotaBajo(m, vel=90) {
+    if (!(rec && S.mode==='bajod')) return;
+    const six=60/bassBpm()/4, steps=S.bassd.len*16; const elapsed=ctx.currentTime-rec.t0; if (elapsed < -0.02) return;
+    const step=((Math.round(elapsed/six)%steps)+steps)%steps; const row=m-bassMidi(0);
+    if (row>=0 && row<BASS_NOTES.length) { S.bassd.grid[step]=row; S.bassd.acc[step]=vel>100?1:0; renderBassSeq(); }
+  }
   const quant = x => Math.max(0.5, Math.round(x*2)/2);
+  function startRecTocarBajo() {
+    if (rec) { stopRec(); return; }
+    ensureAudio(); unlockAudio();
+    rec = { t0: ctx.currentTime + 0.12, mode:'bajod', metron:true, tocar:true };
+    if (!isPlaying) play('bass');
+    $('recTocarBass').textContent='■ Parar grabación'; $('recTocarBass').classList.add('rec');
+    $('midiStatus') && midiStatus('Grabando a dedo: toca con el mouse o el MPK; el metrónomo marca. Las notas caen en su casilla.', true);
+  }
   function startRec() {
     if (!midiAccess) { midiStatus('Conecta primero el MPK por MIDI.'); return; }
     ensureAudio(); unlockAudio();
     if (S.mode==='pad'||S.mode==='piano') { S.prog=[]; S.cand=null; renderAll(); }
-    rec = { t0: ctx.currentTime + 0.1, cur:null, mode:S.mode };
+    rec = { t0: ctx.currentTime + 0.1, cur:null, mode:S.mode, metron:true };
     if (!isPlaying) play(S.mode==='lead' ? 'lead' : S.mode==='bajod' && hasBassD() ? 'bass' : 'drums');   // la batería (o lo ya escrito) marca el compás
     $('recBtn').textContent = '■ Parar grabación'; $('recBtn').classList.add('rec');
     midiStatus(S.mode==='beat' ? 'Grabando: toca los pads del MPK; cada golpe cae en su casilla.' : S.mode==='lead' ? 'Grabando la melodía: lo que toques sobre el punto de división cae en su corchea.' : S.mode==='bajod' ? 'Grabando: cada nota que toques cae en su casilla (fuerte = acento).' : 'Grabando: toca los acordes con el tempo; la duración se mide sola.', true);
@@ -1694,7 +1718,7 @@
   function stopRec() {
     if (!rec) return;
     if (rec.cur && (S.mode==='pad'||S.mode==='piano')) { const barDur = 240/S.bpm; const len = Math.min(remaining(), quant((ctx.currentTime - rec.cur.t)/barDur)); if (len>0) S.prog.push({...rec.cur.chord, len}); }
-    rec = null; $('recBtn').textContent = '● Grabar con el MPK'; $('recBtn').classList.remove('rec'); $('recBtnBeat').textContent='● Grabar pads del MPK'; if (isPlaying) stopAll(); renderAll(); if (S.mode==='beat') renderSeq();
+    rec = null; $('recBtn').textContent = '● Grabar con el MPK'; $('recBtn').classList.remove('rec'); $('recBtnBeat').textContent='● Grabar pads del MPK'; if ($('recTocarBass')) { $('recTocarBass').textContent='● Grabar tocando (con metrónomo)'; $('recTocarBass').classList.remove('rec'); } if (isPlaying) stopAll(); renderAll(); if (S.mode==='beat') renderSeq();
   }
   function recChord(ch) {
     const now = ctx.currentTime, barDur = 240/S.bpm;
@@ -1717,7 +1741,7 @@
     }
     if (cmd === 0x90 && vel > 0) { held.add(note); if ($('midiSound').checked) { liveOn(liveMidiOf(note)); if (bendSemis) liveNotes.get(liveMidiOf(note))?.bend(bendSemis); }
       if (rec && S.mode==='lead') { const k = keyOfMidi(note); const eighth=60/S.bpm/2, steps=leadBarsTotal()*8; const st=Math.round((ctx.currentTime-rec.t0)/eighth)%steps; if (k >= S.lead.split) { const r = note - leadBaseMidi(); if (r>=0 && r<LEAD_ROWS) { S.lead.mel[st]=r; S.lead.acc[st]=vel>100?1:0; renderLead(); } } }
-      if (rec && S.mode==='bajod') { const six=60/bassBpm()/4, steps=S.bassd.len*16; const step=Math.round((ctx.currentTime-rec.t0)/six)%steps; const row=liveMidiOf(note)-bassMidi(0); if (row>=0 && row<BASS_NOTES.length) { S.bassd.grid[step]=row; S.bassd.acc[step]=vel>100?1:0; renderBassSeq(); } } }
+      grabarNotaBajo(liveMidiOf(note), vel); }
     else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) { held.delete(note); liveOff(liveMidiOf(note)); }
     else return;
     paintLive();
@@ -1767,6 +1791,7 @@
   $('midiBtn').addEventListener('click', connectMidi);
   $('midiBtnBeat').addEventListener('click', connectMidi);
   $('recBtn').addEventListener('click', ()=>{ if (rec) stopRec(); else startRec(); });
+  $('recTocarBass').addEventListener('click', startRecTocarBajo);
   renderKnobs();
   $('recBtnBeat').addEventListener('click', ()=>{ if (!midiAccess) { $('midiStatusBeat').textContent = 'Primero pulsa «Conectar el MPK por MIDI» aquí arriba.'; return; } if (rec) { stopRec(); $('recBtnBeat').textContent='● Grabar pads del MPK'; } else { startRec(); $('recBtnBeat').textContent='■ Parar'; } });
   $('midiIn').addEventListener('change', e=>pickInput(e.target.value));
