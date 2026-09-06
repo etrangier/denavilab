@@ -8,7 +8,7 @@
 (() => {
   // Puerta + quién entró. Va aquí arriba y sin defer: rebota antes de dibujar nada, y deja
   // marcado en <html> a quién le toca la ruta, para que no parpadee la del otro.
-  const VALIDOS = ['rolando', 'schair'];
+  const VALIDOS = ['rolando', 'schair', 'invitado'];
   let quien = null;
   try { quien = localStorage.getItem('denavilab.sesion'); } catch (e) {}
   if (!VALIDOS.includes(quien)) location.replace('index.html');

@@ -8,7 +8,7 @@
   // Puerta del taller. Sólo se aplica cuando la página se sirve por web: el archivo
   // descargado (file://) sigue abriéndose solo, que es como se usa el MIDI sin conexión.
   if (!/^https?:$/.test(location.protocol)) return;
-  const VALIDOS = ['rolando', 'schair'];
+  const VALIDOS = ['rolando', 'schair', 'invitado'];
   let quien = null;
   try { quien = localStorage.getItem('denavilab.sesion'); } catch (e) {}
   if (!VALIDOS.includes(quien)) location.replace('index.html');
@@ -67,6 +67,9 @@
   @media (max-width: 700px) { .navsesion { margin-left: 0; flex-basis: 100%; } }
   .app { max-width: 1320px; margin: 0 auto; padding: 20px 20px 48px; display: grid; gap: 18px; }
   .modos-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .invitado-aviso { border-left: 3px solid var(--key-line); padding-left: 10px; }
+  .invitado-aviso .lbl { color: var(--accent); }
+  body.invitado .navsesion .candado { color: var(--key-line); }
   .mtab { font: inherit; font-family: var(--display); font-weight: 700; font-size: 14px; cursor: pointer;
     background: var(--surface); color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 7px 15px; transition: all .12s; }
   .mtab:hover { border-color: var(--accent); color: var(--text); }
@@ -444,7 +447,7 @@
         <span class="lbl">Atajo</span>
         <button class="ghost" id="preset26">Mi base «26 ag impro» · 77 BPM · Am F C G</button>
       </div>
-      <div class="field">
+      <div class="field" id="campoExportar">
         <span class="lbl">Exportar</span>
         <button class="ghost" id="expMidiOne">MIDI · sólo esta pista</button>
         <button class="ghost" id="expMidiAll">MIDI · todas las pistas</button>
@@ -950,13 +953,13 @@
   };
 
   // ───────── Estado ─────────
-  const QUIEN = (() => { try { const q = localStorage.getItem('denavilab.sesion'); return q === 'rolando' || q === 'schair' ? q : 'rolando'; } catch (e) { return 'rolando'; } })();
+  const QUIEN = (() => { try { const q = localStorage.getItem('denavilab.sesion'); return (q === 'rolando' || q === 'schair' || q === 'invitado') ? q : 'rolando'; } catch (e) { return 'rolando'; } })();
   // Con qué abre el taller cada uno: su mundo, no el del otro.
   const POR_DEFECTO = {
     rolando: { genre:'Trip hop', band:'Portishead', bpm:72,  kit:'cr78',  notacion:'es' },
     schair:  { genre:'Bedroom pop', band:'boy pablo', bpm:118, kit:'analog', notacion:'en' },
   };
-  const D = POR_DEFECTO[QUIEN];
+  const D = POR_DEFECTO[QUIEN] || POR_DEFECTO.rolando;
   // La notación guardada manda sobre la de partida: si la cambió, se respeta.
   const notacionGuardada = (() => { try { return localStorage.getItem('denavilab.notacion'); } catch (e) { return null; } })();
 
@@ -1509,7 +1512,7 @@
     else if (/^(Green Day|Rock clásico|La Ley|Anime|Balada de anime)/.test(k)) PRESET_PARA[k] = 'schair';
     else PRESET_PARA[k] = 'ambos';   // Mac DeMarco, boy pablo, Talk Talk y Vacío
   });
-  const presetsMios = () => Object.keys(PRESETS).filter(k => { const q = PRESET_PARA[k]; return !q || q === 'ambos' || q === S.quien; });
+  const presetsMios = () => S.quien === 'invitado' ? Object.keys(PRESETS) : Object.keys(PRESETS).filter(k => { const q = PRESET_PARA[k]; return !q || q === 'ambos' || q === S.quien; });
 
   function loadPreset(name) {
     const p = PRESETS[name]; if (!p) return; const len = S.drums.len;
@@ -2326,6 +2329,17 @@
     const head = [...str4('MThd'), ...u32b(6), 0,1, 0,tracks.length+1, (TPB>>8)&255, TPB&255];
     return new Uint8Array([...head, ...all]);
   }
+  function aplicarRestriccionesInvitado() {
+    if (S.quien !== 'invitado') return;
+    document.body.classList.add('invitado');
+    const ce = $('campoExportar'); if (ce) { ce.hidden = true;
+      const nota = el('div', {class:'field invitado-aviso'}); nota.append(el('span',{class:'lbl'},'Modo invitado'),
+        el('div',{class:'hint'},'Exportar, importar y la biblioteca están desactivados. Puedes tocar, armar y probar ideas sin guardar material.'));
+      ce.parentNode.insertBefore(nota, ce);
+    }
+    ['expLetraPdf','expLibretaPdf'].forEach(id=>{ const b=$(id); if (b) b.hidden = true; });
+  }
+
   async function deliver(filename, data, mime) {
     if (isStandalone || !downloadsNs) {
       if (!isStandalone && !downloadsNs) { $('expInfo').textContent = 'La descarga aún no está lista; espera un segundo y vuelve a intentar.'; return; }
@@ -2772,10 +2786,12 @@
     const cambiar = el('button', {type:'button', onclick:()=>{ try { localStorage.removeItem('denavilab.sesion'); } catch (e) {} location.href = 'index.html'; }}, 'cambiar sesión');
     $('navSesion').append(cambiar);
   }
-  $('subtitulo').textContent = S.quien === 'schair' ? '· el taller de maquetas' : '· rueda de acordes para el MPK mini';
+  $('subtitulo').textContent = S.quien === 'invitado' ? '· vista de invitado' : S.quien === 'schair' ? '· el taller de maquetas' : '· rueda de acordes para el MPK mini';
   $('entradilla').textContent = S.quien === 'schair'
     ? 'Arma la base para tus canciones —batería, bajo y acordes— sin tocar ninguno de esos instrumentos: se dibuja con el mouse. Los sonidos de aquí son mínimos a propósito; sirven para no perder la idea y para cantar y tocar encima.'
+    : S.quien === 'invitado' ? 'Estás mirando como invitado: puedes recorrer, tocar y armar ideas en todas las secciones. Exportar, importar y la biblioteca están desactivados — eso queda para la banda.'
     : 'Maqueta en MIDI con el MPK mini (25 o 37 teclas): beat, bajo digital y acordes en pad o piano. Sonidos mínimos a propósito; los definitivos van en Logic. Con el MPK conectado, teclas, pads, knobs, rueda de pitch y pedal hacen lo suyo.';
+  aplicarRestriccionesInvitado();
 
   // ───────── Biblioteca en Google Drive ─────────
   // Guardar y abrir maquetas (.denavi) directo en la carpeta compartida, sin abrir Drive.

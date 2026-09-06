@@ -54,6 +54,8 @@
     </a>
   </nav>
 
+  <p class="invitado-nota">¿Le muestras el sitio a alguien? Puede entrar como <b>invitado</b>: ve y prueba todo igual que nosotros, pero sin exportar, importar ni guardar en la biblioteca.</p>
+
   <p class="sesion" id="sesion"></p>
 
 </div>
@@ -66,12 +68,19 @@
       <input type="text" id="usuario" autocomplete="username" autocapitalize="none" spellcheck="false" required>
     </label>
     <label>Clave
-      <input type="password" id="clave" autocomplete="current-password" required>
+      <span class="campo-clave">
+        <input type="password" id="clave" autocomplete="current-password" required>
+        <button type="button" class="ver-clave" id="verClave" aria-pressed="false" aria-label="Mostrar la clave">Ver</button>
+      </span>
     </label>
     <p class="error" id="errorPuerta" role="alert"></p>
     <div class="fila">
       <button type="button" class="btn ghost" id="cancelar">Cancelar</button>
       <button type="submit" class="btn">Entrar</button>
+    </div>
+    <div class="fila-invitado">
+      <span>¿Solo quieres mirar?</span>
+      <button type="button" class="btn ghost" id="entrarInvitado">Entrar como invitado</button>
     </div>
   </form>
 </dialog>

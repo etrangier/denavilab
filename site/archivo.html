@@ -6,7 +6,7 @@
 <title>DenaviLAB · archivo</title>
 <script>
 (() => {
-  const VALIDOS = ['rolando', 'schair'];
+  const VALIDOS = ['rolando', 'schair', 'invitado'];
   let quien = null;
   try { quien = localStorage.getItem('denavilab.sesion'); } catch (e) {}
   if (!VALIDOS.includes(quien)) location.replace('index.html');

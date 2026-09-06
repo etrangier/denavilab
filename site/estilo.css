@@ -198,3 +198,14 @@ html[data-quien="rolando"] li[data-para~="rolando"] { display: list-item; }
   background: var(--accent); color: var(--accent-ink); border: 1px solid var(--accent); border-radius: 8px; padding: 11px 18px; margin-bottom: 14px; box-shadow: var(--shadow); }
 .drive-btn:hover, .drive-btn:focus-visible { filter: brightness(1.06); }
 .drive-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+
+/* Ver clave, invitado */
+.campo-clave { position: relative; display: block; }
+.campo-clave input { width: 100%; padding-right: 58px; }
+.ver-clave { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font: inherit; font-family: var(--mono); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; background: var(--surface); color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 4px 8px; cursor: pointer; }
+.ver-clave:hover, .ver-clave[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.fila-invitado { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--line); margin-top: 4px; padding-top: 12px; }
+.fila-invitado span { font-size: 12.5px; color: var(--muted); }
+.invitado-nota { font-size: 13px; color: var(--muted); max-width: 62ch; margin: 0 0 12px; border-left: 3px solid var(--key-line); padding-left: 10px; }
+.invitado-nota b { color: var(--text); }
