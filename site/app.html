@@ -757,6 +757,10 @@
         </div>
         <details class="help"><summary>¿Cómo se lee esto?</summary><p>Para maquetar, el bajo es <b>una tecla por acorde</b>: la que le da el nombre (para Lam, la; para Fa, fa), en el tiempo 1, junto con el bombo. Cada fila es una nota, cada casilla una semicorchea; casillas seguidas iguales hacen una nota larga. Cuando te salga, prueba tocarla en el 1 y el 3, o subir una octava en el último compás. «Generar desde los acordes» te la escribe sola a partir de la progresión del pad.</p></details>
         <div class="field">
+          <span class="lbl">Patrones de bajo · un clic los escribe (según tus acordes o la tónica)</span>
+          <div class="chips" id="bassPresets"></div>
+        </div>
+        <div class="field">
           <span class="lbl">Sugerencias · <span id="bassSugPor"></span></span>
           <div class="sug-bajo" id="bassSugs"></div>
         </div>
@@ -764,7 +768,9 @@
         <div class="actions">
           <button class="primary" id="playBass">▶ Bajo</button>
           <label class="hint"><input type="checkbox" class="loopChk" checked> loop</label>
+          <label class="hint"><input type="checkbox" class="metronChk"> metrónomo</label>
           <button class="ghost" id="recTocarBass">● Grabar tocando (con metrónomo)</button>
+          <button class="ghost" id="undoBass">Deshacer</button>
           <button class="ghost" id="clearBass">Limpiar</button>
           <span class="hint">Programa a clic, <b>o</b> pulsa «Grabar tocando»: suena un metrónomo y lo que toques (mouse o MPK) cae en su casilla en tiempo real.</span>
         </div>
@@ -807,6 +813,8 @@
           <button class="ghost" id="midiBtnBeat">Conectar el MPK por MIDI</button>
           <button class="ghost" id="recBtnBeat">● Grabar pads del MPK</button>
           <label class="hint"><input type="checkbox" class="loopChk" checked> loop</label>
+          <label class="hint"><input type="checkbox" class="metronChk"> metrónomo</label>
+          <button class="ghost" id="undoBeat">Deshacer</button>
           <button class="ghost" id="clearDrums">Limpiar patrón</button>
           <span class="hint" id="midiStatusBeat">Con el MPK conectado, los pads (canal 10) tocan y graban la batería. Sin teclado, se dibuja a clic.</span>
           <span class="hint">Clic en una casilla para poner o quitar el golpe. Las casillas marcadas son los pulsos 1 · 2 · 3 · 4.</span>
@@ -1749,6 +1757,7 @@
       if (withChords) { let tt = t0; seq.forEach((c,i)=>{ c._i=i; scheduleChord(c, tt, beat); tt += c.len*barDur; }); }
       if (rec && rec.metron) scheduleMetronomo(t0, beat, totalBars || S.bars);
       if (mode==='guitarra' && S.guitar.metron) scheduleMetronomo(t0, beat, totalBars || 1);
+      if ((mode==='drums' || mode==='bass') && S.metron) scheduleMetronomo(t0, beat, totalBars || S.bars);
       if ((mode==='all' || mode==='lead') && S.metron) scheduleMetronomo(t0, beat, totalBars || S.bars);
       if (mode === 'guitarra') scheduleGuit(t0, totalBars, beat);
       if (mode === 'bass') {
@@ -1838,7 +1847,7 @@
   $('drumsOn2').addEventListener('change', e=>{ S.drums.on = e.target.checked; $('drumsOn').checked = e.target.checked; });
   $('drumKit').value = S.drums.kit;
   $('drumKit').addEventListener('change', e=>{ S.drums.kit = e.target.value; });
-  $('clearDrums').addEventListener('click', ()=>loadPreset('Vacío'));
+  $('clearDrums').addEventListener('click', ()=>{ snapBeat(); loadPreset('Vacío'); });
   function agruparPresets() {
     const sel = $('drumPreset'); const prev = sel.value; sel.innerHTML = '';
     const grupos = {}; presetsMios().forEach(k=>{ const banda = k.includes(' · ') ? k.split(' · ')[0] : k; (grupos[banda] = grupos[banda] || []).push(k); });
@@ -1866,7 +1875,7 @@
     $('drumBpm').textContent = bpm; if ($('bassBpm')) $('bassBpm').textContent = bassBpm();
     renderAll();
   }
-  $('drumPreset').addEventListener('change', e=>{ loadPreset(e.target.value); sugerirDesdeBeat(e.target.value); });
+  $('drumPreset').addEventListener('change', e=>{ snapBeat(); loadPreset(e.target.value); sugerirDesdeBeat(e.target.value); });
   $('drumPreset').value = 'Vacío'; loadPreset('Vacío');   // se empieza con el patrón en blanco
   $('copy').addEventListener('click', async ()=>{ try { await navigator.clipboard.writeText($('summary').textContent); $('copy').textContent='Copiado'; setTimeout(()=>$('copy').textContent='Copiar',1200); } catch(e) { $('copy').textContent='No se pudo copiar'; } });
   $('preset26').addEventListener('click', ()=>{
@@ -2242,12 +2251,39 @@
     return L;
   }
 
+  // Historial de deshacer (una instantánea por gesto) para beat y bajo
+  const HIST = { beat: [], bass: [] };
+  const ultimoIgual = (arr, v) => arr.length && arr[arr.length-1]===v;
+  function snapBeat(){ const v=JSON.stringify(S.drums.pat); if(ultimoIgual(HIST.beat,v)) return; HIST.beat.push(v); if(HIST.beat.length>60) HIST.beat.shift(); actualizarUndos(); }
+  function snapBass(){ const v=JSON.stringify({g:S.bassd.grid,a:S.bassd.acc,s:S.bassd.slide,len:S.bassd.len}); if(ultimoIgual(HIST.bass,v)) return; HIST.bass.push(v); if(HIST.bass.length>60) HIST.bass.shift(); actualizarUndos(); }
+  function undoBeat(){ if(!HIST.beat.length) return; S.drums.pat=JSON.parse(HIST.beat.pop()); renderSeq(); actualizarUndos(); }
+  function undoBass(){ if(!HIST.bass.length) return; const h=JSON.parse(HIST.bass.pop()); S.bassd.grid=h.g; S.bassd.acc=h.a; S.bassd.slide=h.s; S.bassd.len=h.len; renderBassSeq(); actualizarUndos(); }
+  function actualizarUndos(){ const ub=$('undoBeat'); if(ub) ub.disabled=!HIST.beat.length; const us=$('undoBass'); if(us) us.disabled=!HIST.bass.length; }
+
+  // Patrones de bajo con nombre (#2): escriben un compás completo según los acordes o la tónica
+  const PRESETS_BAJO = [
+    { t:'Raíz sostenida', d:'Una nota larga por compás. Colchón grave, sin picar.',
+      f:C=>{ for(let b=0;b<C;b++) escribir(b,0,raizDe(b),16,1); } },
+    { t:'Trip hop', d:'Portishead: la raíz en el 1, un eco a contratiempo y mucho aire.',
+      f:C=>{ for(let b=0;b<C;b++){ const r=raizDe(b); escribir(b,0,r,6,1); escribir(b,10,r,3); } } },
+    { t:'Punk · Green Day', d:'Corcheas martilleadas en la raíz: motor directo.',
+      f:C=>{ for(let b=0;b<C;b++) for(let s=0;s<16;s+=2) escribir(b,s,raizDe(b),2,s===0?1:0); } },
+    { t:'Synth pop', d:'Raíz y octava bombeando en corcheas.',
+      f:C=>{ for(let b=0;b<C;b++){ const r=raizDe(b), up=r+12<=16?r+12:r; for(let s=0;s<16;s+=2) escribir(b,s,(s/2)%2?up:r,2,s===0?1:0); } } },
+    { t:'Reggae · contratiempo', d:'Nada en el pulso, todo en la «y»: el bajo respira.',
+      f:C=>{ for(let b=0;b<C;b++) for(let s=2;s<16;s+=4) escribir(b,s,raizDe(b),2); } },
+    { t:'Raíz y quinta', d:'Raíz en el 1, quinta en el 3. Movimiento sin salirse.',
+      f:C=>{ for(let b=0;b<C;b++){ const r=raizDe(b), q=quintaDe(b), fq=q<r?q+12:q; escribir(b,0,r,4,1); escribir(b,8,fq<=16?fq:q,4); } } },
+  ];
+  function renderPresetsBajo(){ const c=$('bassPresets'); if(!c) return; c.innerHTML='';
+    PRESETS_BAJO.forEach(pr=> c.append(el('button',{class:'chip', title:pr.d, onclick:()=>{ snapBass(); limpiarBajo(); pr.f(S.bassd.len); renderBassSeq(); }}, pr.t))); }
+
   function renderSugsBajo() {
     const caja = $('bassSugs'); if (!caja) return;
     caja.innerHTML='';
     $('bassSugPor').textContent = hayNotas() ? 'sobre lo que llevas escrito' : (S.prog.length ? 'para empezar, sobre tu vuelta de acordes' : 'para empezar (sin acordes guardados, van sobre la tónica)');
     sugerenciasBajo().forEach(x => {
-      const b = el('button', {class:'sug-b', onclick:()=>{ x.f(); renderBassSeq(); }});
+      const b = el('button', {class:'sug-b', onclick:()=>{ snapBass(); x.f(); renderBassSeq(); }});
       b.append(el('span', {class:'sug-b-t'}, x.t));
       b.append(el('span', {class:'sug-b-d'}, x.d));
       caja.append(b);
@@ -2279,7 +2315,7 @@
     $('bassOwnBox').hidden = !S.bassd.own; $('bassBpmVal').textContent = S.bassd.bpm; $('bassBpmRange').value = S.bassd.bpm;
     const bc = $('bassBarChips'); bc.innerHTML='';
     [2,4,8,12,16].forEach(n=> bc.append(el('button',{class:'chip','aria-pressed':String(n===S.bassd.bars), onclick:()=>{ S.bassd.bars=n; renderBassSeq(); }}, String(n))));
-    renderSugsBajo();
+    renderSugsBajo(); renderPresetsBajo();
     const lc = $('bassLenChips'); lc.innerHTML='';
     [1,2,4].forEach(n=> lc.append(el('button',{class:'chip','aria-pressed':String(n===S.bassd.len), onclick:()=>{ if (n>S.bassd.len) { const old=S.bassd.len*16; for (let s=old;s<n*16;s++) { S.bassd.grid[s]=S.bassd.grid[s%old]; S.bassd.acc[s]=S.bassd.acc[s%old]; S.bassd.slide[s]=S.bassd.slide[s%old]; } } S.bassd.len=n; renderBassSeq(); }}, n===1?'1 compás':n+' compases')));
     const oc2 = $('bassOctChips'); oc2.innerHTML='';
@@ -2305,11 +2341,16 @@
     renderBassSeq();
   }
   $('swing').addEventListener('input', e=>{ S.swing = (+e.target.value)/100; $('swingVal').textContent = e.target.value+'%'; });
-  $('bassUp').addEventListener('click', ()=>{ if (S.bassd.grid.some(r=>r===16)) return; S.bassd.grid = S.bassd.grid.map(r=>r<0?r:r+1); renderBassSeq(); });
-  $('bassDown').addEventListener('click', ()=>{ if (S.bassd.grid.some(r=>r===0)) return; S.bassd.grid = S.bassd.grid.map(r=>r<0?r:r-1); renderBassSeq(); });
+  $('bassUp').addEventListener('click', ()=>{ if (S.bassd.grid.some(r=>r===16)) return; snapBass(); S.bassd.grid = S.bassd.grid.map(r=>r<0?r:r+1); renderBassSeq(); });
+  $('bassDown').addEventListener('click', ()=>{ if (S.bassd.grid.some(r=>r===0)) return; snapBass(); S.bassd.grid = S.bassd.grid.map(r=>r<0?r:r-1); renderBassSeq(); });
   $('bassBpmRange').addEventListener('input', e=>{ S.bassd.bpm=+e.target.value; $('bassBpmVal').textContent=S.bassd.bpm; $('bassBpm').textContent=bassBpm(); });
   $('bassDrums').addEventListener('change', e=>{ S.bassd.withDrums = e.target.checked; });
-  $('clearBass').addEventListener('click', ()=>{ S.bassd.grid.fill(-1); S.bassd.acc.fill(0); S.bassd.slide.fill(0); renderBassSeq(); });
+  $('clearBass').addEventListener('click', ()=>{ snapBass(); S.bassd.grid.fill(-1); S.bassd.acc.fill(0); S.bassd.slide.fill(0); renderBassSeq(); });
+  if ($('undoBeat')) $('undoBeat').addEventListener('click', undoBeat);
+  if ($('undoBass')) $('undoBass').addEventListener('click', undoBass);
+  if ($('seq')) $('seq').addEventListener('pointerdown', ()=>snapBeat(), true);
+  if ($('bassSeq')) $('bassSeq').addEventListener('pointerdown', ()=>snapBass(), true);
+  actualizarUndos();
   $('playBass').addEventListener('click', ()=>play('bass'));
   const swingOff = (s, six) => (s%2 ? S.swing*six*0.66 : 0);   // desplaza las semicorcheas a contratiempo
   // desdeCompas dice qué compás del patrón toca; así se puede programar de uno en uno y
@@ -2374,6 +2415,12 @@
 
   // ───────── Panel de administración (sólo Rolando): changelog + bugs ─────────
   const CHANGELOG = [
+    { fecha:'2026-09-06 · tarde', items:[
+      'Bajo: patrones con nombre (raíz sostenida, trip hop, punk, synth pop, reggae, raíz y quinta) que se escriben de un clic.',
+      'Metrónomo también en beat y bajo durante la reproducción, con o sin grabación.',
+      'Botón «Deshacer» en beat y en bajo (una edición a la vez).',
+      'Invitado: aviso corregido — sí puede guardar sus patrones en el navegador.',
+    ] },
     { fecha:'2026-09-06', items:[
       'Guitarra: números de dedo y de cuerda/traste en el mástil, timbres propios de ukelele/acústica/eléctrica, sugerencias en tarjetas + fila diatónica, y selectores de género/estilo/ánimo.',
       'Arreglo: las formas abiertas de acordes ahora se muestran con notación española (antes salían cejillas).',
@@ -2385,14 +2432,14 @@
   const BUGS = [
     { estado:'resuelto', txt:'Nota que quedaba «dando vueltas» al cambiar de acorde muy rápido en piano.' },
     { estado:'resuelto', txt:'«Piano lead» a veces no funcionaba (faltaba progresión).' },
-    { estado:'abierto',  txt:'Bajo digital: botones de patrón (raíz sostenida, trip hop, etc.).' },
-    { estado:'abierto',  txt:'Metrónomo con opción de sonar con o sin grabación.' },
+    { estado:'resuelto', txt:'Bajo digital: botones de patrón (raíz sostenida, trip hop, etc.).' },
+    { estado:'resuelto', txt:'Metrónomo con opción de sonar con o sin grabación.' },
     { estado:'abierto',  txt:'Presets de beat y de bajo ya hechos + cuantización.' },
-    { estado:'abierto',  txt:'Botón de guardar el patrón al momento (memoria del navegador, incl. invitado).' },
-    { estado:'abierto',  txt:'Botón de deshacer en beat y bajo.' },
+    { estado:'resuelto', txt:'Guardar el patrón en el navegador, incl. invitado (ya funcionaba; aviso corregido).' },
+    { estado:'resuelto', txt:'Botón de deshacer en beat y bajo.' },
     { estado:'abierto',  txt:'Reproducir todos los instrumentos juntos o por separado (tipo Songsterr).' },
     { estado:'abierto',  txt:'Mejor sincronización al trabajar varias pistas.' },
-    { estado:'abierto',  txt:'Revisar que las sugerencias se estén considerando.' },
+    { estado:'resuelto', txt:'Sugerencias: verificado que se aplican (bajo y rueda).' },
   ];
   function renderAdmin() {
     const cl = $('adminChangelog'); if (cl) { cl.innerHTML='';
