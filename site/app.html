@@ -1911,12 +1911,23 @@
   };
   // Consejo del momento según lo que llevas tocado (clave estable + si es aviso)
   const ej = t => '<span class="consejo-ej">Ej.: ' + t + '</span>';
+  const BEAT_GENERO = {
+    'Trip hop':'el bombo no tiene por qué ir en el 1 y el 3: prueba dos golpes juntos y uno tarde, y deja el resto en silencio.',
+    'Synth pop':'un bombo firme —en cada tiempo (four-on-the-floor) o en el 1 y el 3— y la caja seca en el 2 y el 4.',
+    'Rock':'el de siempre: bombo en el 1 y el 3, caja en el 2 y el 4, hi-hat en cada corchea.',
+    'Anime':'rápido y directo: bombo en el 1 y el 3, caja en el 2 y el 4, hi-hat corriendo.',
+    'Bedroom pop':'suave y con aire: pocos golpes y algo a contratiempo, que respire.',
+    'Lo-fi hip hop':'lento y perezoso: bombo sincopado, la caja un pelín tarde y mucho espacio.',
+    'Alternativo':'menos obvio: corre el bombo o la caja medio tiempo para que no suene a metrónomo.',
+    'Personal':'empieza simple —bombo en el 1 y el 3— y ve sumando a tu oído.',
+  };
+  const beatSugGenero = () => BEAT_GENERO[S.genre] || 'empieza simple: bombo en el 1 y el 3.';
   function tipBeatActual() {
     const n = S.drums.len * 16;
     const cuenta = id => S.drums.pat[id].slice(0, n).filter(Boolean).length;
     const k = cuenta('kick'), c = cuenta('snare'), h = cuenta('hh') + cuenta('oh');
     const voz = VOZ[S.quien] || VOZ.rolando;
-    if (!k && !c && !h) return { key:'vacio', html:'<b>Empieza por el bombo.</b> ' + voz.vacio + ej('bombo en el <b>1</b> y en el <b>3</b> (las casillas marcadas 1 y 3), y nada más por ahora.') };
+    if (!k && !c && !h) return { key:'vacio', html:'<b>Empieza por el bombo.</b> Para '+S.genre.toLowerCase()+' ('+S.band+'), '+beatSugGenero()+ej('bombo en el <b>1</b> y en el <b>3</b> (las casillas marcadas 1 y 3), y nada más por ahora.') };
     if (!k && c)        return { key:'sinsuelo', aviso:true, html:'<b>Te falta el suelo.</b> La caja sola no sostiene nada: pon el bombo antes de seguir.' + ej('bombo en el <b>1</b> y el <b>3</b>.') };
     if (!k && !c && h)  return { key:'reloj', aviso:true, html:'<b>Eso es el reloj, no la batería.</b> El hi-hat marca el tiempo, pero quien manda son el bombo y la caja.' + ej('bombo en 1·3, caja en 2·4.') };
     if (k && !c)        return { key:'suelo', html:'<b>Ya tienes el suelo.</b> Ahora la <b>caja</b> en el <b>2</b> y en el <b>4</b> (la primera casilla del segundo y del cuarto tiempo).' + ej('bombo en 1·3 + caja en 2·4 = ya hay batería.') };
@@ -1939,7 +1950,7 @@
       const head = $(headId); if (head) head.hidden = tips.length === 0;
     }
     return {
-      push(t){ if (t && t.key && !cerrados.has(t.key) && !tips.some(x=>x.key===t.key)) tips.push(t); render(); },
+      push(t){ if (t && t.key && !cerrados.has(t.key)) { const ex=tips.find(x=>x.key===t.key); if (ex) { ex.html=t.html; ex.aviso=t.aviso; } else tips.push(t); } render(); },
       clear(){ tips.forEach(t=>cerrados.add(t.key)); tips = []; render(); },
     };
   }
@@ -2165,8 +2176,8 @@
     if (!S.bpmFijado) { if (S.animo && ANIMOS[S.animo]) { S.bars = ANIMOS[S.animo].bars; setBpm(ANIMOS[S.animo].bpm); } else setBpm(def); }
     S.key = defaultKey() || S.key; S.prog = [];
   }
-  $('genre').addEventListener('change', e=>{ S.genre=e.target.value; fillBands(); renderAll(); });
-  $('band').addEventListener('change', e=>{ S.band=e.target.value; applyBand(); renderAll(); });
+  $('genre').addEventListener('change', e=>{ S.genre=e.target.value; fillBands(); renderAll(); if (typeof consejoBeat==='function') consejoBeat(); });
+  $('band').addEventListener('change', e=>{ S.band=e.target.value; applyBand(); renderAll(); if (typeof consejoBeat==='function') consejoBeat(); });
   function setBpmBloqueo(v) {
     S.bpmBloqueado = v;
     if ($('bpmLock')) $('bpmLock').checked = v;
@@ -2824,6 +2835,7 @@
   // ───────── Panel de administración (sólo Rolando): changelog + bugs ─────────
   const CHANGELOG = [
     { fecha:'2026-09-07', items:[
+      'Fix: el consejo de la batería ahora es según el género elegido y se actualiza al instante al cambiarlo (antes decía siempre «trip hop»).',
       'Foco en beat/pad/piano: Bajo digital oculto por ahora (sin pestaña). Pad, Piano (y Voces) son pistas separadas en el mezclador: se pueden apilar y silenciar/aislar por separado. Mezclador embebido también en la batería para controlar sin cambiar de pestaña.',
       'Hover: eliminado también en las sugerencias de la derecha (ya no cambian la lectura al pasar el cursor). La miniatura del acorde se cierra de 4 formas: clic en cualquier parte de ella, la ×, Escape, o clic fuera.',
       'Acordes por capas: la progresión puede sonar con varios instrumentos a la vez (Pad, Voces, Piano, Ukelele) — se apilan pista por pista y cambiar de pestaña ya no apaga los demás. Selector «Suena como» en el panel de progresión.',
