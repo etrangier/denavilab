@@ -872,8 +872,9 @@
           </div>
         </div>
         <div class="donner-banner" id="donnerBanner">
-          <label class="hint"><input type="checkbox" id="donnerToggle"> Cuadro <b>Donner D1</b> — 12 canales y páginas, para armar el beat como en la máquina</label>
-          <span class="hint donner-detect" id="donnerDetect" hidden>· D1 conectada por MIDI</span>
+          <span class="lbl">Tu batería MIDI</span>
+          <div class="chips" id="bateriaTipo"></div>
+          <span class="hint donner-detect" id="donnerDetect" hidden>· Donner D1 detectada</span>
         </div>
         <div class="consejos-wrap solo-clasico" data-modes="beat">
           <div class="consejos-head" id="consejosHead" hidden><span class="lbl">Consejos según lo que llevas · se van sumando</span><button type="button" class="consejos-clear" id="consejosClear">limpiar todos</button></div>
@@ -1759,10 +1760,16 @@
     const pg=$('donnerPages'); if (pg){ pg.innerHTML=''; for (let i=0;i<g.len;i++) pg.append(el('button',{class:'chip','aria-pressed':String(i===g.page), onclick:()=>{ g.page=i; renderDonner(); }}, 'pág '+(i+1))); }
     const lc=$('donnerLen'); if (lc){ lc.innerHTML=''; [1,2,4].forEach(n=> lc.append(el('button',{class:'chip','aria-pressed':String(n===g.len), onclick:()=>{ g.len=n; if (g.page>=n) g.page=0; renderDonner(); }}, n===1?'1 compás':n+' compases'))); }
   }
+  function renderBateriaTipo() {
+    const box=$('bateriaTipo'); if (box){ box.innerHTML='';
+      [['mpk','MPK mini'],['d1','Donner D1']].forEach(([v,t])=> box.append(el('button',{class:'chip'+(v==='d1'&&S.donner.detectada?' detectada':''),'aria-pressed':String((v==='d1')===S.donner.on), onclick:()=>toggleDonner(v==='d1')}, t))); }
+    const btn=$('midiBtnBeat'); if (btn) btn.textContent = S.donner.on ? 'Conectar la Donner D1 por MIDI' : 'Conectar el MPK por MIDI';
+    const st=$('midiStatusBeat'); if (st && S.donner.on) st.textContent = 'Cuadro Donner D1 activo: 12 canales en 3 bancos. Conecta la D1 por USB y pulsa «Conectar la Donner D1 por MIDI»; los pads suenan y (según su mapeo) caen en el cuadro. También se arma a clic.';
+  }
   function toggleDonner(on) {
     S.donner.on = on;
     const panel = document.querySelector('.panel.drums'); if (panel) panel.classList.toggle('d1-on', on);
-    const chk=$('donnerToggle'); if (chk) chk.checked = on;
+    renderBateriaTipo();
     if (on) renderDonner();
     if (typeof renderMixer==='function') renderMixer();
   }
@@ -2303,8 +2310,9 @@
     if (!ins.length) { sel.hidden = true; midiStatus('No veo ningún teclado MIDI. Conecta el MPK por USB y espera un segundo; se detecta solo.'); return; }
     sel.hidden = false; $('midiAddWrap').hidden = false;
     const d1 = ins.find(i=>/donner|essential|(^|[^a-z])d1([^a-z]|$)/i.test(i.name));
+    S.donner.detectada = !!d1;
     if ($('donnerDetect')) $('donnerDetect').hidden = !d1;
-    if ($('donnerBanner')) $('donnerBanner').classList.toggle('detectada', !!d1);
+    renderBateriaTipo();
     const pref = ins.find(i=>/mpk|akai/i.test(i.name)) || d1 || ins[0];
     sel.value = pref.id; pickInput(pref.id);
   }
@@ -2323,7 +2331,7 @@
   $('midiBtn').addEventListener('click', connectMidi);
   $('midiBtnBeat').addEventListener('click', connectMidi);
   $('recBtn').addEventListener('click', ()=>{ if (rec) stopRec(); else startRec(); });
-  if ($('donnerToggle')) $('donnerToggle').addEventListener('change', e=>toggleDonner(e.target.checked));
+  if ($('bateriaTipo')) renderBateriaTipo();
   $('recTocarBass').addEventListener('click', startRecTocarBajo);
   renderKnobs();
   $('recBtnBeat').addEventListener('click', ()=>{ if (!midiAccess) { $('midiStatusBeat').textContent = 'Primero pulsa «Conectar el MPK por MIDI» aquí arriba.'; return; } if (rec) { stopRec(); $('recBtnBeat').textContent='● Grabar pads del MPK'; } else { startRec(); $('recBtnBeat').textContent='■ Parar'; } });
@@ -2714,6 +2722,7 @@
   // ───────── Panel de administración (sólo Rolando): changelog + bugs ─────────
   const CHANGELOG = [
     { fecha:'2026-09-07', items:[
+      'Batería MIDI: selector explícito MPK mini / Donner D1 en la zona de conexión; al elegir «Donner D1» el cuadro cambia al simulado de la D1 (y el botón de conectar se renombra). Si se detecta una D1 por MIDI, su opción se resalta.',
       'Hover de la rueda: se quitó el tooltip nativo duplicado del SVG y el flotante ya no persigue el cursor (se posiciona al entrar y se oculta al salir del acorde o de la rueda).',
       'Progresión (pad y piano): cada acorde guardado tiene ahora botones para borrar (✕), copiar/duplicar (⧉) y mover ‹ ›.',
       'Pad: el «Classic Analog Pad» ahora suena más suave (menos agudo). Nuevo instrumento «Voces · coro» que evoca el pad de voces de «Enjoy the Silence».',
