@@ -65,6 +65,12 @@
   .navsesion button:hover { border-color: var(--accent); color: var(--accent); }
   @media (max-width: 700px) { .navsesion { margin-left: 0; flex-basis: 100%; } }
   .app { max-width: 1320px; margin: 0 auto; padding: 20px 20px 48px; display: grid; gap: 18px; }
+  .modos-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .mtab { font: inherit; font-family: var(--display); font-weight: 700; font-size: 14px; cursor: pointer;
+    background: var(--surface); color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 7px 15px; transition: all .12s; }
+  .mtab:hover { border-color: var(--accent); color: var(--text); }
+  .mtab[aria-current="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .mtab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 20px; }
   h1 { font-family: var(--display); font-weight: 700; font-size: 26px; letter-spacing: -.01em; margin: 0; text-wrap: balance; }
   h1 .sub { font-weight: 500; font-size: 16px; color: var(--muted); }
@@ -321,6 +327,8 @@
     <h1>DenaviLAB <span class="sub" id="subtitulo"></span></h1>
     <p id="entradilla"></p>
   </header>
+
+  <nav class="modos-tabs" id="modosTabs" aria-label="Secciones del taller"></nav>
 
   <div class="grid">
     <!-- ───────── Configuración ───────── -->
@@ -1610,6 +1618,11 @@
   }
 
   // ───────── Controles ─────────
+  const MODOS_TABS = [['beat','Batería'],['bajod','Bajo'],['pad','Rueda · Pad'],['piano','Piano'],['lead','Piano lead'],['guitarra','Guitarra'],['letra','Letra']];
+  function renderModosTabs() {
+    const nav = $('modosTabs'); if (!nav) return; nav.innerHTML='';
+    MODOS_TABS.forEach(([m,t])=> nav.append(el('button',{class:'mtab', type:'button', 'data-m':m, 'aria-current':String(S.mode===m), onclick:()=>setMode(m)}, t)));
+  }
   function fillSelects() {
     const g = $('genre'); Object.keys(GENRES).forEach(k=>g.append(el('option',{value:k},k)));
     if (!GENRES[S.genre]) S.genre = Object.keys(GENRES)[0];
@@ -1944,6 +1957,7 @@
   function setMode(m) {
     if (typeof rec !== 'undefined' && rec) stopRec();
     S.mode = m; $('mode').value = m;
+    document.querySelectorAll('#modosTabs .mtab').forEach(b=>b.setAttribute('aria-current', String(b.dataset.m===m)));
     S.inst = m==='bajod' ? 'bajod' : (m==='piano'||m==='lead') ? 'piano' : $('inst').value; if (m==='pad'||m==='piano') S.keysMode = m;
     if (m==='piano') renderPianoPanel();
     if (m==='lead') renderLead();
@@ -3031,7 +3045,7 @@
   $('savedGuit').addEventListener('change', e=>{ const it=store.get('rueda.guitar')[+e.target.value]; if (!it) return; S.guitar.prog=it.prog.map(c=>({...c, frets:c.frets.slice()})); S.guitar.sel=0; renderGuitarra(); });
   $('delGuit').addEventListener('click', ()=>{ const v=$('savedGuit').value; if (v==='') return; const list=store.get('rueda.guitar'); list.splice(+v,1); store.set('rueda.guitar', list); renderSaved('savedGuit','rueda.guitar'); });
 
-  buildKeyboard(); buildWheel(); fillSelects(); renderAll(); renderBassSeq(); renderSaved('savedLetras','rueda.letras'); llenarProgsDeLetra(); renderLetra(); renderSaved('savedGuit','rueda.guitar');
+  renderModosTabs(); buildKeyboard(); buildWheel(); fillSelects(); renderAll(); renderBassSeq(); renderSaved('savedLetras','rueda.letras'); llenarProgsDeLetra(); renderLetra(); renderSaved('savedGuit','rueda.guitar');
   // Instrumento de entrada: ?modo=beat|bajod|pad|piano|lead|letra|guitarra (lo usa la portada para entrar directo a un paso)
   const MODOS = ['beat','bajod','pad','piano','lead','letra','guitarra'];
   const pedido = new URLSearchParams(location.search).get('modo');
