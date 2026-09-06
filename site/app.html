@@ -174,11 +174,15 @@
   .ac-chip .ac-com { width: 48px; background: transparent; border: none; padding: 2px 0; font-family: var(--mono); font-size: 12px; }
   .ac-chip .ac-x, .ac-chip .ac-cp { font-family: var(--mono); font-size: 10px; color: var(--muted); }
   .versos { display: grid; gap: 5px; justify-items: start; }
-  .verso { display: grid; grid-template-columns: minmax(0,1fr) 150px auto; gap: 6px; align-items: center; width: 100%; }
+  .verso { display: grid; grid-template-columns: minmax(0,1fr) 130px auto auto; gap: 6px; align-items: center; width: 100%; }
+  .v-badge { font-family: var(--mono); font-size: 10.5px; color: var(--muted); min-width: 40px; text-align: right; white-space: nowrap; }
   .verso .v-ac { font-family: var(--mono); font-size: 12.5px; color: var(--accent); }
   .verso .v-txt { font-size: 14px; }
   #letraTitulo { font-family: var(--display); font-weight: 700; font-size: 18px; }
-  @media (max-width: 700px) { .verso { grid-template-columns: minmax(0,1fr) 88px auto; } }
+  @media (max-width: 700px) { .verso { grid-template-columns: minmax(0,1fr) 74px auto auto; } }
+  .tecnicas { display: grid; gap: 6px; margin: 4px 0 6px; }
+  .tec-tip { font-size: 12.5px; color: var(--muted); border-left: 3px solid var(--key-line); padding-left: 10px; }
+  .tec-tip b { color: var(--text); }
   .sug-bajo { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 8px; }
   .sug-b { display: grid; gap: 3px; text-align: left; font: inherit; color: var(--text); cursor: pointer;
            background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; transition: border-color .15s; }
@@ -524,6 +528,12 @@
           <div class="row"><select id="letraDesdeProg" aria-label="Progresión guardada"></select><button class="ghost" id="cargarProg" style="flex:0 0 auto">Traer sus acordes</button></div>
           <div class="hint" id="cargarProgInfo">Toma la vuelta y el tempo de una progresión que ya hayas guardado; después «traer de la rueda» la copia a la sección que quieras.</div>
         </div>
+        <div class="row" style="flex-wrap:wrap">
+          <div class="field" style="flex:1 1 200px"><span class="lbl">Concepto principal</span><input type="text" id="letraConcepto" placeholder="la idea en una frase" autocomplete="off"></div>
+          <div class="field" style="flex:1 1 160px"><span class="lbl">Temática</span><input type="text" id="letraTema" placeholder="de qué trata" autocomplete="off"></div>
+        </div>
+        <div class="field"><span class="lbl">Apuntes · ideas y frases sueltas para tirar de ahí</span><textarea id="letraApuntes" rows="2" placeholder="versos que rondan, imágenes, palabras que rimen…" style="width:100%; background:var(--surface-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:7px 9px; font:inherit; resize:vertical"></textarea></div>
+        <div class="tecnicas" id="letraTecnicas"></div>
         <div id="secciones"></div>
         <div class="actions">
           <button class="ghost" id="addSeccion">+ Añadir sección</button>
@@ -857,7 +867,7 @@
     drums: { len:1, on:true, kit:D.kit, name:'', pat:{ kick:new Array(64).fill(0), snare:new Array(64).fill(0), hh:new Array(64).fill(0), oh:new Array(64).fill(0) } },
     swing: 0,
     piano: { autoInv:true, manera:3, lh:'none' },
-    letra: { titulo:'', secciones:[] },
+    letra: { titulo:'', secciones:[], concepto:'', tema:'', apuntes:'' },
     guitar: { prog:[], sel:0, withDrums:false },
     lead: { lh:'root13', rh:'melody', split:12, tool:'note', mel:new Array(128).fill(-1), acc:new Array(128).fill(0) },
     bassd: { own:false, bpm:72, bars:4, len:1, oct:0, tool:'note', grid:new Array(64).fill(-1), acc:new Array(64).fill(0), slide:new Array(64).fill(0), withDrums:true } };
@@ -2255,6 +2265,62 @@
   // ───────── Letra y acordes ─────────
   // Pensado para leer y tocar con la guitarra: la cifra va al lado del verso, y cada
   // sección lleva su vuelta con los compases que dura cada acorde.
+  // ───────── Análisis de la letra (métrica y rima) ─────────
+  // Determinista, no ML: cuenta sílabas con sinalefa y ley del acento final, y detecta rima
+  // consonante/asonante. Aproximado a propósito; la métrica se marca como "aprox.".
+  const _V = 'aeiouáéíóúü';
+  function _nucleos(w) {
+    const nuc=[], fuerte=c=>'aeoáéó'.includes(c), debilAcc=c=>'íú'.includes(c);
+    let i=0; while (i<w.length) { if (!_V.includes(w[i])) { i++; continue; } let j=i+1;
+      while (j<w.length && _V.includes(w[j])) { const a=w[j-1],b=w[j]; if ((fuerte(a)&&fuerte(b))||debilAcc(a)||debilAcc(b)) break; j++; }
+      nuc.push([i,j]); i=j; } return nuc;
+  }
+  function _acentoTipo(w) {
+    const nuc=_nucleos(w); if (!nuc.length) return 'llana';
+    let ai=nuc.findIndex(g=>/[áéíóú]/.test(w.slice(g[0],g[1])));
+    let fe; if (ai>=0) fe=nuc.length-1-ai; else { const last=w[w.length-1]; fe='aeiouns'.includes(last)?1:0; }
+    return fe===0?'aguda':fe>=2?'esdrujula':'llana';
+  }
+  function silabas(linea) {
+    const ws=(linea.toLowerCase().normalize('NFC').match(/[a-záéíóúüñ]+/g))||[]; if (!ws.length) return 0;
+    let t=0; ws.forEach(w=>t+=_nucleos(w).length||0);
+    for (let k=0;k<ws.length-1;k++) if (/[aeiouáéíóúü]$/.test(ws[k]) && /^h?[aeiouáéíóúü]/.test(ws[k+1])) t--;
+    const acc=_acentoTipo(ws[ws.length-1]); if (acc==='aguda') t++; else if (acc==='esdrujula') t--;
+    return Math.max(0,t);
+  }
+  function rimaClave(linea) {
+    const ws=(linea.toLowerCase().normalize('NFC').match(/[a-záéíóúüñ]+/g))||[]; if (!ws.length) return null;
+    const w=ws[ws.length-1]; const nuc=_nucleos(w); if (!nuc.length) return null;
+    let ai=nuc.findIndex(g=>/[áéíóú]/.test(w.slice(g[0],g[1])));
+    if (ai<0) { const last=w[w.length-1]; ai='aeiouns'.includes(last)?nuc.length-2:nuc.length-1; if (ai<0) ai=0; }
+    const cola=w.slice(nuc[ai][0]);
+    const plano=cola.normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/v/g,'b').replace(/ll/g,'y').replace(/h/g,'');
+    const aso=(plano.match(/[aeiou]/g)||[]).join('');
+    return { cons:plano, aso };
+  }
+  // Palabras que suelen marcar lo "interno" (lo que se siente) — heurística suave para el consejo
+  const _INTERNAS = /\b(yo|me|mi|mis|siento|siente|quiero|duele|dolor|miedo|alma|corazón|corazon|sueño|sueno|lloro|amo|odio|extraño|extrano|recuerdo|pienso|siendo|dentro|adentro)\b/i;
+
+  // Analiza una sección: sílabas por verso y esquema de rima. Devuelve info por línea + resumen.
+  function analizarSeccion(sec) {
+    const versos = sec.lineas.map((l,i)=>({ i, txt:(l.t||'').trim() })).filter(v=>v.txt);
+    versos.forEach(v=>{ v.sil=silabas(v.txt); v.r=rimaClave(v.txt); });
+    // agrupar por rima asonante; dentro, marcar si además es consonante
+    const grupos=[]; versos.forEach(v=>{ if (!v.r) { v.grupo=-1; return; }
+      let g=grupos.find(x=>x.aso===v.r.aso); if (!g) { g={aso:v.r.aso, cons:v.r.cons, miembros:[], consComun:true}; grupos.push(g); }
+      if (g.cons!==v.r.cons) g.consComun=false; g.miembros.push(v); v.grupo=grupos.indexOf(g);
+    });
+    const LET='ABCDEFGH';
+    grupos.forEach((g,gi)=>{ g.letra = g.miembros.length>=2 ? LET[gi] : null; });
+    versos.forEach(v=>{ const g=grupos[v.grupo]; v.letra = g&&g.letra?g.letra:null; v.consonante = g&&g.letra?g.consComun:false; });
+    const sils = versos.map(v=>v.sil).filter(n=>n>0);
+    const dispersa = sils.length>=2 && (Math.max(...sils)-Math.min(...sils))>2;
+    const conRima = grupos.some(g=>g.letra);
+    const internas = versos.filter(v=>_INTERNAS.test(v.txt)).length;
+    return { versos, grupos:grupos.filter(g=>g.letra), dispersa, conRima, promSil: sils.length?Math.round(sils.reduce((a,b)=>a+b,0)/sils.length):0, internas, total:versos.length };
+  }
+  const RIMA_COLOR = ['#e8a94a','#6fbf9a','#7e9bd6','#c98ad0','#d0a25a','#69c0c8'];
+
   const TIPOS = ['intro','estrofa','pre-estribillo','estribillo','puente','solo','final'];
   const seccionNueva = (tipo='estrofa') => ({ tipo, vuelta:[], lineas:[{t:'',a:''}] });
   const compasesDe = sec => sec.vuelta.reduce((a,x)=>a+(+x.c||0), 0);
@@ -2267,10 +2333,15 @@
     $('letraResumen').textContent = `${secs.length} sección(es) · ${versos} verso(s) · ${fmtLen(comp)} compás(es)`;
   }
 
+  let letraBadges = {};
   function renderLetra() {
     if (!S.letra.secciones.length) S.letra.secciones.push(seccionNueva());
+    letraBadges = {};
     const cont = $('secciones'); cont.innerHTML = '';
     $('letraTitulo').value = S.letra.titulo;
+    $('letraConcepto').value = S.letra.concepto || '';
+    $('letraTema').value = S.letra.tema || '';
+    $('letraApuntes').value = S.letra.apuntes || '';
 
     S.letra.secciones.forEach((sec, si) => {
       const caja = el('div', {class:'seccion'});
@@ -2307,8 +2378,9 @@
       const versos = el('div', {class:'versos'});
       sec.lineas.forEach((ln, li) => {
         const r = el('div', {class:'verso'});
-        r.append(el('input', {type:'text', class:'v-txt', value:ln.t, placeholder:'escribe el verso…', 'aria-label':'Verso', oninput:e=>{ ln.t = e.target.value; letraResumen(); }}));
+        r.append(el('input', {type:'text', class:'v-txt', value:ln.t, placeholder:'escribe el verso…', 'aria-label':'Verso', oninput:e=>{ ln.t = e.target.value; letraResumen(); actualizarTecnicas(); }}));
         r.append(el('input', {type:'text', class:'v-ac', value:ln.a, placeholder:'Am  F', 'aria-label':'Acordes de este verso', autocomplete:'off', oninput:e=>{ ln.a = e.target.value; }}));
+        const badge = el('span', {class:'v-badge'}); letraBadges[si+'-'+li] = badge; r.append(badge);
         r.append(el('button', {class:'tiny', title:'quitar el verso', onclick:()=>{ sec.lineas.splice(li,1); if (!sec.lineas.length) sec.lineas.push({t:'',a:''}); renderLetra(); }}, '✕'));
         versos.append(r);
       });
@@ -2317,8 +2389,46 @@
 
       cont.append(caja);
     });
-    letraResumen();
+    letraResumen(); actualizarTecnicas();
   }
+
+  function actualizarTecnicas() {
+    const caja = $('letraTecnicas'); if (!caja) return;
+    const analisis = S.letra.secciones.map(sec=>({ sec, a:analizarSeccion(sec) }));
+    // pintar las insignias de cada verso
+    analisis.forEach(({sec,a}, si)=>{
+      a.versos.forEach(v=>{ const b=letraBadges[si+'-'+v.i]; if (!b) return;
+        b.textContent = v.sil + 's' + (v.letra ? ' · '+v.letra : '');
+        b.title = 'métrica aprox. ' + v.sil + ' sílabas' + (v.letra ? ' · rima '+(v.consonante?'consonante':'asonante')+' ('+v.letra+')' : '');
+        b.style.color = v.letra ? RIMA_COLOR[('ABCDEFGH'.indexOf(v.letra))%RIMA_COLOR.length] : 'var(--muted)';
+      });
+    });
+    // consejos que van cambiando
+    const tips = [];
+    const hayTexto = analisis.some(x=>x.a.total>0);
+    if (!hayTexto) { caja.innerHTML = '<div class="tec-tip">Escribe versos y aquí irán apareciendo la métrica (sílabas), el esquema de rima y consejos a medida.</div>'; return; }
+    // rima
+    const conRima = analisis.filter(x=>x.a.conRima);
+    if (conRima.length) { const ej=conRima[0]; const esquema=ej.a.versos.map(v=>v.letra||'–').join(''); const tipoR = ej.a.grupos.some(g=>g.consComun)?'consonante':'asonante';
+      tips.push('<b>Rima</b> en «'+ej.sec.tipo+'»: esquema '+esquema+' ('+tipoR+'). La consonante suena más cerrada; la asonante, más suelta y moderna.'); }
+    else tips.push('<b>Todavía sin rima.</b> Prueba que el final del verso 2 rime con el 4 — con que coincidan las vocales desde la última acentuada (asonante) ya se nota.');
+    // métrica
+    const disp = analisis.find(x=>x.a.dispersa);
+    if (disp) { const sils=disp.a.versos.map(v=>v.sil); tips.push('<b>Métrica despareja</b> en «'+disp.sec.tipo+'»: los versos van de '+Math.min(...sils)+' a '+Math.max(...sils)+' sílabas. Empareja para que entren igual al cantar.'); }
+    else { const prom=Math.round(analisis.reduce((a,x)=>a+x.a.promSil,0)/Math.max(1,analisis.filter(x=>x.a.promSil).length)); if (prom) tips.push('<b>Métrica pareja</b> (~'+prom+' sílabas por verso). Buena base para que la melodía se repita.'); }
+    // interno / externo
+    const totV = analisis.reduce((a,x)=>a+x.a.total,0), totInt = analisis.reduce((a,x)=>a+x.a.internas,0);
+    if (totV>=3 && totInt===totV) tips.push('<b>Todo mira hacia adentro.</b> Alterna con algo <b>externo</b> —una imagen, un lugar, algo que se vea— para que respire.');
+    else if (totV>=3 && totInt===0) tips.push('<b>Todo es imagen externa.</b> Cuela algo <b>interno</b> —lo que sientes— para que enganche.');
+    else tips.push('Vas alternando lo que sientes (<b>interno</b>) con lo que se ve (<b>externo</b>): así se sostiene una letra.');
+    // encaje con el beat
+    const prom = analisis.reduce((a,x)=>a+x.a.promSil,0)/Math.max(1,analisis.filter(x=>x.a.promSil).length);
+    if (prom) { const enc = prom<=8?'entra holgado':prom<=12?'va justo':'va muy apretado'; tips.push('<b>Con el beat</b> a '+S.bpm+' bpm: tus versos rondan '+Math.round(prom)+' sílabas por compás, '+enc+(isPlaying?' — está sonando: fíjate si caen con el bombo.':'. Pon a sonar la batería y cántalo encima para sentirlo.')); }
+    caja.innerHTML = tips.map(t=>'<div class="tec-tip">'+t+'</div>').join('');
+  }
+  $('letraConcepto').addEventListener('input', e=>{ S.letra.concepto = e.target.value; });
+  $('letraTema').addEventListener('input', e=>{ S.letra.tema = e.target.value; });
+  $('letraApuntes').addEventListener('input', e=>{ S.letra.apuntes = e.target.value; });
 
   const letraTexto = () => {
     const out = [S.letra.titulo || 'Sin título'];
