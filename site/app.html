@@ -1232,7 +1232,7 @@
   }
   function renderOptChips() {
     const kb = $('kbChips'); kb.innerHTML='';
-    [[37,'MPK mini Plus · 37'],[25,'MPK mini · 25']].forEach(([n,t])=> kb.append(el('button',{class:'chip','aria-pressed':String(n===S.kbKeys), onclick:()=>{ S.kbKeys=n; buildKeyboard(); renderReadout(); }}, t)));
+    [[37,'MPK mini Plus · 37'],[25,'MPK mini · 25']].forEach(([n,t])=> kb.append(el('button',{class:'chip','aria-pressed':String(n===S.kbKeys), onclick:()=>{ S.kbKeys=n; buildKeyboard(); renderOptChips(); renderReadout(); }}, t)));
     const nc = $('notaChips'); nc.innerHTML='';
     [['es','do re mi'],['en','C D E']].forEach(([v,t])=> nc.append(el('button',{class:'chip','aria-pressed':String(v===S.notacion), onclick:()=>{ S.notacion=v; try { localStorage.setItem('denavilab.notacion', v); } catch (e) {} buildKeyboard(); buildWheel(); renderAll(); if (S.mode==='bajod') renderBassSeq(); if (S.mode==='lead') renderLead(); }}, t)));
     const vc = $('voiceChips'); vc.innerHTML='';
