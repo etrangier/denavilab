@@ -457,8 +457,9 @@
       </div>
       <div class="field" data-modes="beat pad piano lead">
         <span class="lbl">Tempo</span>
-        <div class="row"><span class="bpm-val" id="bpmVal">72</span><span class="bpm-range" id="bpmRange"></span></div>
+        <div class="row"><span class="bpm-val" id="bpmVal">72</span><button type="button" class="chip" id="tapBpm" title="pulsa varias veces en el tiempo para fijar el tempo">Tap</button><span class="bpm-range" id="bpmRange"></span></div>
         <input type="range" id="bpm" min="50" max="190" step="1" value="72" aria-label="BPM">
+        <div class="hint" id="tapHint" hidden></div>
         <label class="hint bpm-lock"><input type="checkbox" id="bpmLock"> 🔒 fijar el tempo — el MPK no lo cambia</label>
       </div>
       <div class="field" data-modes="none">
@@ -1149,6 +1150,18 @@
     S.bpm = v; if (fijar) S.bpmFijado = true; syncBpmUI();
   }
   const sugerirBpm = v => { if (!S.bpmFijado) setBpm(v); };
+  // Tap tempo: pulsa en el tiempo (botón o pads del MPK) y se intuye el BPM, como en la Donner D1.
+  let tapTimes = [];
+  function tapTempo() {
+    const now = performance.now();
+    if (tapTimes.length && now - tapTimes[tapTimes.length-1] > 2000) tapTimes = [];   // pausa larga = empieza de nuevo
+    tapTimes.push(now); if (tapTimes.length > 6) tapTimes = tapTimes.slice(-6);
+    if (tapTimes.length >= 2) {
+      let sum = 0; for (let i=1;i<tapTimes.length;i++) sum += tapTimes[i]-tapTimes[i-1];
+      const bpm = Math.round(60000 / (sum/(tapTimes.length-1)));
+      if (bpm >= 40 && bpm <= 240) { setBpm(bpm, true); const h=$('tapHint'); if (h){ h.hidden=false; h.textContent = `${tapTimes.length} taps · ${bpm} bpm`; } }
+    } else { const h=$('tapHint'); if (h){ h.hidden=false; h.textContent = 'sigue pulsando en el tiempo…'; } }
+  }
   // ¿esta pista suena en la mezcla? (mute/solo tipo Songsterr)
   const haySolo = () => Object.values(S.mix.solo).some(Boolean);
   const suena = tr => haySolo() ? S.mix.solo[tr] : !S.mix.mute[tr];
@@ -2116,6 +2129,7 @@
   }
   if ($('bpmLock')) $('bpmLock').addEventListener('change', e=>setBpmBloqueo(e.target.checked));
   $('bpm').addEventListener('input', e=>{ setBpm(e.target.value, true); paintWheel(); renderBars(); });
+  if ($('tapBpm')) $('tapBpm').addEventListener('click', tapTempo);
   $('inst').addEventListener('change', e=>{ S.inst=e.target.value; renderReadout(); renderBars(); });
   const instLabel = () => S.mode==='piano' ? 'Piano' : S.mode==='lead' ? 'Piano lead' : S.mode==='bajod' ? 'Bajo digital' : S.mode==='beat' ? 'Batería' : $('inst').selectedOptions[0].textContent;
   $('root').addEventListener('change', e=>{ S.root=+e.target.value; S.key=defaultKey()||S.key; S.prog=[]; renderAll(); });
