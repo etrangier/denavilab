@@ -19,6 +19,9 @@
   }
 }
 * { box-sizing: border-box; }
+a, button, select, input, textarea, .door, .navlink, .mtab, .step > summary, .leccion > summary { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+body { overflow-x: hidden; }
+@media (max-width: 700px) { input, select, textarea, dialog input { font-size: 16px !important; } }
 body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--body); font-size: 15px; line-height: 1.5; }
 .wrap { max-width: 820px; margin: 0 auto; padding: 40px 20px 56px; }
 

@@ -55,7 +55,8 @@
     --shadow: 0 10px 30px rgba(40,30,10,.10);
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--body); font-size: 14px; line-height: 1.45; }
+  button, select, input, .slot, .wk, .bk, .st, .rg-cell, .sug, .chip, .mtab, .navlink, .bar-box, .guit-ch, .sug-b, .door, [role=button] { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; overflow-x: hidden; background: var(--bg); color: var(--text); font-family: var(--body); font-size: 14px; line-height: 1.45; }
   .navbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding-bottom: 4px; border-bottom: 1px solid var(--line); }
   .navlink { font: inherit; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
              background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; color: var(--text); text-decoration: none; cursor: pointer; }
@@ -219,17 +220,33 @@
   .mode-bajod .kb-wrap { order: 5; }
   @media (max-width: 700px) {
     .app { padding: 12px 10px 32px; gap: 12px; }
-    h1 { font-size: 21px; }
+    h1 { font-size: 20px; }
+    h1 .sub { display: block; font-size: 12.5px; margin-top: 2px; }
+    header p { font-size: 13px; line-height: 1.4; }
     .panel, .wheel-wrap, .kb-wrap { padding: 12px; }
     .grid { gap: 12px; }
-    .seq { grid-template-columns: 60px repeat(var(--steps, 16), 16px); gap: 2px; }
+    /* Evita el zoom automático de iOS al enfocar un campo (necesita 16px) */
+    select, input[type=text], input[type=number] { font-size: 16px; }
+    /* Pestañas de sección en una fila deslizable */
+    .modos-tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+    .modos-tabs::-webkit-scrollbar { height: 0; }
+    .mtab { flex: 0 0 auto; padding: 8px 13px; }
+    .navbar { gap: 5px; padding-bottom: 3px; }
+    .navlink { padding: 6px 9px; }
+    .chip { padding: 7px 12px; font-size: 12.5px; }
+    /* Celdas un poco más grandes para el dedo */
+    .seq { grid-template-columns: 54px repeat(var(--steps, 16), 18px); gap: 2px; }
     .seq .rl { font-size: 10px; }
-    .bass-seq .st { height: 13px; }
+    .st { height: 24px; }
+    .bass-seq .st { height: 15px; }
+    .lead-seq .st { height: 15px; }
     .bars { grid-template-columns: repeat(4, 1fr); }
     .kb-wrap svg { min-width: 480px; }
     .readout .big { font-size: 24px; }
     .actions { gap: 6px; }
+    .actions .primary, .actions .ghost { min-height: 40px; }
     .actions .hint { flex-basis: 100%; }
+    .rg-cell { height: 40px; }
   }
   .seq .hd { font-family: var(--mono); font-size: 9px; color: var(--muted); text-align: center; }
   .seq .hd.beat { color: var(--text); }
