@@ -1154,9 +1154,9 @@
         g.append(t);
         const p = svgEl('text',{class:'sug-pct', x:tx, y:ty+ (ring.q==='d'?12:16), 'text-anchor':'middle'}); g.append(p);
         const ar = svgEl('title'); ar.textContent = chordLabel(pc,ring.q)+' · '+notesText(pc,ring.q); g.append(ar);
-        g.addEventListener('mouseenter', ()=>{ S.hover={pc,q:ring.q}; renderReadout(); showTip(pc, ring.q); });
-        g.addEventListener('mousemove', e=>moveTip(e));
-        g.addEventListener('mouseleave', ()=>{ S.hover=null; renderReadout(); hideTip(); });
+        g.addEventListener('mouseenter', ()=>{ if (!conHover()) return; S.hover={pc,q:ring.q}; renderReadout(); showTip(pc, ring.q); });
+        g.addEventListener('mousemove', e=>{ if (conHover()) moveTip(e); });
+        g.addEventListener('mouseleave', ()=>{ if (!conHover()) return; S.hover=null; renderReadout(); hideTip(); });
         g.addEventListener('click', ()=>propose({pc,q:ring.q}));
         g.addEventListener('keydown', e=>{ if (e.key==='Enter'||e.key===' ') { e.preventDefault(); propose({pc,q:ring.q}); } });
         svg.append(g); slots[pc+ring.q] = { g, p, cx:tx, cy:ty };
@@ -1197,14 +1197,20 @@
   }
 
   // Tooltip flotante con la miniatura del teclado
+  // ¿el dispositivo tiene un cursor de verdad? En táctil no mostramos el tooltip flotante:
+  // con "hover" emulado se quedaba pegado y no se podía quitar.
+  const conHover = () => !window.matchMedia || window.matchMedia('(hover: hover)').matches;
   function showTip(pc, q) {
+    if (!conHover()) { $('tip').hidden = true; return; }
     const t = $('tip'); t.innerHTML = '';
     const sug = suggestions().find(x=>x.pc===pc && x.q===q); const [r1, r2] = roleOf(pc, q);
     t.append(el('div',{class:'nm'}, chordLabel(pc,q) + (sug ? `  ·  ${sug.pct}%` : '')), el('div',{class:'nt'}, notesText(pc,q)), miniKeyboard(pc,q), el('div',{class:'role'}, r1 + (r2 ? ' — ' + r2 : '') + (sug && sug.moved!==null && sug.moved!==undefined ? ` · mueve ${sug.moved} dedo(s)` : '')));
     t.hidden = false;
   }
   function moveTip(e) { const t=$('tip'); const w=t.offsetWidth, h=t.offsetHeight; let x=e.clientX+16, y=e.clientY+16; if (x+w>window.innerWidth-8) x=e.clientX-w-12; if (y+h>window.innerHeight-8) y=e.clientY-h-12; t.style.left=x+'px'; t.style.top=y+'px'; }
-  function hideTip() { $('tip').hidden = true; }
+  function hideTip() { const t=$('tip'); if (t) t.hidden = true; }
+  window.addEventListener('touchstart', hideTip, {passive:true});
+  window.addEventListener('scroll', hideTip, {passive:true});
 
   // Tips pedagógicos según lo que estás haciendo (Guías 1 y 2)
   function tipHtml() {
@@ -1250,7 +1256,7 @@
     $('sugPhase').textContent = phaseText();
     const full = remaining() <= 0;
     suggestions().slice(0, S.mode==='piano'?6:4).forEach(s=>{
-      const b = el('button',{class:'sug', onclick:()=>propose(s), onmouseenter:()=>{S.hover=s;renderReadout();}, onmouseleave:()=>{S.hover=null;renderReadout();}},
+      const b = el('button',{class:'sug', onclick:()=>propose(s), onmouseenter:()=>{if(conHover()){S.hover=s;renderReadout();}}, onmouseleave:()=>{if(conHover()){S.hover=null;renderReadout();}}},
         el('span',{class:'nm'}, chordLabel(s.pc,s.q)),
         el('span',{class:'nt'}, notesText(s.pc,s.q)),
         el('span',{class:'deg'}, `${s.id} · ${s.pct}%` + (isDiatonic(s.pc,s.q)?'':' · prestado') + (s.moved!==null && s.moved!==undefined ? ` · mueve ${s.moved} dedo${s.moved===1?'':'s'}` : '') + (s.bank ? ` · sigue «${s.bank}»` : '')),
