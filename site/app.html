@@ -126,6 +126,13 @@
   .slot.sug text { fill: var(--text); }
   .slot.cur path { fill: var(--accent); stroke: var(--accent); }
   .slot.sonando path { stroke: var(--ok); stroke-width: 3.5; filter: brightness(1.12); }
+  .flecha-sug { fill: none; stroke: var(--ok); stroke-linecap: round; pointer-events: none; }
+  @media (prefers-reduced-motion: no-preference) {
+    .flecha-sug { stroke-dasharray: 6 5; animation: flujoFlecha 1.1s linear infinite; }
+    @keyframes flujoFlecha { to { stroke-dashoffset: -22; } }
+    .slot.sug path { animation: latidoSug 1.7s ease-in-out infinite; }
+    @keyframes latidoSug { 50% { filter: brightness(1.22); } }
+  }
   .slot.last path { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 5 3; }
   .cand { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 6px 4px; }
   .tipbox { margin: 6px 6px 0; padding: 8px 12px; border-left: 3px solid var(--ok); background: color-mix(in srgb, var(--surface-2) 75%, transparent); border-radius: 0 8px 8px 0; font-size: 13px; color: var(--text); }
@@ -1020,7 +1027,14 @@
     const row = rowFor(deg); const slot = nextSlot();
     const first = S.prog[0] || S.cand || cur; const firstDeg = degreeOf(first.pc, first.q);
     const seq = [...S.prog, ...(S.cand ? [S.cand] : [])];
-    const scored = Object.entries(row).map(([id,w]) => {
+    let entries = Object.entries(row);
+    if (S.mode === 'piano' || S.mode === 'lead') {   // piano: más opciones para improvisar (diatónicos + algún prestado)
+      const extra = {};
+      DIATONIC[S.key.mode].forEach(d=>{ if (!(d in row)) extra[d] = 12; });
+      (S.key.mode==='m' ? ['bII','IV','v'] : ['bVII','iv','bVI']).forEach(d=>{ if (!(d in row) && !(d in extra)) extra[d] = 8; });
+      entries = entries.concat(Object.entries(extra));
+    }
+    const scored = entries.map(([id,w]) => {
       const c = chordOfDegree(id); let score = w;
       const closes = firstDeg ? linkStrength(id, firstDeg) : 0;          // qué tan bien vuelve al primer acorde (el loop se cierra)
       if (slot.phase === 'close') score *= 0.35 + 1.8*closes;
@@ -1107,6 +1121,8 @@
   }
   function buildWheel() {
     const svg = $('wheel'); svg.innerHTML = '';
+    const defs = svgEl('defs'); const mk = svgEl('marker',{id:'flechaSug', markerWidth:'8', markerHeight:'8', refX:'5.5', refY:'3', orient:'auto', markerUnits:'userSpaceOnUse'});
+    mk.append(svgEl('path',{d:'M0,0 L6,3 L0,6 Z', fill:'var(--ok)'})); defs.append(mk); svg.append(defs);
     const rings = [ {q:'M', r0:186, r1:256, off:0, fs:19}, {q:'m', r0:118, r1:184, off:9, fs:16}, {q:'d', r0:66, r1:116, off:11, fs:12} ];
     rings.forEach(ring => {
       for (let i=0;i<12;i++) {
@@ -1123,9 +1139,10 @@
         g.addEventListener('mouseleave', ()=>{ S.hover=null; renderReadout(); hideTip(); });
         g.addEventListener('click', ()=>propose({pc,q:ring.q}));
         g.addEventListener('keydown', e=>{ if (e.key==='Enter'||e.key===' ') { e.preventDefault(); propose({pc,q:ring.q}); } });
-        svg.append(g); slots[pc+ring.q] = { g, p };
+        svg.append(g); slots[pc+ring.q] = { g, p, cx:tx, cy:ty };
       }
     });
+    svg.append(svgEl('g',{id:'wheelArrows'}));
     const c = svgEl('circle',{cx:260,cy:260,r:62,fill:'var(--surface)',stroke:'var(--line)'}); svg.append(c);
     const t1 = svgEl('text',{id:'cKey',class:'center-label',x:260,y:250,'text-anchor':'middle','font-size':'15'}); svg.append(t1);
     const t2 = svgEl('text',{id:'cSub',class:'center-sub',x:260,y:268,'text-anchor':'middle'}); svg.append(t2);
@@ -1148,6 +1165,13 @@
     const maxPct = sug.length ? sug[0].pct : 1;
     sug.forEach(s=>{ const sl=slots[s.pc+s.q]; if (sl && !(s.pc===cur.pc&&s.q===cur.q)) { sl.g.classList.add('sug'); sl.p.textContent=s.pct+'%'; const path=sl.g.querySelector('path'); path.style.fill=heat(s.pct/maxPct); path.style.stroke=heat(s.pct/maxPct, true); } });
     slots[cur.pc+cur.q]?.g.classList.add('cur');
+    const arrows = $('wheelArrows');
+    if (arrows) { arrows.innerHTML=''; const from = slots[cur.pc+cur.q];
+      if (from && (S.prog.length || S.cand)) sug.slice(0, S.mode==='piano'?5:4).forEach(sg=>{ const to=slots[sg.pc+sg.q]; if (!to || (sg.pc===cur.pc&&sg.q===cur.q)) return;
+        const x1=from.cx,y1=from.cy,x2=to.cx,y2=to.cy; const mx=(x1+x2)/2,my=(y1+y2)/2, dx=mx-260,dy=my-260;
+        const cxp=mx+dx*0.28, cyp=my+dy*0.28; const w=sg.pct/maxPct;
+        arrows.append(svgEl('path',{class:'flecha-sug', d:`M${x1},${y1} Q${cxp.toFixed(1)},${cyp.toFixed(1)} ${x2},${y2}`, 'marker-end':'url(#flechaSug)', 'stroke-width':(1+w*3.5).toFixed(2), opacity:(0.3+0.55*w).toFixed(2)}));
+      }); }
     $('cKey').textContent = keyName(S.key);
     $('cSub').textContent = `${S.band} · ${S.bpm} bpm`; { const sl = nextSlot(); const cs=$('cPhase'); if (cs) cs.textContent = sl.left>0 ? `compás ${fmtLen(sl.start+1)}/${S.bars} · ${sl.phase==='open'?'abrir':sl.phase==='close'?'cerrar':sl.phase==='penult'?'preparar cierre':'desarrollar'}` : 'completa'; } const db=$('drumBpm'); if (db) db.textContent = S.bpm;
   }
@@ -1205,7 +1229,7 @@
     $('sugFrom').textContent = 'desde ' + chordLabel(cur.pc,cur.q) + (S.cand ? ' (probando)' : '');
     $('sugPhase').textContent = phaseText();
     const full = remaining() <= 0;
-    suggestions().slice(0,4).forEach(s=>{
+    suggestions().slice(0, S.mode==='piano'?6:4).forEach(s=>{
       const b = el('button',{class:'sug', onclick:()=>propose(s), onmouseenter:()=>{S.hover=s;renderReadout();}, onmouseleave:()=>{S.hover=null;renderReadout();}},
         el('span',{class:'nm'}, chordLabel(s.pc,s.q)),
         el('span',{class:'nt'}, notesText(s.pc,s.q)),
@@ -1291,8 +1315,16 @@
       S.root=c.pc; S.qual = c.q==='d' ? S.qual : c.q; $('root').value=S.root; $('qual').value=S.qual;
       if (c.q!=='d') S.key = defaultKey() || S.key;
     }
+    registrarPaso(S.prog[S.prog.length-1], c);
     S.prog.push({pc:c.pc, q:c.q, len: Math.min(S.defLen, remaining())});
     renderAll();
+  }
+  function registrarPaso(prev, c) {
+    const u = usoGet(); u.trans = u.trans||{m:{},M:{}}; u.acordes = u.acordes||{};
+    const t = u.trans[S.key.mode] = u.trans[S.key.mode]||{}; const dc = degreeOf(c.pc,c.q);
+    if (dc) u.acordes[dc] = (u.acordes[dc]||0)+1;
+    if (prev) { const dp=degreeOf(prev.pc,prev.q); if (dp&&dc) { t[dp]=t[dp]||{}; t[dp][dc]=(t[dp][dc]||0)+1; } }
+    usoSet(u);
   }
 
   // Acorde escrito a mano: "re fa la", "do mi sol si", "fa* la* do*", también con # o "sostenido"
@@ -2215,7 +2247,7 @@
   $('savedBass').addEventListener('change', e=>{ const it=store.get('rueda.bass')[+e.target.value]; if (!it) return; Object.assign(S.bassd, {len:it.len, grid:it.grid, acc:it.acc||new Array(64).fill(0), slide:it.slide||new Array(64).fill(0), oct:it.oct||0, own:it.own, bpm:it.bpm, bars:it.bars}); if (it.swing!==undefined) S.swing=it.swing; renderBassSeq(); });
   $('delBass').addEventListener('click', ()=>{ const i=+$('savedBass').value; if ($('savedBass').value==='') return; const list=store.get('rueda.bass'); list.splice(i,1); store.set('rueda.bass',list); renderSaved('savedBass','rueda.bass'); });
   renderSaved('savedBeats','rueda.beats'); renderSaved('savedBass','rueda.bass'); renderSaved('savedProgs','rueda.progs'); renderSaved('savedLeads','rueda.leads');
-  $('saveProg').addEventListener('click', ()=>{ if (!S.prog.length) return; registrarProg(S.prog, S.key); const name=$('progName').value.trim()||(S.prog.map(c=>chordLabel(c.pc,c.q)).join(' ')); const list=store.get('rueda.progs'); list.push({name, prog:S.prog, key:S.key, genre:S.genre, band:S.band, bpm:S.bpm, bars:S.bars, voicing:S.voicing, defLen:S.defLen, inst:S.inst, mode:S.mode, root:S.root, qual:S.qual}); store.set('rueda.progs',list); $('progName').value=''; renderSaved('savedProgs','rueda.progs'); $('savedProgs').value=String(list.length-1); });
+  $('saveProg').addEventListener('click', ()=>{ if (!S.prog.length) return; { const u=usoGet(); u.progs=(u.progs||0)+1; if (S.prog.length>=2) { const t=(u.trans=u.trans||{m:{},M:{}})[S.key.mode]=(u.trans[S.key.mode]||{}); const dl=degreeOf(S.prog[S.prog.length-1].pc,S.prog[S.prog.length-1].q), d0=degreeOf(S.prog[0].pc,S.prog[0].q); if (dl&&d0){ t[dl]=t[dl]||{}; t[dl][d0]=(t[dl][d0]||0)+1; } } usoSet(u); } const name=$('progName').value.trim()||(S.prog.map(c=>chordLabel(c.pc,c.q)).join(' ')); const list=store.get('rueda.progs'); list.push({name, prog:S.prog, key:S.key, genre:S.genre, band:S.band, bpm:S.bpm, bars:S.bars, voicing:S.voicing, defLen:S.defLen, inst:S.inst, mode:S.mode, root:S.root, qual:S.qual}); store.set('rueda.progs',list); $('progName').value=''; renderSaved('savedProgs','rueda.progs'); $('savedProgs').value=String(list.length-1); });
   $('savedProgs').addEventListener('change', e=>{ const it=store.get('rueda.progs')[+e.target.value]; if (!it) return; S.genre=it.genre; $('genre').value=S.genre; fillBands(); S.band=it.band; $('band').value=S.band; S.bpm=it.bpm; $('bpm').value=it.bpm; $('bpmVal').textContent=it.bpm; S.bars=it.bars; S.voicing=it.voicing; S.defLen=it.defLen; S.root=it.root; S.qual=it.qual; $('root').value=S.root; $('qual').value=S.qual; S.key=it.key; S.prog=it.prog.map(c=>({...c})); S.cand=null; if (it.mode==='pad'||it.mode==='piano') { if (it.mode==='pad') $('inst').value = ['pad','lead','uke'].includes(it.inst)?it.inst:'pad'; setMode(it.mode); } else renderAll(); });
   $('delProg').addEventListener('click', ()=>{ if ($('savedProgs').value==='') return; const list=store.get('rueda.progs'); list.splice(+$('savedProgs').value,1); store.set('rueda.progs',list); renderSaved('savedProgs','rueda.progs'); });
 
