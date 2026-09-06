@@ -2475,7 +2475,7 @@
     document.body.classList.add('invitado');
     const ce = $('campoExportar'); if (ce) { ce.hidden = true;
       const nota = el('div', {class:'field invitado-aviso'}); nota.append(el('span',{class:'lbl'},'Modo invitado'),
-        el('div',{class:'hint'},'Exportar, importar y la biblioteca están desactivados. Puedes tocar, armar y probar ideas sin guardar material.'));
+        el('div',{class:'hint'},'Exportar, importar y la biblioteca compartida están desactivados. Pero sí puedes guardar tus patrones en este mismo navegador —beats, bajos, progresiones y letras— con los botones «Guardar» de cada sección.'));
       ce.parentNode.insertBefore(nota, ce);
     }
     ['expLetraPdf','expLibretaPdf'].forEach(id=>{ const b=$(id); if (b) b.hidden = true; });
@@ -2931,7 +2931,7 @@
   $('subtitulo').textContent = S.quien === 'invitado' ? '· vista de invitado' : S.quien === 'schair' ? '· el taller de maquetas' : '· rueda de acordes para el MPK mini';
   $('entradilla').textContent = S.quien === 'schair'
     ? 'Arma la base para tus canciones —batería, bajo y acordes— sin tocar ninguno de esos instrumentos: se dibuja con el mouse. Los sonidos de aquí son mínimos a propósito; sirven para no perder la idea y para cantar y tocar encima.'
-    : S.quien === 'invitado' ? 'Estás mirando como invitado: puedes recorrer, tocar y armar ideas en todas las secciones. Exportar, importar y la biblioteca están desactivados — eso queda para la banda.'
+    : S.quien === 'invitado' ? 'Estás mirando como invitado: puedes recorrer, tocar, armar ideas y guardarlas en este navegador. Exportar, importar y la biblioteca compartida quedan para la banda.'
     : 'Maqueta en MIDI con el MPK mini (25 o 37 teclas): beat, bajo digital y acordes en pad o piano. Sonidos mínimos a propósito; los definitivos van en Logic. Con el MPK conectado, teclas, pads, knobs, rueda de pitch y pedal hacen lo suyo.';
   aplicarRestriccionesInvitado();
 
