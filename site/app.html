@@ -266,6 +266,21 @@
   .grid.two { grid-template-columns: 250px minmax(0,1fr); }
   [data-modes].off { display: none !important; }
   body:not([data-quien="rolando"]) [data-solo="rolando"] { display: none !important; }
+  .admin { margin: 28px 0 8px; border-top: 1px solid var(--line); padding-top: 10px; opacity: .72; }
+  .admin > summary { cursor: pointer; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); list-style: none; }
+  .admin > summary::-webkit-details-marker { display: none; }
+  .admin > summary::before { content: '▸ '; }
+  .admin[open] > summary::before { content: '▾ '; }
+  .admin-body { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 12px; }
+  .admin-col h4 { font-family: var(--display); font-size: 13px; margin: 0 0 8px; color: var(--text); }
+  .admin-entry { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .admin-entry .fecha { font-family: var(--mono); font-size: 10.5px; color: var(--accent); }
+  .admin-entry ul { margin: 3px 0 0; padding-left: 16px; }
+  .admin-bug { font-size: 12px; margin-bottom: 6px; display: flex; gap: 7px; align-items: baseline; }
+  .admin-bug .est { font-family: var(--mono); font-size: 9.5px; padding: 1px 6px; border-radius: 10px; flex: 0 0 auto; text-transform: uppercase; letter-spacing: .04em; }
+  .admin-bug .est.ok { background: rgba(80,180,120,.18); color: #4fae74; }
+  .admin-bug .est.open { background: rgba(200,160,60,.16); color: #c39a3a; }
+  @media (max-width: 640px) { .admin-body { grid-template-columns: 1fr; } }
   .saved { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
   .saved input[type=file] { font-size: 12px; color: var(--muted); }
   .campo-biblio { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; margin-top: 4px; }
@@ -837,6 +852,20 @@
         </div>
       </div>
     </section>
+
+    <details class="admin" id="adminPanel" data-solo="rolando">
+      <summary>Registro · admin</summary>
+      <div class="admin-body">
+        <div class="admin-col">
+          <h4>Cambios</h4>
+          <div id="adminChangelog"></div>
+        </div>
+        <div class="admin-col">
+          <h4>Bugs y pendientes</h4>
+          <div id="adminBugs"></div>
+        </div>
+      </div>
+    </details>
   </div>
 </div>
 
@@ -2342,6 +2371,36 @@
 
   const store = { get(k){ try { return JSON.parse(localStorage.getItem(k)||'[]'); } catch(e){ return []; } }, set(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} } };
   function renderSaved(selId, key) { const sel=$(selId); sel.innerHTML=''; sel.append(el('option',{value:''},'— elegir —')); store.get(key).forEach((it,i)=>sel.append(el('option',{value:i},it.name))); }
+
+  // ───────── Panel de administración (sólo Rolando): changelog + bugs ─────────
+  const CHANGELOG = [
+    { fecha:'2026-09-06', items:[
+      'Guitarra: números de dedo y de cuerda/traste en el mástil, timbres propios de ukelele/acústica/eléctrica, sugerencias en tarjetas + fila diatónica, y selectores de género/estilo/ánimo.',
+      'Arreglo: las formas abiertas de acordes ahora se muestran con notación española (antes salían cejillas).',
+      'Invitado: tras la presentación elige entre Trabajo guiado o directo; botón «Continuar al taller» en la guía.',
+      'Fix: la preescucha del piano ya no apila notas al cambiar de acorde rápido (nota que quedaba en loop).',
+      'Fix: «Piano lead» ahora suena con la melodía aunque no haya progresión guardada.',
+    ] },
+  ];
+  const BUGS = [
+    { estado:'resuelto', txt:'Nota que quedaba «dando vueltas» al cambiar de acorde muy rápido en piano.' },
+    { estado:'resuelto', txt:'«Piano lead» a veces no funcionaba (faltaba progresión).' },
+    { estado:'abierto',  txt:'Bajo digital: botones de patrón (raíz sostenida, trip hop, etc.).' },
+    { estado:'abierto',  txt:'Metrónomo con opción de sonar con o sin grabación.' },
+    { estado:'abierto',  txt:'Presets de beat y de bajo ya hechos + cuantización.' },
+    { estado:'abierto',  txt:'Botón de guardar el patrón al momento (memoria del navegador, incl. invitado).' },
+    { estado:'abierto',  txt:'Botón de deshacer en beat y bajo.' },
+    { estado:'abierto',  txt:'Reproducir todos los instrumentos juntos o por separado (tipo Songsterr).' },
+    { estado:'abierto',  txt:'Mejor sincronización al trabajar varias pistas.' },
+    { estado:'abierto',  txt:'Revisar que las sugerencias se estén considerando.' },
+  ];
+  function renderAdmin() {
+    const cl = $('adminChangelog'); if (cl) { cl.innerHTML='';
+      CHANGELOG.forEach(e=>{ const d=el('div',{class:'admin-entry'}); d.append(el('span',{class:'fecha'}, e.fecha)); const ul=el('ul',{}); e.items.forEach(it=>ul.append(el('li',{}, it))); d.append(ul); cl.append(d); }); }
+    const bg = $('adminBugs'); if (bg) { bg.innerHTML='';
+      BUGS.forEach(b=>{ const row=el('div',{class:'admin-bug'}); row.append(el('span',{class:'est '+(b.estado==='resuelto'?'ok':'open')}, b.estado==='resuelto'?'listo':'abierto')); row.append(el('span',{}, b.txt)); bg.append(row); }); }
+  }
+
   $('saveBeat').addEventListener('click', ()=>{ const name=$('beatName').value.trim()||('beat '+new Date().toLocaleDateString()); registrarBeat(S.drums.name); const list=store.get('rueda.beats'); list.push({name, len:S.drums.len, kit:S.drums.kit, bpm:S.bpm, pat:S.drums.pat}); store.set('rueda.beats',list); $('beatName').value=''; renderSaved('savedBeats','rueda.beats'); $('savedBeats').value=String(list.length-1); S.drums.name=name; });
   $('savedBeats').addEventListener('change', e=>{ const it=store.get('rueda.beats')[+e.target.value]; if (!it) return; S.drums.len=it.len; S.drums.kit=KITS[it.kit]?it.kit:'cr78'; $('drumKit').value=S.drums.kit; S.drums.pat=it.pat; S.drums.name=it.name; if (it.bpm) { S.bpm=it.bpm; $('bpm').value=it.bpm; $('bpmVal').textContent=it.bpm; } renderSeq(); });
   $('delBeat').addEventListener('click', ()=>{ const i=+$('savedBeats').value; if (isNaN(i)||$('savedBeats').value==='') return; const list=store.get('rueda.beats'); list.splice(i,1); store.set('rueda.beats',list); renderSaved('savedBeats','rueda.beats'); });
@@ -2860,6 +2919,7 @@
   $('copyLetra').addEventListener('click', async ()=>{ const b=$('copyLetra'); try { await navigator.clipboard.writeText(letraTexto()); b.textContent='Copiado'; } catch(e) { b.textContent='No se pudo copiar'; } setTimeout(()=>b.textContent='Copiar como texto', 1400); });
 
   document.body.dataset.quien = S.quien;
+  renderAdmin();
   if (/^https?:$/.test(location.protocol)) {
     $('navbar').hidden = false;
     $('navAtras').addEventListener('click', ()=>{ if (history.length > 1) history.back(); else location.href = 'index.html'; });
