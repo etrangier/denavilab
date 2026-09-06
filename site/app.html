@@ -356,6 +356,11 @@
         <select id="band"></select>
         <div class="sello" id="sello"></div>
       </div>
+      <div class="field" data-modes="beat bajod pad piano lead">
+        <span class="lbl">Estado de ánimo (sugiere tempo y compases)</span>
+        <select id="animo"></select>
+        <div class="sello" id="animoSello"></div>
+      </div>
       <div class="field" data-modes="beat pad piano lead">
         <span class="lbl">Tempo</span>
         <div class="row"><span class="bpm-val" id="bpmVal">72</span><span class="bpm-range" id="bpmRange"></span></div>
@@ -931,7 +936,7 @@
   // La notación guardada manda sobre la de partida: si la cambió, se respeta.
   const notacionGuardada = (() => { try { return localStorage.getItem('denavilab.notacion'); } catch (e) { return null; } })();
 
-  const S = { quien: QUIEN, notacion: notacionGuardada === 'en' || notacionGuardada === 'es' ? notacionGuardada : D.notacion, genre:D.genre, band:D.band, bpm:D.bpm, inst:'pad', root:5, qual:'M', key:{tonic:9, mode:'m'}, bars:4, defLen:1, loop:true, prog:[], cand:null, keysMode:'pad', hover:null, playing:-1, voicing:3, kbKeys:37,
+  const S = { quien: QUIEN, notacion: notacionGuardada === 'en' || notacionGuardada === 'es' ? notacionGuardada : D.notacion, genre:D.genre, band:D.band, animo:'Sin definir', bpm:D.bpm, inst:'pad', root:5, qual:'M', key:{tonic:9, mode:'m'}, bars:4, defLen:1, loop:true, prog:[], cand:null, keysMode:'pad', hover:null, playing:-1, voicing:3, kbKeys:37,
     mode:'beat',
     drums: { len:1, on:true, kit:D.kit, name:'', pat:{ kick:new Array(64).fill(0), snare:new Array(64).fill(0), hh:new Array(64).fill(0), oh:new Array(64).fill(0) } },
     swing: 0,
@@ -969,8 +974,30 @@
     }
     return out;
   };
+  // Estados de ánimo: sugieren modo (mayor/menor), tempo y compases. Todo queda editable.
+  const ANIMOS = {
+    'Sin definir': null,
+    'Luminoso':    { mode:'M', bpm:122, bars:4, sello:'Alegre y abierto: mayor, tempo medio-alto.' },
+    'Nostálgico':  { mode:'M', bpm:92,  bars:8, sello:'Dulce y algo triste: mayor con el vi rondando, tempo suave.' },
+    'Melancólico': { mode:'m', bpm:82,  bars:4, sello:'Triste con belleza: menor, lento, con aire entre acordes.' },
+    'Soñador':     { mode:'M', bpm:76,  bars:8, sello:'Flotante: mayor lento, acordes largos y sostenidos.' },
+    'Oscuro':      { mode:'m', bpm:70,  bars:4, sello:'Grave y pesado: menor muy lento, pocas notas.' },
+    'Tenso':       { mode:'m', bpm:130, bars:4, sello:'Inquieto: menor, rápido, con empuje.' },
+    'Enérgico':    { mode:'M', bpm:150, bars:4, sello:'Directo y con fuerza: mayor rápido, coreable.' },
+  };
+  function aplicarAnimo(nombre) {
+    S.animo = nombre;
+    const a = ANIMOS[nombre];
+    $('animoSello').textContent = a ? a.sello : '';
+    if (!a) return;
+    S.bpm = a.bpm; $('bpm').value = a.bpm; $('bpmVal').textContent = a.bpm; if ($('bassBpm')) $('bassBpm').textContent = bassBpm();
+    S.bars = a.bars;
+    if (!S.prog.length) { S.key = { ...S.key, mode:a.mode }; }   // sin acordes aún: fija el modo sugerido
+    renderAll();
+  }
+
   const defaultKey = () => {
-    const c = keyCandidates(); const pref = band().pref;
+    const c = keyCandidates(); const a = ANIMOS[S.animo]; const pref = a ? (a.mode==='m'?'minor':'major') : band().pref;
     const pick = (mode, deg) => c.find(k => k.mode===mode && k.deg===deg);
     if (S.qual === 'm') return pref==='major' ? (pick('M','vi') || pick('m','i')) : pick('m','i');
     return pref==='major' ? pick('M','I') : (S.genre==='Trip hop' ? pick('m','VI') : pick('M','I'));
@@ -1629,6 +1656,9 @@
     g.value = S.genre;
     const r = $('root'); NAMES.forEach((n,i)=>r.append(el('option',{value:i},n)));
     r.value = S.root;
+    const an = $('animo'); Object.keys(ANIMOS).forEach(k=>an.append(el('option',{value:k},k))); an.value = S.animo || 'Sin definir';
+    $('animo').addEventListener('change', e=>aplicarAnimo(e.target.value));
+    $('animoSello').textContent = (ANIMOS[S.animo]||{}).sello || '';
     fillBands();
   }
   function fillBands() {
@@ -1640,6 +1670,7 @@
     const [lo,hi,def] = band().bpm; S.bpm = def; $('bpm').min = Math.min(lo,50); $('bpm').max = Math.max(hi,190);
     $('bpm').value = def; $('bpmVal').textContent = def; $('bpmRange').textContent = `${S.band}: ${lo}–${hi} bpm`;
     $('sello').textContent = band().sello;
+    if (S.animo && ANIMOS[S.animo]) { const a=ANIMOS[S.animo]; S.bpm=a.bpm; $('bpm').value=a.bpm; $('bpmVal').textContent=a.bpm; S.bars=a.bars; }
     S.key = defaultKey() || S.key; S.prog = [];
   }
   $('genre').addEventListener('change', e=>{ S.genre=e.target.value; fillBands(); renderAll(); });
@@ -2330,7 +2361,7 @@
   function proyectoActual() {
     return { formato:FORMATO, app:'DenaviLAB', guardado:new Date().toISOString(), por:S.quien,
       titulo: S.letra.titulo || '',
-      musica: { genre:S.genre, band:S.band, bpm:S.bpm, bars:S.bars, key:S.key, root:S.root, qual:S.qual,
+      musica: { genre:S.genre, band:S.band, animo:S.animo, bpm:S.bpm, bars:S.bars, key:S.key, root:S.root, qual:S.qual,
                 voicing:S.voicing, defLen:S.defLen, kbKeys:S.kbKeys, notacion:S.notacion, swing:S.swing },
       prog: S.prog, drums: S.drums, bassd: S.bassd, lead: S.lead, piano: S.piano, letra: S.letra, guitar: S.guitar };
   }
@@ -2347,6 +2378,7 @@
     S.genre = d.musica.genre; $('genre').value = S.genre;
     fillBands();
     if (GENRES[S.genre] && GENRES[S.genre][d.musica.band]) { S.band = d.musica.band; $('band').value = S.band; applyBand(); }
+      if ($('animo')) { S.animo = d.musica.animo || 'Sin definir'; $('animo').value = S.animo; $('animoSello').textContent = (ANIMOS[S.animo]||{}).sello || ''; }
     Object.assign(S, d.musica);
     S.prog = (d.prog || []).map(c => ({...c}));
     if (d.drums) S.drums = d.drums;
