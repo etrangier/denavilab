@@ -422,7 +422,8 @@
         <div class="tipbox" id="tipBox"></div>
         <div class="cand" id="candBar" hidden>
           <button class="primary" id="candSave">Guardar acorde</button>
-          <button class="ghost" id="candHear">Escuchar</button>
+          <button class="ghost" id="candHear">Escuchar este acorde</button>
+          <button class="primary" id="candPlay">▶ Reproducir la vuelta</button>
           <button class="ghost" id="candDrop">Descartar</button>
           <span class="hint">Prueba otros en la rueda, en el teclado o con el MPK; «Reproducir» suena la progresión con este acorde al final.</span>
         </div>
@@ -1467,7 +1468,7 @@
     const seq = withChords ? [...S.prog, ...(S.cand && remaining()>0 ? [{pc:S.cand.pc, q:S.cand.q, len:Math.min(S.defLen, remaining())}] : [])] : [];
     const totalBars = withChords ? seq.reduce((a,c)=>a+c.len,0) : mode==='lead' ? leadBarsTotal() : mode==='guitarra' ? guitBars() : (mode==='bass' ? bassBars() : S.bars);
     const withDrums = mode === 'drums' || (mode==='all' && S.drums.on) || (mode==='bass' && S.bassd.withDrums) || (mode==='lead' && $('leadDrums').checked) || (mode==='guitarra' && S.guitar.withDrums);
-    $('play').textContent = '■ Detener'; $('playDrums').textContent = '■ Detener'; $('playBass').textContent = '■ Detener'; $('playLead').textContent = '■ Detener'; $('playGuit').textContent = '■ Detener';
+    $('play').textContent = '■ Detener'; $('playDrums').textContent = '■ Detener'; $('playBass').textContent = '■ Detener'; $('playLead').textContent = '■ Detener'; $('playGuit').textContent = '■ Detener'; $('candPlay').textContent = '■ Detener';
     do {   // una pasada; con «loop» se repite hasta Detener
       if (withChords) { let tt = t0; seq.forEach((c,i)=>{ c._i=i; scheduleChord(c, tt, beat); tt += c.len*barDur; }); }
       if (mode === 'guitarra') scheduleGuit(t0, totalBars, beat);
@@ -1503,7 +1504,7 @@
       // corrige la deriva del reloj de JS respecto al de audio
       const drift = (t0 - ctx.currentTime)*1000; if (S.loop && !stopFlag && drift > 0) await wait(drift);
     } while (S.loop && !stopFlag);
-    S.playing=-1; stopFlag=false; isPlaying=false; $('play').textContent='▶ Reproducir'; $('playDrums').textContent='▶ Sólo batería'; $('playBass').textContent='▶ Bajo'; $('playGuit').textContent='▶ Guitarra'; $('playLead').textContent='▶ Piano lead';
+    S.playing=-1; stopFlag=false; isPlaying=false; $('play').textContent='▶ Reproducir'; $('playDrums').textContent='▶ Sólo batería'; $('playBass').textContent='▶ Bajo'; $('playGuit').textContent='▶ Guitarra'; $('candPlay').textContent='▶ Reproducir la vuelta'; $('playLead').textContent='▶ Piano lead';
     document.querySelectorAll('.st.now').forEach(n=>n.classList.remove('now')); renderBars(); renderReadout();
   }
 
@@ -1537,7 +1538,8 @@
   $('undo').addEventListener('click', ()=>{ if (S.cand) S.cand=null; else S.prog.pop(); renderAll(); });
   $('clear').addEventListener('click', ()=>{ S.prog=[]; S.cand=null; renderAll(); });
   $('candSave').addEventListener('click', commitCand);
-  $('candDrop').addEventListener('click', ()=>{ S.cand=null; renderAll(); });
+  $('candDrop').addEventListener('click', ()=>{ if (isPlaying) stopAll(); S.cand=null; renderAll(); });
+  $('candPlay').addEventListener('click', ()=>play('all'));
   $('candHear').addEventListener('click', ()=>{ if (!S.cand) return; ensureAudio(); const beat=60/S.bpm; scheduleChord({pc:S.cand.pc,q:S.cand.q,len:1}, ctx.currentTime+0.02, beat); });
   $('play').addEventListener('click', ()=>play('all'));
   document.querySelectorAll('.loopChk').forEach(c=>c.addEventListener('change', e=>{ S.loop = e.target.checked; document.querySelectorAll('.loopChk').forEach(o=>o.checked=S.loop); }));
