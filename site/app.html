@@ -886,6 +886,9 @@
         M: { I:{iii:25,vi:25,IV:25,ii:15,V:10}, iii:{vi:40,IV:30,ii:30}, vi:{IV:35,ii:25,iii:20,I:20}, IV:{I:35,V:25,iii:20,ii:20}, ii:{V:45,IV:30,I:25}, V:{I:45,vi:35,IV:20}, 'vii°':{I:60,iii:40}, bVII:{IV:50,I:50}, bVI:{bVII:60,I:40}, iv:{I:70,vi:30}, bIII:{IV:50,bVII:50} },
         m: { i:{III:30,VI:25,iv:20,VII:15,v:10}, III:{VI:40,VII:30,iv:30}, VI:{iv:35,III:30,VII:35}, iv:{i:40,VII:30,VI:30}, VII:{i:45,III:30,VI:25}, v:{i:60,iv:40}, V:{i:65,VI:35}, bII:{i:100}, 'ii°':{V:60,i:40}, IV:{i:50,VII:50} } },
     },
+    'Personal': {
+      'Tus hábitos': { bpm:[60,150,90], sello:'Aprende de tus vueltas guardadas.', pref:'major', m:{}, M:{} },
+    },
   };
 
   // ───────── Estado ─────────
@@ -915,7 +918,7 @@
   const el = (tag, attrs={}, ...kids) => { const n = document.createElement(tag); for (const [k,v] of Object.entries(attrs)) { if (k==='class') n.className=v; else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else n.setAttribute(k,v);} for (const k of kids) n.append(k); return n; };
   const svgEl = (tag, attrs={}) => { const n = document.createElementNS('http://www.w3.org/2000/svg', tag); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); return n; };
 
-  const band = () => GENRES[S.genre][S.band];
+  const band = () => S.band === 'Tus hábitos' ? bandHabitos() : GENRES[S.genre][S.band];
   const vocab = () => S.key.mode === 'm' ? MINOR : MAJOR;
   const keyName = k => notaCap(k.tonic) + (k.mode === 'm' ? ' menor' : ' mayor');
   const degreeOf = (pc, q, key = S.key) => {
@@ -954,7 +957,7 @@
     const phase = left <= 0 ? 'full' : start === 0 ? 'open' : after <= 0 ? 'close' : after <= S.defLen ? 'penult' : 'mid';
     return { start, left, len, after, phase };
   };
-  const rowFor = (deg) => { const table = band()[S.key.mode] || {}; return (deg && table[deg]) || (S.key.mode==='m' ? { i:60, V:40 } : { I:60, V:40 }); };
+  const rowFor = (deg) => { if (S.band === 'Tus hábitos') { const f=filaHabitos(deg); if (f && Object.keys(f).length) return f; return S.key.mode==='m' ? { i:60, V:40 } : { I:60, V:40 }; } const table = band()[S.key.mode] || {}; return (deg && table[deg]) || (S.key.mode==='m' ? { i:60, V:40 } : { I:60, V:40 }); };
   const linkStrength = (fromDeg, toDeg) => { const r = rowFor(fromDeg); const tot = Object.values(r).reduce((a,b)=>a+b,0); return (r[toDeg]||0)/tot; };
   const suggestions = () => {
     const cur = focus(); const deg = degreeOf(cur.pc, cur.q);
@@ -1624,7 +1627,16 @@
   $('drumKit').value = S.drums.kit;
   $('drumKit').addEventListener('change', e=>{ S.drums.kit = e.target.value; });
   $('clearDrums').addEventListener('click', ()=>loadPreset('Vacío'));
-  presetsMios().forEach(k=>$('drumPreset').append(el('option',{value:k},k)));
+  function agruparPresets() {
+    const sel = $('drumPreset'); const prev = sel.value; sel.innerHTML = '';
+    const grupos = {}; presetsMios().forEach(k=>{ const banda = k.includes(' · ') ? k.split(' · ')[0] : k; (grupos[banda] = grupos[banda] || []).push(k); });
+    Object.entries(grupos).forEach(([g,ks])=>{
+      if (ks.length===1 && ks[0]===g) sel.append(el('option',{value:g}, g));                       // «Mi base…», «Vacío»
+      else { const og=el('optgroup',{label:g}); ks.forEach(k=>og.append(el('option',{value:k}, k.split(' · ').slice(1).join(' · ') || k))); sel.append(og); }
+    });
+    if (prev) sel.value = prev;
+  }
+  agruparPresets();
   $('drumPreset').addEventListener('change', e=>loadPreset(e.target.value));
   $('drumPreset').value = 'Vacío'; loadPreset('Vacío');   // se empieza con el patrón en blanco
   $('copy').addEventListener('click', async ()=>{ try { await navigator.clipboard.writeText($('summary').textContent); $('copy').textContent='Copiado'; setTimeout(()=>$('copy').textContent='Copiar',1200); } catch(e) { $('copy').textContent='No se pudo copiar'; } });
@@ -2078,16 +2090,41 @@
   }
 
   // ───────── Guardar / borrar (localStorage) ─────────
+  // ───────── Registro de uso: aprende de lo que guardas (por navegador y persona) ─────────
+  const usoKey = () => 'denavilab.uso.' + S.quien;
+  const usoGet = () => { try { return JSON.parse(localStorage.getItem(usoKey()) || '{}'); } catch (e) { return {}; } };
+  const usoSet = u => { try { localStorage.setItem(usoKey(), JSON.stringify(u)); } catch (e) {} };
+  function registrarProg(prog, key) {
+    const u = usoGet(); u.trans = u.trans || { m:{}, M:{} }; u.acordes = u.acordes || {}; u.progs = (u.progs || 0) + 1;
+    const degs = prog.map(c=>degreeOf(c.pc, c.q, key)).filter(Boolean); const t = u.trans[key.mode] = u.trans[key.mode] || {};
+    degs.forEach(d=>{ u.acordes[d] = (u.acordes[d]||0)+1; });
+    const paso = (a,b)=>{ t[a]=t[a]||{}; t[a][b]=(t[a][b]||0)+1; };
+    for (let i=0;i<degs.length-1;i++) paso(degs[i], degs[i+1]);
+    if (degs.length>=2) paso(degs[degs.length-1], degs[0]);   // la vuelta da la vuelta
+    usoSet(u);
+  }
+  const registrarBeat = name => { if (!name) return; const u=usoGet(); u.beats=u.beats||{}; u.beats[name]=(u.beats[name]||0)+1; usoSet(u); };
+  function bandHabitos() {
+    const u = usoGet(); const n = u.progs || 0;
+    const top = Object.entries(u.acordes||{}).sort((a,b)=>b[1]-a[1]).slice(0,4).map(x=>x[0]).join(' ');
+    // prefiere el modo (menor/mayor) en el que más has guardado, para que los grados calcen
+    const nm = Object.keys((u.trans||{}).m || {}).length, nM = Object.keys((u.trans||{}).M || {}).length;
+    return { bpm:[60,150,90], pref: nm > nM ? 'minor' : 'major', m:{}, M:{},
+      sello: n ? ('Aprendido de ' + n + ' vuelta(s) tuya(s). Grados frecuentes: ' + (top||'—') + '. Sigue guardando para afinarlo.')
+                : 'Aún sin datos: guarda unas vueltas en la rueda y aquí aprenderá tus movimientos.' };
+  }
+  const filaHabitos = deg => { const t=(usoGet().trans||{})[S.key.mode]||{}; const row=t[deg]; if (!row) return null; const tot=Object.values(row).reduce((a,b)=>a+b,0)||1; const out={}; Object.entries(row).forEach(([to,c])=>out[to]=Math.round(c/tot*100)); return out; };
+
   const store = { get(k){ try { return JSON.parse(localStorage.getItem(k)||'[]'); } catch(e){ return []; } }, set(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} } };
   function renderSaved(selId, key) { const sel=$(selId); sel.innerHTML=''; sel.append(el('option',{value:''},'— elegir —')); store.get(key).forEach((it,i)=>sel.append(el('option',{value:i},it.name))); }
-  $('saveBeat').addEventListener('click', ()=>{ const name=$('beatName').value.trim()||('beat '+new Date().toLocaleDateString()); const list=store.get('rueda.beats'); list.push({name, len:S.drums.len, kit:S.drums.kit, bpm:S.bpm, pat:S.drums.pat}); store.set('rueda.beats',list); $('beatName').value=''; renderSaved('savedBeats','rueda.beats'); $('savedBeats').value=String(list.length-1); S.drums.name=name; });
+  $('saveBeat').addEventListener('click', ()=>{ const name=$('beatName').value.trim()||('beat '+new Date().toLocaleDateString()); registrarBeat(S.drums.name); const list=store.get('rueda.beats'); list.push({name, len:S.drums.len, kit:S.drums.kit, bpm:S.bpm, pat:S.drums.pat}); store.set('rueda.beats',list); $('beatName').value=''; renderSaved('savedBeats','rueda.beats'); $('savedBeats').value=String(list.length-1); S.drums.name=name; });
   $('savedBeats').addEventListener('change', e=>{ const it=store.get('rueda.beats')[+e.target.value]; if (!it) return; S.drums.len=it.len; S.drums.kit=KITS[it.kit]?it.kit:'cr78'; $('drumKit').value=S.drums.kit; S.drums.pat=it.pat; S.drums.name=it.name; if (it.bpm) { S.bpm=it.bpm; $('bpm').value=it.bpm; $('bpmVal').textContent=it.bpm; } renderSeq(); });
   $('delBeat').addEventListener('click', ()=>{ const i=+$('savedBeats').value; if (isNaN(i)||$('savedBeats').value==='') return; const list=store.get('rueda.beats'); list.splice(i,1); store.set('rueda.beats',list); renderSaved('savedBeats','rueda.beats'); });
   $('saveBass').addEventListener('click', ()=>{ const name=$('bassName').value.trim()||('bajo '+new Date().toLocaleDateString()); const list=store.get('rueda.bass'); list.push({name, len:S.bassd.len, grid:S.bassd.grid, acc:S.bassd.acc, slide:S.bassd.slide, oct:S.bassd.oct, swing:S.swing, own:S.bassd.own, bpm:S.bassd.bpm, bars:S.bassd.bars}); store.set('rueda.bass',list); $('bassName').value=''; renderSaved('savedBass','rueda.bass'); $('savedBass').value=String(list.length-1); });
   $('savedBass').addEventListener('change', e=>{ const it=store.get('rueda.bass')[+e.target.value]; if (!it) return; Object.assign(S.bassd, {len:it.len, grid:it.grid, acc:it.acc||new Array(64).fill(0), slide:it.slide||new Array(64).fill(0), oct:it.oct||0, own:it.own, bpm:it.bpm, bars:it.bars}); if (it.swing!==undefined) S.swing=it.swing; renderBassSeq(); });
   $('delBass').addEventListener('click', ()=>{ const i=+$('savedBass').value; if ($('savedBass').value==='') return; const list=store.get('rueda.bass'); list.splice(i,1); store.set('rueda.bass',list); renderSaved('savedBass','rueda.bass'); });
   renderSaved('savedBeats','rueda.beats'); renderSaved('savedBass','rueda.bass'); renderSaved('savedProgs','rueda.progs'); renderSaved('savedLeads','rueda.leads');
-  $('saveProg').addEventListener('click', ()=>{ if (!S.prog.length) return; const name=$('progName').value.trim()||(S.prog.map(c=>chordLabel(c.pc,c.q)).join(' ')); const list=store.get('rueda.progs'); list.push({name, prog:S.prog, key:S.key, genre:S.genre, band:S.band, bpm:S.bpm, bars:S.bars, voicing:S.voicing, defLen:S.defLen, inst:S.inst, mode:S.mode, root:S.root, qual:S.qual}); store.set('rueda.progs',list); $('progName').value=''; renderSaved('savedProgs','rueda.progs'); $('savedProgs').value=String(list.length-1); });
+  $('saveProg').addEventListener('click', ()=>{ if (!S.prog.length) return; registrarProg(S.prog, S.key); const name=$('progName').value.trim()||(S.prog.map(c=>chordLabel(c.pc,c.q)).join(' ')); const list=store.get('rueda.progs'); list.push({name, prog:S.prog, key:S.key, genre:S.genre, band:S.band, bpm:S.bpm, bars:S.bars, voicing:S.voicing, defLen:S.defLen, inst:S.inst, mode:S.mode, root:S.root, qual:S.qual}); store.set('rueda.progs',list); $('progName').value=''; renderSaved('savedProgs','rueda.progs'); $('savedProgs').value=String(list.length-1); });
   $('savedProgs').addEventListener('change', e=>{ const it=store.get('rueda.progs')[+e.target.value]; if (!it) return; S.genre=it.genre; $('genre').value=S.genre; fillBands(); S.band=it.band; $('band').value=S.band; S.bpm=it.bpm; $('bpm').value=it.bpm; $('bpmVal').textContent=it.bpm; S.bars=it.bars; S.voicing=it.voicing; S.defLen=it.defLen; S.root=it.root; S.qual=it.qual; $('root').value=S.root; $('qual').value=S.qual; S.key=it.key; S.prog=it.prog.map(c=>({...c})); S.cand=null; if (it.mode==='pad'||it.mode==='piano') { if (it.mode==='pad') $('inst').value = ['pad','lead','uke'].includes(it.inst)?it.inst:'pad'; setMode(it.mode); } else renderAll(); });
   $('delProg').addEventListener('click', ()=>{ if ($('savedProgs').value==='') return; const list=store.get('rueda.progs'); list.splice(+$('savedProgs').value,1); store.set('rueda.progs',list); renderSaved('savedProgs','rueda.progs'); });
 
