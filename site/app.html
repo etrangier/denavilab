@@ -444,6 +444,7 @@
         <span class="lbl">Tempo</span>
         <div class="row"><span class="bpm-val" id="bpmVal">72</span><span class="bpm-range" id="bpmRange"></span></div>
         <input type="range" id="bpm" min="50" max="190" step="1" value="72" aria-label="BPM">
+        <label class="hint bpm-lock"><input type="checkbox" id="bpmLock"> 🔒 fijar el tempo — el MPK no lo cambia</label>
       </div>
       <div class="field" data-modes="none">
         <span class="lbl">Sonido</span>
@@ -864,7 +865,7 @@
           <label class="hint"><input type="checkbox" class="metronChk"> metrónomo</label>
           <button class="ghost" id="undoBeat">Deshacer</button>
           <button class="ghost" id="clearDrums">Limpiar patrón</button>
-          <span class="hint" id="midiStatusBeat">Con el MPK conectado, los pads (canal 10) tocan y graban la batería. Sin teclado, se dibuja a clic.</span>
+          <span class="hint" id="midiStatusBeat">Con el MPK conectado, los pads (canal 10) tocan y graban la batería en el cuadro. Al grabar, el tempo se fija (🔒) para que el knob del MPK no lo mueva. Sin teclado, se dibuja a clic.</span>
           <span class="hint">Clic en una casilla para poner o quitar el golpe. Las casillas marcadas son los pulsos 1 · 2 · 3 · 4.</span>
         </div>
         <div class="saved">
@@ -1084,7 +1085,7 @@
   // La notación guardada manda sobre la de partida: si la cambió, se respeta.
   const notacionGuardada = (() => { try { return localStorage.getItem('denavilab.notacion'); } catch (e) { return null; } })();
 
-  const S = { quien: QUIEN, notacion: notacionGuardada === 'en' || notacionGuardada === 'es' ? notacionGuardada : D.notacion, genre:D.genre, band:D.band, animo:'Sin definir', bpm:D.bpm, bpmFijado:false, inst:'pad', root:5, qual:'M', key:{tonic:9, mode:'m'}, bars:4, defLen:1, loop:true, prog:[], cand:null, keysMode:'pad', hover:null, playing:-1, voicing:3, kbKeys:37,
+  const S = { quien: QUIEN, notacion: notacionGuardada === 'en' || notacionGuardada === 'es' ? notacionGuardada : D.notacion, genre:D.genre, band:D.band, animo:'Sin definir', bpm:D.bpm, bpmFijado:false, bpmBloqueado:false, inst:'pad', root:5, qual:'M', key:{tonic:9, mode:'m'}, bars:4, defLen:1, loop:true, prog:[], cand:null, keysMode:'pad', hover:null, playing:-1, voicing:3, kbKeys:37,
     mode:'beat',
     mix: { mute:{drums:false,bass:false,chords:false,guitar:false,lead:false}, solo:{drums:false,bass:false,chords:false,guitar:false,lead:false} },
     drums: { len:1, on:true, kit:D.kit, name:'', pat:{ kick:new Array(64).fill(0), snare:new Array(64).fill(0), hh:new Array(64).fill(0), oh:new Array(64).fill(0) } },
@@ -1984,6 +1985,13 @@
   }
   $('genre').addEventListener('change', e=>{ S.genre=e.target.value; fillBands(); renderAll(); });
   $('band').addEventListener('change', e=>{ S.band=e.target.value; applyBand(); renderAll(); });
+  function setBpmBloqueo(v) {
+    S.bpmBloqueado = v;
+    if ($('bpmLock')) $('bpmLock').checked = v;
+    if ($('bpm')) $('bpm').disabled = v;
+    if ($('guitBpm')) $('guitBpm').disabled = v;
+  }
+  if ($('bpmLock')) $('bpmLock').addEventListener('change', e=>setBpmBloqueo(e.target.checked));
   $('bpm').addEventListener('input', e=>{ setBpm(e.target.value, true); paintWheel(); renderBars(); });
   $('inst').addEventListener('change', e=>{ S.inst=e.target.value; renderReadout(); renderBars(); });
   const instLabel = () => S.mode==='piano' ? 'Piano' : S.mode==='lead' ? 'Piano lead' : S.mode==='bajod' ? 'Bajo digital' : S.mode==='beat' ? 'Batería' : $('inst').selectedOptions[0].textContent;
@@ -2071,7 +2079,7 @@
     if (knobLearn) { KNOB[knobLearn] = cc; knobLearn = null; renderKnobs(); return; }
     if (cc === 64) { if (val >= 64) sustainOn = true; else releaseSustain(); return; }
     if (cc === 1) { const mult = 1 + val/127*2; liveNotes.forEach(v=>v.filt(mult)); return; }
-    if (cc === KNOB.bpm) { setBpm(Math.round(50 + val/127*100), true); paintWheel(); renderBars(); if (S.mode==='bajod') renderBassSeq(); }
+    if (cc === KNOB.bpm) { if (S.bpmBloqueado) { midiStatus('Tempo fijado (🔒): el knob no lo cambia. Quita el candado para ajustarlo.', true); return; } setBpm(Math.round(50 + val/127*100), true); paintWheel(); renderBars(); if (S.mode==='bajod') renderBassSeq(); }
     else if (cc === KNOB.swing) { S.swing = Math.round(val/127*12)*5/100; $('swing').value=Math.round(S.swing*100); $('swingVal').textContent=Math.round(S.swing*100)+'%'; }
     else if (cc === KNOB.vol) { ensureAudio(); master.gain.setTargetAtTime(val/127*1.2, ctx.currentTime, 0.02); }
     else if (cc === KNOB.bright) { liveNotes.forEach(v=>v.filt(0.5 + val/127*2)); }
@@ -2105,6 +2113,7 @@
     if (!midiAccess) { midiStatus('Conecta primero el MPK por MIDI.'); return; }
     ensureAudio(); unlockAudio();
     if (S.mode==='pad'||S.mode==='piano') { S.prog=[]; S.cand=null; renderAll(); }
+    if (S.mode==='beat' && typeof setBpmBloqueo==='function') setBpmBloqueo(true);   // graba con el tempo fijo: el knob del MPK no lo mueve
     rec = { t0: ctx.currentTime + 0.1, cur:null, mode:S.mode, metron:true };
     if (!isPlaying) play(S.mode==='lead' ? 'lead' : S.mode==='bajod' && hasBassD() ? 'bass' : 'drums');   // la batería (o lo ya escrito) marca el compás
     $('recBtn').textContent = '■ Parar grabación'; $('recBtn').classList.add('rec');
@@ -2576,6 +2585,7 @@
   // ───────── Panel de administración (sólo Rolando): changelog + bugs ─────────
   const CHANGELOG = [
     { fecha:'2026-09-07', items:[
+      'MPK: candado «🔒 fijar el tempo» para que el knob (K1/CC70) deje de descontrolar el BPM; se activa solo al grabar pads. Los pads siguen cayendo en el cuadro con el tempo fijo.',
       'BPM estable: un solo tempo de proyecto, igual en todas las secciones; una vez definido no se descontrola al cambiar de estilo o mezclar pistas.',
       'Consejos: ahora traen un ejemplo concreto anclado a las casillas del cuadro (Ej.: bombo en el 1 y el 3; caja en 2·4…).',
       'Consejos en vivo (batería y bajo): ahora se van sumando a medida que tocas —no se borran— y cada uno se quita con una × (y no vuelve); con «limpiar todos». Más consejos según el patrón.',
