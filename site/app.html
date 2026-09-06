@@ -1762,7 +1762,24 @@
     if (prev) sel.value = prev;
   }
   agruparPresets();
-  $('drumPreset').addEventListener('change', e=>loadPreset(e.target.value));
+  // Al elegir un beat, sugiere el tempo y los compases de su banda (la banda va en el nombre,
+  // «Banda · descripción»). No borra la progresión; respeta el estado de ánimo si hay uno.
+  function sugerirDesdeBeat(nombre) {
+    const banda = String(nombre).split(' · ')[0];
+    let genero = null; for (const [g, bandas] of Object.entries(GENRES)) if (bandas[banda]) { genero = g; break; }
+    if (!genero) return;   // «Mi base…», «Vacío» u otros sin banda
+    S.genre = genero; S.band = banda; $('genre').value = genero;
+    const bsel = $('band'); bsel.innerHTML=''; Object.keys(GENRES[genero]).forEach(k=>bsel.append(el('option',{value:k},k))); bsel.value = banda;
+    const bnd = GENRES[genero][banda];
+    $('bpm').min = Math.min(bnd.bpm[0],50); $('bpm').max = Math.max(bnd.bpm[1],190);
+    $('bpmRange').textContent = `${banda}: ${bnd.bpm[0]}–${bnd.bpm[1]} bpm`; $('sello').textContent = bnd.sello;
+    let bpm = bnd.bpm[2], bars = 4;
+    if (S.animo && ANIMOS[S.animo]) { bpm = ANIMOS[S.animo].bpm; bars = ANIMOS[S.animo].bars; }   // el ánimo manda si está puesto
+    S.bpm = bpm; $('bpm').value = bpm; $('bpmVal').textContent = bpm; S.bars = bars;
+    $('drumBpm').textContent = bpm; if ($('bassBpm')) $('bassBpm').textContent = bassBpm();
+    renderAll();
+  }
+  $('drumPreset').addEventListener('change', e=>{ loadPreset(e.target.value); sugerirDesdeBeat(e.target.value); });
   $('drumPreset').value = 'Vacío'; loadPreset('Vacío');   // se empieza con el patrón en blanco
   $('copy').addEventListener('click', async ()=>{ try { await navigator.clipboard.writeText($('summary').textContent); $('copy').textContent='Copiado'; setTimeout(()=>$('copy').textContent='Copiar',1200); } catch(e) { $('copy').textContent='No se pudo copiar'; } });
   $('preset26').addEventListener('click', ()=>{
