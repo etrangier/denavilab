@@ -176,6 +176,7 @@
   .mpk-adv > summary { cursor: pointer; font-family: var(--mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
   .mpk-adv[open] > summary { color: var(--accent); }
   .mpk-adv-body { margin-top: 10px; }
+  .capas-box { margin: 8px 0; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--key-line); border-radius: 10px; }
   #tip .nm { font-family: var(--display); font-weight: 700; font-size: 18px; } #tip .nt { font-family: var(--mono); color: var(--accent); font-size: 12px; }
   #tip .role { font-size: 12px; color: var(--muted); } #tip .mini { width: 150px; grid-column: auto; grid-row: auto; }
   .sug .role { grid-column: 1 / 3; font-size: 11.5px; color: var(--muted); }
@@ -957,6 +958,11 @@
           <div class="row"><input type="text" id="progName" placeholder="nombre, ej. intro trip hop"><button class="ghost" id="saveProg" style="flex:0 0 auto">Guardar</button></div>
           <div class="row"><select id="savedProgs"></select><button class="ghost" id="delProg" style="flex:0 0 auto">Borrar</button></div>
         </div>
+        <div class="field capas-box">
+          <span class="lbl">Suena como · puedes apilar instrumentos (pista por pista)</span>
+          <div class="chips" id="capasChips"></div>
+          <span class="hint">El acorde suena a la vez con todos los que enciendas: enciende <b>Pad</b> y <b>Piano</b> y ambos se oyen. Cambiar de pestaña no apaga los demás.</span>
+        </div>
         <div class="mezcla" id="mezcla" hidden>
           <span class="lbl">Mezcla · qué suena al pulsar Reproducir (todas las pistas juntas)</span>
           <div class="mix-rows" id="mixRows"></div>
@@ -1143,7 +1149,7 @@
   // La notación guardada manda sobre la de partida: si la cambió, se respeta.
   const notacionGuardada = (() => { try { return localStorage.getItem('denavilab.notacion'); } catch (e) { return null; } })();
 
-  const S = { quien: QUIEN, notacion: notacionGuardada === 'en' || notacionGuardada === 'es' ? notacionGuardada : D.notacion, genre:D.genre, band:D.band, animo:'Sin definir', bpm:D.bpm, bpmFijado:false, bpmBloqueado:false, inst:'pad', root:5, qual:'M', key:{tonic:9, mode:'m'}, bars:4, defLen:1, loop:true, prog:[], cand:null, keysMode:'pad', hover:null, playing:-1, voicing:3, kbKeys:37,
+  const S = { quien: QUIEN, notacion: notacionGuardada === 'en' || notacionGuardada === 'es' ? notacionGuardada : D.notacion, genre:D.genre, band:D.band, animo:'Sin definir', bpm:D.bpm, bpmFijado:false, bpmBloqueado:false, inst:'pad', capas:{pad:true,coro:false,piano:false,uke:false}, root:5, qual:'M', key:{tonic:9, mode:'m'}, bars:4, defLen:1, loop:true, prog:[], cand:null, keysMode:'pad', hover:null, playing:-1, voicing:3, kbKeys:37,
     mode:'beat',
     mix: { mute:{drums:false,bass:false,chords:false,guitar:false,lead:false}, solo:{drums:false,bass:false,chords:false,guitar:false,lead:false} },
     drums: { len:1, on:true, kit:D.kit, name:'', quant:1, pat:{ kick:new Array(64).fill(0), snare:new Array(64).fill(0), hh:new Array(64).fill(0), oh:new Array(64).fill(0) } },
@@ -1558,6 +1564,11 @@
     [[3,'3 teclas',' do mi sol'],[4,'4 teclas',' do mi sol si']].forEach(([n,t,ex])=> vc.append(el('button',{class:'chip','aria-pressed':String(n===S.voicing), onclick:()=>{ S.voicing=n; renderAll(); }}, t, el('small',{},ex))));
   }
   const MIX_TRACKS = [ ['chords','Acordes'], ['drums','Batería'], ['bass','Bajo digital'], ['guitar','Guitarra'], ['lead','Piano lead'] ];
+  const CAPA_LBL = { pad:'Pad', coro:'Voces', piano:'Piano', uke:'Ukelele' };
+  function renderCapas() {
+    const box = $('capasChips'); if (!box) return; box.innerHTML='';
+    Object.keys(CAPA_LBL).forEach(k=> box.append(el('button',{class:'chip','aria-pressed':String(!!S.capas[k]), title:'suena el acorde con '+CAPA_LBL[k], onclick:()=>{ S.capas[k]=!S.capas[k]; renderCapas(); }}, CAPA_LBL[k])));
+  }
   const mixTieneContenido = tr => { try { return tr==='chords' ? (S.prog.length>0||!!S.cand) : tr==='drums' ? (S.donner.on ? donnerHay() : hasDrums()) : tr==='bass' ? hasBassD() : tr==='guitar' ? S.guitar.prog.length>0 : tr==='lead' ? hasLead() : false; } catch(e){ return false; } };
   function renderMixer() {
     const activos = MIX_TRACKS.filter(([tr])=>mixTieneContenido(tr));
@@ -2028,11 +2039,12 @@
       const lhKind = M.lh || S.piano.lh; lhHits(lhKind, c).forEach(([s,len,m])=>voice(m, tb + s*six + swingOff(s,six), six*len*0.9, 'piano', 0.22));
     }
   }
-  function scheduleChord(c, t, beat) {
-    const keys = (S.inst==='piano') ? (()=>{ const seq=[...S.prog]; const idx=seq.indexOf(c); const vs=voicedSeq(idx>=0?seq.slice(0,idx+1):[...seq,c]); return vs[vs.length-1].notes; })() : chordKeys(c.pc,c.q).map(midiOfKey);
+  const capasActivas = () => Object.keys(S.capas||{}).filter(k=>S.capas[k]);
+  function scheduleChord(c, t, beat, inst=S.inst) {
+    const keys = (inst==='piano') ? (()=>{ const seq=[...S.prog]; const idx=seq.indexOf(c); const vs=voicedSeq(idx>=0?seq.slice(0,idx+1):[...seq,c]); return vs[vs.length-1].notes; })() : chordKeys(c.pc,c.q).map(midiOfKey);
     const root = midiOfKey(keyIndexOfPc(c.pc)) - 24;
     const nb = Math.round(c.len * 4);                      // pulsos que dura este acorde
-    switch (S.inst) {
+    switch (inst) {
       case 'pad': keys.forEach(m=>voice(m,t,beat*(nb-0.4),'pad',0.13)); break;
       case 'coro': keys.forEach(m=>voice(m,t,beat*(nb-0.4),'coro',0.12)); break;
       case 'piano': schedulePianoChord(c, t, beat, keys); break;
@@ -2060,7 +2072,7 @@
       totalBars = withChords ? (seq.reduce((a,c)=>a+c.len,0) || S.bars) : mode==='lead' ? leadBarsTotal() : mode==='guitarra' ? guitBars() : (mode==='bass' ? bassBars() : S.bars);
       if (mode==='all') totalBars = Math.max(totalBars || S.bars, hasBassD()?S.bassd.len:1, S.guitar.prog.length?guitBars():1, hasLead()?leadBarsTotal():1);
       withDrums = mode === 'drums' || (mode==='all' && S.drums.on && suena('drums')) || (mode==='bass' && S.bassd.withDrums) || (mode==='lead' && $('leadDrums').checked) || (mode==='guitarra' && S.guitar.withDrums);
-      if (withChords && suena('chords')) { let tt = t0; seq.forEach((c,i)=>{ c._i=i; scheduleChord(c, tt, beat); tt += c.len*barDur; }); }
+      if (withChords && suena('chords')) { let tt = t0; seq.forEach((c,i)=>{ c._i=i; const capas=capasActivas(); (capas.length?capas:[S.inst]).forEach(inst=>scheduleChord(c, tt, beat, inst)); tt += c.len*barDur; }); }
       if (rec && rec.metron) scheduleMetronomo(t0, beat, totalBars || S.bars);
       if (mode==='guitarra' && S.guitar.metron) scheduleMetronomo(t0, beat, totalBars || 1);
       if ((mode==='drums' || mode==='bass') && S.metron) scheduleMetronomo(t0, beat, totalBars || S.bars);
@@ -2154,7 +2166,7 @@
   if ($('bpmLock')) $('bpmLock').addEventListener('change', e=>setBpmBloqueo(e.target.checked));
   $('bpm').addEventListener('input', e=>{ setBpm(e.target.value, true); paintWheel(); renderBars(); });
   if ($('tapBpm')) $('tapBpm').addEventListener('click', tapTempo);
-  $('inst').addEventListener('change', e=>{ S.inst=e.target.value; renderReadout(); renderBars(); });
+  $('inst').addEventListener('change', e=>{ S.inst=e.target.value; if (S.mode==='pad'){ S.capas.pad=(e.target.value==='pad'); S.capas.coro=(e.target.value==='coro'); } renderReadout(); renderBars(); if (typeof renderCapas==='function') renderCapas(); });
   const instLabel = () => S.mode==='piano' ? 'Piano' : S.mode==='lead' ? 'Piano lead' : S.mode==='bajod' ? 'Bajo digital' : S.mode==='beat' ? 'Batería' : $('inst').selectedOptions[0].textContent;
   $('root').addEventListener('change', e=>{ S.root=+e.target.value; S.key=defaultKey()||S.key; S.prog=[]; renderAll(); });
   $('qual').addEventListener('change', e=>{ S.qual=e.target.value; S.key=defaultKey()||S.key; S.prog=[]; renderAll(); });
@@ -2411,6 +2423,7 @@
   if ($('pcMode')) $('pcMode').addEventListener('change', e=>{ S.pcMode=e.target.checked; });
   if ($('padsTempo')) $('padsTempo').addEventListener('change', e=>{ S.padsTempo=e.target.checked; });
   renderArpChips();
+  if ($('capasChips')) renderCapas();
   $('recBtnBeat').addEventListener('click', ()=>{ if (!midiAccess) { $('midiStatusBeat').textContent = 'Primero pulsa «Conectar el MPK por MIDI» aquí arriba.'; return; } if (rec) { stopRec(); $('recBtnBeat').textContent='● Grabar pads del MPK'; } else { startRec(); $('recBtnBeat').textContent='■ Parar'; } });
   $('midiIn').addEventListener('change', e=>pickInput(e.target.value));
 
@@ -2545,6 +2558,8 @@
     S.mode = m; $('mode').value = m;
     document.querySelectorAll('#modosTabs .mtab').forEach(b=>b.setAttribute('aria-current', String(b.dataset.m===m)));
     S.inst = m==='bajod' ? 'bajod' : (m==='piano'||m==='lead') ? 'piano' : $('inst').value; if (m==='pad'||m==='piano') S.keysMode = m;
+    if (m==='piano') S.capas.piano=true; else if (m==='pad') S.capas[$('inst').value==='coro'?'coro':'pad']=true;
+    if (typeof renderCapas==='function') renderCapas();
     if (m==='piano') renderPianoPanel();
     if (m==='lead') renderLead();
     if (m==='letra') { llenarProgsDeLetra(); renderLetra(); }
@@ -2799,6 +2814,7 @@
   // ───────── Panel de administración (sólo Rolando): changelog + bugs ─────────
   const CHANGELOG = [
     { fecha:'2026-09-07', items:[
+      'Acordes por capas: la progresión puede sonar con varios instrumentos a la vez (Pad, Voces, Piano, Ukelele) — se apilan pista por pista y cambiar de pestaña ya no apaga los demás. Selector «Suena como» en el panel de progresión.',
       'Trabajo directo: tap tempo (botón «Tap») y panel avanzado del MPK (opcional) con arpegiador de la página, PROG/BANK → cambiar de sección y pads que marcan el tempo. Arreglada la × de la miniatura (no cerraba).',
       'Rueda: se eliminó el tooltip al pasar el cursor (prioriza las sugerencias de la derecha). La miniatura del acorde ahora aparece SÓLO al hacer clic, se queda fija y se cierra con una × en la esquina.',
       'Batería MIDI: selector explícito MPK mini / Donner D1 en la zona de conexión; al elegir «Donner D1» el cuadro cambia al simulado de la D1 (y el botón de conectar se renombra). Si se detecta una D1 por MIDI, su opción se resalta.',
