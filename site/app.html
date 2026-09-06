@@ -1355,12 +1355,29 @@
 
   // Primer clic en la rueda = acorde de partida (recalcula la tonalidad); los siguientes se van encadenando.
   // Probar un acorde: se muestra, suena y ramifica, pero no entra a la progresión hasta «Guardar»
+  // Voces de un acorde para la preescucha (piano usa el mismo voicing que la reproducción)
+  function vocesDeAcorde(c) {
+    if (S.inst==='piano') { const seq=[...S.prog]; const vs=voicedSeq([...seq, {pc:c.pc,q:c.q}]); return vs[vs.length-1].notes; }
+    return chordKeys(c.pc,c.q).map(midiOfKey);
+  }
+  // Preescucha: un golpe corto que sustituye al anterior. Antes se programaba un compás
+  // entero del patrón de piano y, al cambiar de acorde rápido, se apilaban cientos de notas.
+  let previewVoices = [];
+  function stopPreview() { previewVoices.forEach(v=>{ try { v.stop(); } catch(e){} }); previewVoices = []; }
+  function previewChord(c, dur) {
+    ensureAudio(); unlockAudio(); stopPreview();
+    const t = ctx.currentTime + 0.02;
+    if (S.inst==='bajoe' || S.inst==='bajod') { const root = midiOfKey(keyIndexOfPc(c.pc)) - 24; previewVoices.push(voice(root, t, dur||0.5, S.inst, 0.4)); return; }
+    const kind = S.inst==='pad' ? 'pad' : S.inst==='lead' ? 'lead' : S.inst==='uke' ? 'uke' : 'piano';
+    const g = S.inst==='pad' ? 0.12 : 0.18; const d = dur || (S.inst==='pad' ? 1.1 : 0.7);
+    vocesDeAcorde(c).forEach((m,i)=> previewVoices.push(voice(m, t + i*0.012, d, kind, g)));
+  }
   function propose(c) {
     if (remaining() <= 0) return;
     if (!S.prog.length && c.q!=='d') { S.root=c.pc; S.qual=c.q; $('root').value=S.root; $('qual').value=S.qual; S.key = defaultKey() || S.key; }
     S.cand = {pc:c.pc, q:c.q};
     renderAll();
-    ensureAudio(); unlockAudio(); if (!isPlaying) { const beat=60/S.bpm; scheduleChord({pc:c.pc,q:c.q,len:0.5}, ctx.currentTime+0.05, beat); }
+    if (!isPlaying) previewChord(c);
   }
   function commitCand() { if (!S.cand) return; const c=S.cand; S.cand=null; addChord(c); }
   function addChord(c) {
@@ -1690,8 +1707,8 @@
     if (isPlaying) { stopAll(); return; }
     ensureAudio(); if (ctx.state==='suspended') { try { await ctx.resume(); } catch(e) {} }
     if (ctx.state !== 'running') { showErr('El navegador mantiene el audio en pausa (estado: ' + ctx.state + '). Toca «Probar sonido» o cualquier tecla del dibujo y vuelve a intentar.'); }
-    stopFlag=false; isPlaying = true; const beat = 60/(mode==='bass' ? bassBpm() : S.bpm), barDur = beat*4; let t0 = ctx.currentTime + 0.1;
-    if (mode === 'lead' && !S.prog.length) { $('leadProg').textContent = 'Primero guarda una progresión en Pad o Piano.'; isPlaying=false; return; }
+    stopFlag=false; isPlaying = true; if (typeof stopPreview==='function') stopPreview(); const beat = 60/(mode==='bass' ? bassBpm() : S.bpm), barDur = beat*4; let t0 = ctx.currentTime + 0.1;
+    if (mode === 'lead' && !S.prog.length && !hasLead()) { $('leadProg').textContent = 'Graba una melodía o guarda una progresión en Pad/Piano para escuchar el lead.'; isPlaying=false; return; }
     let withChords, seq, totalBars, withDrums;
     $('play').textContent = '■ Detener'; $('playDrums').textContent = '■ Detener'; $('playBass').textContent = '■ Detener'; $('playLead').textContent = '■ Detener'; $('playGuit').textContent = '■ Detener'; $('candPlay').textContent = '■ Detener';
     do {   // una pasada; con «loop» se repite hasta Detener
@@ -1783,7 +1800,7 @@
   $('candSave').addEventListener('click', commitCand);
   $('candDrop').addEventListener('click', ()=>{ if (isPlaying) stopAll(); S.cand=null; renderAll(); });
   $('candPlay').addEventListener('click', ()=>play('all'));
-  $('candHear').addEventListener('click', ()=>{ if (!S.cand) return; ensureAudio(); const beat=60/S.bpm; scheduleChord({pc:S.cand.pc,q:S.cand.q,len:1}, ctx.currentTime+0.02, beat); });
+  $('candHear').addEventListener('click', ()=>{ if (!S.cand) return; previewChord(S.cand, 1.0); });
   $('play').addEventListener('click', ()=>play('all'));
   document.querySelectorAll('.metronChk').forEach(c=>c.addEventListener('change', e=>{ S.metron = e.target.checked; document.querySelectorAll('.metronChk').forEach(o=>o.checked=S.metron); }));
   document.querySelectorAll('.loopChk').forEach(c=>c.addEventListener('change', e=>{ S.loop = e.target.checked; document.querySelectorAll('.loopChk').forEach(o=>o.checked=S.loop); }));
@@ -2040,6 +2057,7 @@
   const LEAD_ROWS = 24;                                       // do central hacia arriba, dos octavas
   const leadBaseMidi = () => 60 + (S.kbKeys===37 ? 0 : 0);
   const chordAtBar = (bar) => { let pos=0; for (const c of S.prog) { if (bar < pos + c.len) return c; pos += c.len; } return S.prog.length ? S.prog[S.prog.length-1] : null; };
+  const hasLead = () => S.lead.mel.some(r=>r>=0);
   const leadBarsTotal = () => Math.max(1, Math.min(8, Math.ceil(usedBars() || S.bars)));
   function renderLead() {
     const bars = leadBarsTotal(); const steps = bars*8; const box=$('leadSeq'); box.innerHTML=''; box.style.setProperty('--steps', steps);
@@ -2083,14 +2101,14 @@
   function scheduleLead(t0, totalBars, beat) {
     const six = beat/4, eighth = beat/2; const bars = leadBarsTotal();
     for (let b=0; b<totalBars; b++) {
-      const c = chordAtBar(b % bars); if (!c) continue; const tb = t0 + b*beat*4;
-      // izquierda
-      if (S.lead.lh==='block') { const r=bassRootMidi(c); intervals(c.pc,c.q).slice(0,3).forEach(i=>voice(r+i, tb, beat*3.6, 'piano', 0.16)); }
-      else lhHits(S.lead.lh, c).forEach(([s,len,m])=>voice(m, tb + s*six + swingOff(s,six), six*len*0.9, 'piano', 0.22));
+      const c = chordAtBar(b % bars); const tb = t0 + b*beat*4;
+      // izquierda (acompañamiento: sólo si hay acordes)
+      if (c) { if (S.lead.lh==='block') { const r=bassRootMidi(c); intervals(c.pc,c.q).slice(0,3).forEach(i=>voice(r+i, tb, beat*3.6, 'piano', 0.16)); }
+        else lhHits(S.lead.lh, c).forEach(([s,len,m])=>voice(m, tb + s*six + swingOff(s,six), six*len*0.9, 'piano', 0.22)); }
       // derecha
       if (S.lead.rh==='melody') { let st=0; while (st<8) { const idx=(b%bars)*8+st; const r=S.lead.mel[idx]; if (r<0) { st++; continue; } let n=1; while (st+n<8 && S.lead.mel[(b%bars)*8+st+n]===r && !S.lead.acc[(b%bars)*8+st+n]) n++; voice(leadBaseMidi()+r, tb + st*eighth + swingOff(st*2,six), eighth*n*0.95, 'piano', S.lead.acc[idx]?0.3:0.2); st+=n; } }
-      else if (S.lead.rh==='arp') { const v = voiceNear(c.pc,c.q,null).notes; const notes=[...v, v[0]+12]; for (let i=0;i<8;i++) voice(notes[[0,1,2,3][i%4]], tb + i*eighth + swingOff(i*2,six), eighth*1.9, 'piano', 0.16); }
-      else { const v = voiceNear(c.pc,c.q,null).notes; const M = MANERAS[S.piano.manera]; (M.hits||[[0,16]]).forEach(([s,len])=>v.forEach(m=>voice(m, tb + s*six + swingOff(s,six), six*len*0.95, 'piano', M.soft?0.13:0.18))); }
+      else if (S.lead.rh==='arp' && c) { const v = voiceNear(c.pc,c.q,null).notes; const notes=[...v, v[0]+12]; for (let i=0;i<8;i++) voice(notes[[0,1,2,3][i%4]], tb + i*eighth + swingOff(i*2,six), eighth*1.9, 'piano', 0.16); }
+      else if (c) { const v = voiceNear(c.pc,c.q,null).notes; const M = MANERAS[S.piano.manera]; (M.hits||[[0,16]]).forEach(([s,len])=>v.forEach(m=>voice(m, tb + s*six + swingOff(s,six), six*len*0.95, 'piano', M.soft?0.13:0.18))); }
     }
   }
   $('playLead').addEventListener('click', ()=>play('lead'));
