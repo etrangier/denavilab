@@ -84,6 +84,12 @@
     });
   }
 
+  const verInvitado = $('verInvitado');
+  if (verInvitado) verInvitado.addEventListener('click', () => {
+    try { localStorage.setItem(CLAVE_SESION, 'invitado'); } catch (e) {}
+    location.href = 'app.html';
+  });
+
   const atras = $('navAtras');
   if (atras) atras.addEventListener('click', () => { if (history.length > 1) history.back(); else location.href = 'index.html'; });
 

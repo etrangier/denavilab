@@ -36,25 +36,36 @@
     <a href="https://soundcloud.com/denavi-records" target="_blank" rel="noopener noreferrer">SoundCloud &#8599;</a>
   </div>
 
+  <p class="accesos-lbl">Entrar</p>
   <nav class="doors">
     <a class="door primary" href="guia.html" data-privado>
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="1.6"/><circle cx="5" cy="12" r="1.6"/><circle cx="5" cy="18" r="1.6"/><path d="M10 6h9M10 12h9M10 18h9"/></svg></span>
       <span class="t">Trabajo guiado</span>
-      <span class="d">Cinco pasos, de un pulso vacío a una maqueta en MIDI.</span>
+      <span class="d">Cinco pasos, de un pulso vacío a una maqueta en MIDI. Si es tu primera vez, por aquí.</span>
       <span class="go">Entrar &rarr;</span>
     </a>
     <a class="door" href="app.html" data-privado>
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="6" r="2"/><circle cx="20" cy="14" r="2"/></svg></span>
       <span class="t">Trabajo directo</span>
-      <span class="d">Al taller, con todo abierto.</span>
+      <span class="d">Al taller completo: batería, bajo, teclados, guitarra y letra, todo a mano.</span>
       <span class="go">Entrar &rarr;</span>
     </a>
     <a class="door" href="archivo.html" data-privado>
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
       <span class="t">Archivo</span>
-      <span class="d">Nuestros proyectos, MIDI y PDF guardados.</span>
+      <span class="d">Los proyectos, MIDI y PDF que vamos guardando.</span>
       <span class="go">Entrar &rarr;</span>
     </a>
   </nav>
 
-  <p class="invitado-nota">¿Le muestras el sitio a alguien? Puede entrar como <b>invitado</b>: ve y prueba todo igual que nosotros, pero sin exportar, importar ni guardar en la biblioteca.</p>
+  <div class="acceso-invitado">
+    <span class="ai-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span>
+    <div class="ai-txt">
+      <span class="ai-t">¿Solo quieres mostrarlo?</span>
+      <span class="ai-d">El modo invitado ve y prueba todo, pero no exporta, importa ni toca la biblioteca.</span>
+    </div>
+    <button class="ai-btn" id="verInvitado" type="button">Ver como invitado &rarr;</button>
+  </div>
 
   <p class="sesion" id="sesion"></p>
 

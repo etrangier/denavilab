@@ -49,6 +49,19 @@ h1 { font-family: var(--display); font-weight: 700; font-size: clamp(32px, 7vw, 
 .door .d { font-size: 13.5px; color: var(--muted); }
 .door.primary .d { color: var(--accent-ink); opacity: .85; }
 .door .go { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; margin-top: 6px; }
+  .accesos-lbl { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 6px 0 8px; }
+  .door .ico { width: 26px; height: 26px; color: var(--accent); margin-bottom: 2px; }
+  .door.primary .ico { color: var(--accent-ink); }
+  .door .ico svg { width: 100%; height: 100%; display: block; }
+  .acceso-invitado { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin: 2px 0 24px; }
+  .acceso-invitado .ai-ico { width: 22px; height: 22px; color: var(--muted); flex: 0 0 auto; }
+  .acceso-invitado .ai-ico svg { width: 100%; height: 100%; }
+  .acceso-invitado .ai-txt { display: grid; gap: 1px; flex: 1 1 220px; min-width: 0; }
+  .acceso-invitado .ai-t { font-family: var(--display); font-weight: 700; font-size: 14px; }
+  .acceso-invitado .ai-d { font-size: 12.5px; color: var(--muted); }
+  .ai-btn { font: inherit; font-family: var(--mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; cursor: pointer; flex: 0 0 auto;
+            background: transparent; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px 13px; transition: border-color .15s, color .15s; }
+  .ai-btn:hover, .ai-btn:focus-visible { border-color: var(--accent); color: var(--accent); }
 
 /* ── Estado de la sesión ── */
 .sesion { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -209,3 +222,8 @@ html[data-quien="rolando"] li[data-para~="rolando"] { display: list-item; }
 .fila-invitado span { font-size: 12.5px; color: var(--muted); }
 .invitado-nota { font-size: 13px; color: var(--muted); max-width: 62ch; margin: 0 0 12px; border-left: 3px solid var(--key-line); padding-left: 10px; }
 .invitado-nota b { color: var(--text); }
+
+/* Visibilidad por rol en el Archivo */
+.solo-invitado { display: none; }
+html[data-quien="invitado"] .solo-banda { display: none; }
+html[data-quien="invitado"] .solo-invitado { display: block; }
