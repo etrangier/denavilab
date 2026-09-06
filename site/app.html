@@ -394,6 +394,11 @@
   .bar-box .c { font-family: var(--display); font-weight: 700; font-size: 17px; line-height: 1; }
   .bar-box .v { font-family: var(--mono); font-size: 9.5px; color: var(--muted); align-self: end; }
   .bar-box.filled { border-style: solid; background: var(--surface-2); }
+  .bar-manera-w { width: 100%; }
+  .bar-manera { width: 100%; max-width: 100%; font-family: var(--mono); font-size: 9.5px; padding: 2px 3px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--muted); }
+  .bar-box.filled .bar-manera { color: inherit; }
+  .sug-ritmo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+  .sug-ritmo .hint { flex: 1 1 200px; margin: 0; }
   .bar-box.next { border-color: var(--accent); }
   .bar-box.cand-box { border: 1px dashed var(--accent); background: var(--accent-soft); }
   .bar-box.playing { background: var(--accent); color: var(--accent-ink); }
@@ -564,7 +569,7 @@
           <p><b>Un acorde</b> son tres teclas tocadas a la vez. Aquí los nombramos por su tecla de abajo: «Lam» es <i>la do mi</i>, «Fa» es <i>fa la do</i>. La <b>m</b> significa menor (suena triste, cerrado); sin letra es mayor (abierto, alegre). El asterisco es una tecla negra: <i>fa*</i> es la negra a la derecha de fa.</p>
           <p><b>Los tres anillos</b>: afuera los acordes mayores, al medio los menores, adentro los «disminuidos» (raros y tensos; casi no se usan). Están ordenados para que los vecinos suenen parecidos: cuanto más lejos en la rueda, más lejos suenan.</p>
           <p><b>La tonalidad</b> (el centro) es la «casa» de tu canción. La cuña violeta son los siete acordes que viven en esa casa y siempre suenan bien juntos. Cada uno hace una de tres cosas: <b>es la casa</b> (todo se aquieta), <b>se aleja</b> (aire, salir a caminar) o <b>tira de vuelta</b> (ganas de volver). Con eso se construye cualquier canción.</p>
-          <p><b>Los colores</b>: naranja es donde estás. Verde es a dónde suele ir la banda elegida desde ahí (el % es qué tan seguido); amarillo, menos seguido. Sin color no está prohibido: es terreno para improvisar. Pasa el cursor por cualquier acorde y verás sus teclas en miniatura; haz clic para probarlo y «Guardar» cuando te guste.</p>
+          <p><b>Los colores</b>: naranja es donde estás. Verde es a dónde suele ir la banda elegida desde ahí (el % es qué tan seguido); amarillo, menos seguido. Sin color no está prohibido: es terreno para improvisar. Haz clic en cualquier acorde para probarlo (verás sus teclas y el porcentaje a la derecha) y «Guardar» cuando te guste.</p>
           <p><b>Los grados</b> (i, VI, VII…) son el número del acorde dentro de la casa: la casa es el i (o I), y así puedes reconocer la misma vuelta en otra tonalidad. No hace falta memorizarlos.</p>
         </details>
       </div>
@@ -622,7 +627,8 @@
       <!-- Piano: cómo se toca la vuelta -->
       <div class="panel" data-modes="piano">
         <div class="kb-head"><span class="lbl">Piano · cómo se toca la vuelta</span><label class="hint"><input type="checkbox" id="autoInv" checked> inversiones automáticas (mover el mínimo de dedos)</label></div>
-        <div class="field"><span class="lbl">Manera (ritmo de la mano derecha) · Guía 2</span><div class="chips" id="maneraChips"></div><div class="hint" id="maneraHint"></div></div>
+        <div class="field"><span class="lbl">Manera (ritmo de la mano derecha) · Guía 2</span><div class="chips" id="maneraChips"></div><div class="hint" id="maneraHint"></div>
+          <div class="sug-ritmo"><button type="button" class="btn ghost" id="sugRitmoBtn">Sugerir ritmos</button><span class="hint">Deja cada acorde en <b>1 bloque sostenido</b> por defecto; esto propone negras, corcheas o blancas según el estilo y el ánimo. Ajústalo acorde por acorde abajo.</span></div></div>
         <div class="field"><span class="lbl">Mano izquierda (requiere 37 teclas o OCT −)</span><div class="chips" id="lhChips"></div></div>
         <div class="hint" id="pianoVoicings"></div>
       </div>
@@ -1154,7 +1160,7 @@
     mix: { mute:{drums:false,bass:false,chords:false,guitar:false,lead:false}, solo:{drums:false,bass:false,chords:false,guitar:false,lead:false} },
     drums: { len:1, on:true, kit:D.kit, name:'', quant:1, pat:{ kick:new Array(64).fill(0), snare:new Array(64).fill(0), hh:new Array(64).fill(0), oh:new Array(64).fill(0) } },
     swing: 0,
-    piano: { autoInv:true, manera:3, lh:'none' },
+    piano: { autoInv:true, manera:1, lh:'none' },
     letra: { titulo:'', secciones:[], concepto:'', tema:'', apuntes:'', libreta:'', ref:null },
     guitar: { prog:[], sel:0, withDrums:false, instrumento:'acustica', capo:0, metron:false, strum:['D','','D','U','','U','D','U'] },
     metron: false,
@@ -1328,7 +1334,7 @@
     for (let k=0;k<S.kbKeys;k++) { const pc=k%12; if (BLACK.has(pc)) blacks.push({k,pc,x:x-BW/2}); else { whites.push({k,pc,x}); x+=W; } }
     svg.setAttribute('viewBox', `0 0 ${x} 132`); svg.style.minWidth = (x>400 ? 560 : 380) + 'px';
     $('kbTitle').textContent = `Akai MPK mini ${S.kbKeys===37?'Plus · 37':'· 25'} teclas · do a do · OCT en 0`;
-    const keyRect = (cls,k,attrs) => { const r=svgEl('rect',{class:cls,id:'k'+k,role:'button',tabindex:'0',...attrs}); r.addEventListener('click',()=>pickKey(k)); r.addEventListener('pointerdown',e=>{ e.preventDefault(); const mm=liveMidiOf(48+k); if (arpAdd(mm)) {} else liveOn(mm); grabarNotaBajo(mm); const up=()=>{ arpDel(mm); liveOff(mm); window.removeEventListener('pointerup',up); window.removeEventListener('pointercancel',up); }; window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up); }); r.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();pickKey(k);} }); const tt=svgEl('title'); tt.textContent=NAMES[k%12]+' — clic para marcar'; r.append(tt); return r; };
+    const keyRect = (cls,k,attrs) => { const r=svgEl('rect',{class:cls,id:'k'+k,role:'button',tabindex:'0',...attrs}); r.addEventListener('click',()=>pickKey(k)); r.addEventListener('pointerdown',e=>{ e.preventDefault(); const mm=liveMidiOf(48+k); if (arpAdd(mm)) {} else liveOn(mm); grabarNotaBajo(mm); const up=()=>{ arpDel(mm); liveOff(mm); window.removeEventListener('pointerup',up); window.removeEventListener('pointercancel',up); }; window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up); }); r.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();pickKey(k);} }); return r; };
     for (const w of whites) { svg.append(keyRect('wk',w.k,{x:w.x,y:12,width:W,height:H,rx:3})); const t=svgEl('text',{class:'kl',id:'l'+w.k,x:w.x+W/2,y:12+H-8}); t.textContent=nota(w.pc); svg.append(t); }
     for (const b of blacks) { svg.append(keyRect('bk',b.k,{x:b.x,y:12,width:BW,height:BH,rx:2})); const t=svgEl('text',{class:'kl',id:'l'+b.k,x:b.x+BW/2,y:12+BH-6,style:'fill:#bdb7cc'}); t.textContent=nota(b.pc); svg.append(t); }
     [0,12,24].filter(k=>k<S.kbKeys-1).forEach((k,i)=>{ const w=whites.find(w=>w.k===k); const tx=svgEl('text',{class:'oct',x:w.x+2,y:9}); tx.textContent=`oct ${i+1}`; svg.append(tx); });
@@ -1383,7 +1389,7 @@
         const t = svgEl('text',{x:tx,y:ty+ (ring.q==='d'?4:2),'text-anchor':'middle','font-size':ring.fs}); t.textContent = notaCap(pc) + (ring.q==='m'?'m':ring.q==='d'?'°':'');
         g.append(t);
         const p = svgEl('text',{class:'sug-pct', x:tx, y:ty+ (ring.q==='d'?12:16), 'text-anchor':'middle'}); g.append(p);
-        g.addEventListener('click', ()=>{ propose({pc,q:ring.q}); mostrarMini(pc, ring.q, g); });
+        g.addEventListener('click', ()=>propose({pc,q:ring.q}));
         g.addEventListener('keydown', e=>{ if (e.key==='Enter'||e.key===' ') { e.preventDefault(); propose({pc,q:ring.q}); } });
         svg.append(g); slots[pc+ring.q] = { g, p, cx:tx, cy:ty };
       }
@@ -1427,30 +1433,8 @@
   // con "hover" emulado se quedaba pegado y no se podía quitar.
   let usandoTactil = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || false;
   window.addEventListener('touchstart', () => { usandoTactil = true; hideTip(); }, { passive:true, capture:true });
-  // Sólo mostramos el tooltip flotante si hay un cursor de verdad (fino + hover) y nunca se ha tocado la pantalla.
-  const conHover = () => !usandoTactil && (!window.matchMedia || (window.matchMedia('(hover: hover)').matches && window.matchMedia('(pointer: fine)').matches));
-  // Miniatura del acorde: aparece SÓLO al hacer clic en un acorde de la rueda, con una × para cerrarla.
-  function mostrarMini(pc, q, slotEl) {
-    const t = $('tip'); if (!t) return; t.innerHTML = '';
-    const sug = suggestions().find(x=>x.pc===pc && x.q===q); const [r1, r2] = roleOf(pc, q);
-    t.append(
-      el('button',{class:'tip-x', type:'button', title:'cerrar', 'aria-label':'cerrar', onpointerdown:e=>{ e.stopPropagation(); e.preventDefault(); hideTip(); }, onclick:e=>{ e.stopPropagation(); hideTip(); }}, '×'),
-      el('div',{class:'nm'}, chordLabel(pc,q) + (sug ? `  ·  ${sug.pct}%` : '')),
-      el('div',{class:'nt'}, notesText(pc,q)),
-      miniKeyboard(pc,q),
-      el('div',{class:'role'}, r1 + (r2 ? ' — ' + r2 : '') + (sug && sug.moved!==null && sug.moved!==undefined ? ` · mueve ${sug.moved} dedo(s)` : '')));
-    t.hidden = false;
-    t.onclick = () => hideTip();   // clic en cualquier parte de la miniatura la cierra
-    // posicionar junto al acorde pulsado, dentro de la pantalla
-    const r = slotEl.getBoundingClientRect(); const w = t.offsetWidth || 210, h = t.offsetHeight || 170;
-    let x = r.right + 10, y = r.top - 6;
-    if (x + w > window.innerWidth - 8) x = r.left - w - 10;
-    if (x < 8) x = 8;
-    if (y + h > window.innerHeight - 8) y = window.innerHeight - h - 8;
-    if (y < 8) y = 8;
-    t.style.left = x + 'px'; t.style.top = y + 'px';
-  }
   function hideTip() { const t=$('tip'); if (t) t.hidden = true; }
+  hideTip();
   document.addEventListener('pointerdown', e=>{ const t=$('tip'); if (t && !t.hidden && !t.contains(e.target) && !(e.target.closest && e.target.closest('#wheel'))) hideTip(); }, true);
   window.addEventListener('keydown', e=>{ if (e.key==='Escape') hideTip(); });
 
@@ -1518,7 +1502,7 @@
   }
   // Acciones por acorde en la progresión: borrar, copiar (duplicar) y mover ‹ ›
   function borrarAcorde(i) { if (i<0 || i>=S.prog.length) return; S.prog.splice(i,1); if (S.playing>=S.prog.length) S.playing=-1; S.cand=null; renderAll(); }
-  function copiarAcorde(i) { const c=S.prog[i]; if (!c) return; const r=remaining(); if (r<=0) { $('summary').textContent='No cabe la copia: ya usaste los '+S.bars+' compases. Sube los compases o acorta un acorde.'; return; } S.prog.splice(i+1,0,{pc:c.pc,q:c.q,len:Math.min(c.len,r)}); renderAll(); }
+  function copiarAcorde(i) { const c=S.prog[i]; if (!c) return; const r=remaining(); if (r<=0) { $('summary').textContent='No cabe la copia: ya usaste los '+S.bars+' compases. Sube los compases o acorta un acorde.'; return; } S.prog.splice(i+1,0,{pc:c.pc,q:c.q,len:Math.min(c.len,r),manera:c.manera}); renderAll(); }
   function moverAcorde(i, dir) { const j=i+dir; if (j<0 || j>=S.prog.length) return; const t=S.prog[i]; S.prog[i]=S.prog[j]; S.prog[j]=t; if (S.playing===i) S.playing=j; else if (S.playing===j) S.playing=i; renderAll(); }
   function renderBars() {
     const box = $('bars'); box.innerHTML='';
@@ -1538,6 +1522,11 @@
           el('button',{class:'tiny', title:'copiar (duplicar)', onclick:()=>copiarAcorde(i)}, '⧉'),
           el('button',{class:'tiny danger', title:'borrar este acorde', onclick:()=>borrarAcorde(i)}, '✕'),
           el('button',{class:'tiny', title:'mover a la derecha', ...(i===S.prog.length-1?{disabled:''}:{}), onclick:()=>moverAcorde(i,1)}, '›')));
+      if (S.mode==='piano') {
+        const sel = el('select',{class:'bar-manera', title:'ritmo de este acorde (mano derecha)', onchange:e=>{ c.manera = +e.target.value; renderAll(); }});
+        MANERAS.forEach((M,mi)=>{ if (!M) return; const o=el('option',{value:String(mi)}, `${mi} · ${M.n}`); if ((c.manera!=null?c.manera:S.piano.manera)===mi) o.selected=true; sel.append(o); });
+        d.append(el('span',{class:'bar-manera-w'}, sel));
+      }
       box.append(d);
     });
     let r = remaining();
@@ -1639,7 +1628,7 @@
       if (c.q!=='d') S.key = defaultKey() || S.key;
     }
     registrarPaso(S.prog[S.prog.length-1], c);
-    S.prog.push({pc:c.pc, q:c.q, len: Math.min(S.defLen, remaining())});
+    S.prog.push({pc:c.pc, q:c.q, len: Math.min(S.defLen, remaining()), manera:1});
     renderAll();
   }
   function registrarPaso(prev, c) {
@@ -2055,7 +2044,7 @@
     }
   }
   function schedulePianoChord(c, t, beat, keys) {
-    const six = beat/4, nb = Math.round(c.len*4), bars = Math.max(1, Math.round(c.len)); const M = MANERAS[S.piano.manera] || MANERAS[3];
+    const six = beat/4, nb = Math.round(c.len*4), bars = Math.max(1, Math.round(c.len)); const M = MANERAS[(c.manera!=null ? c.manera : S.piano.manera)] || MANERAS[1];
     const g = M.soft ? 0.14 : 0.2;
     for (let b=0; b<bars; b++) {
       const tb = t + b*beat*4;
@@ -2504,10 +2493,22 @@
   ['pointerdown','keydown','touchstart'].forEach(ev=>window.addEventListener(ev, ()=>{ if (ctx) unlockAudio(); }, { passive:true }));
 
   // ───────── Panel de piano ─────────
+  const MANERA_CORTA = {1:'sostenido',2:'negras',3:'corcheas',4:'blancas',5:'sincopada',6:'3+3+2',7:'arpegio ↑',8:'arpegio ↕',9:'semicorcheas',10:'con silencio',11:'anticipada',12:'bajo + acorde',13:'bajo 8 + contra'};
+  const RITMO_ESTILO = { 'Trip hop':[1,10], 'Synth pop':[3,13,2], 'Rock':[2,3], 'Anime':[3,2,5], 'Bedroom pop':[3,8,1], 'Lo-fi hip hop':[8,10,1], 'Alternativo':[1,10,5], 'Personal':[1,3] };
+  const RITMO_ANIMO = { 'Luminoso':[3,2], 'Nostálgico':[1,4,3], 'Melancólico':[1,4], 'Soñador':[1,4,8], 'Oscuro':[1,10], 'Tenso':[9,3], 'Enérgico':[2,3,9], 'Concentración':[1,4,8] };
+  function sugerirRitmosPiano() {
+    const prog = S._chord.piano.prog; if (!prog.length) return;
+    const lista = (S.animo && RITMO_ANIMO[S.animo]) || RITMO_ESTILO[S.genre] || [1,3];
+    prog.forEach((c,i)=>{ c.manera = (i===prog.length-1) ? 1 : lista[i % lista.length]; });   // el último se sostiene para cerrar
+    renderAll(); renderPianoPanel();
+  }
   function renderPianoPanel() {
     const mc = $('maneraChips'); mc.innerHTML='';
-    MANERAS.forEach((M,i)=>{ if (!M) return; mc.append(el('button',{class:'chip','aria-pressed':String(i===S.piano.manera), onclick:()=>{ S.piano.manera=i; renderPianoPanel(); }}, `${i} · ${M.n}`)); });
+    MANERAS.forEach((M,i)=>{ if (!M) return; mc.append(el('button',{class:'chip','aria-pressed':String(i===S.piano.manera), title:'aplicar «'+M.n+'» a todos los acordes', onclick:()=>{ S.piano.manera=i; S._chord.piano.prog.forEach(c=>c.manera=i); renderAll(); renderPianoPanel(); }}, `${i} · ${M.n}`)); });
     $('maneraHint').textContent = (MANERAS[S.piano.manera]||{}).hint || '';
+    const sb = $('sugRitmoBtn');
+    if (sb) { const hay = S._chord.piano.prog.length>0; sb.disabled = !hay;
+      const ref = (S.animo && S.animo!=='Sin definir') ? S.animo.toLowerCase() : S.genre; sb.textContent = hay ? `✨ Sugerir ritmos (${ref})` : 'Sugerir ritmos (añade acordes primero)'; }
     const lc = $('lhChips'); lc.innerHTML='';
     Object.entries(LH).forEach(([k,t])=> lc.append(el('button',{class:'chip','aria-pressed':String(k===S.piano.lh), onclick:()=>{ S.piano.lh=k; renderPianoPanel(); }}, t)));
     $('autoInv').checked = S.piano.autoInv;
@@ -2515,6 +2516,7 @@
     $('pianoVoicings').textContent = S.prog.length ? 'Voicings: ' + S.prog.map((c,i)=>{ const v=vs[i]; const mv = prev ? ` (mueve ${movedFingers(prev,v.notes)})` : ''; prev=v.notes; return `${chordLabel(c.pc,c.q)} = ${voicingText(v, c.pc)}${mv}`; }).join('  ·  ') : 'Guarda acordes y aquí verás cómo se tocan con el mínimo movimiento de dedos.';
   }
   $('autoInv').addEventListener('change', e=>{ S.piano.autoInv = e.target.checked; renderAll(); if (S.mode==='piano') renderPianoPanel(); });
+  { const _sb=$('sugRitmoBtn'); if (_sb) _sb.addEventListener('click', sugerirRitmosPiano); }
 
   // ───────── Piano lead: dos manos y melodía ─────────
   const scaleOf = () => { const t=S.key.tonic; return (S.key.mode==='m' ? [0,2,3,5,7,8,10] : [0,2,4,5,7,9,11]).map(i=>(t+i)%12); };
@@ -2940,8 +2942,8 @@
   function trackChords(seq, piano=false) {
     const ev=[]; let t=0;
     if (!piano) { seq.forEach(c=>{ const len=Math.round(c.len*4*TPB); chordKeys(c.pc,c.q).map(midiOfKey).forEach(m=>noteEv(0,m,88,t,len-10,ev)); t+=len; }); return midiTrack('Pad · acordes', ev, [0,0xc0,89]); }
-    const vs = voicedSeq(seq); const six = TPB/4; const M = MANERAS[S.piano.manera] || MANERAS[3]; const sw = s => Math.round(s%2 ? S.swing*six*0.66 : 0);
-    seq.forEach((c,i)=>{ const bars=Math.max(1,Math.round(c.len)); const keys=vs[i].notes;
+    const vs = voicedSeq(seq); const six = TPB/4; const sw = s => Math.round(s%2 ? S.swing*six*0.66 : 0);
+    seq.forEach((c,i)=>{ const bars=Math.max(1,Math.round(c.len)); const keys=vs[i].notes; const M = MANERAS[(c.manera!=null ? c.manera : S.piano.manera)] || MANERAS[1];
       for (let b=0;b<bars;b++) { const tb=t+b*16*six;
         if (M.arp) { const notes=[...keys, keys[0]+12]; for (let k=0;k<8;k++) noteEv(0, notes[M.arp[k%4]], 84, tb+k*2*six+sw(k*2), Math.round(six*1.9), ev); }
         else M.hits.forEach(([s,len])=>{ const tt = tb + s*six + sw(s) - (M.anticipate && s===0 && b===0 && i>0 ? 2*six : 0); keys.forEach(m=>noteEv(0,m,M.soft?72:90,Math.max(0,tt),Math.round(six*len*0.95),ev)); });
