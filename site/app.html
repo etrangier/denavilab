@@ -406,6 +406,7 @@
           <option value="lead">Teclado · Piano lead (dos manos y melodía)</option>
           <option value="letra">Letra y acordes</option>
           <option value="guitarra">Guitarra (acordes)</option>
+          <option value="mezcla">Mezcla · todo junto</option>
         </select>
         <div class="hint" id="modeHint"></div>
         <div class="row"><button class="ghost" id="testTone">Probar sonido</button><span class="diag" id="audioDiag">audio: sin iniciar</span></div>
@@ -791,6 +792,21 @@
         </div>
       </div>
       <!-- Beat -->
+      <!-- Mezcla: reproducir todas las pistas juntas o por separado -->
+      <div class="panel" data-modes="mezcla">
+        <div class="kb-head">
+          <span class="lbl">Mezcla · todas las pistas juntas</span>
+          <span class="lbl" id="mezclaResumen"></span>
+        </div>
+        <p class="hint" id="mezclaVacio" hidden>Todavía no has programado nada. Arma un beat en <b>Batería</b>, una línea en <b>Bajo</b>, unos acordes en <b>Rueda·Pad</b>… y vuelve aquí para escucharlos todos juntos.</p>
+        <div class="mix-rows" id="mixRowsMezcla"></div>
+        <div class="actions">
+          <button class="primary" id="playMezcla">▶ Reproducir todo</button>
+          <label class="hint"><input type="checkbox" class="loopChk" checked> loop</label>
+          <label class="hint"><input type="checkbox" class="metronChk"> metrónomo</label>
+        </div>
+        <p class="hint"><b>M</b> silencia una pista · <b>S</b> la aísla (suena sólo esa). Cada pista se arma en su propia pestaña; aquí las escuchas juntas o por separado.</p>
+      </div>
       <div class="panel drums" data-modes="beat">
         <details class="help"><summary>¿Cómo se lee esto?</summary><p>Un <b>compás</b> son cuatro tiempos: cuentas «uno-dos-tres-cuatro» y empieza otro. Cada tiempo tiene cuatro casillas (semicorcheas): la primera de cada grupo es el número, las otras son «e-y-a». El <b>bombo</b> es el golpe grave del pecho, la <b>caja</b> el chasquido que marca el 2 y el 4, el <b>hi-hat</b> es el reloj. El patrón más usado de la historia: bombo en 1 y 3, caja en 2 y 4, hi-hat en cada corchea. Graba una cosa a la vez.</p></details>
         <div class="kb-head">
@@ -1418,19 +1434,24 @@
   const MIX_TRACKS = [ ['chords','Acordes'], ['drums','Batería'], ['bass','Bajo digital'], ['guitar','Guitarra'], ['lead','Piano lead'] ];
   const mixTieneContenido = tr => { try { return tr==='chords' ? (S.prog.length>0||!!S.cand) : tr==='drums' ? hasDrums() : tr==='bass' ? hasBassD() : tr==='guitar' ? S.guitar.prog.length>0 : tr==='lead' ? hasLead() : false; } catch(e){ return false; } };
   function renderMixer() {
-    const box = $('mixRows'), caja = $('mezcla'); if (!box || !caja) return;
     const activos = MIX_TRACKS.filter(([tr])=>mixTieneContenido(tr));
-    caja.hidden = activos.length < 2;               // sólo tiene sentido con dos o más pistas
-    box.innerHTML='';
-    activos.forEach(([tr,nom])=>{
-      const anySolo = haySolo(); const sonando = suena(tr);
-      const row = el('div',{class:'mix-row'});
-      row.append(el('span',{class:'mix-nom'}, nom));
-      row.append(el('span',{class:'mix-dot'}, sonando ? '♪ suena' : 'en silencio'));
-      row.append(el('button',{class:'mix-btn'+(S.mix.mute[tr]?' on-m':''), title:'silenciar', onclick:()=>{ S.mix.mute[tr]=!S.mix.mute[tr]; if (S.mix.mute[tr]) S.mix.solo[tr]=false; renderMixer(); }}, 'M'));
-      row.append(el('button',{class:'mix-btn'+(S.mix.solo[tr]?' on-s':''), title:'aislar (solo)', onclick:()=>{ S.mix.solo[tr]=!S.mix.solo[tr]; if (S.mix.solo[tr]) S.mix.mute[tr]=false; renderMixer(); }}, 'S'));
-      box.append(row);
-    });
+    // caja embebida en pad/piano: sólo con 2+ pistas
+    const caja = $('mezcla'); if (caja) caja.hidden = activos.length < 2;
+    // panel dedicado de la pestaña Mezcla: siempre visible, con aviso si está vacío
+    const vac = $('mezclaVacio'); if (vac) vac.hidden = activos.length > 0;
+    const res = $('mezclaResumen'); if (res) res.textContent = activos.length ? activos.map(([,n])=>n).join(' · ') : '';
+    const filaEn = (box) => { if (!box) return; box.innerHTML='';
+      activos.forEach(([tr,nom])=>{
+        const sonando = suena(tr);
+        const row = el('div',{class:'mix-row'});
+        row.append(el('span',{class:'mix-nom'}, nom));
+        row.append(el('span',{class:'mix-dot'}, sonando ? '♪ suena' : 'en silencio'));
+        row.append(el('button',{class:'mix-btn'+(S.mix.mute[tr]?' on-m':''), title:'silenciar', onclick:()=>{ S.mix.mute[tr]=!S.mix.mute[tr]; if (S.mix.mute[tr]) S.mix.solo[tr]=false; renderMixer(); }}, 'M'));
+        row.append(el('button',{class:'mix-btn'+(S.mix.solo[tr]?' on-s':''), title:'aislar (solo)', onclick:()=>{ S.mix.solo[tr]=!S.mix.solo[tr]; if (S.mix.solo[tr]) S.mix.mute[tr]=false; renderMixer(); }}, 'S'));
+        box.append(row);
+      });
+    };
+    filaEn($('mixRows')); filaEn($('mixRowsMezcla'));
   }
   function renderAll() { renderKeyChips(); renderBarChips(); renderOptChips(); paintWheel(); renderSugs(); renderBars(); renderReadout(); renderMixer(); if (S.mode==='piano') renderPianoPanel(); if (S.mode==='lead') renderLead(); $('initNotes').textContent = `Teclas: ${notesText(S.root,S.qual)}`; }
 
@@ -1792,7 +1813,7 @@
     stopFlag=false; isPlaying = true; if (typeof stopPreview==='function') stopPreview(); let beat = 60/(mode==='bass' ? bassBpm() : S.bpm), barDur = beat*4; let t0 = ctx.currentTime + 0.1;
     if (mode === 'lead' && !S.prog.length && !hasLead()) { $('leadProg').textContent = 'Graba una melodía o guarda una progresión en Pad/Piano para escuchar el lead.'; isPlaying=false; return; }
     let withChords, seq, totalBars, withDrums;
-    $('play').textContent = '■ Detener'; $('playDrums').textContent = '■ Detener'; $('playBass').textContent = '■ Detener'; $('playLead').textContent = '■ Detener'; $('playGuit').textContent = '■ Detener'; $('candPlay').textContent = '■ Detener';
+    $('play').textContent = '■ Detener'; $('playDrums').textContent = '■ Detener'; $('playBass').textContent = '■ Detener'; $('playLead').textContent = '■ Detener'; $('playGuit').textContent = '■ Detener'; $('candPlay').textContent = '■ Detener'; if ($('playMezcla')) $('playMezcla').textContent = '■ Detener';
     do {   // una pasada; con «loop» se repite hasta Detener
       beat = 60/(mode==='bass' ? bassBpm() : S.bpm); barDur = beat*4;   // relee el tempo cada vuelta (bajo con tempo propio, o bpm cambiado)
       // Se relee el estado en cada vuelta: agregar/cambiar/quitar un acorde entra en la siguiente pasada
@@ -1851,12 +1872,12 @@
       // corrige la deriva del reloj de JS respecto al de audio
       const drift = (t0 - ctx.currentTime)*1000; if (S.loop && !stopFlag && drift > 0) await wait(drift);
     } while (S.loop && !stopFlag);
-    S.playing=-1; stopFlag=false; isPlaying=false; $('play').textContent='▶ Reproducir todo'; $('playDrums').textContent='▶ Sólo batería'; $('playBass').textContent='▶ Bajo'; $('playGuit').textContent='▶ Guitarra'; $('candPlay').textContent='▶ Reproducir la vuelta'; $('playLead').textContent='▶ Piano lead';
+    S.playing=-1; stopFlag=false; isPlaying=false; if ($('playMezcla')) $('playMezcla').textContent='▶ Reproducir todo'; $('play').textContent='▶ Reproducir todo'; $('playDrums').textContent='▶ Sólo batería'; $('playBass').textContent='▶ Bajo'; $('playGuit').textContent='▶ Guitarra'; $('candPlay').textContent='▶ Reproducir la vuelta'; $('playLead').textContent='▶ Piano lead';
     document.querySelectorAll('.st.now').forEach(n=>n.classList.remove('now')); renderBars(); renderReadout();
   }
 
   // ───────── Controles ─────────
-  const MODOS_TABS = [['beat','Batería'],['bajod','Bajo'],['pad','Rueda · Pad'],['piano','Piano'],['lead','Piano lead'],['guitarra','Guitarra'],['letra','Letra']];
+  const MODOS_TABS = [['beat','Batería'],['bajod','Bajo'],['pad','Rueda · Pad'],['piano','Piano'],['lead','Piano lead'],['guitarra','Guitarra'],['letra','Letra'],['mezcla','▶ Mezcla']];
   function renderModosTabs() {
     const nav = $('modosTabs'); if (!nav) return; nav.innerHTML='';
     MODOS_TABS.forEach(([m,t])=> nav.append(el('button',{class:'mtab', type:'button', 'data-m':m, 'aria-current':String(S.mode===m), onclick:()=>setMode(m)}, t)));
@@ -1898,6 +1919,7 @@
   $('candPlay').addEventListener('click', ()=>play('all'));
   $('candHear').addEventListener('click', ()=>{ if (!S.cand) return; previewChord(S.cand, 1.0); });
   $('play').addEventListener('click', ()=>play('all'));
+  if ($('playMezcla')) $('playMezcla').addEventListener('click', ()=>play('all'));
   document.querySelectorAll('.metronChk').forEach(c=>c.addEventListener('change', e=>{ S.metron = e.target.checked; document.querySelectorAll('.metronChk').forEach(o=>o.checked=S.metron); }));
   document.querySelectorAll('.loopChk').forEach(c=>c.addEventListener('change', e=>{ S.loop = e.target.checked; document.querySelectorAll('.loopChk').forEach(o=>o.checked=S.loop); }));
   $('playDrums').addEventListener('click', ()=>play('drums'));
@@ -2215,7 +2237,7 @@
   $('delLead').addEventListener('click', ()=>{ if ($('savedLeads').value==='') return; const list=store.get('rueda.leads'); list.splice(+$('savedLeads').value,1); store.set('rueda.leads',list); renderSaved('savedLeads','rueda.leads'); });
 
   // ───────── Modos ─────────
-  const MODE_HINT = { guitarra:'Progresión de acordes para guitarra: escríbelos o fíjalos en el mástil, con sus compases; sale en MIDI.', letra:'Escribe la letra por secciones y anota al lado los acordes de guitarra, con sus compases.', beat:'Programa o carga el beat; este tempo y estos compases quedan para el resto.', bajod:'Sólo para tocar y programar una línea; sin sugerencias de acordes.', pad:'Rueda, teclado, MIDI y progresión completa.', piano:'La rueda sugiere pensando en piano: pocos dedos que se mueven, inversiones y las maneras de la Guía 2.', lead:'Dos manos: la izquierda hace el bajo o el acorde, la derecha la melodía; se programa o se graba desde el MPK.' };
+  const MODE_HINT = { guitarra:'Progresión de acordes para guitarra: escríbelos o fíjalos en el mástil, con sus compases; sale en MIDI.', letra:'Escribe la letra por secciones y anota al lado los acordes de guitarra, con sus compases.', beat:'Programa o carga el beat; este tempo y estos compases quedan para el resto.', bajod:'Sólo para tocar y programar una línea; sin sugerencias de acordes.', pad:'Rueda, teclado, MIDI y progresión completa.', piano:'La rueda sugiere pensando en piano: pocos dedos que se mueven, inversiones y las maneras de la Guía 2.', lead:'Dos manos: la izquierda hace el bajo o el acorde, la derecha la melodía; se programa o se graba desde el MPK.', mezcla:'Reproduce todas las pistas que has programado, juntas o por separado (silenciar/aislar cada una).' };
   function setMode(m) {
     if (typeof rec !== 'undefined' && rec) stopRec();
     S.mode = m; $('mode').value = m;
@@ -2475,6 +2497,7 @@
   // ───────── Panel de administración (sólo Rolando): changelog + bugs ─────────
   const CHANGELOG = [
     { fecha:'2026-09-07', items:[
+      'Mezcla: ahora tiene su propia pestaña «▶ Mezcla» (antes estaba escondida en Rueda/Piano). Lista las pistas programadas y las reproduce juntas o por separado (M silenciar / S aislar).',
       'Modo principiante: ahora arranca por la batería (pulso), con libertad total para copiar/combinar/cambiar (espíritu Rick Rubin); luego ánimo, estilo, acordes y el resto.',
       'Guía: nuevo «Modo principiante» para empezar de cero — elige ánimo y estilo, revelado paso a paso, y abre el taller ya preparado (ánimo/género/bpm por URL).',
       'Archivo: fuera de la portada y sólo para Schair y Rolando (el invitado ya no entra).',
@@ -2500,7 +2523,7 @@
     ] },
   ];
   const BUGS = [
-    { estado:'prueba',   txt:'Reproducir todo junto (mezcla) + silenciar/aislar por pista — confirmar el audio en vivo.' },
+    { estado:'prueba',   txt:'Mezcla (pestaña ▶ Mezcla): reproducir todo junto + silenciar/aislar — confirmar el audio en vivo.' },
     { estado:'prueba',   txt:'Sincronía entre pistas al reproducir todo — confirmar en vivo.' },
     { estado:'resuelto', txt:'Nota que quedaba «dando vueltas» al cambiar de acorde muy rápido en piano.' },
     { estado:'resuelto', txt:'«Piano lead» a veces no funcionaba (faltaba progresión).' },
@@ -3438,7 +3461,7 @@
 
   renderModosTabs(); buildKeyboard(); buildWheel(); fillSelects(); renderAll(); renderBassSeq(); renderSaved('savedLetras','rueda.letras'); llenarProgsDeLetra(); renderLetra(); renderSaved('savedGuit','rueda.guitar');
   // Instrumento de entrada: ?modo=beat|bajod|pad|piano|lead|letra|guitarra (lo usa la portada para entrar directo a un paso)
-  const MODOS = ['beat','bajod','pad','piano','lead','letra','guitarra'];
+  const MODOS = ['beat','bajod','pad','piano','lead','letra','guitarra','mezcla'];
   const PAR = new URLSearchParams(location.search);
   // Parámetros de entrada (los usa la ruta Principiante para dejar todo preparado):
   // ?genero= &autor= &animo= &bpm= &compases= &modo=
