@@ -851,6 +851,11 @@
             <span class="lbl">Largo del patrón</span>
             <div class="chips" id="drumLenChips"></div>
           </div>
+          <div class="field" style="flex:1 1 200px">
+            <span class="lbl">Cuantización · a qué rejilla caen los golpes (fíjala antes de tocar)</span>
+            <div class="chips" id="drumQuantChips"></div>
+            <button type="button" class="chip" id="drumQuantNow" style="margin-top:4px">Cuantizar lo que hay</button>
+          </div>
         </div>
         <div class="consejos-wrap" data-modes="beat">
           <div class="consejos-head" id="consejosHead" hidden><span class="lbl">Consejos según lo que llevas · se van sumando</span><button type="button" class="consejos-clear" id="consejosClear">limpiar todos</button></div>
@@ -1088,7 +1093,7 @@
   const S = { quien: QUIEN, notacion: notacionGuardada === 'en' || notacionGuardada === 'es' ? notacionGuardada : D.notacion, genre:D.genre, band:D.band, animo:'Sin definir', bpm:D.bpm, bpmFijado:false, bpmBloqueado:false, inst:'pad', root:5, qual:'M', key:{tonic:9, mode:'m'}, bars:4, defLen:1, loop:true, prog:[], cand:null, keysMode:'pad', hover:null, playing:-1, voicing:3, kbKeys:37,
     mode:'beat',
     mix: { mute:{drums:false,bass:false,chords:false,guitar:false,lead:false}, solo:{drums:false,bass:false,chords:false,guitar:false,lead:false} },
-    drums: { len:1, on:true, kit:D.kit, name:'', pat:{ kick:new Array(64).fill(0), snare:new Array(64).fill(0), hh:new Array(64).fill(0), oh:new Array(64).fill(0) } },
+    drums: { len:1, on:true, kit:D.kit, name:'', quant:1, pat:{ kick:new Array(64).fill(0), snare:new Array(64).fill(0), hh:new Array(64).fill(0), oh:new Array(64).fill(0) } },
     swing: 0,
     piano: { autoInv:true, manera:3, lh:'none' },
     letra: { titulo:'', secciones:[], concepto:'', tema:'', apuntes:'', libreta:'', ref:null },
@@ -1802,6 +1807,7 @@
     });
     $('drumBpm').textContent = S.bpm;
     consejoBeat();
+    renderQuantChips();
     const lc = $('drumLenChips'); lc.innerHTML='';
     [1,2,4].forEach(n=> lc.append(el('button',{class:'chip','aria-pressed':String(n===S.drums.len), onclick:()=>{ if (n>S.drums.len) ROWS.forEach(([id])=>{ const old=S.drums.len*16; for (let s=old;s<n*16;s++) S.drums.pat[id][s]=S.drums.pat[id][s%old]; }); S.drums.len=n; renderSeq(); }}, n===1?'1 compás':n+' compases')));
     const dn = $('drumsNow'); if (dn) dn.textContent = S.drums.name || 'patrón propio';
@@ -2014,6 +2020,7 @@
   $('drumKit').addEventListener('change', e=>{ S.drums.kit = e.target.value; });
   $('clearDrums').addEventListener('click', ()=>{ snapBeat(); loadPreset('Vacío'); });
   if ($('consejosClear')) $('consejosClear').addEventListener('click', ()=>consejeroBeat.clear());
+  if ($('drumQuantNow')) $('drumQuantNow').addEventListener('click', cuantizarBeat);
   if ($('consejosBajoClear')) $('consejosBajoClear').addEventListener('click', ()=>consejeroBajo.clear());
   function agruparPresets() {
     const sel = $('drumPreset'); const prev = sel.value; sel.innerHTML = '';
@@ -2132,8 +2139,25 @@
     renderAll();
   }
   function recPad(id) {
-    const now = ctx.currentTime, six = 60/S.bpm/4, steps = S.drums.len*16;
-    const step = Math.round((now - rec.t0)/six) % steps; S.drums.pat[id][step] = 1; renderSeq();
+    const now = ctx.currentTime, six = 60/S.bpm/4, steps = S.drums.len*16, q = S.drums.quant || 1;
+    let raw = Math.round((now - rec.t0)/six);
+    raw = Math.round(raw / q) * q;                 // cuantiza a 1/4, 1/8 o 1/16 según lo elegido
+    const step = ((raw % steps) + steps) % steps;
+    S.drums.pat[id][step] = 1; renderSeq();
+  }
+  // Cuantiza a dedo lo que ya está puesto: cada golpe salta a la casilla más cercana de la rejilla elegida
+  function cuantizarBeat() {
+    const q = S.drums.quant || 1; if (q <= 1) { renderSeq(); return; }
+    const steps = S.drums.len*16; snapBeat();
+    ROWS.forEach(([rid])=>{ const src = S.drums.pat[rid]; const out = new Array(64).fill(0);
+      for (let s=0;s<steps;s++) if (src[s]) { const t = (Math.round(s/q)*q) % steps; out[t] = 1; }
+      for (let s=0;s<64;s++) S.drums.pat[rid][s] = out[s] || (s>=steps ? src[s] : 0);
+    });
+    renderSeq();
+  }
+  function renderQuantChips() {
+    const box = $('drumQuantChips'); if (!box) return; box.innerHTML='';
+    [[4,'1/4'],[2,'1/8'],[1,'1/16']].forEach(([v,t])=> box.append(el('button',{class:'chip','aria-pressed':String((S.drums.quant||1)===v), title:'los golpes caen en '+t, onclick:()=>{ S.drums.quant=v; renderQuantChips(); }}, t)));
   }
   function onMidi(e) {
     const [st, note, vel] = e.data; const cmd = st & 0xf0, chan = st & 0x0f;
@@ -2585,6 +2609,7 @@
   // ───────── Panel de administración (sólo Rolando): changelog + bugs ─────────
   const CHANGELOG = [
     { fecha:'2026-09-07', items:[
+      'Batería: cuantización tipo Donner D1 — eliges la rejilla (1/4, 1/8, 1/16) antes de tocar y los golpes (pad del MPK) caen ahí; botón «Cuantizar lo que hay» para ajustar lo ya puesto.',
       'MPK: candado «🔒 fijar el tempo» para que el knob (K1/CC70) deje de descontrolar el BPM; se activa solo al grabar pads. Los pads siguen cayendo en el cuadro con el tempo fijo.',
       'BPM estable: un solo tempo de proyecto, igual en todas las secciones; una vez definido no se descontrola al cambiar de estilo o mezclar pistas.',
       'Consejos: ahora traen un ejemplo concreto anclado a las casillas del cuadro (Ej.: bombo en el 1 y el 3; caja en 2·4…).',
