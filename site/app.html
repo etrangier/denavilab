@@ -1286,7 +1286,7 @@
   const presetsMios = () => Object.keys(PRESETS).filter(k => { const q = PRESET_PARA[k]; return !q || q === 'ambos' || q === S.quien; });
 
   function loadPreset(name) {
-    const p = PRESETS[name]; const len = S.drums.len;
+    const p = PRESETS[name]; if (!p) return; const len = S.drums.len;
     ROWS.forEach(([id])=>{ const arr = new Array(64).fill(0); for (let b=0;b<len;b++) p[id].forEach(s=>arr[b*16+s]=1); S.drums.pat[id]=arr; });
     S.drums.name = name; renderSeq();
   }
@@ -1335,10 +1335,10 @@
     [1,2,4].forEach(n=> lc.append(el('button',{class:'chip','aria-pressed':String(n===S.drums.len), onclick:()=>{ if (n>S.drums.len) ROWS.forEach(([id])=>{ const old=S.drums.len*16; for (let s=old;s<n*16;s++) S.drums.pat[id][s]=S.drums.pat[id][s%old]; }); S.drums.len=n; renderSeq(); }}, n===1?'1 compás':n+' compases')));
     const dn = $('drumsNow'); if (dn) dn.textContent = S.drums.name || 'patrón propio';
   }
-  function scheduleDrums(t0, totalBars, beat) {
+  function scheduleDrums(t0, totalBars, beat, desde=0) {
     const steps = S.drums.len*16, sixteenth = beat/4;
     for (let b=0;b<totalBars;b++) for (let s=0;s<16;s++) {
-      const idx = ((b % S.drums.len)*16 + s) % steps;
+      const idx = (((desde + b) % S.drums.len)*16 + s) % steps;
       ROWS.forEach(([id])=>{ if (S.drums.pat[id][idx]) DRUM[id](t0 + b*beat*4 + s*sixteenth + swingOff(s,sixteenth)); });
     }
   }
@@ -1435,14 +1435,22 @@
         }
       }
       if (mode === 'lead') { scheduleLead(t0, totalBars, beat); leadPlayhead(t0, beat, totalBars); if ($('leadBass').checked && hasBassD()) scheduleBassSeq(t0, totalBars, beat); }
-      if (withDrums) { scheduleDrums(t0, totalBars, beat); drumPlayhead(t0, beat, totalBars); }
+      if (withDrums && mode !== 'drums') { scheduleDrums(t0, totalBars, beat); drumPlayhead(t0, beat, totalBars); }
+      if (mode === 'drums') {
+        // compás a compás, releyendo la rejilla: lo que edites entra en la vuelta siguiente
+        drumPlayhead(t0, beat, totalBars);
+        for (let b=0; b<totalBars && !stopFlag; b++) {
+          scheduleDrums(t0 + b*barDur, 1, beat, b);
+          const falta = (t0 + (b+1)*barDur - 0.08 - ctx.currentTime)*1000; if (falta > 0) await wait(falta);
+        }
+      }
       if (withChords) {
         for (let i=0;i<seq.length;i++) {
           if (stopFlag) break;
           S.playing=i; renderBars(); renderReadout();
           await wait((seq[i]?seq[i].len:1)*barDur*1000);
         }
-      } else if (mode !== 'bass') {
+      } else if (mode !== 'bass' && mode !== 'drums') {
         await wait(totalBars*barDur*1000);
       }
       t0 += totalBars*barDur;
