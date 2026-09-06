@@ -519,7 +519,6 @@
       </div>
       <div class="field" data-modes="pad piano" data-solo="rolando">
         <span class="lbl">Atajo</span>
-        <button class="ghost" id="preset26">Mi base «26 ag impro» · 77 BPM · Am F C G</button>
       </div>
       <div class="field" id="campoExportar">
         <span class="lbl">Exportar</span>
@@ -847,7 +846,7 @@
         </div>
         <div class="saved">
           <span class="lbl">Líneas de bajo guardadas</span>
-          <div class="row"><input type="text" id="bassName" placeholder="nombre, ej. bajo 26 ag"><button class="ghost" id="saveBass" style="flex:0 0 auto">Guardar</button></div>
+          <div class="row"><input type="text" id="bassName" placeholder="nombre, ej. bajo del verso"><button class="ghost" id="saveBass" style="flex:0 0 auto">Guardar</button></div>
           <div class="row"><select id="savedBass"></select><button class="ghost" id="delBass" style="flex:0 0 auto">Borrar</button></div>
         </div>
       </div>
@@ -1846,11 +1845,11 @@
 
   const ROWS = [['kick','Bombo'],['snare','Caja'],['hh','Hi-hat'],['oh','Hi-hat abierto']];
   const PRESETS = {
-    'Mi base «26 ag impro» (trip hop)': { kick:[0,1,3], snare:[4,12], hh:[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15], oh:[] },
     // ── Trip hop ──
     'Portishead · lento y con aire': { kick:[0,7,10], snare:[4,12], hh:[0,2,4,6,8,10,12,14], oh:[14] },
     'Portishead · vinilo entrecortado': { kick:[0,10], snare:[4,12], hh:[0,3,6,8,11,14], oh:[7] },
     'Massive Attack · break pesado': { kick:[0,3,6,10], snare:[4,12,15], hh:[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15], oh:[] },
+    'Massive Attack · loop hipnótico': { kick:[0,1,3], snare:[4,12], hh:[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15], oh:[] },
     'Massive Attack · dub espacioso': { kick:[0,10], snare:[4,12], hh:[0,4,8,12], oh:[6,14] },
     // ── Synth pop ──
     'Pet Shop Boys · four on the floor': { kick:[0,4,8,12], snare:[4,12], hh:[2,6,10,14], oh:[] },
@@ -2258,12 +2257,6 @@
   $('drumPreset').addEventListener('change', e=>{ snapBeat(); loadPreset(e.target.value); sugerirDesdeBeat(e.target.value); });
   $('drumPreset').value = 'Vacío'; loadPreset('Vacío');   // se empieza con el patrón en blanco
   $('copy').addEventListener('click', async ()=>{ try { await navigator.clipboard.writeText($('summary').textContent); $('copy').textContent='Copiado'; setTimeout(()=>$('copy').textContent='Copiar',1200); } catch(e) { $('copy').textContent='No se pudo copiar'; } });
-  $('preset26').addEventListener('click', ()=>{
-    S.genre='Trip hop'; S.band='Portishead'; $('genre').value=S.genre; fillBands();
-    setBpm(77); if (S.mode!=='pad' && S.mode!=='piano') setMode('pad');
-    S.root=9; S.qual='m'; $('root').value=9; $('qual').value='m'; S.key={tonic:9,mode:'m'}; S.bars=4;
-    S.cand=null; S.defLen=1; S.prog=[{pc:9,q:'m',len:1},{pc:5,q:'M',len:1},{pc:0,q:'M',len:1},{pc:7,q:'M',len:1}]; $('drumPreset').value=Object.keys(PRESETS)[0]; loadPreset(Object.keys(PRESETS)[0]); renderAll();
-  });
 
   // ───────── Entrada MIDI (Web MIDI API) ─────────
   const held = new Set();          // notas MIDI pisadas ahora
@@ -2852,6 +2845,7 @@
   // ───────── Panel de administración (sólo Rolando): changelog + bugs ─────────
   const CHANGELOG = [
     { fecha:'2026-09-07', items:[
+      'Beats: la «Mi base 26 ag impro» se renombró a «Massive Attack · loop hipnótico» y quedó bajo Massive Attack (trip hop); se quitó su botón de acceso rápido.',
       'Pad y Piano ahora son pistas INDEPENDIENTES: cada uno con su propia progresión (los acordes del Pad ya no aparecen en el Piano). Se tocan juntos o por separado y se silencian/aíslan como pistas distintas en el mezclador.',
       'Nuevo autor: Fuji Kaze (J-pop melancólico y con soul) en Bedroom pop, con la vuelta IV–V–iii–vi.',
       'Bajo digital: quitado también del menú desplegable de modo (ya no se puede entrar); setMode redirige a batería por si acaso.',
