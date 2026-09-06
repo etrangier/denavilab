@@ -156,6 +156,15 @@
   @keyframes consejoIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
   .consejo-ej { display: block; margin-top: 4px; font-size: 11.5px; color: var(--muted); }
   .consejo-ej b { color: var(--text); font-weight: 600; }
+  .panel.drums.d1-on .solo-clasico { display: none !important; }
+  .panel.drums:not(.d1-on) .solo-d1 { display: none !important; }
+  .donner-banner { margin: 8px 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+  .donner-banner.detectada { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .donner-banner label { cursor: pointer; }
+  .donner-detect { color: var(--accent); font-weight: 600; }
+  .donner-wrap { display: grid; gap: 8px; margin-top: 4px; }
+  #donnerSeq.d1-seq .rl { font-size: 10.5px; white-space: nowrap; }
+  #donnerSeq.d1-seq .rl.d1-bank { border-top: 2px solid var(--key-line); margin-top: 3px; padding-top: 5px; color: var(--accent); }
   .tipbox b { color: var(--ok); font-weight: 600; }
   .help { margin: 8px 6px 0; color: var(--muted); font-size: 12.5px; }
   .help summary { cursor: pointer; color: var(--text); font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
@@ -843,25 +852,37 @@
               <option value="linn">LinnDrum · seca y punchy</option>
             </select>
           </div>
-          <div class="field" style="flex:2 1 220px">
+          <div class="field solo-clasico" style="flex:2 1 220px">
             <span class="lbl">Patrón base</span>
             <select id="drumPreset"></select>
           </div>
-          <div class="field" style="flex:1 1 140px">
+          <div class="field solo-clasico" style="flex:1 1 140px">
             <span class="lbl">Largo del patrón</span>
             <div class="chips" id="drumLenChips"></div>
           </div>
-          <div class="field" style="flex:1 1 200px">
+          <div class="field solo-clasico" style="flex:1 1 200px">
             <span class="lbl">Cuantización · a qué rejilla caen los golpes (fíjala antes de tocar)</span>
             <div class="chips" id="drumQuantChips"></div>
             <button type="button" class="chip" id="drumQuantNow" style="margin-top:4px">Cuantizar lo que hay</button>
           </div>
         </div>
-        <div class="consejos-wrap" data-modes="beat">
+        <div class="donner-banner" id="donnerBanner">
+          <label class="hint"><input type="checkbox" id="donnerToggle"> Cuadro <b>Donner D1</b> — 12 canales y páginas, para armar el beat como en la máquina</label>
+          <span class="hint donner-detect" id="donnerDetect" hidden>· D1 conectada por MIDI</span>
+        </div>
+        <div class="consejos-wrap solo-clasico" data-modes="beat">
           <div class="consejos-head" id="consejosHead" hidden><span class="lbl">Consejos según lo que llevas · se van sumando</span><button type="button" class="consejos-clear" id="consejosClear">limpiar todos</button></div>
           <div class="consejos" id="beatConsejo"></div>
         </div>
-        <div class="seq-scroll"><div class="seq" id="seq"></div></div>
+        <div class="seq-scroll solo-clasico"><div class="seq" id="seq"></div></div>
+        <div class="donner-wrap solo-d1" id="donnerWrap">
+          <div class="row" style="flex-wrap:wrap; gap:14px">
+            <div class="field" style="flex:1 1 160px"><span class="lbl">Largo · hasta 4 compases (64 pasos)</span><div class="chips" id="donnerLen"></div></div>
+            <div class="field" style="flex:1 1 200px"><span class="lbl">Página · 16 pasos cada una</span><div class="chips" id="donnerPages"></div></div>
+          </div>
+          <div class="seq-scroll"><div class="seq d1-seq" id="donnerSeq"></div></div>
+          <span class="hint">12 canales en 3 bancos, como la D1 — <b>A</b>: BD·SD·LT·HC · <b>B</b>: CH·OH·HT·CR · <b>C</b>: SMP1–4. Clic en una casilla para poner o quitar. «▶ Sólo batería» reproduce este cuadro.</span>
+        </div>
         <div class="actions">
           <button class="primary" id="playDrums">▶ Sólo batería</button>
           <button class="ghost" id="midiBtnBeat">Conectar el MPK por MIDI</button>
@@ -1477,7 +1498,7 @@
     [[3,'3 teclas',' do mi sol'],[4,'4 teclas',' do mi sol si']].forEach(([n,t,ex])=> vc.append(el('button',{class:'chip','aria-pressed':String(n===S.voicing), onclick:()=>{ S.voicing=n; renderAll(); }}, t, el('small',{},ex))));
   }
   const MIX_TRACKS = [ ['chords','Acordes'], ['drums','Batería'], ['bass','Bajo digital'], ['guitar','Guitarra'], ['lead','Piano lead'] ];
-  const mixTieneContenido = tr => { try { return tr==='chords' ? (S.prog.length>0||!!S.cand) : tr==='drums' ? hasDrums() : tr==='bass' ? hasBassD() : tr==='guitar' ? S.guitar.prog.length>0 : tr==='lead' ? hasLead() : false; } catch(e){ return false; } };
+  const mixTieneContenido = tr => { try { return tr==='chords' ? (S.prog.length>0||!!S.cand) : tr==='drums' ? (S.donner.on ? donnerHay() : hasDrums()) : tr==='bass' ? hasBassD() : tr==='guitar' ? S.guitar.prog.length>0 : tr==='lead' ? hasLead() : false; } catch(e){ return false; } };
   function renderMixer() {
     const activos = MIX_TRACKS.filter(([tr])=>mixTieneContenido(tr));
     // caja embebida en pad/piano: sólo con 2+ pistas
@@ -1668,6 +1689,66 @@
     },
   };
   const DRUM = { kick: t=>KITS[S.drums.kit].kick(t), snare: t=>KITS[S.drums.kit].snare(t), hh: t=>KITS[S.drums.kit].hh(t), oh: t=>KITS[S.drums.kit].oh(t) };
+
+  // ───────── Donner Essential D1 · cuadro simulado (12 canales, páginas de 16 pasos) ─────────
+  const DONNER_CH = [
+    ['BD','Bombo (BD)','A'], ['SD','Caja (SD)','A'], ['LT','Tom bajo (LT)','A'], ['HC','Palmas (HC)','A'],
+    ['CH','Hi-hat (CH)','B'], ['OH','Hi-hat abierto (OH)','B'], ['HT','Tom alto (HT)','B'], ['CR','Crash (CR)','B'],
+    ['S1','Rimshot (SMP1)','C'], ['S2','Cencerro (SMP2)','C'], ['S3','Conga (SMP3)','C'], ['S4','Shaker (SMP4)','C'],
+  ];
+  const donnerGridVacio = () => { const g={}; DONNER_CH.forEach(([k])=>g[k]=new Array(64).fill(0)); return g; };
+  S.donner = { on:false, len:1, page:0, detectada:false, grid: donnerGridVacio() };
+  const donnerHay = () => DONNER_CH.some(([k])=>S.donner.grid[k].some(Boolean));
+  function donnerVoice(key, t) {
+    ensureAudio(); const kit = KITS[S.drums.kit] || KITS.cr78;
+    const tom = (f0,f1,dur,gv=0.7) => { const o=ctx.createOscillator(), g=ctx.createGain(); o.type='sine'; o.frequency.setValueAtTime(f0,t); o.frequency.exponentialRampToValueAtTime(f1,t+dur*0.9); g.gain.setValueAtTime(gv,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur); o.connect(g); g.connect(master); o.start(t); o.stop(t+dur+0.05); };
+    switch (key) {
+      case 'BD': return kit.kick(t);
+      case 'SD': return kit.snare(t);
+      case 'CH': return kit.hh(t);
+      case 'OH': return kit.oh(t);
+      case 'LT': return tom(150,70,0.35);
+      case 'HT': return tom(260,150,0.28);
+      case 'HC': { for (let i=0;i<3;i++) noise(t+i*0.009,0.05,'bandpass',1500,0.4,0.04); noise(t,0.12,'bandpass',1100,0.22,0.09); return; }
+      case 'CR': { noise(t,1.1,'highpass',5000,0.26,1.0); noise(t,1.1,'highpass',8500,0.16,0.9); return; }
+      case 'S1': { const o=ctx.createOscillator(), g=ctx.createGain(); o.type='triangle'; o.frequency.value=380; g.gain.setValueAtTime(0.5,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.06); o.connect(g); g.connect(master); o.start(t); o.stop(t+0.08); noise(t,0.05,'highpass',3200,0.28,0.045); return; }
+      case 'S2': { [560,835].forEach(f=>{ const o=ctx.createOscillator(), g=ctx.createGain(); o.type='square'; o.frequency.value=f; g.gain.setValueAtTime(0.16,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.25); o.connect(g); g.connect(master); o.start(t); o.stop(t+0.3); }); return; }
+      case 'S3': return tom(210,130,0.3,0.5);
+      case 'S4': return noise(t,0.08,'highpass',6500,0.2,0.06);
+    }
+  }
+  function scheduleDonner(t0, totalBars, beat, desde=0) {
+    const g = S.donner; const six = beat/4;
+    for (let b=0;b<totalBars;b++) { const page=(desde+b)%Math.max(1,g.len);
+      for (let s=0;s<16;s++) { const idx=page*16+s; const tt=t0+b*beat*4+s*six+swingOff(s,six);
+        DONNER_CH.forEach(([k])=>{ if (g.grid[k][idx]) donnerVoice(k, tt); }); } }
+  }
+  function renderDonner() {
+    const box = $('donnerSeq'); if (!box) return; const g = S.donner;
+    box.style.setProperty('--steps', 16); box.innerHTML='';
+    box.append(el('div',{class:'rl'},''));
+    for (let s=0;s<16;s++) box.append(el('div',{class:'hd'+(s%4===0?' beat':'')}, s%4===0?String(s/4+1):'·'));
+    let bankAnt=null;
+    DONNER_CH.forEach(([k,label,bank])=>{
+      box.append(el('div',{class:'rl'+(bank!==bankAnt?' d1-bank':'')}, label)); bankAnt=bank;
+      for (let s=0;s<16;s++){ const idx=g.page*16+s; const on=g.grid[k][idx];
+        const b=el('button',{class:'st'+(s%4===0?' beat':'')+(on?' on':''),'data-k':k,'data-s':idx,'aria-pressed':String(!!on),
+          onclick:()=>{ g.grid[k][idx]=g.grid[k][idx]?0:1; b.classList.toggle('on'); if (g.grid[k][idx]){ ensureAudio(); unlockAudio(); donnerVoice(k, ctx.currentTime+0.02);} b.setAttribute('aria-pressed',String(!!g.grid[k][idx])); }});
+        box.append(b);
+      }
+    });
+    // controles: páginas (según largo) y largo
+    const pg=$('donnerPages'); if (pg){ pg.innerHTML=''; for (let i=0;i<g.len;i++) pg.append(el('button',{class:'chip','aria-pressed':String(i===g.page), onclick:()=>{ g.page=i; renderDonner(); }}, 'pág '+(i+1))); }
+    const lc=$('donnerLen'); if (lc){ lc.innerHTML=''; [1,2,4].forEach(n=> lc.append(el('button',{class:'chip','aria-pressed':String(n===g.len), onclick:()=>{ g.len=n; if (g.page>=n) g.page=0; renderDonner(); }}, n===1?'1 compás':n+' compases'))); }
+  }
+  function toggleDonner(on) {
+    S.donner.on = on;
+    const panel = document.querySelector('.panel.drums'); if (panel) panel.classList.toggle('d1-on', on);
+    const chk=$('donnerToggle'); if (chk) chk.checked = on;
+    if (on) renderDonner();
+    if (typeof renderMixer==='function') renderMixer();
+  }
+
   const ROWS = [['kick','Bombo'],['snare','Caja'],['hh','Hi-hat'],['oh','Hi-hat abierto']];
   const PRESETS = {
     'Mi base «26 ag impro» (trip hop)': { kick:[0,1,3], snare:[4,12], hh:[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15], oh:[] },
@@ -1811,6 +1892,7 @@
     const lc = $('drumLenChips'); lc.innerHTML='';
     [1,2,4].forEach(n=> lc.append(el('button',{class:'chip','aria-pressed':String(n===S.drums.len), onclick:()=>{ if (n>S.drums.len) ROWS.forEach(([id])=>{ const old=S.drums.len*16; for (let s=old;s<n*16;s++) S.drums.pat[id][s]=S.drums.pat[id][s%old]; }); S.drums.len=n; renderSeq(); }}, n===1?'1 compás':n+' compases')));
     const dn = $('drumsNow'); if (dn) dn.textContent = S.drums.name || 'patrón propio';
+    if (S.donner.on && typeof renderDonner==='function') renderDonner();
     if (typeof renderMixer==='function') renderMixer();
   }
   function scheduleDrums(t0, totalBars, beat, desde=0) {
@@ -1931,12 +2013,12 @@
         t0 = tb - totalBars*barDur;   // el t0 += totalBars*barDur de abajo lo deja en el tiempo real acumulado
       }
       if (mode === 'lead') { scheduleLead(t0, totalBars, beat); leadPlayhead(t0, beat, totalBars); if ($('leadBass').checked && hasBassD()) scheduleBassSeq(t0, totalBars, beat); }
-      if (withDrums && mode !== 'drums') { scheduleDrums(t0, totalBars, beat); drumPlayhead(t0, beat, totalBars); }
+      if (withDrums && mode !== 'drums') { if (S.donner.on) scheduleDonner(t0, totalBars, beat); else { scheduleDrums(t0, totalBars, beat); drumPlayhead(t0, beat, totalBars); } }
       if (mode === 'drums') {
         // compás a compás, releyendo la rejilla: lo que edites entra en la vuelta siguiente
-        drumPlayhead(t0, beat, totalBars);
+        if (!S.donner.on) drumPlayhead(t0, beat, totalBars);
         for (let b=0; b<totalBars && !stopFlag; b++) {
-          scheduleDrums(t0 + b*barDur, 1, beat, b);
+          (S.donner.on ? scheduleDonner : scheduleDrums)(t0 + b*barDur, 1, beat, b);
           const falta = (t0 + (b+1)*barDur - 0.08 - ctx.currentTime)*1000; if (falta > 0) await wait(falta);
         }
       }
@@ -2018,7 +2100,7 @@
   $('drumsOn2').addEventListener('change', e=>{ S.drums.on = e.target.checked; $('drumsOn').checked = e.target.checked; });
   $('drumKit').value = S.drums.kit;
   $('drumKit').addEventListener('change', e=>{ S.drums.kit = e.target.value; });
-  $('clearDrums').addEventListener('click', ()=>{ snapBeat(); loadPreset('Vacío'); });
+  $('clearDrums').addEventListener('click', ()=>{ if (S.donner.on) { DONNER_CH.forEach(([k])=>S.donner.grid[k].fill(0)); renderDonner(); return; } snapBeat(); loadPreset('Vacío'); });
   if ($('consejosClear')) $('consejosClear').addEventListener('click', ()=>consejeroBeat.clear());
   if ($('drumQuantNow')) $('drumQuantNow').addEventListener('click', cuantizarBeat);
   if ($('consejosBajoClear')) $('consejosBajoClear').addEventListener('click', ()=>consejeroBajo.clear());
@@ -2201,7 +2283,10 @@
     ins.forEach(i=>sel.append(el('option',{value:i.id}, i.name)));
     if (!ins.length) { sel.hidden = true; midiStatus('No veo ningún teclado MIDI. Conecta el MPK por USB y espera un segundo; se detecta solo.'); return; }
     sel.hidden = false; $('midiAddWrap').hidden = false;
-    const pref = ins.find(i=>/mpk|akai/i.test(i.name)) || ins[0];
+    const d1 = ins.find(i=>/donner|essential|(^|[^a-z])d1([^a-z]|$)/i.test(i.name));
+    if ($('donnerDetect')) $('donnerDetect').hidden = !d1;
+    if ($('donnerBanner')) $('donnerBanner').classList.toggle('detectada', !!d1);
+    const pref = ins.find(i=>/mpk|akai/i.test(i.name)) || d1 || ins[0];
     sel.value = pref.id; pickInput(pref.id);
   }
   async function connectMidi() {
@@ -2219,6 +2304,7 @@
   $('midiBtn').addEventListener('click', connectMidi);
   $('midiBtnBeat').addEventListener('click', connectMidi);
   $('recBtn').addEventListener('click', ()=>{ if (rec) stopRec(); else startRec(); });
+  if ($('donnerToggle')) $('donnerToggle').addEventListener('change', e=>toggleDonner(e.target.checked));
   $('recTocarBass').addEventListener('click', startRecTocarBajo);
   renderKnobs();
   $('recBtnBeat').addEventListener('click', ()=>{ if (!midiAccess) { $('midiStatusBeat').textContent = 'Primero pulsa «Conectar el MPK por MIDI» aquí arriba.'; return; } if (rec) { stopRec(); $('recBtnBeat').textContent='● Grabar pads del MPK'; } else { startRec(); $('recBtnBeat').textContent='■ Parar'; } });
@@ -2609,6 +2695,7 @@
   // ───────── Panel de administración (sólo Rolando): changelog + bugs ─────────
   const CHANGELOG = [
     { fecha:'2026-09-07', items:[
+      'Batería: cuadro simulado de la Donner D1 (12 canales en 3 bancos, páginas de 16 pasos hasta 64, voces sintetizadas) que se activa con un toggle y se resalta si se conecta una D1 por MIDI; «Sólo batería» lo reproduce.',
       'Batería: cuantización tipo Donner D1 — eliges la rejilla (1/4, 1/8, 1/16) antes de tocar y los golpes (pad del MPK) caen ahí; botón «Cuantizar lo que hay» para ajustar lo ya puesto.',
       'MPK: candado «🔒 fijar el tempo» para que el knob (K1/CC70) deje de descontrolar el BPM; se activa solo al grabar pads. Los pads siguen cayendo en el cuadro con el tempo fijo.',
       'BPM estable: un solo tempo de proyecto, igual en todas las secciones; una vez definido no se descontrola al cambiar de estilo o mezclar pistas.',
