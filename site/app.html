@@ -374,11 +374,15 @@
   .sug .bar i { display: block; height: 100%; background: var(--accent); }
   .sug .tag { font-family: var(--mono); font-size: 10px; color: var(--muted); }
   .bars { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
-  .bar-box { min-height: 74px; border: 1px dashed var(--line); border-radius: 6px; display: grid; grid-template-rows: auto 1fr auto auto; place-items: center; gap: 2px; padding: 4px; text-align: center; }
+  .bar-box { min-height: 92px; border: 1px dashed var(--line); border-radius: 6px; display: grid; grid-template-rows: auto 1fr auto auto auto; place-items: center; gap: 2px; padding: 4px; text-align: center; }
   .bar-box .n { font-family: var(--mono); font-size: 9.5px; color: var(--muted); justify-self: start; }
   .bar-box .len { display: flex; gap: 3px; }
   .tiny { font: inherit; font-size: 11px; line-height: 1; width: 20px; height: 18px; border-radius: 4px; border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; padding: 0; }
   .tiny:hover { border-color: var(--accent); }
+  .tiny:disabled { opacity: .3; cursor: default; border-color: var(--line); }
+  .tiny.danger:hover { border-color: var(--err); color: var(--err); }
+  .bar-acc { display: flex; gap: 3px; }
+  .bar-acc .tiny { width: 18px; height: 16px; font-size: 11px; }
   .bar-box.playing .tiny { background: rgba(0,0,0,.15); color: inherit; border-color: transparent; }
   .bar-box .c { font-family: var(--display); font-weight: 700; font-size: 17px; line-height: 1; }
   .bar-box .v { font-family: var(--mono); font-size: 9.5px; color: var(--muted); align-self: end; }
@@ -1449,6 +1453,10 @@
     if (nl < 0.5 || delta > 0 && remaining() < delta) return;
     c.len = nl; renderAll();
   }
+  // Acciones por acorde en la progresión: borrar, copiar (duplicar) y mover ‹ ›
+  function borrarAcorde(i) { if (i<0 || i>=S.prog.length) return; S.prog.splice(i,1); if (S.playing>=S.prog.length) S.playing=-1; S.cand=null; renderAll(); }
+  function copiarAcorde(i) { const c=S.prog[i]; if (!c) return; const r=remaining(); if (r<=0) { $('summary').textContent='No cabe la copia: ya usaste los '+S.bars+' compases. Sube los compases o acorta un acorde.'; return; } S.prog.splice(i+1,0,{pc:c.pc,q:c.q,len:Math.min(c.len,r)}); renderAll(); }
+  function moverAcorde(i, dir) { const j=i+dir; if (j<0 || j>=S.prog.length) return; const t=S.prog[i]; S.prog[i]=S.prog[j]; S.prog[j]=t; if (S.playing===i) S.playing=j; else if (S.playing===j) S.playing=i; renderAll(); }
   function renderBars() {
     const box = $('bars'); box.innerHTML='';
     let pos = 0;
@@ -1461,7 +1469,12 @@
         el('span',{class:'v'}, notesText(c.pc,c.q)),
         el('span',{class:'len'},
           el('button',{class:'tiny', title:'Medio compás menos', onclick:()=>setLen(i,-0.5)}, '−'),
-          el('button',{class:'tiny', title:'Medio compás más', onclick:()=>setLen(i,0.5)}, '+')));
+          el('button',{class:'tiny', title:'Medio compás más', onclick:()=>setLen(i,0.5)}, '+')),
+        el('span',{class:'bar-acc'},
+          el('button',{class:'tiny', title:'mover a la izquierda', ...(i===0?{disabled:''}:{}), onclick:()=>moverAcorde(i,-1)}, '‹'),
+          el('button',{class:'tiny', title:'copiar (duplicar)', onclick:()=>copiarAcorde(i)}, '⧉'),
+          el('button',{class:'tiny danger', title:'borrar este acorde', onclick:()=>borrarAcorde(i)}, '✕'),
+          el('button',{class:'tiny', title:'mover a la derecha', ...(i===S.prog.length-1?{disabled:''}:{}), onclick:()=>moverAcorde(i,1)}, '›')));
       box.append(d);
     });
     let r = remaining();
@@ -2702,6 +2715,7 @@
   // ───────── Panel de administración (sólo Rolando): changelog + bugs ─────────
   const CHANGELOG = [
     { fecha:'2026-09-07', items:[
+      'Progresión (pad y piano): cada acorde guardado tiene ahora botones para borrar (✕), copiar/duplicar (⧉) y mover ‹ ›.',
       'Pad: el «Classic Analog Pad» ahora suena más suave (menos agudo). Nuevo instrumento «Voces · coro» que evoca el pad de voces de «Enjoy the Silence».',
       'Batería: cuadro simulado de la Donner D1 (12 canales en 3 bancos, páginas de 16 pasos hasta 64, voces sintetizadas) que se activa con un toggle y se resalta si se conecta una D1 por MIDI; «Sólo batería» lo reproduce.',
       'Batería: cuantización tipo Donner D1 — eliges la rejilla (1/4, 1/8, 1/16) antes de tocar y los golpes (pad del MPK) caen ahí; botón «Cuantizar lo que hay» para ajustar lo ya puesto.',
