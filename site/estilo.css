@@ -139,6 +139,8 @@ dialog .error { color: var(--err); font-size: 13px; min-height: 1.2em; margin: -
 }
 
 /* ── Rutas personalizadas: sólo se ve la del que entró ── */
+.continuar { margin-top: 22px; display: flex; }
+.continuar .btn { flex: 0 0 auto; }
 [data-para] { display: none; }
 html[data-quien="schair"]  [data-para~="schair"],
 html[data-quien="rolando"] [data-para~="rolando"] { display: block; }
