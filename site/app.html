@@ -399,6 +399,12 @@
   .bar-box.filled .bar-manera { color: inherit; }
   .sug-ritmo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
   .sug-ritmo .hint { flex: 1 1 200px; margin: 0; }
+  .cerebro { margin-top: 10px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: var(--surface-2); }
+  .cerebro > summary { cursor: pointer; font-weight: 600; font-size: 12.5px; }
+  .cerebro-body { padding-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+  .cerebro-pats { display: flex; flex-wrap: wrap; gap: 6px; }
+  .cerebro-acc { display: flex; flex-wrap: wrap; gap: 6px; }
+  #generar { border-color: var(--accent); color: var(--accent); }
   .bar-box.next { border-color: var(--accent); }
   .bar-box.cand-box { border: 1px dashed var(--accent); background: var(--accent-soft); }
   .bar-box.playing { background: var(--accent); color: var(--accent-ink); }
@@ -966,6 +972,21 @@
           <div class="row"><input type="text" id="progName" placeholder="nombre, ej. intro trip hop"><button class="ghost" id="saveProg" style="flex:0 0 auto">Guardar</button></div>
           <div class="row"><select id="savedProgs"></select><button class="ghost" id="delProg" style="flex:0 0 auto">Borrar</button></div>
         </div>
+        <details class="cerebro" id="cerebroBox">
+          <summary>🧠 Cerebro · aprende de ti y genera</summary>
+          <div class="cerebro-body">
+            <p class="hint" id="cerebroStat"></p>
+            <span class="lbl">Patrones que repites (en esta tonalidad)</span>
+            <div class="cerebro-pats" id="cerebroPats"></div>
+            <div class="row cerebro-acc">
+              <button class="ghost" id="expCerebro" type="button">Exportar cerebro</button>
+              <button class="ghost" id="impCerebroBtn" type="button">Importar / fusionar</button>
+              <input type="file" id="impCerebro" accept=".json" hidden>
+              <button class="ghost danger" id="olvidarCerebro" type="button">Reiniciar</button>
+            </div>
+            <p class="hint" id="cerebroInfo">El cerebro vive en este navegador; evoluciona con lo que guardas y olvida poco a poco lo viejo. Exporta para fusionarlo con el de Schair.</p>
+          </div>
+        </details>
         <div class="mezcla" id="mezcla" hidden>
           <span class="lbl">Mezcla · qué suena al pulsar Reproducir (todas las pistas juntas)</span>
           <div class="mix-rows" id="mixRows"></div>
@@ -974,6 +995,7 @@
           <button class="primary" id="play">▶ Reproducir todo</button>
           <label class="hint"><input type="checkbox" class="loopChk" checked> loop</label>
           <label class="hint"><input type="checkbox" class="metronChk"> metrónomo</label>
+          <button class="ghost" id="generar" type="button">✨ Generar vuelta</button>
           <button class="ghost" id="undo">Quitar último</button>
           <button class="ghost" id="clear">Limpiar</button>
           <button class="ghost" id="copy">Copiar</button>
@@ -1621,7 +1643,7 @@
     };
     filaEn($('mixRows')); filaEn($('mixRowsMezcla')); filaEn($('mixRowsBeat'));
   }
-  function renderAll() { renderKeyChips(); renderBarChips(); renderOptChips(); paintWheel(); renderSugs(); renderBars(); renderReadout(); renderMixer(); if (S.mode==='piano') renderPianoPanel(); if (S.mode==='lead') renderLead(); $('initNotes').textContent = `Teclas: ${notesText(S.root,S.qual)}`; }
+  function renderAll() { renderKeyChips(); renderBarChips(); renderOptChips(); paintWheel(); renderSugs(); renderBars(); renderReadout(); renderMixer(); if (S.mode==='piano') renderPianoPanel(); if (S.mode==='lead') renderLead(); if ($('cerebroPats')) renderCerebro(); $('initNotes').textContent = `Teclas: ${notesText(S.root,S.qual)}`; }
 
   // Primer clic en la rueda = acorde de partida (recalcula la tonalidad); los siguientes se van encadenando.
   // Probar un acorde: se muestra, suena y ramifica, pero no entra a la progresión hasta «Guardar»
@@ -2224,6 +2246,11 @@
   $('qual').addEventListener('change', e=>{ S.qual=e.target.value; S.key=defaultKey()||S.key; S.prog=[]; renderAll(); });
   $('undo').addEventListener('click', ()=>{ if (S.cand) S.cand=null; else S.prog.pop(); renderAll(); });
   $('clear').addEventListener('click', ()=>{ S.prog=[]; S.cand=null; renderAll(); });
+  if ($('generar')) $('generar').addEventListener('click', ()=>{ const seq=generarVuelta(); if (!seq.length) return; S.prog=seq; S.cand=null; renderAll(); $('summary').textContent='Vuelta generada por el cerebro (mezcla el estilo con tus hábitos). Ajústala, guárdala o vuelve a generar.'; if (!isPlaying) { const first=S.prog[0]; if (first) previewChord(first); } });
+  if ($('expCerebro')) $('expCerebro').addEventListener('click', ()=>{ deliver(`denavilab-cerebro-${S.quien}.json`, JSON.stringify(usoGet(),null,1), 'application/json'); if ($('cerebroInfo')) $('cerebroInfo').textContent='Cerebro exportado.'; });
+  if ($('impCerebroBtn')) $('impCerebroBtn').addEventListener('click', ()=>$('impCerebro').click());
+  if ($('impCerebro')) $('impCerebro').addEventListener('change', async e=>{ const f=e.target.files[0]; if(!f) return; try { const o=JSON.parse(await f.text()); fusionarCerebro(o); if ($('cerebroInfo')) $('cerebroInfo').textContent='Cerebro fusionado con el importado.'; renderCerebro(); renderAll(); } catch(err){ if ($('cerebroInfo')) $('cerebroInfo').textContent='No pude leer ese archivo de cerebro.'; } e.target.value=''; });
+  if ($('olvidarCerebro')) $('olvidarCerebro').addEventListener('click', ()=>{ if (!confirm('¿Reiniciar el cerebro? Se borra lo aprendido en este navegador (no toca tus progresiones guardadas).')) return; _usoCache=null; try { localStorage.removeItem(usoKey()); } catch(e){} renderCerebro(); renderAll(); if ($('cerebroInfo')) $('cerebroInfo').textContent='Cerebro reiniciado.'; });
   $('candSave').addEventListener('click', commitCand);
   $('candDrop').addEventListener('click', ()=>{ if (isPlaying) stopAll(); S.cand=null; renderAll(); });
   $('candPlay').addEventListener('click', ()=>play('all'));
@@ -2874,6 +2901,63 @@
                 : 'Base musical de partida; guarda unas vueltas en la rueda y esto se irá afinando a tus movimientos.' };
   }
 
+  // ───────── Cerebro: se alimenta, evoluciona y genera ─────────
+  const OLVIDO = 0.99;   // decaimiento suave por cada vuelta guardada: evoluciona contigo, no se anquilosa
+  function decaerModelo(u, f=OLVIDO) {
+    const scan = obj => { for (const k in obj) { const row=obj[k]; for (const j in row) { row[j]*=f; if (row[j] < 0.2) delete row[j]; } if (!Object.keys(row).length) delete obj[k]; } };
+    ['m','M'].forEach(md=>{ if (u.trans&&u.trans[md]) scan(u.trans[md]); if (u.trans2&&u.trans2[md]) scan(u.trans2[md]); });
+    if (u.acordes) { for (const k in u.acordes){ u.acordes[k]*=f; if (u.acordes[k]<0.2) delete u.acordes[k]; } }
+  }
+  // Registrar el patrón completo de una vuelta guardada (para reconocer lo que repites)
+  function registrarPatron(u, prog) {
+    const degs = prog.map(c=>degreeOf(c.pc,c.q)).filter(Boolean);
+    if (degs.length < 2) return;
+    const sig = S.key.mode + ':' + degs.join('>');
+    const P = (u.patrones = u.patrones || {});
+    if (P[sig]) P[sig].n++; else P[sig] = { n:1, mode:S.key.mode, degs };
+  }
+  const sampleW = obj => { const es=Object.entries(obj); const tot=es.reduce((a,[,w])=>a+(w>0?w:0),0); if (tot<=0) return null; let r=Math.random()*tot; for (const [k,w] of es){ if (w>0){ r-=w; if (r<=0) return k; } } return es.length?es[es.length-1][0]:null; };
+  // Generador: camina el modelo mezclado (género + tus hábitos) con azar ponderado y algo de exploración
+  function generarVuelta() {
+    const mode = S.key.mode, tonic = mode==='m' ? 'i' : 'I', diat = DIATONIC[mode];
+    const len = Math.min(S.defLen, S.bars) || 1, n = Math.max(2, Math.round(S.bars/len));
+    let cur = tonic; const degs = [tonic];
+    for (let i=1;i<n;i++) {
+      const last = i===n-1;
+      const row = { ...rowFor(cur) }; delete row[cur];                 // no repetir el mismo acorde seguido
+      if (Math.random() < 0.15) { const d = diat[Math.floor(Math.random()*diat.length)]; if (d!==cur) row[d] = (row[d]||0) + 25; }   // exploración: inventa giros nuevos
+      if (last) { for (const k in row) row[k] *= (0.3 + 1.6*linkStrength(k, tonic)); }   // cerrar el loop hacia la tónica
+      cur = sampleW(row) || tonic; degs.push(cur);
+    }
+    const out = []; let used = 0;
+    for (const d of degs) { const l = Math.min(len, S.bars-used); if (l<=0) break; const c = chordOfDegree(d); out.push({ pc:c.pc, q:c.q, len:l, manera:1 }); used += l; }
+    return out;
+  }
+  function fusionarCerebro(o) {
+    const u = usoGet(); u.trans=u.trans||{m:{},M:{}}; u.trans2=u.trans2||{m:{},M:{}}; u.acordes=u.acordes||{}; u.patrones=u.patrones||{};
+    const addRows = (dst,src)=>{ if(!src) return; for(const k in src){ dst[k]=dst[k]||{}; for(const j in src[k]) dst[k][j]=(dst[k][j]||0)+src[k][j]; } };
+    ['m','M'].forEach(md=>{ if(o.trans&&o.trans[md]){ u.trans[md]=u.trans[md]||{}; addRows(u.trans[md],o.trans[md]); } if(o.trans2&&o.trans2[md]){ u.trans2[md]=u.trans2[md]||{}; addRows(u.trans2[md],o.trans2[md]); } });
+    if(o.acordes) for(const k in o.acordes) u.acordes[k]=(u.acordes[k]||0)+o.acordes[k];
+    if(o.patrones) for(const k in o.patrones){ if(u.patrones[k]) u.patrones[k].n+=(o.patrones[k].n||0); else u.patrones[k]={...o.patrones[k]}; }
+    u.progs=(u.progs||0)+(o.progs||0);
+    usoSet(u);
+  }
+  function cargarPatron(p) {
+    const len = Math.min(S.defLen,S.bars)||1; let used=0; const out=[];
+    for (const d of p.degs){ const l=Math.min(len,S.bars-used); if(l<=0) break; const c=chordOfDegree(d); out.push({pc:c.pc,q:c.q,len:l,manera:1}); used+=l; }
+    S.prog = out; S.cand = null; renderAll();
+    $('summary').textContent = 'Patrón tuyo cargado en '+keyName(S.key)+'. Ajusta, guarda o toca.';
+  }
+  function renderCerebro() {
+    const box = $('cerebroPats'); if (!box) return;
+    const u = usoGet(), n = u.progs||0;
+    const top = Object.entries(u.acordes||{}).sort((a,b)=>b[1]-a[1]).slice(0,4).map(x=>x[0]).join(' ');
+    $('cerebroStat').textContent = n ? `Aprendido de ${Math.round(n)} vuelta(s) tuya(s). Acordes frecuentes: ${top||'—'}.` : 'Aún sin datos: guarda vueltas (o pulsa Generar) y el cerebro empezará a reconocer tus patrones.';
+    box.innerHTML='';
+    const pats = Object.entries(u.patrones||{}).filter(([,p])=>p.n>=2 && p.mode===S.key.mode).sort((a,b)=>b[1].n-a[1].n).slice(0,6);
+    if (!pats.length) { box.append(el('p',{class:'hint',style:'margin:0'}, 'Todavía nada repetido en esta tonalidad. Cuando repitas una vuelta, aparece aquí para reusarla.')); return; }
+    pats.forEach(([,p])=>{ const chords = p.degs.map(d=>{ const c=chordOfDegree(d); return chordLabel(c.pc,c.q); }).join(' – '); box.append(el('button',{class:'sug-b', title:'cargar este patrón en la tonalidad actual', onclick:()=>cargarPatron(p)}, `${chords}  · ×${p.n}`)); });
+  }
   const store = { get(k){ try { return JSON.parse(localStorage.getItem(k)||'[]'); } catch(e){ return []; } }, set(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} } };
   function renderSaved(selId, key) { const sel=$(selId); sel.innerHTML=''; sel.append(el('option',{value:''},'— elegir —')); store.get(key).forEach((it,i)=>sel.append(el('option',{value:i},it.name))); }
 
@@ -2954,7 +3038,7 @@
   $('savedBass').addEventListener('change', e=>{ const it=store.get('rueda.bass')[+e.target.value]; if (!it) return; Object.assign(S.bassd, {len:it.len, grid:it.grid, acc:it.acc||new Array(64).fill(0), slide:it.slide||new Array(64).fill(0), oct:it.oct||0, own:it.own, bpm:it.bpm, bars:it.bars}); if (it.swing!==undefined) S.swing=it.swing; renderBassSeq(); });
   $('delBass').addEventListener('click', ()=>{ const i=+$('savedBass').value; if ($('savedBass').value==='') return; const list=store.get('rueda.bass'); list.splice(i,1); store.set('rueda.bass',list); renderSaved('savedBass','rueda.bass'); });
   renderSaved('savedBeats','rueda.beats'); renderSaved('savedBass','rueda.bass'); renderSaved('savedProgs','rueda.progs'); renderSaved('savedLeads','rueda.leads');
-  $('saveProg').addEventListener('click', ()=>{ if (!S.prog.length) return; { const u=usoGet(); u.progs=(u.progs||0)+1; if (S.prog.length>=2) { const t=(u.trans=u.trans||{m:{},M:{}})[S.key.mode]=(u.trans[S.key.mode]||{}); const dl=degreeOf(S.prog[S.prog.length-1].pc,S.prog[S.prog.length-1].q), d0=degreeOf(S.prog[0].pc,S.prog[0].q); if (dl&&d0){ t[dl]=t[dl]||{}; t[dl][d0]=(t[dl][d0]||0)+1; } } usoSet(u); } const name=$('progName').value.trim()||(S.prog.map(c=>chordLabel(c.pc,c.q)).join(' ')); const list=store.get('rueda.progs'); list.push({name, prog:S.prog, key:S.key, genre:S.genre, band:S.band, bpm:S.bpm, bars:S.bars, voicing:S.voicing, defLen:S.defLen, inst:S.inst, mode:S.mode, root:S.root, qual:S.qual}); store.set('rueda.progs',list); $('progName').value=''; renderSaved('savedProgs','rueda.progs'); $('savedProgs').value=String(list.length-1); });
+  $('saveProg').addEventListener('click', ()=>{ if (!S.prog.length) return; { const u=usoGet(); decaerModelo(u); registrarPatron(u, S.prog); u.progs=(u.progs||0)+1; if (S.prog.length>=2) { const t=(u.trans=u.trans||{m:{},M:{}})[S.key.mode]=(u.trans[S.key.mode]||{}); const dl=degreeOf(S.prog[S.prog.length-1].pc,S.prog[S.prog.length-1].q), d0=degreeOf(S.prog[0].pc,S.prog[0].q); if (dl&&d0){ t[dl]=t[dl]||{}; t[dl][d0]=(t[dl][d0]||0)+1; } } usoSet(u); } const name=$('progName').value.trim()||(S.prog.map(c=>chordLabel(c.pc,c.q)).join(' ')); const list=store.get('rueda.progs'); list.push({name, prog:S.prog, key:S.key, genre:S.genre, band:S.band, bpm:S.bpm, bars:S.bars, voicing:S.voicing, defLen:S.defLen, inst:S.inst, mode:S.mode, root:S.root, qual:S.qual}); store.set('rueda.progs',list); $('progName').value=''; renderSaved('savedProgs','rueda.progs'); $('savedProgs').value=String(list.length-1); if ($('cerebroPats')) renderCerebro(); });
   $('savedProgs').addEventListener('change', e=>{ const it=store.get('rueda.progs')[+e.target.value]; if (!it) return; S.genre=it.genre; $('genre').value=S.genre; fillBands(); S.band=it.band; $('band').value=S.band; setBpm(it.bpm, true); S.bars=it.bars; S.voicing=it.voicing; S.defLen=it.defLen; S.root=it.root; S.qual=it.qual; $('root').value=S.root; $('qual').value=S.qual; S.key=it.key; S.prog=it.prog.map(c=>({...c})); S.cand=null; if (it.mode==='pad'||it.mode==='piano') { if (it.mode==='pad') $('inst').value = ['pad','coro','lead','uke'].includes(it.inst)?it.inst:'pad'; setMode(it.mode); } else renderAll(); });
   $('delProg').addEventListener('click', ()=>{ if ($('savedProgs').value==='') return; const list=store.get('rueda.progs'); list.splice(+$('savedProgs').value,1); store.set('rueda.progs',list); renderSaved('savedProgs','rueda.progs'); });
 
