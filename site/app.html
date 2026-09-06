@@ -1068,6 +1068,15 @@
   const MINOR = { 'i':[0,'m'], 'ii°':[2,'d'], 'III':[3,'M'], 'iv':[5,'m'], 'IV':[5,'M'], 'v':[7,'m'], 'V':[7,'M'], 'VI':[8,'M'], 'VII':[10,'M'], 'bII':[1,'M'] };
   const MAJOR = { 'I':[0,'M'], 'ii':[2,'m'], 'iii':[4,'m'], 'IV':[5,'M'], 'V':[7,'M'], 'vi':[9,'m'], 'vii°':[11,'d'], 'bVII':[10,'M'], 'bVI':[8,'M'], 'iv':[5,'m'], 'bIII':[3,'M'] };
   const DIATONIC = { m: ['i','ii°','III','iv','v','VI','VII'], M: ['I','ii','iii','IV','V','vi','vii°'] };
+  // Prior funcional: a dónde tiende cada grado en la música tonal común. Sirve de respaldo
+  // cuando el género no define una fila, y de base musical para el modo «Tus hábitos».
+  const PRIOR_FUN = {
+    m: { i:{iv:22,VI:20,VII:18,v:14,V:14,III:8,'ii°':4}, 'ii°':{V:55,i:30,VII:15}, III:{VI:40,VII:30,iv:18,i:12},
+         iv:{i:34,v:22,VII:22,VI:22}, v:{i:44,VI:30,iv:26}, VI:{VII:34,iv:24,III:22,i:20}, VII:{i:50,VI:28,III:22},
+         V:{i:64,VI:36}, bII:{i:70,V:30}, IV:{i:50,v:26,VII:24}, bVI:{VII:50,i:30,iv:20} },
+    M: { I:{IV:24,V:24,vi:24,ii:16,iii:12}, ii:{V:52,IV:26,vi:22}, iii:{vi:44,IV:34,ii:22},
+         IV:{V:34,I:28,ii:20,vi:18}, V:{I:60,vi:40}, vi:{IV:32,ii:26,V:24,I:18}, 'vii°':{I:70,iii:30},
+         bVII:{I:56,IV:44}, bVI:{bVII:50,I:30,IV:20}, iv:{I:60,ii:22,bVI:18}, bIII:{IV:50,bVII:30,I:20} } };
 
   // ───────── Bandas ─────────
   const GENRES = {
@@ -1276,13 +1285,31 @@
     const phase = left <= 0 ? 'full' : start === 0 ? 'open' : after <= 0 ? 'close' : after <= S.defLen ? 'penult' : 'mid';
     return { start, left, len, after, phase };
   };
-  const rowFor = (deg) => { if (S.band === 'Tus hábitos') { const f=filaHabitos(deg); if (f && Object.keys(f).length) return f; return S.key.mode==='m' ? { i:60, V:40 } : { I:60, V:40 }; } const table = band()[S.key.mode] || {}; return (deg && table[deg]) || (S.key.mode==='m' ? { i:60, V:40 } : { I:60, V:40 }); };
+  // Fila del grado según el prior funcional (respaldo musical cuando falta info).
+  const priorFun = (deg) => (deg && PRIOR_FUN[S.key.mode][deg]) || (S.key.mode==='m' ? { i:60, V:40 } : { I:60, V:40 });
+  // Lo que TÚ sueles hacer desde este grado (conteos crudos de tus vueltas guardadas).
+  const obsRow = (deg) => { const t=(usoGet().trans||{})[S.key.mode]||{}; return (deg && t[deg]) || {}; };
+  // rowFor mezcla el prior del género con tus hábitos: con pocos datos manda el género;
+  // a medida que repites un movimiento, tu costumbre pesa más (mezcla tipo bayesiana).
+  const PES_PERSONAL = 12;   // cuánto vale cada movimiento tuyo frente al prior del género
+  const rowFor = (deg) => {
+    const esHabitos = S.band === 'Tus hábitos';
+    const prior = esHabitos ? priorFun(deg) : (((band()[S.key.mode]||{})[deg]) || priorFun(deg));
+    const obs = obsRow(deg);
+    if (!Object.keys(obs).length) return prior;
+    const out = { ...prior };
+    const pes = esHabitos ? 40 : PES_PERSONAL;   // en «Tus hábitos» tus datos mandan más rápido
+    for (const [to,c] of Object.entries(obs)) out[to] = (out[to]||0) + pes*c;
+    return out;
+  };
   const linkStrength = (fromDeg, toDeg) => { const r = rowFor(fromDeg); const tot = Object.values(r).reduce((a,b)=>a+b,0); return (r[toDeg]||0)/tot; };
   const suggestions = () => {
     const cur = focus(); const deg = degreeOf(cur.pc, cur.q);
     const row = rowFor(deg); const slot = nextSlot();
     const first = S.prog[0] || S.cand || cur; const firstDeg = degreeOf(first.pc, first.q);
     const seq = [...S.prog, ...(S.cand ? [S.cand] : [])];
+    // Segundo orden aprendido: si en este contexto de dos acordes sueles seguir con uno concreto, lo premiamos.
+    const ctx2 = (()=>{ if (seq.length<2) return null; const f1=degreeOf(seq[seq.length-1].pc,seq[seq.length-1].q); const f2=degreeOf(seq[seq.length-2].pc,seq[seq.length-2].q); if(!f1||!f2) return null; const tm=(usoGet().trans2||{})[S.key.mode]||{}; const r2=tm[f2+'>'+f1]; if(!r2) return null; const tot=Object.values(r2).reduce((a,b)=>a+b,0)||1; return {r2,tot}; })();
     let entries = Object.entries(row);
     if (S.mode === 'piano' || S.mode === 'lead') {   // piano: más opciones para improvisar (diatónicos + algún prestado)
       const extra = {};
@@ -1290,6 +1317,7 @@
       (S.key.mode==='m' ? ['bII','IV','v'] : ['bVII','iv','bVI']).forEach(d=>{ if (!(d in row) && !(d in extra)) extra[d] = 8; });
       entries = entries.concat(Object.entries(extra));
     }
+    if (ctx2) { const have=new Set(entries.map(e=>e[0])); Object.keys(ctx2.r2).forEach(d=>{ if(!have.has(d)) entries.push([d, 8]); }); }   // deja entrar lo que sueles tocar en este contexto de 2 acordes
     const scored = entries.map(([id,w]) => {
       const c = chordOfDegree(id); let score = w;
       const closes = firstDeg ? linkStrength(id, firstDeg) : 0;          // qué tan bien vuelve al primer acorde (el loop se cierra)
@@ -1298,6 +1326,7 @@
       const uses = seq.filter(x=>x.pc===c.pc && x.q===c.q).length;         // variedad: castiga repetir mucho el mismo acorde
       score /= 1 + 0.35*uses;
       if (seq.length >= 2 && slot.phase === 'mid') { const prev = seq[seq.length-2]; if (prev.pc===c.pc && prev.q===c.q) score *= 0.7; }   // evita el ping-pong A-B-A
+      if (ctx2 && ctx2.r2[id]) score *= 1 + 0.9*(ctx2.r2[id]/ctx2.tot);   // aprendido: en este contexto de 2 acordes sueles ir aquí
       let moved = null, bank = null;
       if (S.mode === 'piano' || S.mode === 'lead') {
         const vs = voicedSeq(seq); const prevV = vs.length ? vs[vs.length-1].notes : null;
@@ -1479,7 +1508,8 @@
   function renderSugs() {
     const cur = focus(); const list = $('sugs'); list.innerHTML='';
     $('sugFrom').textContent = 'desde ' + chordLabel(cur.pc,cur.q) + (S.cand ? ' (probando)' : '');
-    $('sugPhase').textContent = phaseText();
+    const _tt=(usoGet().trans||{})[S.key.mode]||{}, _dd=degreeOf(cur.pc,cur.q); const _nAj=(_dd&&_tt[_dd])?Object.values(_tt[_dd]).reduce((a,b)=>a+b,0):0;
+    $('sugPhase').textContent = phaseText() + (S.band!=='Tus hábitos' && _nAj>0 ? ` · afinado con ${_nAj} paso${_nAj===1?'':'s'} tuyo${_nAj===1?'':'s'}` : '');
     const full = remaining() <= 0;
     suggestions().slice(0, S.mode==='piano'?6:4).forEach(s=>{
       const b = el('button',{class:'sug', onclick:()=>propose(s)},
@@ -1635,7 +1665,10 @@
     const u = usoGet(); u.trans = u.trans||{m:{},M:{}}; u.acordes = u.acordes||{};
     const t = u.trans[S.key.mode] = u.trans[S.key.mode]||{}; const dc = degreeOf(c.pc,c.q);
     if (dc) u.acordes[dc] = (u.acordes[dc]||0)+1;
-    if (prev) { const dp=degreeOf(prev.pc,prev.q); if (dp&&dc) { t[dp]=t[dp]||{}; t[dp][dc]=(t[dp][dc]||0)+1; } }
+    if (prev) { const dp=degreeOf(prev.pc,prev.q); if (dp&&dc) { t[dp]=t[dp]||{}; t[dp][dc]=(t[dp][dc]||0)+1;
+      const before=S.prog[S.prog.length-2]; const db=before?degreeOf(before.pc,before.q):null;
+      if (db) { const t2=u.trans2=u.trans2||{}; const tm=t2[S.key.mode]=t2[S.key.mode]||{}; const k=db+'>'+dp; tm[k]=tm[k]||{}; tm[k][dc]=(tm[k][dc]||0)+1; }
+    } }
     usoSet(u);
   }
 
@@ -2818,8 +2851,9 @@
   // ───────── Guardar / borrar (localStorage) ─────────
   // ───────── Registro de uso: aprende de lo que guardas (por navegador y persona) ─────────
   const usoKey = () => 'denavilab.uso.' + S.quien;
-  const usoGet = () => { try { return JSON.parse(localStorage.getItem(usoKey()) || '{}'); } catch (e) { return {}; } };
-  const usoSet = u => { try { localStorage.setItem(usoKey(), JSON.stringify(u)); } catch (e) {} };
+  let _usoCache = null;
+  const usoGet = () => { if (_usoCache) return _usoCache; try { _usoCache = JSON.parse(localStorage.getItem(usoKey()) || '{}'); } catch (e) { _usoCache = {}; } return _usoCache; };
+  const usoSet = u => { _usoCache = u; try { localStorage.setItem(usoKey(), JSON.stringify(u)); } catch (e) {} };
   function registrarProg(prog, key) {
     const u = usoGet(); u.trans = u.trans || { m:{}, M:{} }; u.acordes = u.acordes || {}; u.progs = (u.progs || 0) + 1;
     const degs = prog.map(c=>degreeOf(c.pc, c.q, key)).filter(Boolean); const t = u.trans[key.mode] = u.trans[key.mode] || {};
@@ -2836,10 +2870,9 @@
     // prefiere el modo (menor/mayor) en el que más has guardado, para que los grados calcen
     const nm = Object.keys((u.trans||{}).m || {}).length, nM = Object.keys((u.trans||{}).M || {}).length;
     return { bpm:[60,150,90], pref: nm > nM ? 'minor' : 'major', m:{}, M:{},
-      sello: n ? ('Aprendido de ' + n + ' vuelta(s) tuya(s). Grados frecuentes: ' + (top||'—') + '. Sigue guardando para afinarlo.')
-                : 'Aún sin datos: guarda unas vueltas en la rueda y aquí aprenderá tus movimientos.' };
+      sello: n ? ('Aprendido de ' + n + ' vuelta(s) tuya(s). Grados frecuentes: ' + (top||'—') + '. Parte de una base musical y se afina con lo que guardas.')
+                : 'Base musical de partida; guarda unas vueltas en la rueda y esto se irá afinando a tus movimientos.' };
   }
-  const filaHabitos = deg => { const t=(usoGet().trans||{})[S.key.mode]||{}; const row=t[deg]; if (!row) return null; const tot=Object.values(row).reduce((a,b)=>a+b,0)||1; const out={}; Object.entries(row).forEach(([to,c])=>out[to]=Math.round(c/tot*100)); return out; };
 
   const store = { get(k){ try { return JSON.parse(localStorage.getItem(k)||'[]'); } catch(e){ return []; } }, set(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} } };
   function renderSaved(selId, key) { const sel=$(selId); sel.innerHTML=''; sel.append(el('option',{value:''},'— elegir —')); store.get(key).forEach((it,i)=>sel.append(el('option',{value:i},it.name))); }
