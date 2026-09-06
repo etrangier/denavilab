@@ -1431,6 +1431,7 @@
       miniKeyboard(pc,q),
       el('div',{class:'role'}, r1 + (r2 ? ' — ' + r2 : '') + (sug && sug.moved!==null && sug.moved!==undefined ? ` · mueve ${sug.moved} dedo(s)` : '')));
     t.hidden = false;
+    t.onclick = () => hideTip();   // clic en cualquier parte de la miniatura la cierra
     // posicionar junto al acorde pulsado, dentro de la pantalla
     const r = slotEl.getBoundingClientRect(); const w = t.offsetWidth || 210, h = t.offsetHeight || 170;
     let x = r.right + 10, y = r.top - 6;
@@ -1442,6 +1443,7 @@
   }
   function hideTip() { const t=$('tip'); if (t) t.hidden = true; }
   document.addEventListener('pointerdown', e=>{ const t=$('tip'); if (t && !t.hidden && !t.contains(e.target) && !(e.target.closest && e.target.closest('#wheel'))) hideTip(); }, true);
+  window.addEventListener('keydown', e=>{ if (e.key==='Escape') hideTip(); });
 
   // Tips pedagógicos según lo que estás haciendo (Guías 1 y 2)
   function tipHtml() {
@@ -1487,7 +1489,7 @@
     $('sugPhase').textContent = phaseText();
     const full = remaining() <= 0;
     suggestions().slice(0, S.mode==='piano'?6:4).forEach(s=>{
-      const b = el('button',{class:'sug', onclick:()=>propose(s), onmouseenter:()=>{if(conHover()){S.hover=s;renderReadout();}}, onmouseleave:()=>{if(conHover()){S.hover=null;renderReadout();}}},
+      const b = el('button',{class:'sug', onclick:()=>propose(s)},
         el('span',{class:'nm'}, chordLabel(s.pc,s.q)),
         el('span',{class:'nt'}, notesText(s.pc,s.q)),
         el('span',{class:'deg'}, `${s.id} · ${s.pct}%` + (isDiatonic(s.pc,s.q)?'':' · prestado') + (s.moved!==null && s.moved!==undefined ? ` · mueve ${s.moved} dedo${s.moved===1?'':'s'}` : '') + (s.bank ? ` · sigue «${s.bank}»` : '')),
@@ -2814,6 +2816,7 @@
   // ───────── Panel de administración (sólo Rolando): changelog + bugs ─────────
   const CHANGELOG = [
     { fecha:'2026-09-07', items:[
+      'Hover: eliminado también en las sugerencias de la derecha (ya no cambian la lectura al pasar el cursor). La miniatura del acorde se cierra de 4 formas: clic en cualquier parte de ella, la ×, Escape, o clic fuera.',
       'Acordes por capas: la progresión puede sonar con varios instrumentos a la vez (Pad, Voces, Piano, Ukelele) — se apilan pista por pista y cambiar de pestaña ya no apaga los demás. Selector «Suena como» en el panel de progresión.',
       'Trabajo directo: tap tempo (botón «Tap») y panel avanzado del MPK (opcional) con arpegiador de la página, PROG/BANK → cambiar de sección y pads que marcan el tempo. Arreglada la × de la miniatura (no cerraba).',
       'Rueda: se eliminó el tooltip al pasar el cursor (prioriza las sugerencias de la derecha). La miniatura del acorde ahora aparece SÓLO al hacer clic, se queda fija y se cierra con una × en la esquina.',
