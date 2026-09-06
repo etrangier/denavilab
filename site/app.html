@@ -294,6 +294,17 @@
   #guitFret .fb-string { stroke: #b9b3c6; } #guitFret .fb-fret { stroke: var(--line); } #guitFret .fb-nut { stroke: var(--text); stroke-width: 4; }
   #guitFret .fb-root { fill: var(--accent); } #guitFret .fb-tone { fill: var(--key-tint); stroke: var(--key-line); }
   #guitFret .fb-capo { stroke: var(--accent); stroke-width: 5; }
+  #guitFret .fb-dedo { font-family: var(--display); font-weight: 700; font-size: 11px; fill: var(--accent-ink); text-anchor: middle; pointer-events: none; }
+  #guitFret .fb-str { font-family: var(--mono); font-size: 11px; fill: var(--text); }
+  #guitFret .fb-fnum { font-family: var(--mono); font-size: 10px; fill: var(--muted); }
+  .guit-sugs-box { background: var(--surface); border: 1px solid var(--key-line); border-radius: 12px; padding: 12px; }
+  .guit-sugs { display: flex; flex-wrap: wrap; gap: 8px; }
+  .guit-sug { display: grid; grid-template-columns: auto auto; align-items: center; gap: 2px 8px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; cursor: pointer; font: inherit; color: var(--text); text-align: left; }
+  .guit-sug:hover { border-color: var(--accent); }
+  .guit-sug.tonica { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .guit-sug .gs-nom { grid-column: 1; font-family: var(--display); font-weight: 700; font-size: 18px; line-height: 1; }
+  .guit-sug .gs-deg { grid-column: 1; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .guit-sug .gc-mini { grid-column: 2; grid-row: 1 / 3; width: 46px; height: 40px; }
   .rasgueo { display: flex; gap: 4px; }
   .rg-cell { flex: 1; min-width: 30px; height: 34px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); color: var(--muted); font-size: 16px; cursor: pointer; }
   .rg-cell.beat { border-color: var(--key-line); }
@@ -638,10 +649,20 @@
             <div class="row"><span class="bpm-val" id="guitBpmVal">100</span><label class="hint" style="flex:0 0 auto"><input type="checkbox" id="guitMetron"> metrónomo</label></div>
             <input type="range" id="guitBpm" min="50" max="190" step="1" value="100" aria-label="BPM guitarra"></div>
         </div>
+        <div class="row" style="flex-wrap:wrap; align-items:flex-start">
+          <div class="field" style="flex:1 1 150px"><span class="lbl">Género</span>
+            <select id="guitGenre"></select></div>
+          <div class="field" style="flex:1 1 150px"><span class="lbl">Estilo / autor</span>
+            <select id="guitBand"></select></div>
+          <div class="field" style="flex:1 1 150px"><span class="lbl">Estado de ánimo</span>
+            <select id="guitAnimo"></select></div>
+        </div>
         <div class="hint" id="guitSuena" hidden></div>
-        <div class="field">
-          <span class="lbl">Sugerencias · <span id="guitSugPor"></span></span>
-          <div class="chips" id="guitSugs"></div>
+        <div class="field guit-sugs-box">
+          <span class="lbl">Sugerencias de progresión · <span id="guitSugPor"></span></span>
+          <div id="guitSugs"></div>
+          <span class="lbl" style="margin-top:10px">Más acordes de la tonalidad</span>
+          <div class="chips" id="guitDiatonic"></div>
         </div>
         <div class="field">
           <span class="lbl">Progresión · escribe el acorde y edítalo en el mástil</span>
@@ -650,7 +671,8 @@
         </div>
         <div class="field" id="guitEditorBox" hidden>
           <span class="lbl">Mástil · <span id="guitSelNombre">—</span> · clic en un traste; la columna de la izquierda es «al aire» (0) o «muteada» (×)</span>
-          <div class="seq-scroll"><svg id="guitFret" viewBox="0 0 660 190" role="img" aria-label="Mástil de la guitarra"></svg></div>
+          <div class="seq-scroll"><svg id="guitFret" viewBox="0 0 660 200" role="img" aria-label="Mástil de la guitarra"></svg></div>
+          <div class="hint">Número dentro del punto = dedo sugerido (1 índice · 2 medio · 3 anular · 4 meñique). A la izquierda va el número de cuerda; abajo, el traste.</div>
           <div class="hint" id="guitNotas"></div>
         </div>
         <div class="field">
@@ -1202,7 +1224,10 @@
   // Tooltip flotante con la miniatura del teclado
   // ¿el dispositivo tiene un cursor de verdad? En táctil no mostramos el tooltip flotante:
   // con "hover" emulado se quedaba pegado y no se podía quitar.
-  const conHover = () => !window.matchMedia || window.matchMedia('(hover: hover)').matches;
+  let usandoTactil = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || false;
+  window.addEventListener('touchstart', () => { usandoTactil = true; hideTip(); }, { passive:true, capture:true });
+  // Sólo mostramos el tooltip flotante si hay un cursor de verdad (fino + hover) y nunca se ha tocado la pantalla.
+  const conHover = () => !usandoTactil && (!window.matchMedia || (window.matchMedia('(hover: hover)').matches && window.matchMedia('(pointer: fine)').matches));
   function showTip(pc, q) {
     if (!conHover()) { $('tip').hidden = true; return; }
     const t = $('tip'); t.innerHTML = '';
@@ -1403,7 +1428,18 @@
       case 'lead':  mk('square',0,0,.6); mk('sawtooth',6,0,.3); f.frequency.value=2600; a=0.01; rel=0.15; sus=gainV*0.6; dec=0.3; break;
       case 'bajoe': mk('triangle',0,0,.9); mk('sine',0,0,.5); f.frequency.setValueAtTime(700,t); f.frequency.exponentialRampToValueAtTime(300,t+0.25); a=0.015; rel=0.2; sus=gainV*0.6; dec=0.6; break;
       case 'bajod': mk('sine',0,0,.9); mk('square',0,0,.12); f.frequency.value=600; a=0.005; rel=0.1; sus=gainV*0.5; dec=0.3; break;
-      case 'uke':   mk('triangle',0,0,.8); mk('sawtooth',0,1,.08); f.frequency.setValueAtTime(3200,t); f.frequency.exponentialRampToValueAtTime(1200,t+0.3); a=0.004; rel=0.3; sus=gainV*0.3; dec=0.3; break;
+      case 'uke':   // ukelele de nylon: dulce, brillante y corto; ataque suave para que no chasquee
+        mk('triangle',0,0,.85); mk('sine',0,1,.16);
+        f.frequency.setValueAtTime(2600,t); f.frequency.exponentialRampToValueAtTime(1300,t+0.28); f.Q.value=0.4;
+        a=0.008; rel=0.28; sus=gainV*0.26; dec=0.32; break;
+      case 'acustica': // guitarra acústica de acero: cuerpo cálido con algo de brillo
+        mk('triangle',0,0,.7); mk('sawtooth',0,0,.13); mk('sine',0,1,.12);
+        f.frequency.setValueAtTime(2400,t); f.frequency.exponentialRampToValueAtTime(950,t+0.5); f.Q.value=0.6;
+        a=0.009; rel=0.4; sus=gainV*0.32; dec=0.7; break;
+      case 'electrica': // eléctrica limpia: sostenida, con un poco de filo
+        mk('sawtooth',0,0,.38); mk('square',0,0,.26); mk('sine',0,1,.1);
+        f.frequency.setValueAtTime(1900,t); f.frequency.exponentialRampToValueAtTime(1200,t+0.6); f.Q.value=1.0;
+        a=0.010; rel=0.45; sus=gainV*0.45; dec=1.0; break;
     }
     g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(gainV,t+a);
     g.gain.setTargetAtTime(sus, t+a, dec);
@@ -2988,7 +3024,7 @@
   // Forma en el mástil para un acorde: primero la biblioteca; si no, cejilla movible; si es
   // raro, la voz genérica (traste más bajo con nota del acorde en cada cuerda).
   function formaDe(pc,q) {
-    const nom = nombreGuit(pc,q);
+    const nom = LETRAS[pc] + (q==='m'?'m':q==='d'?'dim':'');   // clave en inglés para las formas (FORMAS/UKE_FORMAS), sea cual sea la notación mostrada
     if (S.guitar.instrumento==='ukelele') {
       if (UKE_FORMAS[nom]) return UKE_FORMAS[nom].slice();
       const ton=chordNotes(pc,q); return afin().open.map(op=>{ for (let fr=0;fr<=4;fr++) if (ton.includes((op+fr)%12)) return fr; return -1; });
@@ -3012,10 +3048,20 @@
     const desde = prog.length ? { pc:prog[prog.length-1].pc, q:prog[prog.length-1].q } : chordOfDegree(S.key.mode==='m'?'i':'I');
     const deg = degreeOf(desde.pc, desde.q);
     const fila = rowFor(deg);
-    const out = Object.entries(fila).map(([id,pct])=>({ ...chordOfDegree(id), id, pct })).sort((a,b)=>b.pct-a.pct).slice(0,5);
+    let out = Object.entries(fila).map(([id,pct])=>({ ...chordOfDegree(id), id, pct })).sort((a,b)=>b.pct-a.pct);
     // si no hay progresión aún, ofrece también empezar por la tónica
     if (!prog.length) { const t=chordOfDegree(S.key.mode==='m'?'i':'I'); if (!out.some(o=>o.pc===t.pc&&o.q===t.q)) out.unshift({ ...t, id:(S.key.mode==='m'?'i':'I'), pct:100 }); }
-    return out.slice(0,5);
+    // completa hasta 6 con acordes diatónicos que aún no aparezcan (más opciones)
+    for (const id of DIATONIC[S.key.mode]) { if (out.length>=6) break; const c=chordOfDegree(id); if (!out.some(o=>o.pc===c.pc&&o.q===c.q)) out.push({ ...c, id, pct:28 }); }
+    return out.slice(0,6);
+  }
+  // Todos los acordes de la tonalidad (fila de "más acordes")
+  function guitDiatonicos() { return DIATONIC[S.key.mode].map(id=>({ ...chordOfDegree(id), id })); }
+  // Aplica género/banda/ánimo desde la sección de guitarra SIN borrar ninguna progresión
+  function guitAplicaContexto() {
+    const [lo,hi,def] = band().bpm; S.bpm = def;
+    if (S.animo && ANIMOS[S.animo]) S.bpm = ANIMOS[S.animo].bpm;
+    if (!S.guitar.prog.length) S.key = defaultKey() || S.key;   // clave para las sugerencias, sin tocar acordes ya puestos
   }
 
   function paintGuitFret() {
@@ -3026,6 +3072,9 @@
     const NCU = afin().open.length; const NF = 5, L = 92, T = 20, FW = 104, SH = 28;
     const maxFret = Math.max(2, ...c.frets.filter(f=>f>0));
     const base = maxFret > NF ? maxFret - NF + 1 : 0;   // desplaza la ventana si el acorde es agudo
+    // dedos sugeridos: por orden de traste (1 índice · 2 medio · 3 anular · 4 meñique); un mismo traste = cejilla, mismo dedo
+    const fretsUsados = [...new Set(c.frets.filter(f=>f>0))].sort((a,b)=>a-b);
+    const dedoDe = real => { const i = fretsUsados.indexOf(real); return i<0 ? null : Math.min(4, i+1); };
     for (let f=0; f<=NF; f++) { const x=L+f*FW; svg.append(svgEl('line',{class: (base===0&&f===0)?(S.guitar.capo?'fb-fret':'fb-nut'):'fb-fret', x1:x,y1:T,x2:x,y2:T+SH*(NCU-1)})); }
     if (S.guitar.capo && base===0) { const cej=svgEl('line',{class:'fb-capo', x1:L, y1:T, x2:L, y2:T+SH*(NCU-1)}); svg.append(cej); const ct=svgEl('text',{class:'fb-lbl',x:L,y:T-6,'text-anchor':'middle'}); ct.textContent='capo '+S.guitar.capo; svg.append(ct); }
     if (base>0) { const t=svgEl('text',{class:'fb-lbl',x:L-8,y:T+SH*(NCU-1)+14}); t.textContent=base+'ª'; svg.append(t); }
@@ -3041,9 +3090,18 @@
       // trastes 1..NF
       for (let f=1; f<=NF; f++) { const real=base+f; const x=L+(f-0.5)*FW;
         const hit=svgEl('circle',{cx:x, cy:y, r:11, fill:'transparent', style:'cursor:pointer'}); hit.addEventListener('click',()=>poner(cu, real)); svg.append(hit);
-        if (c.frets[cu]===real) { const isRoot=(afin().open[cu]+real)%12===c.pc; const dot=svgEl('circle',{class:isRoot?'fb-root':'fb-tone', cx:x, cy:y, r:9}); svg.append(dot); const tn=svgEl('text',{class:'fb-note',x:x,y:y+3}); tn.textContent=nota((GUIT_OPEN[cu]+real)%12, c.pc); svg.append(tn); }
+        if (c.frets[cu]===real) {
+          const isRoot=(afin().open[cu]+real)%12===c.pc;
+          svg.append(svgEl('circle',{class:isRoot?'fb-root':'fb-tone', cx:x, cy:y, r:10}));
+          const dd=dedoDe(real);
+          const tn=svgEl('text',{class:'fb-dedo',x:x,y:y+3.5}); tn.textContent = dd!=null ? dd : nota((afin().open[cu]+real)%12, c.pc); svg.append(tn);
+        }
       }
     }
+    // número de cuerda a la izquierda del todo (1 = la más aguda, arriba)
+    for (let cu=0; cu<NCU; cu++) { const fila=(NCU-1)-cu; const y=T+SH*fila; const sn=svgEl('text',{class:'fb-str',x:L-44,y:y+4,'text-anchor':'middle'}); sn.textContent = String(NCU-cu); svg.append(sn); }
+    // número de traste real bajo cada casilla
+    for (let f=1; f<=NF; f++) { const real=base+f; const x=L+(f-0.5)*FW; const ft=svgEl('text',{class:'fb-fnum',x:x,y:T+SH*(NCU-1)+22,'text-anchor':'middle'}); ft.textContent=String(real); svg.append(ft); }
     $('guitNotas').textContent = 'Notas: ' + (guitNotas(c.frets).map(m=>nota(m%12, c.pc)).join(' ') || '(cuerdas muteadas)');
   }
   function guitRefrescaNombre(c) {
@@ -3084,18 +3142,25 @@
   }
 
   function renderGuitSugs() {
-    const cont = $('guitSugs'); if (!cont) return; cont.innerHTML='';
-    $('guitSugPor').textContent = S.guitar.prog.length ? 'a dónde suele ir · ' + S.band : 'para empezar · ' + S.band;
+    const cont = $('guitSugs'); if (!cont) return; cont.innerHTML=''; cont.className='guit-sugs';
+    $('guitSugPor').textContent = (S.guitar.prog.length ? 'a dónde suele ir · ' : 'para empezar · ') + S.band + (S.animo && ANIMOS[S.animo] ? ' · ' + S.animo.toLowerCase() : '');
     guitSugerencias().forEach(sug=>{
-      const b = el('button',{class:'chip', onclick:()=>{ const g=S.guitar; g.prog.push(acordeNuevo(sug.pc,sug.q)); g.sel=g.prog.length-1; renderGuitarra(); sonarAcorde(g.prog[g.sel]); }});
-      b.append(document.createTextNode(nombreGuit(sug.pc,sug.q)));
-      b.append(el('small',{}, ' ' + sug.id));
+      const b = el('button',{class:'guit-sug'+(sug.pct>=100?' tonica':''), title:'añadir '+nombreGuit(sug.pc,sug.q), onclick:()=>{ const g=S.guitar; g.prog.push(acordeNuevo(sug.pc,sug.q)); g.sel=g.prog.length-1; renderGuitarra(); sonarAcorde(g.prog[g.sel]); }});
+      b.append(el('span',{class:'gs-nom'}, nombreGuit(sug.pc,sug.q)));
+      const rol = roleOf(sug.pc, sug.q)[0] || '';
+      b.append(el('span',{class:'gs-deg'}, sug.id + (rol ? ' · ' + rol : '')));
+      b.append(guitMini(formaDe(sug.pc, sug.q)));
       cont.append(b);
     });
+    const dcont = $('guitDiatonic');
+    if (dcont) { dcont.innerHTML=''; guitDiatonicos().forEach(d=>{ dcont.append(el('button',{class:'chip', title:'añadir '+nombreGuit(d.pc,d.q), onclick:()=>{ const g=S.guitar; g.prog.push(acordeNuevo(d.pc,d.q)); g.sel=g.prog.length-1; renderGuitarra(); sonarAcorde(g.prog[g.sel]); }}, nombreGuit(d.pc,d.q))); }); }
   }
 
   function renderGuitControles() {
     $('guitInstr').value = S.guitar.instrumento;
+    const gg=$('guitGenre'); if (gg) { gg.innerHTML=''; Object.keys(GENRES).forEach(k=>gg.append(el('option',{value:k},k))); if (!GENRES[S.genre]) S.genre=Object.keys(GENRES)[0]; gg.value=S.genre; }
+    const gb=$('guitBand'); if (gb) { gb.innerHTML=''; Object.keys(GENRES[S.genre]||{}).forEach(k=>gb.append(el('option',{value:k},k))); if (!GENRES[S.genre][S.band]) S.band=Object.keys(GENRES[S.genre])[0]; gb.value=S.band; }
+    const ga=$('guitAnimo'); if (ga) { ga.innerHTML=''; Object.keys(ANIMOS).forEach(k=>ga.append(el('option',{value:k},k))); ga.value=S.animo||'Sin definir'; }
     const cs = $('guitCapo'); if (!cs.options.length) for (let i=0;i<=7;i++) cs.append(el('option',{value:String(i)}, i===0?'sin capo':'traste '+i));
     cs.value = String(S.guitar.capo||0);
     $('guitBpm').value = S.bpm; $('guitBpmVal').textContent = S.bpm; $('guitMetron').checked = !!S.guitar.metron;
@@ -3125,9 +3190,11 @@
     'Balada': ['D','','','','D','','U',''],
     'Reggae/skank': ['','U','','U','','U','','U'],
   };
+  const guitKind = () => ({ acustica:'acustica', electrica:'electrica', ukelele:'uke' }[S.guitar.instrumento] || 'acustica');
   function rasguear(notas, t, dir, dur, gain) {
     const orden = dir==='U' ? notas.slice().reverse() : notas;
-    orden.forEach((m,k)=> voice(m, t + k*0.014, dur, 'piano', gain));
+    const kind = guitKind(); const paso = kind==='uke' ? 0.011 : 0.016;
+    orden.forEach((m,k)=> voice(m, t + k*paso, dur, kind, gain));
   }
   function sonarAcorde(c, t0) {
     if (!c) return; ensureAudio(); unlockAudio();
@@ -3161,6 +3228,9 @@
   $('guitCapo').addEventListener('change', e=>{ S.guitar.capo=+e.target.value; renderGuitarra(); });
   $('guitBpm').addEventListener('input', e=>{ S.bpm=+e.target.value; $('guitBpmVal').textContent=S.bpm; $('bpm').value=S.bpm; $('bpmVal').textContent=S.bpm; });
   $('guitMetron').addEventListener('change', e=>{ S.guitar.metron=e.target.checked; });
+  if ($('guitGenre')) $('guitGenre').addEventListener('change', e=>{ if (!GENRES[e.target.value]) return; S.genre=e.target.value; if (!GENRES[S.genre][S.band]) S.band=Object.keys(GENRES[S.genre])[0]; if ($('genre')) $('genre').value=S.genre; guitAplicaContexto(); renderGuitarra(); });
+  if ($('guitBand')) $('guitBand').addEventListener('change', e=>{ S.band=e.target.value; if ($('band')) $('band').value=S.band; guitAplicaContexto(); renderGuitarra(); });
+  if ($('guitAnimo')) $('guitAnimo').addEventListener('change', e=>{ S.animo=e.target.value; const a=ANIMOS[S.animo]; if (a){ S.bpm=a.bpm; S.bars=a.bars; if (!S.guitar.prog.length) S.key={...S.key, mode:a.mode}; } if ($('animo')) { $('animo').value=S.animo; $('animoSello').textContent=(ANIMOS[S.animo]||{}).sello||''; } renderGuitarra(); });
   $('guitAdd').addEventListener('click', ()=>{ const r=parseGuit($('guitNuevo').value); if (!r) { $('guitResumen').textContent='no reconocí ese acorde'; return; } const g=S.guitar; g.prog.push(acordeNuevo(r.pc,r.q)); g.sel=g.prog.length-1; $('guitNuevo').value=''; renderGuitarra(); sonarAcorde(g.prog[g.sel]); });
   $('guitNuevo').addEventListener('keydown', e=>{ if (e.key==='Enter') $('guitAdd').click(); });
   $('clearGuit').addEventListener('click', ()=>{ S.guitar.prog=[]; S.guitar.sel=0; renderGuitarra(); });
