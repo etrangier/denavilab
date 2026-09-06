@@ -961,11 +961,6 @@
           <div class="row"><input type="text" id="progName" placeholder="nombre, ej. intro trip hop"><button class="ghost" id="saveProg" style="flex:0 0 auto">Guardar</button></div>
           <div class="row"><select id="savedProgs"></select><button class="ghost" id="delProg" style="flex:0 0 auto">Borrar</button></div>
         </div>
-        <div class="field capas-box">
-          <span class="lbl">Suena como · puedes apilar instrumentos (pista por pista)</span>
-          <div class="chips" id="capasChips"></div>
-          <span class="hint">El acorde suena a la vez con todos los que enciendas: enciende <b>Pad</b> y <b>Piano</b> y ambos se oyen. Cambiar de pestaña no apaga los demás.</span>
-        </div>
         <div class="mezcla" id="mezcla" hidden>
           <span class="lbl">Mezcla · qué suena al pulsar Reproducir (todas las pistas juntas)</span>
           <div class="mix-rows" id="mixRows"></div>
@@ -1122,6 +1117,9 @@
       'Talk Talk': { bpm:[70,100,84], sello:'Dos acordes que respiran: I – IV o i – iv, y silencio como parte del acorde.', pref:'major',
         M: { I:{IV:40,ii:20,vi:20,bVII:20}, IV:{I:55,ii:25,vi:20}, ii:{IV:40,I:40,V:20}, vi:{IV:40,I:35,ii:25}, bVII:{IV:50,I:50}, V:{I:60,IV:40}, iii:{IV:60,vi:40}, 'vii°':{I:100}, bVI:{bVII:50,I:50}, iv:{I:100}, bIII:{IV:100} },
         m: { i:{iv:30,VI:25,VII:25,III:20}, iv:{i:50,VI:25,VII:25}, VI:{i:40,VII:30,iv:30}, VII:{i:50,VI:25,iv:25}, III:{iv:40,VI:30,i:30}, v:{i:100}, V:{i:100}, bII:{i:100}, 'ii°':{i:100}, IV:{i:60,VII:40} } },
+      'Fuji Kaze': { bpm:[78,104,90], sello:'J-pop melancólico y con soul: la vuelta IV–V–iii–vi (la «royal road»), séptimas por todos lados, mucho vi y iii, y a ratos se nubla al menor.', pref:'major',
+        M: { I:{vi:30,IV:25,iii:20,ii:15,V:10}, IV:{V:35,iii:25,ii:20,I:20}, V:{iii:30,vi:30,I:25,IV:15}, vi:{ii:30,IV:25,iii:20,V:15,I:10}, iii:{vi:45,IV:30,ii:25}, ii:{V:50,vi:25,IV:25}, 'vii°':{I:60,iii:40}, bVII:{IV:50,I:50}, bVI:{bVII:60,V:40}, iv:{I:50,iii:50}, bIII:{IV:60,vi:40} },
+        m: { i:{iv:30,VI:25,III:20,v:15,'ii°':10}, iv:{v:30,VII:25,i:25,VI:20}, VI:{'ii°':30,III:25,VII:25,iv:20}, III:{VI:45,iv:30,VII:25}, v:{i:45,iv:30,VI:25}, VII:{III:35,i:35,VI:30}, 'ii°':{V:40,v:30,i:30}, V:{i:60,VI:40}, bII:{i:70,VII:30}, IV:{i:50,iv:50} } },
     },
     'Alternativo': {
       'Thom Yorke': { bpm:[70,110,88], sello:'Menor con cromatismos: acordes que se deslizan medio tono, tónica que no llega, aire y desasosiego.', pref:'minor',
@@ -1152,7 +1150,7 @@
   // La notación guardada manda sobre la de partida: si la cambió, se respeta.
   const notacionGuardada = (() => { try { return localStorage.getItem('denavilab.notacion'); } catch (e) { return null; } })();
 
-  const S = { quien: QUIEN, notacion: notacionGuardada === 'en' || notacionGuardada === 'es' ? notacionGuardada : D.notacion, genre:D.genre, band:D.band, animo:'Sin definir', bpm:D.bpm, bpmFijado:false, bpmBloqueado:false, inst:'pad', capas:{pad:true,coro:false,piano:false,uke:false}, root:5, qual:'M', key:{tonic:9, mode:'m'}, bars:4, defLen:1, loop:true, prog:[], cand:null, keysMode:'pad', hover:null, playing:-1, voicing:3, kbKeys:37,
+  const S = { quien: QUIEN, notacion: notacionGuardada === 'en' || notacionGuardada === 'es' ? notacionGuardada : D.notacion, genre:D.genre, band:D.band, animo:'Sin definir', bpm:D.bpm, bpmFijado:false, bpmBloqueado:false, inst:'pad', padInst:'pad', root:5, qual:'M', key:{tonic:9, mode:'m'}, bars:4, defLen:1, loop:true, keysMode:'pad', hover:null, playing:-1, voicing:3, kbKeys:37,
     mode:'beat',
     mix: { mute:{drums:false,bass:false,chords:false,guitar:false,lead:false}, solo:{drums:false,bass:false,chords:false,guitar:false,lead:false} },
     drums: { len:1, on:true, kit:D.kit, name:'', quant:1, pat:{ kick:new Array(64).fill(0), snare:new Array(64).fill(0), hh:new Array(64).fill(0), oh:new Array(64).fill(0) } },
@@ -1163,6 +1161,15 @@
     metron: false,
     lead: { lh:'root13', rh:'melody', split:12, tool:'note', mel:new Array(128).fill(-1), acc:new Array(128).fill(0) },
     bassd: { own:false, bpm:72, bars:4, len:1, oct:0, tool:'note', grid:new Array(64).fill(-1), acc:new Array(64).fill(0), slide:new Array(64).fill(0), withDrums:true } };
+  // Pad y Piano son pistas de acordes INDEPENDIENTES: cada una con su propia progresión.
+  S._chord = { pad:{prog:[],cand:null}, piano:{prog:[],cand:null} };
+  const pistaAcorde = () => S.mode==='piano' ? 'piano' : 'pad';   // los demás modos editan la del Pad
+  Object.defineProperty(S, 'prog', { configurable:true, get(){ return S._chord[pistaAcorde()].prog; }, set(v){ S._chord[pistaAcorde()].prog = v; } });
+  Object.defineProperty(S, 'cand', { configurable:true, get(){ return S._chord[pistaAcorde()].cand; }, set(v){ S._chord[pistaAcorde()].cand = v; } });
+  const chordPistas = () => [
+    { id:'chords:pad',   prog:S._chord.pad.prog,   cand:S._chord.pad.cand,   inst:(S.padInst||'pad') },
+    { id:'chords:piano', prog:S._chord.piano.prog, cand:S._chord.piano.cand, inst:'piano' },
+  ];
   const bassBpm = () => S.mode==='bajod' && S.bassd.own ? S.bassd.bpm : S.bpm;
   const bassBars = () => S.mode==='bajod' && S.bassd.own ? S.bassd.bars : S.bars;
   // Un solo tempo de proyecto, mostrado igual en todas las secciones.
@@ -1570,16 +1577,13 @@
   }
   function mixTracks() {
     const t = [];
-    ['pad','coro','piano','uke'].forEach(inst=>{ if (S.capas[inst]) t.push(['chords:'+inst, 'Acordes · '+CAPA_LBL[inst]]); });
+    if (S._chord.pad.prog.length || S._chord.pad.cand) t.push(['chords:pad', (CAPA_LBL[S.padInst]||'Pad')]);
+    if (S._chord.piano.prog.length || S._chord.piano.cand) t.push(['chords:piano', 'Piano']);
     t.push(['drums','Batería'], ['guitar','Guitarra'], ['lead','Piano lead']);   // bajo digital oculto por ahora
     return t;
   }
   const CAPA_LBL = { pad:'Pad', coro:'Voces', piano:'Piano', uke:'Ukelele' };
-  function renderCapas() {
-    const box = $('capasChips'); if (!box) return; box.innerHTML='';
-    Object.keys(CAPA_LBL).forEach(k=> box.append(el('button',{class:'chip','aria-pressed':String(!!S.capas[k]), title:'suena el acorde con '+CAPA_LBL[k], onclick:()=>{ S.capas[k]=!S.capas[k]; renderCapas(); }}, CAPA_LBL[k])));
-  }
-  const mixTieneContenido = tr => { try { if (tr.indexOf('chords:')===0) return (S.prog.length>0||!!S.cand); return tr==='drums' ? (S.donner.on ? donnerHay() : hasDrums()) : tr==='guitar' ? S.guitar.prog.length>0 : tr==='lead' ? hasLead() : false; } catch(e){ return false; } };
+  const mixTieneContenido = tr => { try { if (tr==='chords:pad') return (S._chord.pad.prog.length>0||!!S._chord.pad.cand); if (tr==='chords:piano') return (S._chord.piano.prog.length>0||!!S._chord.piano.cand); return tr==='drums' ? (S.donner.on ? donnerHay() : hasDrums()) : tr==='guitar' ? S.guitar.prog.length>0 : tr==='lead' ? hasLead() : false; } catch(e){ return false; } };
   function renderMixer() {
     const activos = mixTracks().filter(([tr])=>mixTieneContenido(tr));
     const caja = $('mezcla'); if (caja) caja.hidden = activos.length < 2;         // embebida en pad/piano
@@ -2061,9 +2065,8 @@
       const lhKind = M.lh || S.piano.lh; lhHits(lhKind, c).forEach(([s,len,m])=>voice(m, tb + s*six + swingOff(s,six), six*len*0.9, 'piano', 0.22));
     }
   }
-  const capasActivas = () => Object.keys(S.capas||{}).filter(k=>S.capas[k]);
-  function scheduleChord(c, t, beat, inst=S.inst) {
-    const keys = (inst==='piano') ? (()=>{ const seq=[...S.prog]; const idx=seq.indexOf(c); const vs=voicedSeq(idx>=0?seq.slice(0,idx+1):[...seq,c]); return vs[vs.length-1].notes; })() : chordKeys(c.pc,c.q).map(midiOfKey);
+  function scheduleChord(c, t, beat, inst=S.inst, prog=S.prog) {
+    const keys = (inst==='piano') ? (()=>{ const seq=[...prog]; const idx=seq.indexOf(c); const vs=voicedSeq(idx>=0?seq.slice(0,idx+1):[...seq,c]); return vs[vs.length-1].notes; })() : chordKeys(c.pc,c.q).map(midiOfKey);
     const root = midiOfKey(keyIndexOfPc(c.pc)) - 24;
     const nb = Math.round(c.len * 4);                      // pulsos que dura este acorde
     switch (inst) {
@@ -2089,12 +2092,18 @@
     do {   // una pasada; con «loop» se repite hasta Detener
       beat = 60/(mode==='bass' ? bassBpm() : S.bpm); barDur = beat*4;   // relee el tempo cada vuelta (bajo con tempo propio, o bpm cambiado)
       // Se relee el estado en cada vuelta: agregar/cambiar/quitar un acorde entra en la siguiente pasada
-      withChords = mode === 'all' && (S.prog.length > 0 || !!S.cand);
-      seq = withChords ? [...S.prog, ...(S.cand && remaining()>0 ? [{pc:S.cand.pc, q:S.cand.q, len:Math.min(S.defLen, remaining())}] : [])] : [];
-      totalBars = withChords ? (seq.reduce((a,c)=>a+c.len,0) || S.bars) : mode==='lead' ? leadBarsTotal() : mode==='guitarra' ? guitBars() : (mode==='bass' ? bassBars() : S.bars);
+      const _pad = S._chord.pad, _pia = S._chord.piano;
+      const _padB = _pad.prog.reduce((a,c)=>a+c.len,0), _piaB = _pia.prog.reduce((a,c)=>a+c.len,0);
+      withChords = mode === 'all' && (_pad.prog.length || _pad.cand || _pia.prog.length || _pia.cand);
+      const _base = _pad.prog.length ? _pad.prog : _pia.prog;   // para resaltar la rueda
+      seq = withChords ? [..._base] : [];
+      totalBars = withChords ? (Math.max(_padB, _piaB) || S.bars) : mode==='lead' ? leadBarsTotal() : mode==='guitarra' ? guitBars() : (mode==='bass' ? bassBars() : S.bars);
       if (mode==='all') totalBars = Math.max(totalBars || S.bars, hasBassD()?S.bassd.len:1, S.guitar.prog.length?guitBars():1, hasLead()?leadBarsTotal():1);
       withDrums = mode === 'drums' || (mode==='all' && S.drums.on && suena('drums')) || (mode==='bass' && S.bassd.withDrums) || (mode==='lead' && $('leadDrums').checked) || (mode==='guitarra' && S.guitar.withDrums);
-      if (withChords) { let tt = t0; seq.forEach((c,i)=>{ c._i=i; const capas=capasActivas(); (capas.length?capas:[S.inst]).forEach(inst=>{ if (suena('chords:'+inst)) scheduleChord(c, tt, beat, inst); }); tt += c.len*barDur; }); }
+      if (withChords) { chordPistas().forEach(pp=>{ if (!suena(pp.id) || !(pp.prog.length || pp.cand)) return;
+        const usados = pp.prog.reduce((a,c)=>a+c.len,0), rest = S.bars - usados;
+        const seqP = [...pp.prog, ...(pp.cand && rest>0 ? [{pc:pp.cand.pc, q:pp.cand.q, len:Math.min(S.defLen, rest)}] : [])];
+        let tt = t0; seqP.forEach((c,i)=>{ c._i=i; scheduleChord(c, tt, beat, pp.inst, pp.prog); tt += c.len*barDur; }); }); }
       if (rec && rec.metron) scheduleMetronomo(t0, beat, totalBars || S.bars);
       if (mode==='guitarra' && S.guitar.metron) scheduleMetronomo(t0, beat, totalBars || 1);
       if ((mode==='drums' || mode==='bass') && S.metron) scheduleMetronomo(t0, beat, totalBars || S.bars);
@@ -2188,7 +2197,7 @@
   if ($('bpmLock')) $('bpmLock').addEventListener('change', e=>setBpmBloqueo(e.target.checked));
   $('bpm').addEventListener('input', e=>{ setBpm(e.target.value, true); paintWheel(); renderBars(); });
   if ($('tapBpm')) $('tapBpm').addEventListener('click', tapTempo);
-  $('inst').addEventListener('change', e=>{ S.inst=e.target.value; if (S.mode==='pad'){ S.capas.pad=(e.target.value==='pad'); S.capas.coro=(e.target.value==='coro'); } renderReadout(); renderBars(); if (typeof renderCapas==='function') renderCapas(); });
+  $('inst').addEventListener('change', e=>{ S.inst=e.target.value; if (S.mode==='pad') S.padInst=e.target.value; renderReadout(); renderBars(); if (typeof renderMixer==='function') renderMixer(); });
   const instLabel = () => S.mode==='piano' ? 'Piano' : S.mode==='lead' ? 'Piano lead' : S.mode==='bajod' ? 'Bajo digital' : S.mode==='beat' ? 'Batería' : $('inst').selectedOptions[0].textContent;
   $('root').addEventListener('change', e=>{ S.root=+e.target.value; S.key=defaultKey()||S.key; S.prog=[]; renderAll(); });
   $('qual').addEventListener('change', e=>{ S.qual=e.target.value; S.key=defaultKey()||S.key; S.prog=[]; renderAll(); });
@@ -2453,7 +2462,6 @@
   if ($('pcMode')) $('pcMode').addEventListener('change', e=>{ S.pcMode=e.target.checked; });
   if ($('padsTempo')) $('padsTempo').addEventListener('change', e=>{ S.padsTempo=e.target.checked; });
   renderArpChips();
-  if ($('capasChips')) renderCapas();
   $('recBtnBeat').addEventListener('click', ()=>{ if (!midiAccess) { $('midiStatusBeat').textContent = 'Primero pulsa «Conectar el MPK por MIDI» aquí arriba.'; return; } if (rec) { stopRec(); $('recBtnBeat').textContent='● Grabar pads del MPK'; } else { startRec(); $('recBtnBeat').textContent='■ Parar'; } });
   $('midiIn').addEventListener('change', e=>pickInput(e.target.value));
 
@@ -2589,8 +2597,7 @@
     S.mode = m; $('mode').value = m;
     document.querySelectorAll('#modosTabs .mtab').forEach(b=>b.setAttribute('aria-current', String(b.dataset.m===m)));
     S.inst = m==='bajod' ? 'bajod' : (m==='piano'||m==='lead') ? 'piano' : $('inst').value; if (m==='pad'||m==='piano') S.keysMode = m;
-    if (m==='piano') S.capas.piano=true; else if (m==='pad') S.capas[$('inst').value==='coro'?'coro':'pad']=true;
-    if (typeof renderCapas==='function') renderCapas();
+    if (m==='pad') S.padInst = $('inst').value;
     if (m==='piano') renderPianoPanel();
     if (m==='lead') renderLead();
     if (m==='letra') { llenarProgsDeLetra(); renderLetra(); }
@@ -2845,6 +2852,8 @@
   // ───────── Panel de administración (sólo Rolando): changelog + bugs ─────────
   const CHANGELOG = [
     { fecha:'2026-09-07', items:[
+      'Pad y Piano ahora son pistas INDEPENDIENTES: cada uno con su propia progresión (los acordes del Pad ya no aparecen en el Piano). Se tocan juntos o por separado y se silencian/aíslan como pistas distintas en el mezclador.',
+      'Nuevo autor: Fuji Kaze (J-pop melancólico y con soul) en Bedroom pop, con la vuelta IV–V–iii–vi.',
       'Bajo digital: quitado también del menú desplegable de modo (ya no se puede entrar); setMode redirige a batería por si acaso.',
       'Batería: el género del menú izquierdo ahora reordena el «Patrón base» de la derecha (los patrones de esa banda/género van primero, con ★); y el consejo pegado se refresca al cambiar de género (antes quedaba en «trip hop»).',
       'Fix: el consejo de la batería ahora es según el género elegido y se actualiza al instante al cambiarlo (antes decía siempre «trip hop»).',
@@ -2963,13 +2972,18 @@
   const hasBassD = () => S.bassd.grid.some(r=>r>=0);
   function buildMidi(which) {
     const bpm = which==='bajod' && S.bassd.own ? S.bassd.bpm : S.bpm;
-    const seq = S.prog.length ? S.prog : (S.cand ? [{pc:S.cand.pc,q:S.cand.q,len:S.defLen}] : []);
-    const bars = seq.length ? Math.max(usedBars(), 1) : S.bars;
+    const progDe = pp => pp.prog.length ? pp.prog : (pp.cand ? [{pc:pp.cand.pc,q:pp.cand.q,len:S.defLen}] : []);
+    const padProg = progDe(S._chord.pad), pianoProg = progDe(S._chord.piano);
+    const seq = which==='piano' ? pianoProg : padProg;
+    const chordBars = Math.max(padProg.reduce((a,c)=>a+c.len,0), pianoProg.reduce((a,c)=>a+c.len,0));
+    const bars = chordBars ? Math.max(chordBars,1) : S.bars;
     const tracks = [];
     const tempo = Math.round(60000000/bpm); const t0 = midiTrack('DenaviLAB', [], [0,0xff,0x51,3,(tempo>>16)&255,(tempo>>8)&255,tempo&255, 0,0xff,0x58,4,4,2,24,8]);
     const wantAll = which==='all';
-    if ((wantAll || which==='pad' || which==='piano') && seq.length) tracks.push(trackChords(seq, which==='piano' || (wantAll && S.keysMode==='piano')));
-    if ((wantAll || which==='lead') && seq.length && (S.lead.mel.some(r=>r>=0) || S.lead.lh!=='none' || which==='lead')) tracks.push(...trackLead(bars));
+    if (wantAll) { if (padProg.length) tracks.push(trackChords(padProg, false)); if (pianoProg.length) tracks.push(trackChords(pianoProg, true)); }
+    else if (which==='pad' && padProg.length) tracks.push(trackChords(padProg, false));
+    else if (which==='piano' && pianoProg.length) tracks.push(trackChords(pianoProg, true));
+    if ((wantAll || which==='lead') && padProg.length && (S.lead.mel.some(r=>r>=0) || S.lead.lh!=='none' || which==='lead')) tracks.push(...trackLead(bars));
     if ((wantAll || which==='bajod') && hasBassD()) tracks.push(trackBassD(which==='bajod' && S.bassd.own ? S.bassd.bars : bars));
     if ((wantAll || which==='guitarra') && S.guitar.prog.length) tracks.push(trackGuit());
     if ((wantAll || which==='beat') && hasDrums()) tracks.push(trackDrums(bars));
