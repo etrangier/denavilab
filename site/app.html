@@ -266,6 +266,7 @@
   .grid.two { grid-template-columns: 250px minmax(0,1fr); }
   [data-modes].off { display: none !important; }
   body:not([data-quien="rolando"]) [data-solo="rolando"] { display: none !important; }
+  body[data-quien="invitado"] .solo-banda { display: none !important; }
   .admin { margin: 28px 0 8px; border-top: 1px solid var(--line); padding-top: 10px; opacity: .72; }
   .admin > summary { cursor: pointer; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); list-style: none; }
   .admin > summary::-webkit-details-marker { display: none; }
@@ -380,7 +381,7 @@
     <button class="navlink" id="navAtras" type="button">&larr; Atrás</button>
     <a class="navlink" href="index.html">Portada</a>
     <a class="navlink" href="guia.html">Trabajo guiado</a>
-    <a class="navlink" href="archivo.html">Archivo</a>
+    <a class="navlink solo-banda" href="archivo.html">Archivo</a>
     <span class="navsesion" id="navSesion"></span>
   </nav>
   <div class="errbar" id="errbar" hidden></div>
@@ -982,6 +983,9 @@
       'New Order': { bpm:[115,135,124], sello:'Mayor luminoso, I – IV – V con el bajo llevando la melodía.', pref:'major',
         M: { I:{IV:35,V:30,vi:20,ii:15}, IV:{V:40,I:35,vi:25}, V:{I:45,IV:30,vi:25}, vi:{IV:45,I:30,V:25}, ii:{IV:40,V:40,I:20}, iii:{IV:60,vi:40}, 'vii°':{I:100}, bVII:{IV:50,I:50}, bVI:{bVII:100}, iv:{I:100}, bIII:{IV:100} },
         m: { i:{VI:30,VII:30,iv:20,III:20}, VI:{VII:45,i:30,III:25}, VII:{i:50,VI:30,iv:20}, iv:{i:40,VII:35,VI:25}, III:{VII:50,VI:50}, v:{i:60,VI:40}, V:{i:100}, bII:{i:100}, 'ii°':{i:100}, IV:{i:50,VII:50} } },
+      'Martin Lee Gore': { bpm:[85,118,102], sello:'El que maqueta las canciones de Depeche Mode: menor íntimo, i–iv–VI con el bII como sombra; pocos acordes, mucho sostenido.', pref:'minor',
+        m: { i:{iv:30,VI:25,VII:20,v:15,bII:10}, iv:{i:40,VI:30,v:30}, VI:{VII:35,iv:35,i:30}, VII:{i:55,VI:30,III:15}, v:{i:55,iv:25,VI:20}, III:{VI:50,VII:50}, bII:{i:70,VII:30}, V:{i:70,VI:30}, 'ii°':{V:50,i:50}, IV:{i:60,iv:40} },
+        M: { I:{vi:35,IV:30,V:20,iii:15}, vi:{IV:40,I:30,V:30}, IV:{I:40,V:35,vi:25}, V:{vi:50,I:50}, iii:{vi:60,IV:40}, ii:{V:60,IV:40}, 'vii°':{I:100}, bVII:{IV:60,I:40}, bVI:{bVII:100}, iv:{I:100}, bIII:{IV:100} } },
     },
     'Rock': {
       'Green Day': { bpm:[150,190,172], sello:'Punk melódico: I–V–vi–IV a toda velocidad, con el bVII asomando de vez en cuando.', pref:'major',
@@ -1020,6 +1024,11 @@
       'Damon Albarn': { bpm:[80,120,100], sello:'Melancolía mayor-menor: la vuelta luminosa que se nubla, mucho iii y vi, bajo que camina.', pref:'major',
         M: { I:{iii:25,vi:25,IV:25,ii:15,V:10}, iii:{vi:40,IV:30,ii:30}, vi:{IV:35,ii:25,iii:20,I:20}, IV:{I:35,V:25,iii:20,ii:20}, ii:{V:45,IV:30,I:25}, V:{I:45,vi:35,IV:20}, 'vii°':{I:60,iii:40}, bVII:{IV:50,I:50}, bVI:{bVII:60,I:40}, iv:{I:70,vi:30}, bIII:{IV:50,bVII:50} },
         m: { i:{III:30,VI:25,iv:20,VII:15,v:10}, III:{VI:40,VII:30,iv:30}, VI:{iv:35,III:30,VII:35}, iv:{i:40,VII:30,VI:30}, VII:{i:45,III:30,VI:25}, v:{i:60,iv:40}, V:{i:65,VI:35}, bII:{i:100}, 'ii°':{V:60,i:40}, IV:{i:50,VII:50} } },
+    },
+    'Lo-fi hip hop': {
+      'Lo-fi (para estudiar)': { bpm:[70,90,82], sello:'Beats tranquilos con acordes jazzeros: menor con ii–v, mucho iv y VI, y vueltas que no resuelven del todo. Sin autor fijo: es un ambiente.', pref:'minor',
+        m: { i:{iv:30,VII:25,VI:20,v:15,'ii°':10}, iv:{VII:30,v:30,i:25,VI:15}, VII:{III:35,VI:30,i:35}, VI:{'ii°':30,VII:30,iv:25,i:15}, III:{VI:50,iv:30,VII:20}, v:{i:45,iv:30,VII:25}, 'ii°':{v:40,V:35,i:25}, V:{i:60,VI:40}, bII:{i:100}, IV:{VII:50,i:50} },
+        M: { I:{vi:30,ii:25,IV:25,iii:20}, vi:{ii:35,IV:30,V:20,iii:15}, ii:{V:40,IV:30,vi:30}, IV:{iii:30,ii:30,I:25,V:15}, iii:{vi:50,IV:50}, V:{I:50,vi:50}, 'vii°':{I:100}, bVII:{IV:100}, bVI:{bVII:100}, iv:{I:100}, bIII:{IV:100} } },
     },
     'Personal': {
       'Tus hábitos': { bpm:[60,150,90], sello:'Aprende de tus vueltas guardadas.', pref:'major', m:{}, M:{} },
@@ -1090,6 +1099,7 @@
     'Oscuro':      { mode:'m', bpm:70,  bars:4, sello:'Grave y pesado: menor muy lento, pocas notas.' },
     'Tenso':       { mode:'m', bpm:130, bars:4, sello:'Inquieto: menor, rápido, con empuje.' },
     'Enérgico':    { mode:'M', bpm:150, bars:4, sello:'Directo y con fuerza: mayor rápido, coreable.' },
+    'Concentración':{ mode:'m', bpm:82,  bars:8, sello:'Para leer o trabajar: menor tranquilo, tempo lo-fi, acordes largos que acompañan sin distraer.' },
   };
   function aplicarAnimo(nombre) {
     S.animo = nombre;
@@ -1779,11 +1789,12 @@
     if (isPlaying) { stopAll(); return; }
     ensureAudio(); if (ctx.state==='suspended') { try { await ctx.resume(); } catch(e) {} }
     if (ctx.state !== 'running') { showErr('El navegador mantiene el audio en pausa (estado: ' + ctx.state + '). Toca «Probar sonido» o cualquier tecla del dibujo y vuelve a intentar.'); }
-    stopFlag=false; isPlaying = true; if (typeof stopPreview==='function') stopPreview(); const beat = 60/(mode==='bass' ? bassBpm() : S.bpm), barDur = beat*4; let t0 = ctx.currentTime + 0.1;
+    stopFlag=false; isPlaying = true; if (typeof stopPreview==='function') stopPreview(); let beat = 60/(mode==='bass' ? bassBpm() : S.bpm), barDur = beat*4; let t0 = ctx.currentTime + 0.1;
     if (mode === 'lead' && !S.prog.length && !hasLead()) { $('leadProg').textContent = 'Graba una melodía o guarda una progresión en Pad/Piano para escuchar el lead.'; isPlaying=false; return; }
     let withChords, seq, totalBars, withDrums;
     $('play').textContent = '■ Detener'; $('playDrums').textContent = '■ Detener'; $('playBass').textContent = '■ Detener'; $('playLead').textContent = '■ Detener'; $('playGuit').textContent = '■ Detener'; $('candPlay').textContent = '■ Detener';
     do {   // una pasada; con «loop» se repite hasta Detener
+      beat = 60/(mode==='bass' ? bassBpm() : S.bpm); barDur = beat*4;   // relee el tempo cada vuelta (bajo con tempo propio, o bpm cambiado)
       // Se relee el estado en cada vuelta: agregar/cambiar/quitar un acorde entra en la siguiente pasada
       withChords = mode === 'all' && (S.prog.length > 0 || !!S.cand);
       seq = withChords ? [...S.prog, ...(S.cand && remaining()>0 ? [{pc:S.cand.pc, q:S.cand.q, len:Math.min(S.defLen, remaining())}] : [])] : [];
@@ -1803,12 +1814,16 @@
       }
       if (mode === 'bass') {
         bassPlayhead(t0, beat, totalBars);
-        // compás a compás, releyendo la rejilla: lo que cambies entra en la vuelta siguiente
+        // compás a compás, releyendo rejilla Y tempo: cambiar el bpm propio del bajo entra al compás siguiente
+        let tb = t0;
         for (let b=0; b<totalBars && !stopFlag; b++) {
-          scheduleBassSeq(t0 + b*barDur, 1, beat, b);
-          const falta = (t0 + (b+1)*barDur - 0.08 - ctx.currentTime)*1000;
+          const bt = 60/bassBpm(), bd = bt*4;
+          scheduleBassSeq(tb, 1, bt, b);
+          const falta = (tb + bd - 0.08 - ctx.currentTime)*1000;
           if (falta > 0) await wait(falta);
+          tb += bd;
         }
+        t0 = tb - totalBars*barDur;   // el t0 += totalBars*barDur de abajo lo deja en el tiempo real acumulado
       }
       if (mode === 'lead') { scheduleLead(t0, totalBars, beat); leadPlayhead(t0, beat, totalBars); if ($('leadBass').checked && hasBassD()) scheduleBassSeq(t0, totalBars, beat); }
       if (withDrums && mode !== 'drums') { scheduleDrums(t0, totalBars, beat); drumPlayhead(t0, beat, totalBars); }
@@ -2459,6 +2474,12 @@
 
   // ───────── Panel de administración (sólo Rolando): changelog + bugs ─────────
   const CHANGELOG = [
+    { fecha:'2026-09-07', items:[
+      'Archivo: fuera de la portada y sólo para Schair y Rolando (el invitado ya no entra).',
+      'Nuevo género Lo-fi hip hop (sin autor fijo) y nuevo autor Martin Lee Gore (Depeche Mode) en Synth pop.',
+      'Nuevo estado de ánimo: Concentración (para leer o trabajar).',
+      'Arreglo: el tempo propio del bajo ahora cambia el ritmo en tiempo real (se relee cada compás).',
+    ] },
     { fecha:'2026-09-06 · noche', items:[
       'Mezcla (tipo Songsterr): «Reproducir todo» suena batería, bajo, acordes, guitarra y lead juntos y sincronizados, con silenciar (M) y aislar (S) por pista. [en prueba: confirmar el audio en vivo]',
     ] },
