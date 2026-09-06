@@ -678,9 +678,11 @@
         <div class="seq-scroll"><div class="seq" id="seq"></div></div>
         <div class="actions">
           <button class="primary" id="playDrums">▶ Sólo batería</button>
+          <button class="ghost" id="midiBtnBeat">Conectar el MPK por MIDI</button>
           <button class="ghost" id="recBtnBeat">● Grabar pads del MPK</button>
           <label class="hint"><input type="checkbox" class="loopChk" checked> loop</label>
           <button class="ghost" id="clearDrums">Limpiar patrón</button>
+          <span class="hint" id="midiStatusBeat">Con el MPK conectado, los pads (canal 10) tocan y graban la batería. Sin teclado, se dibuja a clic.</span>
           <span class="hint">Clic en una casilla para poner o quitar el golpe. Las casillas marcadas son los pulsos 1 · 2 · 3 · 4.</span>
         </div>
         <div class="saved">
@@ -1589,7 +1591,7 @@
   // ───────── Entrada MIDI (Web MIDI API) ─────────
   const held = new Set();          // notas MIDI pisadas ahora
   let midiAccess = null, midiInput = null, lastCommitted = null;
-  const midiStatus = (msg, ok=false) => { const s=$('midiStatus'); s.textContent = msg; s.classList.toggle('ok', ok); };
+  const midiStatus = (msg, ok=false) => { const s=$('midiStatus'); s.textContent = msg; s.classList.toggle('ok', ok); const s2=$('midiStatusBeat'); if (s2) { s2.textContent = msg; s2.classList.toggle('ok', ok); } };
   const keyOfMidi = m => { let k = m - 48; while (k < 0) k += 12; while (k >= S.kbKeys) k -= 12; return k; };   // OCT del MPK en 0 → do3 = tecla 0
   function paintLive() {
     document.querySelectorAll('#kb .live').forEach(n=>n.classList.remove('live'));
@@ -1696,7 +1698,7 @@
     try {
       midiAccess = await navigator.requestMIDIAccess({ sysex:false });
       midiAccess.onstatechange = listInputs;
-      listInputs(); $('midiBtn').hidden = true;
+      listInputs(); $('midiBtn').hidden = true; if ($('midiBtnBeat')) $('midiBtnBeat').hidden = true;
     } catch (err) {
       const blocked = /security|not allowed|permission/i.test(String(err));
       midiStatus(blocked ? 'El navegador no dio permiso de MIDI (o el marco de claude.ai lo bloquea). Si no apareció ninguna pregunta de permiso, descarga la página y ábrela directo en Opera: ahí sí funciona.' : 'No se pudo conectar: ' + (err.message || err));
@@ -1704,9 +1706,10 @@
     }
   }
   $('midiBtn').addEventListener('click', connectMidi);
+  $('midiBtnBeat').addEventListener('click', connectMidi);
   $('recBtn').addEventListener('click', ()=>{ if (rec) stopRec(); else startRec(); });
   renderKnobs();
-  $('recBtnBeat').addEventListener('click', ()=>{ if (!midiAccess) { $('midiFileInfo').textContent = 'Conecta el MPK: cambia a Pad o Bajo digital, pulsa «Conectar el MPK por MIDI» y vuelve.'; return; } if (rec) { stopRec(); $('recBtnBeat').textContent='● Grabar pads del MPK'; } else { startRec(); $('recBtnBeat').textContent='■ Parar'; } });
+  $('recBtnBeat').addEventListener('click', ()=>{ if (!midiAccess) { $('midiStatusBeat').textContent = 'Primero pulsa «Conectar el MPK por MIDI» aquí arriba.'; return; } if (rec) { stopRec(); $('recBtnBeat').textContent='● Grabar pads del MPK'; } else { startRec(); $('recBtnBeat').textContent='■ Parar'; } });
   $('midiIn').addEventListener('change', e=>pickInput(e.target.value));
 
   // Descarga de la página completa (para abrirla fuera del marco)
