@@ -1329,9 +1329,7 @@
         const t = svgEl('text',{x:tx,y:ty+ (ring.q==='d'?4:2),'text-anchor':'middle','font-size':ring.fs}); t.textContent = notaCap(pc) + (ring.q==='m'?'m':ring.q==='d'?'°':'');
         g.append(t);
         const p = svgEl('text',{class:'sug-pct', x:tx, y:ty+ (ring.q==='d'?12:16), 'text-anchor':'middle'}); g.append(p);
-        const ar = svgEl('title'); ar.textContent = chordLabel(pc,ring.q)+' · '+notesText(pc,ring.q); g.append(ar);
-        g.addEventListener('mouseenter', ()=>{ if (!conHover()) return; S.hover={pc,q:ring.q}; renderReadout(); showTip(pc, ring.q); });
-        g.addEventListener('mousemove', e=>{ if (conHover()) moveTip(e); });
+        g.addEventListener('mouseenter', e=>{ if (!conHover()) return; S.hover={pc,q:ring.q}; renderReadout(); showTip(pc, ring.q); moveTip(e); });
         g.addEventListener('mouseleave', ()=>{ if (!conHover()) return; S.hover=null; renderReadout(); hideTip(); });
         g.addEventListener('click', ()=>propose({pc,q:ring.q}));
         g.addEventListener('keydown', e=>{ if (e.key==='Enter'||e.key===' ') { e.preventDefault(); propose({pc,q:ring.q}); } });
@@ -1390,6 +1388,7 @@
   function hideTip() { const t=$('tip'); if (t) t.hidden = true; }
   window.addEventListener('touchstart', hideTip, {passive:true});
   window.addEventListener('scroll', hideTip, {passive:true});
+  { const w=$('wheel'); if (w) w.addEventListener('mouseleave', ()=>{ if (S.hover){ S.hover=null; renderReadout(); } hideTip(); }); }
 
   // Tips pedagógicos según lo que estás haciendo (Guías 1 y 2)
   function tipHtml() {
@@ -2715,6 +2714,7 @@
   // ───────── Panel de administración (sólo Rolando): changelog + bugs ─────────
   const CHANGELOG = [
     { fecha:'2026-09-07', items:[
+      'Hover de la rueda: se quitó el tooltip nativo duplicado del SVG y el flotante ya no persigue el cursor (se posiciona al entrar y se oculta al salir del acorde o de la rueda).',
       'Progresión (pad y piano): cada acorde guardado tiene ahora botones para borrar (✕), copiar/duplicar (⧉) y mover ‹ ›.',
       'Pad: el «Classic Analog Pad» ahora suena más suave (menos agudo). Nuevo instrumento «Voces · coro» que evoca el pad de voces de «Enjoy the Silence».',
       'Batería: cuadro simulado de la Donner D1 (12 canales en 3 bancos, páginas de 16 pasos hasta 64, voces sintetizadas) que se activa con un toggle y se resalta si se conecta una D1 por MIDI; «Sólo batería» lo reproduce.',
