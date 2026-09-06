@@ -33,7 +33,9 @@
   <section class="principiante" id="principiante">
     <p class="quien">Para empezar de cero</p>
     <h2>Modo principiante</h2>
-    <p class="intro">Nunca hiciste una maqueta: no importa. Aquí no hay que saber nada de música. Se empieza por el pulso —la batería— y de ahí, a tu ritmo, se suma lo demás. El taller te da sugerencias y consejos mientras improvisas, pero son eso: sugerencias. Copia, combina, cambia y borra cuando quieras. Puedes guardar el avance en cualquier momento.</p>
+    <p class="intro">Nunca hiciste una maqueta: no importa. Aquí no hay que saber nada de música. Vamos de a un paso: haces lo puntual de cada uno y, cuando estés, el siguiente se abre solo. Los que ya pasaste quedan plegados (clic para volver a mirarlos).</p>
+
+    <div class="prin-progreso" id="prinProgreso"><span class="prin-progreso-txt" id="prinProgresoTxt"></span><span class="prin-barra"><i id="prinBarra"></i></span></div>
 
     <ol class="prin-pasos">
 
@@ -44,6 +46,7 @@
           <p class="tip">La primera versión no tiene que ser buena — tiene que existir. Sigue lo que te llame la atención, no lo que «debería» ir. Encima de la rejilla aparece un consejo que cambia solo: tómalo como una idea, no como una regla. Puedes cambiar cualquier cosa en cualquier momento.</p>
           <a class="btn" id="prinAbrirBeat" href="app.html?modo=beat&guia=principiante" target="_self">Abrir la batería &rarr;</a>
           <p class="prin-cita">Menos golpes, más groove. En el bedroom pop la batería acompaña, no tapa: patrón simple, tempo tranquilo y algún golpe a contratiempo para que respire.<span class="prin-quien">Cómo se hacen los beats de bedroom pop</span></p>
+          <button type="button" class="btn prin-seguir" data-siguiente="2">Ya tengo un pulso · seguir &rarr;</button>
         </div>
       </li>
 
@@ -73,6 +76,7 @@
           <a class="btn" id="prinAbrirRueda" href="app.html?modo=pad&guia=principiante" target="_self">Abrir la rueda preparada &rarr;</a>
           <p class="tip">Consejo: parte por el primer acorde que te propone (el más «seguro») y ve sumando. Con dos acordes ya hay canción.</p>
           <p class="prin-cita">Con tres o cuatro acordes sobra. Truco de Mac DeMarco: al final de la vuelta mete un acorde que no sea de la tonalidad — da un giro con un poco de misterio.<span class="prin-quien">Mac DeMarco</span></p>
+          <button type="button" class="btn prin-seguir" data-siguiente="5">Ya tengo mi vuelta · seguir &rarr;</button>
         </div>
       </li>
 
@@ -82,6 +86,7 @@
           <p>En cada sección, abajo, hay un botón <b>Guardar</b>: le pones un nombre y queda en este navegador (aunque entres como invitado). Puedes tener varias versiones y volver a cualquiera. Nada se sube a internet.</p>
           <p class="tip">Cuando ya tengas acordes + batería, prueba el botón <b>Reproducir todo</b> del taller: suena todo junto, y puedes silenciar o aislar cada instrumento.</p>
           <p class="prin-cita">Guarda la primera toma aunque suene «a maqueta»: una versión completa e imperfecta vale más que un trozo perfecto. Esa aspereza es parte del encanto.<span class="prin-quien">Rick Rubin · Mac DeMarco</span></p>
+          <button type="button" class="btn prin-seguir" data-siguiente="6">Listo · ver qué más hay &rarr;</button>
         </div>
       </li>
 
@@ -425,8 +430,39 @@
   const estado = (() => { try { return JSON.parse(localStorage.getItem(CLAVE)) || {}; } catch (e) { return {}; } })();
   const guardar = () => { try { localStorage.setItem(CLAVE, JSON.stringify(estado)); } catch (e) {} };
 
+  const TOTAL = 6;
   const pasos = [...sec.querySelectorAll('.prin-paso')];
-  const abrirHasta = n => pasos.forEach(p => { const k = +p.dataset.paso; p.classList.toggle('abierto', k <= n); p.classList.toggle('hecho', k < n && k > 1); });
+  const abiertosManual = new Set();   // pasos ya hechos que el usuario volvió a abrir para revisar
+  if (typeof estado.paso !== 'number' || estado.paso < 1 || estado.paso > TOTAL) estado.paso = 1;
+
+  function pintar() {
+    pasos.forEach(p => {
+      const k = +p.dataset.paso;
+      const hecho = k < estado.paso, activo = k === estado.paso, futuro = k > estado.paso;
+      p.hidden = futuro;                                   // los siguientes se despliegan al llegar
+      p.classList.toggle('hecho', hecho);
+      p.classList.toggle('activo', activo);
+      p.classList.toggle('abierto', activo || (hecho && abiertosManual.has(k)));
+    });
+    const t = $('prinProgresoTxt'); if (t) t.textContent = `Paso ${estado.paso} de ${TOTAL}`;
+    const b = $('prinBarra'); if (b) b.style.width = Math.round((estado.paso - 1) / (TOTAL - 1) * 100) + '%';
+  }
+  function irA(n) {
+    estado.paso = Math.max(1, Math.min(TOTAL, n));
+    abiertosManual.clear(); guardar(); pintar();
+    const act = pasos.find(p => +p.dataset.paso === estado.paso);
+    if (act) act.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  // Cabeceras de pasos ya hechos: clic para plegar/desplegar y revisar
+  pasos.forEach(p => {
+    p.querySelector('.prin-cab').addEventListener('click', () => {
+      const k = +p.dataset.paso; if (k >= estado.paso) return;
+      abiertosManual.has(k) ? abiertosManual.delete(k) : abiertosManual.add(k);
+      pintar();
+    });
+  });
+  // Botones «seguir» de los pasos sin elección (batería, acordes, guardar)
+  sec.querySelectorAll('.prin-seguir').forEach(b => b.addEventListener('click', () => irA(+b.dataset.siguiente)));
 
   const linkBase = () => {
     const p = new URLSearchParams();
@@ -452,7 +488,7 @@
       estado.animo = nom; estado.genero = null; estado.autor = null;
       cA.querySelectorAll('button').forEach(x => x.classList.remove('sel')); b.classList.add('sel');
       $('prinAnimoEco').textContent = ANIMOS[nom].eco;
-      pintarGeneros(nom); guardar(); fijarLinks(); abrirHasta(3);
+      pintarGeneros(nom); guardar(); fijarLinks(); irA(3);
     });
     cA.append(b);
   });
@@ -466,7 +502,7 @@
       b.addEventListener('click', () => {
         estado.genero = gen; estado.autor = aut;
         cG.querySelectorAll('button').forEach(x => x.classList.remove('sel')); b.classList.add('sel');
-        guardar(); fijarLinks(); abrirHasta(6);
+        guardar(); fijarLinks(); irA(4);
       });
       cG.append(b);
     });
@@ -476,19 +512,17 @@
   if (estado.animo && ANIMOS[estado.animo]) {
     $('prinAnimoEco').textContent = ANIMOS[estado.animo].eco;
     pintarGeneros(estado.animo);
-    abrirHasta(estado.genero ? 6 : 3);
     fijarLinks();
-  } else {
-    abrirHasta(2);
   }
+  pintar();
 
   $('prinReset').addEventListener('click', () => {
     try { localStorage.removeItem(CLAVE); } catch (e) {}
-    estado.animo = estado.genero = estado.autor = null;
+    estado.animo = estado.genero = estado.autor = null; estado.paso = 1;
     $('prinAnimoEco').textContent = '';
     cA.querySelectorAll('button').forEach(x => x.classList.remove('sel'));
     $('prinGeneros').innerHTML = '';
-    abrirHasta(2);
+    abiertosManual.clear(); pintar();
   });
 })();
 </script>

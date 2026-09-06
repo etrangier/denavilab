@@ -262,3 +262,18 @@ html[data-quien="invitado"] .solo-invitado { display: block; }
 /* consejos de artistas en el modo principiante */
 .prin-cita { margin: 10px 0 0; padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--surface-2); border-radius: 0 8px 8px 0; font-size: 13px; }
 .prin-cita .prin-quien { display: block; margin-top: 4px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .03em; color: var(--accent); text-transform: uppercase; }
+
+/* Modo principiante · revelado de a un paso */
+.prin-progreso { display: flex; align-items: center; gap: 12px; margin: 0 0 16px; }
+.prin-progreso-txt { font-family: var(--mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); flex: 0 0 auto; }
+.prin-barra { flex: 1 1 auto; height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.prin-barra i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s ease; }
+.prin-paso { opacity: 1; }
+.prin-paso.hecho:not(.abierto) { opacity: .7; }
+.prin-paso.activo { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.prin-paso[hidden] { display: none !important; }
+.prin-paso.hecho .prin-cab { cursor: pointer; }
+.prin-paso.hecho .prin-cab::after { content: 'revisar +'; margin-left: auto; font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); flex: 0 0 auto; }
+.prin-paso.hecho.abierto .prin-cab::after { content: 'ocultar \2212'; }
+.prin-paso.hecho .prin-num { background: var(--ok); color: #06110c; }
+.prin-seguir { margin-top: 14px; }
