@@ -170,8 +170,12 @@
   .help summary { cursor: pointer; color: var(--text); font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
   .help p { margin: 6px 0; max-width: 70ch; text-align: justify; hyphens: auto; } .help b { color: var(--text); }
   #tip { position: fixed; z-index: 50; pointer-events: auto; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px 26px 8px 10px; box-shadow: var(--shadow); display: grid; gap: 4px; max-width: 240px; }
-  #tip .tip-x { position: absolute; top: 4px; right: 5px; width: 22px; height: 22px; border: none; background: none; color: var(--muted); font-size: 17px; line-height: 1; cursor: pointer; border-radius: 5px; padding: 0; }
+  #tip .tip-x { position: absolute; top: 4px; right: 5px; z-index: 3; width: 24px; height: 24px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 16px; line-height: 1; cursor: pointer; border-radius: 5px; padding: 0; }
   #tip .tip-x:hover { color: var(--text); background: color-mix(in srgb, var(--muted) 22%, transparent); }
+  .mpk-adv { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 8px; }
+  .mpk-adv > summary { cursor: pointer; font-family: var(--mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+  .mpk-adv[open] > summary { color: var(--accent); }
+  .mpk-adv-body { margin-top: 10px; }
   #tip .nm { font-family: var(--display); font-weight: 700; font-size: 18px; } #tip .nt { font-family: var(--mono); color: var(--accent); font-size: 12px; }
   #tip .role { font-size: 12px; color: var(--muted); } #tip .mini { width: 150px; grid-column: auto; grid-row: auto; }
   .sug .role { grid-column: 1 / 3; font-size: 11.5px; color: var(--muted); }
@@ -587,6 +591,25 @@
           <button class="ghost" id="openTab">Abrir en una pestaña aparte (con MIDI)</button>
           <button class="ghost" id="dlBtn" hidden>Descargar la página para abrirla en Opera</button>
         </div>
+        <details class="mpk-adv" id="mpkAdv">
+          <summary>Controles avanzados del MPK (opcional)</summary>
+          <div class="mpk-adv-body">
+            <p class="hint">Ya funcionan sin activar nada: <b>OCT − / OCT +</b> (cambian la octava de las teclas), <b>pitch bend</b> (afina en vivo), la <b>rueda de modulación</b> (brillo), el <b>pedal</b> (sostiene), los <b>knobs</b> (arriba) y el <b>arpegiador del propio MPK</b> (sus notas se tocan aquí). Abajo, extras de la página que sólo se activan si los quieres.</p>
+            <div class="row" style="flex-wrap:wrap; gap:14px; align-items:flex-start">
+              <div class="field" style="flex:1 1 240px">
+                <span class="lbl">Arpegiador de la página</span>
+                <label class="hint"><input type="checkbox" id="arpOn"> arpegiar lo que mantengo pulsado (teclas o MPK)</label>
+                <span class="lbl" style="margin-top:6px">Patrón</span><div class="chips" id="arpPatron"></div>
+                <span class="lbl" style="margin-top:6px">Velocidad</span><div class="chips" id="arpDiv"></div>
+              </div>
+              <div class="field" style="flex:1 1 240px">
+                <span class="lbl">Botones del MPK</span>
+                <label class="hint"><input type="checkbox" id="pcMode"> PROG / BANK cambian de sección (batería, bajo, rueda…)</label>
+                <label class="hint"><input type="checkbox" id="padsTempo"> los pads marcan el tempo (tap)</label>
+              </div>
+            </div>
+          </div>
+        </details>
       </div>
       <!-- Bajo eléctrico: diapasón -->
       <div class="kb-wrap" data-modes="none">
@@ -1290,7 +1313,7 @@
     for (let k=0;k<S.kbKeys;k++) { const pc=k%12; if (BLACK.has(pc)) blacks.push({k,pc,x:x-BW/2}); else { whites.push({k,pc,x}); x+=W; } }
     svg.setAttribute('viewBox', `0 0 ${x} 132`); svg.style.minWidth = (x>400 ? 560 : 380) + 'px';
     $('kbTitle').textContent = `Akai MPK mini ${S.kbKeys===37?'Plus · 37':'· 25'} teclas · do a do · OCT en 0`;
-    const keyRect = (cls,k,attrs) => { const r=svgEl('rect',{class:cls,id:'k'+k,role:'button',tabindex:'0',...attrs}); r.addEventListener('click',()=>pickKey(k)); r.addEventListener('pointerdown',e=>{ e.preventDefault(); liveOn(liveMidiOf(48+k)); grabarNotaBajo(liveMidiOf(48+k)); const up=()=>{ liveOff(liveMidiOf(48+k)); window.removeEventListener('pointerup',up); window.removeEventListener('pointercancel',up); }; window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up); }); r.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();pickKey(k);} }); const tt=svgEl('title'); tt.textContent=NAMES[k%12]+' — clic para marcar'; r.append(tt); return r; };
+    const keyRect = (cls,k,attrs) => { const r=svgEl('rect',{class:cls,id:'k'+k,role:'button',tabindex:'0',...attrs}); r.addEventListener('click',()=>pickKey(k)); r.addEventListener('pointerdown',e=>{ e.preventDefault(); const mm=liveMidiOf(48+k); if (arpAdd(mm)) {} else liveOn(mm); grabarNotaBajo(mm); const up=()=>{ arpDel(mm); liveOff(mm); window.removeEventListener('pointerup',up); window.removeEventListener('pointercancel',up); }; window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up); }); r.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();pickKey(k);} }); const tt=svgEl('title'); tt.textContent=NAMES[k%12]+' — clic para marcar'; r.append(tt); return r; };
     for (const w of whites) { svg.append(keyRect('wk',w.k,{x:w.x,y:12,width:W,height:H,rx:3})); const t=svgEl('text',{class:'kl',id:'l'+w.k,x:w.x+W/2,y:12+H-8}); t.textContent=nota(w.pc); svg.append(t); }
     for (const b of blacks) { svg.append(keyRect('bk',b.k,{x:b.x,y:12,width:BW,height:BH,rx:2})); const t=svgEl('text',{class:'kl',id:'l'+b.k,x:b.x+BW/2,y:12+BH-6,style:'fill:#bdb7cc'}); t.textContent=nota(b.pc); svg.append(t); }
     [0,12,24].filter(k=>k<S.kbKeys-1).forEach((k,i)=>{ const w=whites.find(w=>w.k===k); const tx=svgEl('text',{class:'oct',x:w.x+2,y:9}); tx.textContent=`oct ${i+1}`; svg.append(tx); });
@@ -1396,7 +1419,7 @@
     const t = $('tip'); if (!t) return; t.innerHTML = '';
     const sug = suggestions().find(x=>x.pc===pc && x.q===q); const [r1, r2] = roleOf(pc, q);
     t.append(
-      el('button',{class:'tip-x', type:'button', title:'cerrar', 'aria-label':'cerrar', onclick:e=>{ e.stopPropagation(); hideTip(); }}, '×'),
+      el('button',{class:'tip-x', type:'button', title:'cerrar', 'aria-label':'cerrar', onpointerdown:e=>{ e.stopPropagation(); e.preventDefault(); hideTip(); }, onclick:e=>{ e.stopPropagation(); hideTip(); }}, '×'),
       el('div',{class:'nm'}, chordLabel(pc,q) + (sug ? `  ·  ${sug.pct}%` : '')),
       el('div',{class:'nt'}, notesText(pc,q)),
       miniKeyboard(pc,q),
@@ -1412,6 +1435,7 @@
     t.style.left = x + 'px'; t.style.top = y + 'px';
   }
   function hideTip() { const t=$('tip'); if (t) t.hidden = true; }
+  document.addEventListener('pointerdown', e=>{ const t=$('tip'); if (t && !t.hidden && !t.contains(e.target) && !(e.target.closest && e.target.closest('#wheel'))) hideTip(); }, true);
 
   // Tips pedagógicos según lo que estás haciendo (Guías 1 y 2)
   function tipHtml() {
@@ -2211,6 +2235,31 @@
   const KNOB = { bpm:70, swing:71, vol:72, bright:73 };           // K1–K4 por defecto en el MPK mini (CC 70–73)
   let knobLearn = null, lastCC = null;
   const MPK_LBL = { bpm:'K1 tempo', swing:'K2 swing', vol:'K3 volumen', bright:'K4 brillo' };
+  // ── Extras avanzados del MPK (opt-in): arpegiador de la página, PROG→sección, pads→tempo ──
+  S.arp = S.arp || { on:false, patron:'up', div:2 }; if (S.pcMode===undefined) S.pcMode=false; if (S.padsTempo===undefined) S.padsTempo=false;
+  const arpSostenidas = new Set();     // notas mantenidas (MPK y teclado dibujado) para arpegiar
+  let arpTimer=null, arpIdx=0;
+  function arpSeq(ns){ if (S.arp.patron==='down') return ns.slice().reverse(); if (S.arp.patron==='updown') return ns.concat(ns.slice(1,-1).reverse()); return ns; }
+  function arpTick(){
+    if (!S.arp.on){ arpTimer=null; return; }
+    const ns=[...arpSostenidas].sort((a,b)=>a-b);
+    if (ns.length){ const seq=arpSeq(ns); const m=seq[arpIdx%seq.length]; arpIdx++;
+      ensureAudio(); const kind=(S.mode==='bajod')?'bajod':(S.mode==='lead'||S.mode==='piano')?'piano':(S.inst||'pad');
+      voice(m, ctx.currentTime+0.005, (60/S.bpm)/S.arp.div*0.85, kind, 0.2); }
+    else arpIdx=0;
+    arpTimer=setTimeout(arpTick, Math.max(40,(60/S.bpm)/S.arp.div*1000));
+  }
+  const arpStart=()=>{ if(!arpTimer){ arpIdx=0; ensureAudio(); unlockAudio(); arpTick(); } };
+  const arpStop=()=>{ if(arpTimer){ clearTimeout(arpTimer); arpTimer=null; } };
+  const arpAdd=m=>{ if (S.arp.on){ arpSostenidas.add(m); return true; } return false; };
+  const arpDel=m=>{ arpSostenidas.delete(m); };
+  function renderArpChips(){
+    const pc=$('arpPatron'); if (pc){ pc.innerHTML=''; [['up','↑ sube'],['down','↓ baja'],['updown','↕ sube y baja']].forEach(([v,t])=> pc.append(el('button',{class:'chip','aria-pressed':String(S.arp.patron===v), onclick:()=>{ S.arp.patron=v; renderArpChips(); }}, t))); }
+    const dc=$('arpDiv'); if (dc){ dc.innerHTML=''; [[2,'corcheas'],[4,'semicorcheas'],[3,'tresillos']].forEach(([v,t])=> dc.append(el('button',{class:'chip','aria-pressed':String(S.arp.div===v), onclick:()=>{ S.arp.div=v; renderArpChips(); }}, t))); }
+    if ($('arpOn')) $('arpOn').checked=S.arp.on;
+    if ($('pcMode')) $('pcMode').checked=S.pcMode;
+    if ($('padsTempo')) $('padsTempo').checked=S.padsTempo;
+  }
   function renderKnobs() { const box=$('knobMap'); if (!box) return; box.innerHTML=''; Object.entries(KNOB).forEach(([fn,cc])=> box.append(el('button',{class:'chip','aria-pressed':String(knobLearn===fn), title:'Clic y mueve el knob que quieras usar', onclick:()=>{ knobLearn = knobLearn===fn ? null : fn; renderKnobs(); }}, `${MPK_LBL[fn]} · CC ${cc}`))); }
   function onCC(cc, val) {
     lastCC = cc; const dd=$('ccDiag'); if (dd) dd.textContent = `último CC ${cc} = ${val}`;
@@ -2294,14 +2343,15 @@
     const [st, note, vel] = e.data; const cmd = st & 0xf0, chan = st & 0x0f;
     if (cmd === 0xb0) { onCC(note, vel); return; }
     if (cmd === 0xe0) { bendSemis = ((vel<<7 | note) - 8192)/8192 * 2; liveNotes.forEach(v=>v.bend(bendSemis)); return; }
+    if (cmd === 0xc0) { if (S.pcMode) { const M=['beat','bajod','pad','piano','lead','guitarra','letra']; setMode(M[note % M.length]); } return; }
     if (chan === 9 || (cmd === 0x90 && PAD_MAP[note] && (S.mode==='beat'))) {     // pads → batería
-      if (cmd === 0x90 && vel > 0) { const id = PAD_MAP[note] || 'kick'; ensureAudio(); unlockAudio(); DRUM[id](ctx.currentTime+0.01); if (rec && S.mode==='beat') recPad(id); midiStatus(`Pad → ${ROWS.find(r=>r[0]===id)[1]}`, true); }
+      if (cmd === 0x90 && vel > 0) { const id = PAD_MAP[note] || 'kick'; ensureAudio(); unlockAudio(); DRUM[id](ctx.currentTime+0.01); if (rec && S.mode==='beat') recPad(id); if (S.padsTempo) tapTempo(); midiStatus(`Pad → ${ROWS.find(r=>r[0]===id)[1]}`, true); }
       return;
     }
-    if (cmd === 0x90 && vel > 0) { held.add(note); if ($('midiSound').checked) { liveOn(liveMidiOf(note)); if (bendSemis) liveNotes.get(liveMidiOf(note))?.bend(bendSemis); }
+    if (cmd === 0x90 && vel > 0) { held.add(note); if (arpAdd(liveMidiOf(note))) { /* arp toca */ } else if ($('midiSound').checked) { liveOn(liveMidiOf(note)); if (bendSemis) liveNotes.get(liveMidiOf(note))?.bend(bendSemis); }
       if (rec && S.mode==='lead') { const k = keyOfMidi(note); const eighth=60/S.bpm/2, steps=leadBarsTotal()*8; const st=Math.round((ctx.currentTime-rec.t0)/eighth)%steps; if (k >= S.lead.split) { const r = note - leadBaseMidi(); if (r>=0 && r<LEAD_ROWS) { S.lead.mel[st]=r; S.lead.acc[st]=vel>100?1:0; renderLead(); } } }
       grabarNotaBajo(liveMidiOf(note), vel); }
-    else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) { held.delete(note); liveOff(liveMidiOf(note)); }
+    else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) { held.delete(note); arpDel(liveMidiOf(note)); liveOff(liveMidiOf(note)); }
     else return;
     paintLive();
     const names = [...held].sort((a,b)=>a-b).map(m=>nota(m%12)).join(' ');
@@ -2357,6 +2407,10 @@
   if ($('bateriaTipo')) renderBateriaTipo();
   $('recTocarBass').addEventListener('click', startRecTocarBajo);
   renderKnobs();
+  if ($('arpOn')) $('arpOn').addEventListener('change', e=>{ S.arp.on=e.target.checked; if (S.arp.on) arpStart(); else { arpStop(); arpSostenidas.clear(); } });
+  if ($('pcMode')) $('pcMode').addEventListener('change', e=>{ S.pcMode=e.target.checked; });
+  if ($('padsTempo')) $('padsTempo').addEventListener('change', e=>{ S.padsTempo=e.target.checked; });
+  renderArpChips();
   $('recBtnBeat').addEventListener('click', ()=>{ if (!midiAccess) { $('midiStatusBeat').textContent = 'Primero pulsa «Conectar el MPK por MIDI» aquí arriba.'; return; } if (rec) { stopRec(); $('recBtnBeat').textContent='● Grabar pads del MPK'; } else { startRec(); $('recBtnBeat').textContent='■ Parar'; } });
   $('midiIn').addEventListener('change', e=>pickInput(e.target.value));
 
@@ -2745,6 +2799,7 @@
   // ───────── Panel de administración (sólo Rolando): changelog + bugs ─────────
   const CHANGELOG = [
     { fecha:'2026-09-07', items:[
+      'Trabajo directo: tap tempo (botón «Tap») y panel avanzado del MPK (opcional) con arpegiador de la página, PROG/BANK → cambiar de sección y pads que marcan el tempo. Arreglada la × de la miniatura (no cerraba).',
       'Rueda: se eliminó el tooltip al pasar el cursor (prioriza las sugerencias de la derecha). La miniatura del acorde ahora aparece SÓLO al hacer clic, se queda fija y se cierra con una × en la esquina.',
       'Batería MIDI: selector explícito MPK mini / Donner D1 en la zona de conexión; al elegir «Donner D1» el cuadro cambia al simulado de la D1 (y el botón de conectar se renombra). Si se detecta una D1 por MIDI, su opción se resalta.',
       'Hover de la rueda: se quitó el tooltip nativo duplicado del SVG y el flotante ya no persigue el cursor (se posiciona al entrar y se oculta al salir del acorde o de la rueda).',
