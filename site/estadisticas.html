@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DenaviLAB · estadísticas</title>
+<script>
+(() => {
+  let quien = null;
+  try { quien = localStorage.getItem('denavilab.sesion'); } catch (e) {}
+  if (quien !== 'rolando') location.replace('index.html');   // solo Rolando
+})();
+</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="estilo.css">
+<style>
+  .est-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin: 8px 0 18px; }
+  .est-card { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: var(--surface-2); }
+  .est-num { font-family: var(--display, sans-serif); font-weight: 700; font-size: 30px; line-height: 1; }
+  .est-lbl { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .est-sec { margin: 20px 0; }
+  .est-sec h3 { margin: 0 0 8px; font-size: 15px; }
+  .bars { display: flex; flex-direction: column; gap: 6px; }
+  .bar-row { display: grid; grid-template-columns: 130px 1fr 42px; align-items: center; gap: 8px; font-size: 13px; }
+  .bar-row .k { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-track { background: var(--surface); border: 1px solid var(--line); border-radius: 5px; height: 16px; overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--accent); opacity: .85; }
+  .bar-row .v { text-align: right; font-family: var(--mono, monospace); font-size: 12px; color: var(--muted); }
+  .est-nota { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+  .est-vacio { color: var(--muted); font-size: 13px; }
+  .est-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <nav class="navbar">
+    <button class="navlink" id="navAtras" type="button">&larr; Atrás</button>
+    <a class="navlink" href="index.html">Portada</a>
+    <a class="navlink" href="app.html">Taller</a>
+    <a class="navlink" href="archivo.html">Biblioteca</a>
+    <span class="navsesion sesion" id="sesion"></span>
+  </nav>
+
+  <section>
+    <h2>Estadísticas</h2>
+    <p class="intro">Cómo se ha estado usando DenaviLAB. Dos fuentes distintas: las <b>visitas totales del sitio</b> (las cuenta Neocities, de todos los visitantes) y tu <b>uso local</b> (lo que se ha hecho en este navegador). Sólo lo ves tú.</p>
+  </section>
+
+  <section class="est-sec">
+    <h3>Visitas del sitio · Neocities</h3>
+    <div class="est-grid" id="neoGrid"><p class="est-vacio">Cargando…</p></div>
+    <p class="est-meta" id="neoMeta"></p>
+  </section>
+
+  <section class="est-sec">
+    <h3>Tu uso · en este navegador</h3>
+    <div class="est-grid" id="locGrid"></div>
+  </section>
+
+  <section class="est-sec">
+    <h3>Páginas abiertas</h3>
+    <div id="paginas" class="bars"></div>
+  </section>
+
+  <section class="est-sec">
+    <h3>Secciones del taller más usadas</h3>
+    <div id="secciones" class="bars"></div>
+  </section>
+
+  <section class="est-sec">
+    <h3>Usos frecuentes</h3>
+    <div id="usos" class="bars"></div>
+  </section>
+
+  <section class="est-sec">
+    <h3>Procedencias</h3>
+    <div id="procedencias" class="bars"></div>
+    <p class="est-nota" style="margin-top:8px">«directo» = entraste sin enlace (marcador, dirección escrita); «interno» = viniste de otra página del sitio; el resto son los sitios desde donde se llegó — <b>en este navegador</b>.</p>
+  </section>
+
+  <section class="est-sec">
+    <p class="est-nota">
+      <b>Qué es cada cosa.</b> Las <b>visitas del sitio</b> vienen de Neocities y cuentan a todos los visitantes desde que se subió (05-09-2026); se actualizan en cada publicación del sitio, no en vivo. Tu <b>uso local</b> (páginas, secciones, usos y procedencias) se guarda sólo en este navegador: refleja lo que tú haces en este equipo, no lo de todos. Para datos agregados de todos los visitantes (con procedencias reales) haría falta una analítica externa o un backend, que decidimos no usar por ahora.
+    </p>
+  </section>
+
+  <footer>
+    <span>DenaviLAB &middot; Denavi, Concepción</span>
+  </footer>
+
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const el = (t, a = {}, ...k) => { const n = document.createElement(t); for (const [x, v] of Object.entries(a)) { if (x === 'class') n.className = v; else n.setAttribute(x, v); } k.forEach(c => n.append(c)); return n; };
+  const fdate = ms => { try { return new Date(ms).toLocaleDateString('es-CL', {day:'2-digit', month:'2-digit', year:'numeric'}); } catch (e) { return '—'; } };
+
+  function barras(cont, obj, orden) {
+    cont.innerHTML = '';
+    const ent = Object.entries(obj || {}).filter(([,v]) => v > 0).sort((a,b) => b[1]-a[1]);
+    if (!ent.length) { cont.append(el('p', {class:'est-vacio'}, 'Sin datos todavía.')); return; }
+    const max = ent[0][1];
+    ent.forEach(([k,v]) => {
+      const row = el('div', {class:'bar-row'});
+      row.append(el('span', {class:'k', title:k}, k));
+      const track = el('div', {class:'bar-track'});
+      track.append(el('div', {class:'bar-fill', style:`width:${Math.max(4, Math.round(v/max*100))}%`}));
+      row.append(track);
+      row.append(el('span', {class:'v'}, String(v)));
+      cont.append(row);
+    });
+  }
+
+  // ── Uso local ──
+  let st = {}; try { st = JSON.parse(localStorage.getItem('denavilab.stats') || '{}'); } catch (e) {}
+  const lg = $('locGrid'); lg.innerHTML = '';
+  const tarjeta = (num, lbl) => { const c = el('div', {class:'est-card'}); c.append(el('div', {class:'est-num'}, String(num))); c.append(el('div', {class:'est-lbl'}, lbl)); return c; };
+  lg.append(tarjeta(st.visitas || 0, 'aperturas de página (este navegador)'));
+  lg.append(tarjeta(st.primera ? fdate(st.primera) : '—', 'primera vez'));
+  lg.append(tarjeta(st.ultima ? fdate(st.ultima) : '—', 'última vez'));
+
+  const NOMBRE_SEC = { beat:'Batería', pad:'Pad', piano:'Piano', lead:'Piano lead', guitarra:'Guitarra', letra:'Letra', mezcla:'Mezcla', bajod:'Bajo' };
+  const secLegible = obj => { const o = {}; for (const k in (obj||{})) o[NOMBRE_SEC[k] || k] = obj[k]; return o; };
+
+  barras($('paginas'), st.paginas);
+  barras($('secciones'), secLegible(st.secciones));
+  barras($('usos'), st.usos);
+  barras($('procedencias'), st.procedencias);
+
+  // ── Visitas del sitio (Neocities), escritas por el workflow en cada publicación ──
+  fetch('neocities-stats.json', { cache:'no-store' }).then(r => r.ok ? r.json() : null).then(info => {
+    const g = $('neoGrid'); g.innerHTML = '';
+    if (!info || (info.views == null && info.hits == null)) {
+      g.append(el('p', {class:'est-vacio'}, 'Aún no hay datos de Neocities (se generan en la próxima publicación del sitio).'));
+      return;
+    }
+    g.append(tarjeta(info.views != null ? info.views : '—', 'visitas (views) totales'));
+    g.append(tarjeta(info.hits != null ? info.hits : '—', 'cargas (hits) totales'));
+    const meta = [];
+    if (info.created_at) meta.push('en línea desde ' + new Date(info.created_at).toLocaleDateString('es-CL'));
+    if (info.last_updated) meta.push('último cambio ' + new Date(info.last_updated).toLocaleDateString('es-CL'));
+    if (info._actualizado) meta.push('datos al ' + new Date(info._actualizado).toLocaleDateString('es-CL'));
+    $('neoMeta').textContent = meta.join(' · ');
+  }).catch(() => {
+    $('neoGrid').innerHTML = '';
+    $('neoGrid').append(el('p', {class:'est-vacio'}, 'No pude leer las visitas de Neocities. Revisa el panel de Neocities directamente.'));
+  });
+
+  const atras = $('navAtras');
+  if (atras) atras.addEventListener('click', () => { if (history.length > 1) history.back(); else location.href = 'index.html'; });
+})();
+</script>
+<script src="acceso.js" defer></script>
+</body>
+</html>

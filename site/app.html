@@ -1243,6 +1243,12 @@
   const suena = tr => haySolo() ? S.mix.solo[tr] : !S.mix.mute[tr];
 
   const $ = id => document.getElementById(id);
+  // ───────── Estadística de uso local (privada, por navegador) para la página de estadísticas ─────────
+  const STK = 'denavilab.stats';
+  const stGet = () => { try { return JSON.parse(localStorage.getItem(STK) || '{}'); } catch (e) { return {}; } };
+  const stSet = o => { try { localStorage.setItem(STK, JSON.stringify(o)); } catch (e) {} };
+  const stBump = (cat, key) => { if (!key) return; const o = stGet(); o[cat] = o[cat] || {}; o[cat][key] = (o[cat][key] || 0) + 1; stSet(o); };
+  (() => { const o = stGet(); const n = Date.now(); o.visitas = (o.visitas || 0) + 1; o.primera = o.primera || n; o.ultima = n; o.paginas = o.paginas || {}; o.paginas['app.html'] = (o.paginas['app.html'] || 0) + 1; let h = 'directo'; const r = document.referrer || ''; try { if (r) { const u = new URL(r); h = u.hostname === location.hostname ? 'interno' : u.hostname; } } catch (e) {} o.procedencias = o.procedencias || {}; o.procedencias[h] = (o.procedencias[h] || 0) + 1; stSet(o); })();
   const el = (tag, attrs={}, ...kids) => { const n = document.createElement(tag); for (const [k,v] of Object.entries(attrs)) { if (k==='class') n.className=v; else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else n.setAttribute(k,v);} for (const k of kids) n.append(k); return n; };
   const svgEl = (tag, attrs={}) => { const n = document.createElementNS('http://www.w3.org/2000/svg', tag); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); return n; };
 
@@ -2136,6 +2142,7 @@
   const wait = ms => new Promise(r=>{ const id=setTimeout(()=>{cancelWait=null; r();},ms); cancelWait=()=>{ clearTimeout(id); cancelWait=null; r(); }; });
   async function play(mode = 'all') {
     if (isPlaying) { stopAll(); return; }
+    stBump('usos', 'reproducir');
     ensureAudio(); if (ctx.state==='suspended') { try { await ctx.resume(); } catch(e) {} }
     if (ctx.state !== 'running') { showErr('El navegador mantiene el audio en pausa (estado: ' + ctx.state + '). Toca «Probar sonido» o cualquier tecla del dibujo y vuelve a intentar.'); }
     stopFlag=false; isPlaying = true; if (typeof stopPreview==='function') stopPreview(); let beat = 60/(mode==='bass' ? bassBpm() : S.bpm), barDur = beat*4; let t0 = ctx.currentTime + 0.1;
@@ -2256,7 +2263,7 @@
   $('qual').addEventListener('change', e=>{ S.qual=e.target.value; S.key=defaultKey()||S.key; S.prog=[]; renderAll(); });
   $('undo').addEventListener('click', ()=>{ if (S.cand) S.cand=null; else S.prog.pop(); renderAll(); });
   $('clear').addEventListener('click', ()=>{ S.prog=[]; S.cand=null; renderAll(); });
-  if ($('generar')) $('generar').addEventListener('click', ()=>{ const seq=generarVuelta(); if (!seq.length) return; S.prog=seq; S.cand=null; renderAll(); $('summary').textContent='Vuelta generada por el cerebro (mezcla el estilo con tus hábitos). Ajústala, guárdala o vuelve a generar.'; if (!isPlaying) { const first=S.prog[0]; if (first) previewChord(first); } });
+  if ($('generar')) $('generar').addEventListener('click', ()=>{ stBump('usos','generar'); const seq=generarVuelta(); if (!seq.length) return; S.prog=seq; S.cand=null; renderAll(); $('summary').textContent='Vuelta generada por el cerebro (mezcla el estilo con tus hábitos). Ajústala, guárdala o vuelve a generar.'; if (!isPlaying) { const first=S.prog[0]; if (first) previewChord(first); } });
   if ($('expCerebro')) $('expCerebro').addEventListener('click', ()=>{ deliver(`denavilab-cerebro-${S.quien}.json`, JSON.stringify(usoGet(),null,1), 'application/json'); if ($('cerebroInfo')) $('cerebroInfo').textContent='Cerebro exportado (respaldo personal).'; });
   if ($('expCerebroRepo')) $('expCerebroRepo').addEventListener('click', exportarParaRepo);
   if ($('impCerebroBtn')) $('impCerebroBtn').addEventListener('click', ()=>$('impCerebro').click());
@@ -2651,7 +2658,7 @@
   }
   $('playLead').addEventListener('click', ()=>play('lead'));
   $('clearLead').addEventListener('click', ()=>{ S.lead.mel.fill(-1); S.lead.acc.fill(0); renderLead(); });
-  $('saveLead').addEventListener('click', ()=>{ const name=$('leadName').value.trim()||('melodía '+new Date().toLocaleDateString()); const list=store.get('rueda.leads'); list.push({name, ts:Date.now(), mel:S.lead.mel, acc:S.lead.acc, lh:S.lead.lh, rh:S.lead.rh, split:S.lead.split, prog:S.prog, key:S.key, bpm:S.bpm}); store.set('rueda.leads',list); $('leadName').value=''; renderSaved('savedLeads','rueda.leads'); $('savedLeads').value=String(list.length-1); });
+  $('saveLead').addEventListener('click', ()=>{ stBump('usos','guardar'); const name=$('leadName').value.trim()||('melodía '+new Date().toLocaleDateString()); const list=store.get('rueda.leads'); list.push({name, ts:Date.now(), mel:S.lead.mel, acc:S.lead.acc, lh:S.lead.lh, rh:S.lead.rh, split:S.lead.split, prog:S.prog, key:S.key, bpm:S.bpm}); store.set('rueda.leads',list); $('leadName').value=''; renderSaved('savedLeads','rueda.leads'); $('savedLeads').value=String(list.length-1); });
   $('savedLeads').addEventListener('change', e=>{ const it=store.get('rueda.leads')[+e.target.value]; if (!it) return; Object.assign(S.lead,{mel:it.mel, acc:it.acc, lh:it.lh, rh:it.rh, split:it.split}); if (it.prog) { S.prog=it.prog; S.key=it.key; setBpm(it.bpm, true); } renderAll(); renderLead(); });
   $('delLead').addEventListener('click', ()=>{ if ($('savedLeads').value==='') return; const list=store.get('rueda.leads'); list.splice(+$('savedLeads').value,1); store.set('rueda.leads',list); renderSaved('savedLeads','rueda.leads'); });
 
@@ -2660,6 +2667,7 @@
   function setMode(m) {
     if (m==='bajod') m='beat';   // bajo digital oculto por ahora
     if (typeof rec !== 'undefined' && rec) stopRec();
+    stBump('secciones', m);
     S.mode = m; $('mode').value = m;
     document.querySelectorAll('#modosTabs .mtab').forEach(b=>b.setAttribute('aria-current', String(b.dataset.m===m)));
     S.inst = m==='bajod' ? 'bajod' : (m==='piano'||m==='lead') ? 'piano' : $('inst').value; if (m==='pad'||m==='piano') S.keysMode = m;
@@ -2992,14 +3000,14 @@
       BUGS.forEach(b=>{ const row=el('div',{class:'admin-bug'}); row.append(el('span',{class:'est '+(b.estado==='resuelto'?'ok':b.estado==='prueba'?'prueba':'open')}, b.estado==='resuelto'?'listo':b.estado==='prueba'?'en prueba':'abierto')); row.append(el('span',{}, b.txt)); bg.append(row); }); }
   }
 
-  $('saveBeat').addEventListener('click', ()=>{ const name=$('beatName').value.trim()||('beat '+new Date().toLocaleDateString()); registrarBeat(S.drums.name); const list=store.get('rueda.beats'); list.push({name, ts:Date.now(), len:S.drums.len, kit:S.drums.kit, bpm:S.bpm, pat:S.drums.pat}); store.set('rueda.beats',list); $('beatName').value=''; renderSaved('savedBeats','rueda.beats'); $('savedBeats').value=String(list.length-1); S.drums.name=name; });
+  $('saveBeat').addEventListener('click', ()=>{ stBump('usos','guardar'); const name=$('beatName').value.trim()||('beat '+new Date().toLocaleDateString()); registrarBeat(S.drums.name); const list=store.get('rueda.beats'); list.push({name, ts:Date.now(), len:S.drums.len, kit:S.drums.kit, bpm:S.bpm, pat:S.drums.pat}); store.set('rueda.beats',list); $('beatName').value=''; renderSaved('savedBeats','rueda.beats'); $('savedBeats').value=String(list.length-1); S.drums.name=name; });
   $('savedBeats').addEventListener('change', e=>{ const it=store.get('rueda.beats')[+e.target.value]; if (!it) return; S.drums.len=it.len; S.drums.kit=KITS[it.kit]?it.kit:'cr78'; $('drumKit').value=S.drums.kit; S.drums.pat=it.pat; S.drums.name=it.name; if (it.bpm) setBpm(it.bpm, true); renderSeq(); });
   $('delBeat').addEventListener('click', ()=>{ const i=+$('savedBeats').value; if (isNaN(i)||$('savedBeats').value==='') return; const list=store.get('rueda.beats'); list.splice(i,1); store.set('rueda.beats',list); renderSaved('savedBeats','rueda.beats'); });
-  $('saveBass').addEventListener('click', ()=>{ const name=$('bassName').value.trim()||('bajo '+new Date().toLocaleDateString()); const list=store.get('rueda.bass'); list.push({name, ts:Date.now(), len:S.bassd.len, grid:S.bassd.grid, acc:S.bassd.acc, slide:S.bassd.slide, oct:S.bassd.oct, swing:S.swing, own:S.bassd.own, bpm:S.bassd.bpm, bars:S.bassd.bars}); store.set('rueda.bass',list); $('bassName').value=''; renderSaved('savedBass','rueda.bass'); $('savedBass').value=String(list.length-1); });
+  $('saveBass').addEventListener('click', ()=>{ stBump('usos','guardar'); const name=$('bassName').value.trim()||('bajo '+new Date().toLocaleDateString()); const list=store.get('rueda.bass'); list.push({name, ts:Date.now(), len:S.bassd.len, grid:S.bassd.grid, acc:S.bassd.acc, slide:S.bassd.slide, oct:S.bassd.oct, swing:S.swing, own:S.bassd.own, bpm:S.bassd.bpm, bars:S.bassd.bars}); store.set('rueda.bass',list); $('bassName').value=''; renderSaved('savedBass','rueda.bass'); $('savedBass').value=String(list.length-1); });
   $('savedBass').addEventListener('change', e=>{ const it=store.get('rueda.bass')[+e.target.value]; if (!it) return; Object.assign(S.bassd, {len:it.len, grid:it.grid, acc:it.acc||new Array(64).fill(0), slide:it.slide||new Array(64).fill(0), oct:it.oct||0, own:it.own, bpm:it.bpm, bars:it.bars}); if (it.swing!==undefined) S.swing=it.swing; renderBassSeq(); });
   $('delBass').addEventListener('click', ()=>{ const i=+$('savedBass').value; if ($('savedBass').value==='') return; const list=store.get('rueda.bass'); list.splice(i,1); store.set('rueda.bass',list); renderSaved('savedBass','rueda.bass'); });
   renderSaved('savedBeats','rueda.beats'); renderSaved('savedBass','rueda.bass'); renderSaved('savedProgs','rueda.progs'); renderSaved('savedLeads','rueda.leads');
-  $('saveProg').addEventListener('click', ()=>{ if (!S.prog.length) return; { const u=usoGet(); decaerModelo(u); registrarPatron(u, S.prog); u.progs=(u.progs||0)+1; if (S.prog.length>=2) { const t=(u.trans=u.trans||{m:{},M:{}})[S.key.mode]=(u.trans[S.key.mode]||{}); const dl=degreeOf(S.prog[S.prog.length-1].pc,S.prog[S.prog.length-1].q), d0=degreeOf(S.prog[0].pc,S.prog[0].q); if (dl&&d0){ t[dl]=t[dl]||{}; t[dl][d0]=(t[dl][d0]||0)+1; } } usoSet(u); } const name=$('progName').value.trim()||(S.prog.map(c=>chordLabel(c.pc,c.q)).join(' ')); const list=store.get('rueda.progs'); list.push({name, ts:Date.now(), prog:S.prog, key:S.key, genre:S.genre, band:S.band, bpm:S.bpm, bars:S.bars, voicing:S.voicing, defLen:S.defLen, inst:S.inst, mode:S.mode, root:S.root, qual:S.qual}); store.set('rueda.progs',list); $('progName').value=''; renderSaved('savedProgs','rueda.progs'); $('savedProgs').value=String(list.length-1); if ($('cerebroPats')) renderCerebro(); });
+  $('saveProg').addEventListener('click', ()=>{ if (!S.prog.length) return; stBump('usos','guardar'); { const u=usoGet(); decaerModelo(u); registrarPatron(u, S.prog); u.progs=(u.progs||0)+1; if (S.prog.length>=2) { const t=(u.trans=u.trans||{m:{},M:{}})[S.key.mode]=(u.trans[S.key.mode]||{}); const dl=degreeOf(S.prog[S.prog.length-1].pc,S.prog[S.prog.length-1].q), d0=degreeOf(S.prog[0].pc,S.prog[0].q); if (dl&&d0){ t[dl]=t[dl]||{}; t[dl][d0]=(t[dl][d0]||0)+1; } } usoSet(u); } const name=$('progName').value.trim()||(S.prog.map(c=>chordLabel(c.pc,c.q)).join(' ')); const list=store.get('rueda.progs'); list.push({name, ts:Date.now(), prog:S.prog, key:S.key, genre:S.genre, band:S.band, bpm:S.bpm, bars:S.bars, voicing:S.voicing, defLen:S.defLen, inst:S.inst, mode:S.mode, root:S.root, qual:S.qual}); store.set('rueda.progs',list); $('progName').value=''; renderSaved('savedProgs','rueda.progs'); $('savedProgs').value=String(list.length-1); if ($('cerebroPats')) renderCerebro(); });
   $('savedProgs').addEventListener('change', e=>{ const it=store.get('rueda.progs')[+e.target.value]; if (!it) return; S.genre=it.genre; $('genre').value=S.genre; fillBands(); S.band=it.band; $('band').value=S.band; setBpm(it.bpm, true); S.bars=it.bars; S.voicing=it.voicing; S.defLen=it.defLen; S.root=it.root; S.qual=it.qual; $('root').value=S.root; $('qual').value=S.qual; S.key=it.key; S.prog=it.prog.map(c=>({...c})); S.cand=null; if (it.mode==='pad'||it.mode==='piano') { if (it.mode==='pad') $('inst').value = ['pad','coro','lead','uke'].includes(it.inst)?it.inst:'pad'; setMode(it.mode); } else renderAll(); });
   $('delProg').addEventListener('click', ()=>{ if ($('savedProgs').value==='') return; const list=store.get('rueda.progs'); list.splice(+$('savedProgs').value,1); store.set('rueda.progs',list); renderSaved('savedProgs','rueda.progs'); });
 
@@ -3090,8 +3098,8 @@
     }
   }
   const stamp = () => new Date().toISOString().slice(0,10);
-  $('expMidiOne').addEventListener('click', ()=>{ const d = buildMidi(S.mode); if (!d) { $('expInfo').textContent = 'Esta pista está vacía todavía.'; return; } deliver(`rueda-${S.mode}-${stamp()}.mid`, d, 'audio/midi'); });
-  $('expMidiAll').addEventListener('click', ()=>{ const d = buildMidi('all'); if (!d) { $('expInfo').textContent = 'No hay nada que exportar aún: programa un beat, un bajo o una progresión.'; return; } deliver(`rueda-proyecto-${stamp()}.mid`, d, 'audio/midi'); });
+  $('expMidiOne').addEventListener('click', ()=>{ stBump('usos','exportar MIDI'); const d = buildMidi(S.mode); if (!d) { $('expInfo').textContent = 'Esta pista está vacía todavía.'; return; } deliver(`rueda-${S.mode}-${stamp()}.mid`, d, 'audio/midi'); });
+  $('expMidiAll').addEventListener('click', ()=>{ stBump('usos','exportar MIDI'); const d = buildMidi('all'); if (!d) { $('expInfo').textContent = 'No hay nada que exportar aún: programa un beat, un bajo o una progresión.'; return; } deliver(`rueda-proyecto-${stamp()}.mid`, d, 'audio/midi'); });
 
   // ───────── Exportar PDF (escrito a mano, sin librerías) ─────────
   const pdfText = t => [...t].map(c=>{ const code=c.charCodeAt(0); const b = code<128 ? code : (CP[c] ?? 0x3f); const ch=String.fromCharCode(b); return ch==='('||ch===')'||ch==='\\' ? '\\'+ch : ch; }).join('');
@@ -3166,6 +3174,7 @@
       prog: S.prog, drums: S.drums, bassd: S.bassd, lead: S.lead, piano: S.piano, letra: S.letra, guitar: S.guitar };
   }
   $('expProyecto').addEventListener('click', ()=>{
+    stBump('usos','exportar .denavi');
     const nombre = (S.letra.titulo || 'maqueta').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'maqueta';
     deliver(`${nombre}-${stamp()}.denavi`, JSON.stringify(proyectoActual(), null, 1), 'application/json');
   });
@@ -3959,7 +3968,7 @@
     let obj; try { obj = JSON.parse(raw); } catch(e){ return; }
     const b64ToBuf = d => { const b64 = d.includes(',') ? d.split(',')[1] : d; const bin = atob(b64); const u8 = new Uint8Array(bin.length); for (let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i); return u8.buffer; };
     try {
-      if (obj.tipo==='denavi') { const info = aplicarProyecto(JSON.parse(obj.data), obj.nombre||'proyecto'); if ($('expInfo')) $('expInfo').textContent = info; }
+      stBump('usos','importar'); if (obj.tipo==='denavi') { const info = aplicarProyecto(JSON.parse(obj.data), obj.nombre||'proyecto'); if ($('expInfo')) $('expInfo').textContent = info; }
       else if (obj.tipo==='midi') { setMode('beat'); const info = importarBeatMidi(b64ToBuf(obj.data), obj.nombre||'beat'); if ($('midiFileInfo')) $('midiFileInfo').textContent = info; }
     } catch(err){ if ($('expInfo')) $('expInfo').textContent = 'No pude importar el proyecto: ' + (err.message||err); }
   })();

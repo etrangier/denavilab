@@ -34,6 +34,9 @@
   .cl-entry ul { margin: 4px 0 0; padding-left: 18px; }
   .cl-entry li { font-size: 13px; margin-bottom: 3px; line-height: 1.4; }
 </style>
+<script>
+(()=>{try{const K='denavilab.stats';const o=JSON.parse(localStorage.getItem(K)||'{}');const n=Date.now();o.visitas=(o.visitas||0)+1;o.primera=o.primera||n;o.ultima=n;o.paginas=o.paginas||{};const pg=(location.pathname.split('/').pop()||'index.html');o.paginas[pg]=(o.paginas[pg]||0)+1;let h='directo';const r=document.referrer||'';try{if(r){const u=new URL(r);h=u.hostname===location.hostname?'interno':u.hostname;}}catch(e){}o.procedencias=o.procedencias||{};o.procedencias[h]=(o.procedencias[h]||0)+1;localStorage.setItem(K,JSON.stringify(o));}catch(e){}})();
+</script>
 </head>
 <body>
 <div class="wrap">
@@ -96,6 +99,7 @@
   <section class="cl-portada" id="clPortada" hidden>
     <div class="cl-head">
       <h2>Novedades · registro de cambios</h2>
+      <a class="ws-btn" href="estadisticas.html">📊 Estadísticas</a>
     </div>
     <div id="clList" class="cl-list"></div>
   </section>

@@ -8,6 +8,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Actualizar visitas de Neocities
+        run: |
+          curl -s "https://neocities.org/api/info?sitename=denavilab" -o /tmp/neo.json || echo '{}' > /tmp/neo.json
+          jq '(.info // {}) + {"_actualizado": (now | todate)}' /tmp/neo.json > site/neocities-stats.json || echo '{}' > site/neocities-stats.json
       - name: Subir a Neocities
         uses: bcomnes/deploy-to-neocities@v3
         with:
