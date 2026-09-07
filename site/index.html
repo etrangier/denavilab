@@ -7,6 +7,23 @@
 <title>DenaviLAB</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="estilo.css">
+<style>
+  .workshop { margin: 22px 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+  .workshop > h2 { margin: 0 0 2px; }
+  .workshop .intro { margin: 0 0 12px; color: var(--muted); font-size: 13.5px; }
+  .ws-col { margin-bottom: 12px; }
+  .ws-col-ti { font-family: var(--mono, monospace); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  .ws-items { display: flex; flex-direction: column; gap: 5px; margin-top: 5px; }
+  .ws-fila { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }
+  .ws-nom { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ws-acc { display: flex; gap: 6px; flex: 0 0 auto; }
+  .ws-btn { padding: 4px 10px; font-size: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); color: inherit; cursor: pointer; text-decoration: none; }
+  .ws-btn.play { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .ws-import { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .ws-import .ws-lbl { font-weight: 600; font-size: 13px; }
+  .ws-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px; }
+  .ws-vacio { color: var(--muted); font-size: 13px; }
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -51,6 +68,20 @@
       <span class="go">Entrar &rarr;</span>
     </a>
   </nav>
+
+  <section class="workshop" id="workshop" hidden>
+    <h2>WorkShop DenaviLAB</h2>
+    <p class="intro">Tus beats y materiales guardados en este navegador, listos para abrir y sonar en el taller.</p>
+    <div id="wsList"></div>
+    <div class="ws-import">
+      <span class="ws-lbl">Importar un proyecto</span>
+      <div class="ws-row">
+        <label class="ws-btn">Abrir .denavi<input type="file" id="wsDenavi" accept=".denavi,.json" hidden></label>
+        <label class="ws-btn">Importar MIDI<input type="file" id="wsMidi" accept=".mid,.midi" hidden></label>
+      </div>
+      <p class="intro" id="wsImportInfo" style="margin:0">Un <b>.denavi</b> trae el proyecto entero; un <b>.mid</b> carga su beat. Se abren en el taller.</p>
+    </div>
+  </section>
 
   <div class="acceso-invitado">
     <span class="ai-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span>
@@ -97,6 +128,48 @@
   </form>
 </dialog>
 
+<script>
+(() => {
+  let quien = null; try { quien = localStorage.getItem('denavilab.sesion'); } catch (e) {}
+  if (quien !== 'rolando' && quien !== 'schair') return;   // solo la banda logueada
+  const $ = id => document.getElementById(id);
+  const el = (t, a = {}, ...k) => { const n = document.createElement(t); for (const [x, v] of Object.entries(a)) { if (x === 'class') n.className = v; else n.setAttribute(x, v); } k.forEach(c => n.append(c)); return n; };
+  const leer = k => { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch (e) { return []; } };
+  const COLS = [
+    { clave:'rueda.beats', ti:'Beats',   modo:'beat',  filtro:null },
+    { clave:'rueda.progs', ti:'Pads',    modo:'pad',   filtro:it=>it.mode!=='piano' },
+    { clave:'rueda.progs', ti:'Pianos',  modo:'piano', filtro:it=>it.mode==='piano' },
+    { clave:'rueda.leads', ti:'Melodías',modo:'lead',  filtro:null },
+  ];
+  const cont = $('wsList'); let total = 0;
+  COLS.forEach(col => {
+    const token = col.clave.split('.')[1];
+    const items = leer(col.clave).map((it,i)=>({it,i})).filter(x => col.filtro ? col.filtro(x.it) : true);
+    if (!items.length) return; total += items.length;
+    const caja = el('div', {class:'ws-col'});
+    caja.append(el('div', {class:'ws-col-ti'}, col.ti + ' · ' + items.length));
+    const lista = el('div', {class:'ws-items'});
+    items.forEach(({it,i}) => {
+      const fila = el('div', {class:'ws-fila'});
+      fila.append(el('span', {class:'ws-nom', title: it.name || ''}, it.name || '(sin nombre)'));
+      const acc = el('span', {class:'ws-acc'});
+      acc.append(el('a', {class:'ws-btn play', href:`app.html?abrir=${token}:${i}&play=1`, title:'abrir en el taller y reproducir'}, '▶ Reproducir'));
+      acc.append(el('a', {class:'ws-btn', href:`app.html?abrir=${token}:${i}`}, 'Abrir'));
+      fila.append(acc); lista.append(fila);
+    });
+    caja.append(lista); cont.append(caja);
+  });
+  if (!total) cont.append(el('p', {class:'ws-vacio'}, 'Todavía no has guardado nada en este navegador. Crea algo en el taller y aparecerá aquí.'));
+
+  const stash = (tipo, data, nombre) => { try { sessionStorage.setItem('denavilab.import', JSON.stringify({tipo, data, nombre})); return true; } catch (e) { return false; } };
+  const wd = $('wsDenavi');
+  if (wd) wd.addEventListener('change', async e => { const f = e.target.files[0]; if (!f) return; const txt = await f.text(); if (stash('denavi', txt, f.name)) location.href = 'app.html?importar=1'; else $('wsImportInfo').textContent = 'No pude preparar la importación (archivo muy grande).'; });
+  const wm = $('wsMidi');
+  if (wm) wm.addEventListener('change', async e => { const f = e.target.files[0]; if (!f) return; const data = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); }); if (stash('midi', data, f.name)) location.href = 'app.html?importar=1&modo=beat'; else $('wsImportInfo').textContent = 'No pude preparar la importación (archivo muy grande).'; });
+
+  $('workshop').hidden = false;
+})();
+</script>
 <script src="acceso.js" defer></script>
 </body>
 </html>

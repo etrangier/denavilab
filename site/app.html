@@ -3285,19 +3285,22 @@
     }
     return { tpb, notes, bpm: tempo ? Math.round(60000000/tempo) : null };
   }
+  function importarBeatMidi(buf, nombre) {
+    const { tpb, notes, bpm } = parseMidi(buf);
+    const MAP = {35:'kick',36:'kick',38:'snare',40:'snare',37:'snare',42:'hh',44:'hh',46:'oh'};
+    const maxStep = Math.max(0, ...notes.map(n=>Math.round(n.tick/(tpb/4))));
+    const bars = Math.min(4, Math.max(1, Math.ceil((maxStep+1)/16))); const len = bars===3 ? 4 : bars;
+    ROWS.forEach(([id])=>S.drums.pat[id]=new Array(64).fill(0)); let used=0;
+    notes.forEach(n=>{ const id=MAP[n.note]; if (!id) return; const s=Math.round(n.tick/(tpb/4)); if (s<len*16) { S.drums.pat[id][s]=1; used++; } });
+    S.drums.len = len; S.drums.name = (nombre||'').replace(/\.midi?$/i,'');
+    if (bpm) setBpm(bpm, true);
+    renderSeq();
+    return used ? `«${nombre}»: ${used} golpes en ${len} compás(es)${bpm?` · ${bpm} bpm`:''}. Si el archivo no usa las notas estándar de batería, no verás golpes.` : `«${nombre}» no trae notas de batería estándar (35/36, 38/40, 42/44, 46).`;
+  }
   $('midiFile').addEventListener('change', async e=>{
     const f = e.target.files[0]; if (!f) return;
-    try {
-      const { tpb, notes, bpm } = parseMidi(await f.arrayBuffer());
-      const MAP = {35:'kick',36:'kick',38:'snare',40:'snare',37:'snare',42:'hh',44:'hh',46:'oh'};
-      const maxStep = Math.max(0, ...notes.map(n=>Math.round(n.tick/(tpb/4))));
-      const bars = Math.min(4, Math.max(1, Math.ceil((maxStep+1)/16))); const len = bars===3 ? 4 : bars;
-      ROWS.forEach(([id])=>S.drums.pat[id]=new Array(64).fill(0)); let used=0;
-      notes.forEach(n=>{ const id=MAP[n.note]; if (!id) return; const s=Math.round(n.tick/(tpb/4)); if (s<len*16) { S.drums.pat[id][s]=1; used++; } });
-      S.drums.len = len; S.drums.name = f.name.replace(/\.midi?$/i,'');
-      if (bpm) setBpm(bpm, true);
-      renderSeq(); $('midiFileInfo').textContent = used ? `«${f.name}»: ${used} golpes en ${len} compás(es)${bpm?` · ${bpm} bpm`:''}. Si el archivo no usa las notas estándar de batería, no verás golpes.` : `«${f.name}» no trae notas de batería estándar (35/36, 38/40, 42/44, 46).`;
-    } catch (err) { $('midiFileInfo').textContent = 'No pude leer ese archivo: ' + err.message; }
+    try { $('midiFileInfo').textContent = importarBeatMidi(await f.arrayBuffer(), f.name); }
+    catch (err) { $('midiFileInfo').textContent = 'No pude leer ese archivo: ' + err.message; }
   });
 
 
@@ -4006,6 +4009,19 @@
       const d = buildMidi(which); if (d) deliver(`biblioteca-${col}-${idx}-${stamp()}.mid`, d, 'audio/midi');
       else if ($('expInfo')) $('expInfo').textContent = 'Ese ítem no tiene notas para exportar.';
     }, 350);
+    if (PAR.get('play')==='1') setTimeout(()=>{ try { play('all'); } catch(e){} }, 500);
+  })();
+  // Importar un proyecto traído desde la portada (.denavi o .mid), vía sessionStorage
+  (() => {
+    if (PAR.get('importar')!=='1') return;
+    let raw=null; try { raw = sessionStorage.getItem('denavilab.import'); sessionStorage.removeItem('denavilab.import'); } catch(e){}
+    if (!raw) return;
+    let obj; try { obj = JSON.parse(raw); } catch(e){ return; }
+    const b64ToBuf = d => { const b64 = d.includes(',') ? d.split(',')[1] : d; const bin = atob(b64); const u8 = new Uint8Array(bin.length); for (let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i); return u8.buffer; };
+    try {
+      if (obj.tipo==='denavi') { const info = aplicarProyecto(JSON.parse(obj.data), obj.nombre||'proyecto'); if ($('expInfo')) $('expInfo').textContent = info; }
+      else if (obj.tipo==='midi') { setMode('beat'); const info = importarBeatMidi(b64ToBuf(obj.data), obj.nombre||'beat'); if ($('midiFileInfo')) $('midiFileInfo').textContent = info; }
+    } catch(err){ if ($('expInfo')) $('expInfo').textContent = 'No pude importar el proyecto: ' + (err.message||err); }
   })();
 })();
 </script>
