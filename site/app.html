@@ -427,7 +427,7 @@
     <button class="navlink" id="navAtras" type="button">&larr; Atrás</button>
     <a class="navlink" href="index.html">Portada</a>
     <a class="navlink" href="guia.html">Trabajo guiado</a>
-    <a class="navlink solo-banda" href="archivo.html">Archivo</a>
+    <a class="navlink solo-banda" href="archivo.html">Biblioteca</a>
     <span class="navsesion" id="navSesion"></span>
   </nav>
   <div class="errbar" id="errbar" hidden></div>
@@ -3993,6 +3993,20 @@
   (async () => { try { const r = await fetch('cerebro.json', { cache:'no-store' }); if (r.ok) { const j = await r.json(); if (j && typeof j==='object') { CEREBRO_BASE = j; if ($('cerebroPats')) renderCerebro(); } } } catch(e){} })();
   const pedido = PAR.get('modo');
   setMode(MODOS.includes(pedido) ? pedido : 'beat');
+  // Deep-link desde la Biblioteca: abrir un ítem guardado y, si se pide, exportar su MIDI
+  (() => {
+    const abrir = PAR.get('abrir'); if (!abrir) return;
+    const [col, idxs] = abrir.split(':'); const idx = +idxs; if (isNaN(idx)) return;
+    const it = store.get('rueda.'+col)[idx]; if (!it) return;
+    if (col==='beats') setMode('beat'); else if (col==='leads') setMode('lead');
+    const selId = { progs:'savedProgs', beats:'savedBeats', leads:'savedLeads', bass:'savedBass' }[col];
+    if (selId && $(selId)) { $(selId).value=String(idx); $(selId).dispatchEvent(new Event('change')); }
+    if (PAR.get('midi')==='1') setTimeout(()=>{
+      const which = col==='progs' ? (it.mode==='piano'?'piano':'pad') : col==='beats' ? 'beat' : col==='leads' ? 'lead' : 'all';
+      const d = buildMidi(which); if (d) deliver(`biblioteca-${col}-${idx}-${stamp()}.mid`, d, 'audio/midi');
+      else if ($('expInfo')) $('expInfo').textContent = 'Ese ítem no tiene notas para exportar.';
+    }, 350);
+  })();
 })();
 </script>
 

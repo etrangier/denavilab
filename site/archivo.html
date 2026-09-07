@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DenaviLAB · archivo</title>
+<title>DenaviLAB · biblioteca</title>
 <script>
 (() => {
   const VALIDOS = ['rolando', 'schair'];
@@ -15,6 +15,14 @@
 </script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="estilo.css">
+<style>
+  .biblio-items { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+  .biblio-fila { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+  .biblio-nom { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .biblio-acc { display: flex; gap: 5px; flex: 0 0 auto; }
+  .btn.mini { padding: 3px 8px; font-size: 11.5px; }
+  .biblio-midi { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -28,7 +36,7 @@
   </nav>
 
   <section>
-    <h2>Nuestro material</h2>
+    <h2>Biblioteca DenaviLAB</h2>
     <p class="intro">Lo que hay guardado, en dos sitios: lo de este computador y la biblioteca que compartimos los dos. No es lo mismo, y conviene saber cuál es cuál.</p>
     <p class="aviso solo-invitado">Estás como <b>invitado</b>: la biblioteca compartida está reservada para la banda. Puedes ver lo que hayas armado en este navegador.</p>
   </section>
@@ -47,9 +55,15 @@
   </section>
 
   <section>
-    <h2>En este navegador</h2>
-    <p class="intro">Los proyectos que has guardado tú, en esta máquina. Desde cualquiera de ellos puedes volver al taller y exportar el MIDI o el PDF cuando quieras.</p>
+    <h2>Guardado en este navegador</h2>
+    <p class="intro">Tus pads, pianos, beats y demás pistas guardadas en esta máquina. «Abrir» las lleva al taller; «MIDI» las abre y descarga su archivo <code>.mid</code>.</p>
     <div id="local"></div>
+    <div class="biblio-midi">
+      <span class="lbl">Importar un MIDI externo</span>
+      <div class="row"><input type="file" id="midiImport" accept=".mid,.midi" multiple aria-label="Importar MIDI"></div>
+      <span class="hint" id="midiImportInfo">Guarda archivos <code>.mid</code> en esta biblioteca (en este navegador) para tenerlos a mano y volver a descargarlos. No se abren en el taller.</span>
+      <div id="midis" class="biblio-items"></div>
+    </div>
     <p class="aviso"><b>Sólo viven aquí.</b> No viajan a la otra máquina ni a otro navegador, y se pierden si borras los datos del sitio. Para que algo llegue al otro, exporta el archivo y súbelo a la biblioteca compartida.</p>
   </section>
 
@@ -83,20 +97,24 @@
   const el = (t, a = {}, ...k) => { const n = document.createElement(t); for (const [x, v] of Object.entries(a)) { if (x === 'class') n.className = v; else n.setAttribute(x, v); } k.forEach(c => n.append(c)); return n; };
 
   const COLECCIONES = [
-    { clave:'rueda.progs',  titulo:'Progresiones', modo:'pad',   pie:'vueltas de acordes guardadas en la rueda' },
-    { clave:'rueda.beats',  titulo:'Beats',        modo:'beat',  pie:'patrones de batería' },
+    { clave:'rueda.progs',  titulo:'Pads',           modo:'pad',   pie:'progresiones de acordes para pad/voces', midi:true, filtro:it=>it.mode!=='piano' },
+    { clave:'rueda.progs',  titulo:'Pianos',         modo:'piano', pie:'progresiones tocadas al piano',          midi:true, filtro:it=>it.mode==='piano' },
+    { clave:'rueda.beats',  titulo:'Beats',          modo:'beat',  pie:'patrones de batería', midi:true },
     { clave:'rueda.bass',   titulo:'Líneas de bajo', modo:'bajod', pie:'bajo programado' },
-    { clave:'rueda.leads',  titulo:'Melodías',     modo:'lead',  pie:'piano lead, dos manos y melodía' },
-    { clave:'rueda.letras', titulo:'Letras',       modo:'letra', pie:'letra por secciones con sus acordes' },
+    { clave:'rueda.leads',  titulo:'Melodías',       modo:'lead',  pie:'piano lead, dos manos y melodía', midi:true },
+    { clave:'rueda.letras', titulo:'Letras',         modo:'letra', pie:'letra por secciones con sus acordes' },
   ];
 
   const leer = clave => { try { return JSON.parse(localStorage.getItem(clave) || '[]'); } catch (e) { return []; } };
+  const guardar = (clave, arr) => localStorage.setItem(clave, JSON.stringify(arr));
 
   function pintarLocal() {
     const cont = $('local'); cont.innerHTML = '';
     let total = 0;
     COLECCIONES.forEach(col => {
-      const items = leer(col.clave); total += items.length;
+      const token = col.clave.split('.')[1];
+      const items = leer(col.clave).map((it,i)=>({it,i})).filter(x => col.filtro ? col.filtro(x.it) : true);
+      total += items.length;
       const caja = el('div', {class:'coleccion'});
       const cab = el('div', {class:'col-cab'});
       cab.append(el('span', {class:'col-ti'}, col.titulo));
@@ -104,15 +122,49 @@
       caja.append(cab);
       caja.append(el('p', {class:'col-pie'}, col.pie));
       if (items.length) {
-        const lista = el('div', {class:'col-items'});
-        items.forEach(it => lista.append(el('span', {class:'item'}, it.name || '(sin nombre)')));
+        const lista = el('div', {class:'biblio-items'});
+        items.forEach(({it,i}) => {
+          const fila = el('div', {class:'biblio-fila'});
+          fila.append(el('span', {class:'biblio-nom', title: it.name || ''}, it.name || '(sin nombre)'));
+          const acc = el('span', {class:'biblio-acc'});
+          acc.append(el('a', {class:'btn ghost mini', href:`app.html?abrir=${token}:${i}`}, 'Abrir'));
+          if (col.midi) acc.append(el('a', {class:'btn ghost mini', href:`app.html?abrir=${token}:${i}&midi=1`, title:'abre en el taller y descarga su MIDI'}, 'MIDI'));
+          fila.append(acc);
+          lista.append(fila);
+        });
         caja.append(lista);
+      } else {
+        caja.append(el('a', {class:'btn ghost', href:'app.html?modo=' + col.modo}, 'Empezar una'));
       }
-      const a = el('a', {class:'btn ghost', href:'app.html?modo=' + col.modo}, items.length ? 'Abrir en el taller' : 'Empezar una');
-      caja.append(a);
       cont.append(caja);
     });
     if (!total) cont.prepend(el('p', {class:'hint'}, 'Todavía no has guardado nada en este navegador.'));
+  }
+
+  const MIDIS = 'rueda.midis';
+  function renderMidis() {
+    const cont = $('midis'); if (!cont) return; cont.innerHTML = '';
+    const list = leer(MIDIS);
+    if (!list.length) { cont.append(el('p', {class:'hint', style:'margin:6px 0 0'}, 'No has importado ningún MIDI todavía.')); return; }
+    list.forEach((m, i) => {
+      const fila = el('div', {class:'biblio-fila'});
+      fila.append(el('span', {class:'biblio-nom', title:m.name}, m.name + (m.size ? `  ·  ${Math.round(m.size/1024)} KB` : '')));
+      const acc = el('span', {class:'biblio-acc'});
+      acc.append(el('a', {class:'btn ghost mini', href:m.data, download:m.name}, 'Descargar'));
+      const del = el('button', {class:'btn ghost mini', type:'button'}, 'Borrar');
+      del.addEventListener('click', () => { const l = leer(MIDIS); l.splice(i,1); guardar(MIDIS, l); renderMidis(); });
+      acc.append(del); fila.append(acc); cont.append(fila);
+    });
+  }
+  async function importarMidis(files) {
+    const list = leer(MIDIS);
+    for (const f of files) {
+      const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); });
+      list.push({ name:f.name, size:f.size, fecha:new Date().toISOString().slice(0,10), data });
+    }
+    try { guardar(MIDIS, list); $('midiImportInfo').textContent = `${files.length} MIDI importado(s). Quedan guardados en este navegador.`; }
+    catch (e) { $('midiImportInfo').textContent = 'No cupo en el almacenamiento del navegador (¿archivo muy grande?).'; }
+    renderMidis();
   }
 
   async function pintarCompartido() {
@@ -154,6 +206,9 @@
   }
 
   pintarLocal();
+  renderMidis();
+  const imp = $('midiImport');
+  if (imp) imp.addEventListener('change', e => { const fs = [...e.target.files]; if (fs.length) importarMidis(fs); e.target.value=''; });
   pintarCompartido();
 })();
 </script>
