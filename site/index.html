@@ -17,6 +17,8 @@
   .ws-fila { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }
   .ws-nom { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ws-acc { display: flex; gap: 6px; flex: 0 0 auto; }
+  .ws-pick { display: flex; gap: 8px; align-items: center; margin-top: 5px; flex-wrap: wrap; }
+  .ws-sel { flex: 1 1 180px; min-width: 140px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: inherit; font-size: 13px; }
   .ws-btn { padding: 4px 10px; font-size: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); color: inherit; cursor: pointer; text-decoration: none; }
   .ws-btn.play { border-color: var(--accent); color: var(--accent); font-weight: 600; }
   .ws-import { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--line); }
@@ -146,18 +148,17 @@
     const token = col.clave.split('.')[1];
     const items = leer(col.clave).map((it,i)=>({it,i})).filter(x => col.filtro ? col.filtro(x.it) : true);
     if (!items.length) return; total += items.length;
+    items.sort((a,b)=> (b.it.ts||0) - (a.it.ts||0) || b.i - a.i);   // más reciente primero
     const caja = el('div', {class:'ws-col'});
     caja.append(el('div', {class:'ws-col-ti'}, col.ti + ' · ' + items.length));
-    const lista = el('div', {class:'ws-items'});
-    items.forEach(({it,i}) => {
-      const fila = el('div', {class:'ws-fila'});
-      fila.append(el('span', {class:'ws-nom', title: it.name || ''}, it.name || '(sin nombre)'));
-      const acc = el('span', {class:'ws-acc'});
-      acc.append(el('a', {class:'ws-btn play', href:`app.html?abrir=${token}:${i}&play=1`, title:'abrir en el taller y reproducir'}, '▶ Reproducir'));
-      acc.append(el('a', {class:'ws-btn', href:`app.html?abrir=${token}:${i}`}, 'Abrir'));
-      fila.append(acc); lista.append(fila);
-    });
-    caja.append(lista); cont.append(caja);
+    const pick = el('div', {class:'ws-pick'});
+    const sel = el('select', {class:'ws-sel', 'aria-label':col.ti});
+    items.forEach(({it,i}) => { const fecha = it.ts ? new Date(it.ts).toLocaleDateString('es-CL') : ''; sel.append(el('option', {value:String(i)}, (it.name || '(sin nombre)') + (fecha ? '  ·  ' + fecha : ''))); });
+    const play = el('button', {class:'ws-btn play', type:'button', title:'abrir en el taller y reproducir'}, '▶ Reproducir');
+    play.addEventListener('click', () => location.href = `app.html?abrir=${token}:${sel.value}&play=1`);
+    const abrir = el('button', {class:'ws-btn', type:'button'}, 'Abrir');
+    abrir.addEventListener('click', () => location.href = `app.html?abrir=${token}:${sel.value}`);
+    pick.append(sel, play, abrir); caja.append(pick); cont.append(caja);
   });
   if (!total) cont.append(el('p', {class:'ws-vacio'}, 'Todavía no has guardado nada en este navegador. Crea algo en el taller y aparecerá aquí.'));
 

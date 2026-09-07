@@ -113,7 +113,8 @@
     let total = 0;
     COLECCIONES.forEach(col => {
       const token = col.clave.split('.')[1];
-      const items = leer(col.clave).map((it,i)=>({it,i})).filter(x => col.filtro ? col.filtro(x.it) : true);
+      const items = leer(col.clave).map((it,i)=>({it,i})).filter(x => col.filtro ? col.filtro(x.it) : true)
+        .sort((a,b)=> (b.it.ts||0) - (a.it.ts||0) || b.i - a.i);   // más reciente primero
       total += items.length;
       const caja = el('div', {class:'coleccion'});
       const cab = el('div', {class:'col-cab'});
@@ -125,7 +126,7 @@
         const lista = el('div', {class:'biblio-items'});
         items.forEach(({it,i}) => {
           const fila = el('div', {class:'biblio-fila'});
-          fila.append(el('span', {class:'biblio-nom', title: it.name || ''}, it.name || '(sin nombre)'));
+          fila.append(el('span', {class:'biblio-nom', title: it.name || ''}, (it.name || '(sin nombre)') + (it.ts ? '  ·  ' + new Date(it.ts).toLocaleDateString('es-CL') : '')));
           const acc = el('span', {class:'biblio-acc'});
           acc.append(el('a', {class:'btn ghost mini', href:`app.html?abrir=${token}:${i}`}, 'Abrir'));
           if (col.midi) acc.append(el('a', {class:'btn ghost mini', href:`app.html?abrir=${token}:${i}&midi=1`, title:'abre en el taller y descarga su MIDI'}, 'MIDI'));
