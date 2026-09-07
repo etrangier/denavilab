@@ -2983,68 +2983,8 @@
   function renderSaved(selId, key) { const sel=$(selId); sel.innerHTML=''; sel.append(el('option',{value:''},'— elegir —')); store.get(key).forEach((it,i)=>sel.append(el('option',{value:i},it.name))); }
 
   // ───────── Panel de administración (sólo Rolando): changelog + bugs ─────────
-  const CHANGELOG = [
-    { fecha:'2026-09-07', items:[
-      'Beats: la «Mi base 26 ag impro» se renombró a «Massive Attack · loop hipnótico» y quedó bajo Massive Attack (trip hop); se quitó su botón de acceso rápido.',
-      'Pad y Piano ahora son pistas INDEPENDIENTES: cada uno con su propia progresión (los acordes del Pad ya no aparecen en el Piano). Se tocan juntos o por separado y se silencian/aíslan como pistas distintas en el mezclador.',
-      'Nuevo autor: Fuji Kaze (J-pop melancólico y con soul) en Bedroom pop, con la vuelta IV–V–iii–vi.',
-      'Bajo digital: quitado también del menú desplegable de modo (ya no se puede entrar); setMode redirige a batería por si acaso.',
-      'Batería: el género del menú izquierdo ahora reordena el «Patrón base» de la derecha (los patrones de esa banda/género van primero, con ★); y el consejo pegado se refresca al cambiar de género (antes quedaba en «trip hop»).',
-      'Fix: el consejo de la batería ahora es según el género elegido y se actualiza al instante al cambiarlo (antes decía siempre «trip hop»).',
-      'Foco en beat/pad/piano: Bajo digital oculto por ahora (sin pestaña). Pad, Piano (y Voces) son pistas separadas en el mezclador: se pueden apilar y silenciar/aislar por separado. Mezclador embebido también en la batería para controlar sin cambiar de pestaña.',
-      'Hover: eliminado también en las sugerencias de la derecha (ya no cambian la lectura al pasar el cursor). La miniatura del acorde se cierra de 4 formas: clic en cualquier parte de ella, la ×, Escape, o clic fuera.',
-      'Acordes por capas: la progresión puede sonar con varios instrumentos a la vez (Pad, Voces, Piano, Ukelele) — se apilan pista por pista y cambiar de pestaña ya no apaga los demás. Selector «Suena como» en el panel de progresión.',
-      'Trabajo directo: tap tempo (botón «Tap») y panel avanzado del MPK (opcional) con arpegiador de la página, PROG/BANK → cambiar de sección y pads que marcan el tempo. Arreglada la × de la miniatura (no cerraba).',
-      'Rueda: se eliminó el tooltip al pasar el cursor (prioriza las sugerencias de la derecha). La miniatura del acorde ahora aparece SÓLO al hacer clic, se queda fija y se cierra con una × en la esquina.',
-      'Batería MIDI: selector explícito MPK mini / Donner D1 en la zona de conexión; al elegir «Donner D1» el cuadro cambia al simulado de la D1 (y el botón de conectar se renombra). Si se detecta una D1 por MIDI, su opción se resalta.',
-      'Hover de la rueda: se quitó el tooltip nativo duplicado del SVG y el flotante ya no persigue el cursor (se posiciona al entrar y se oculta al salir del acorde o de la rueda).',
-      'Progresión (pad y piano): cada acorde guardado tiene ahora botones para borrar (✕), copiar/duplicar (⧉) y mover ‹ ›.',
-      'Pad: el «Classic Analog Pad» ahora suena más suave (menos agudo). Nuevo instrumento «Voces · coro» que evoca el pad de voces de «Enjoy the Silence».',
-      'Batería: cuadro simulado de la Donner D1 (12 canales en 3 bancos, páginas de 16 pasos hasta 64, voces sintetizadas) que se activa con un toggle y se resalta si se conecta una D1 por MIDI; «Sólo batería» lo reproduce.',
-      'Batería: cuantización tipo Donner D1 — eliges la rejilla (1/4, 1/8, 1/16) antes de tocar y los golpes (pad del MPK) caen ahí; botón «Cuantizar lo que hay» para ajustar lo ya puesto.',
-      'MPK: candado «🔒 fijar el tempo» para que el knob (K1/CC70) deje de descontrolar el BPM; se activa solo al grabar pads. Los pads siguen cayendo en el cuadro con el tempo fijo.',
-      'BPM estable: un solo tempo de proyecto, igual en todas las secciones; una vez definido no se descontrola al cambiar de estilo o mezclar pistas.',
-      'Consejos: ahora traen un ejemplo concreto anclado a las casillas del cuadro (Ej.: bombo en el 1 y el 3; caja en 2·4…).',
-      'Consejos en vivo (batería y bajo): ahora se van sumando a medida que tocas —no se borran— y cada uno se quita con una × (y no vuelve); con «limpiar todos». Más consejos según el patrón.',
-      'Modo principiante: revelado de a un paso — sólo se muestra el paso actual, los ya hechos se pliegan (clic para revisar) y los siguientes se despliegan al llegar; con indicador «Paso N de 6» y barra de progreso.',
-      'Modo principiante: un consejo breve y atribuido por paso, destilado de lecturas de Rick Rubin, Mac DeMarco, Martin Gore, Damon Albarn y guías de bedroom pop.',
-      'Mezcla: ahora tiene su propia pestaña «▶ Mezcla» (antes estaba escondida en Rueda/Piano). Lista las pistas programadas y las reproduce juntas o por separado (M silenciar / S aislar).',
-      'Modo principiante: ahora arranca por la batería (pulso), con libertad total para copiar/combinar/cambiar (espíritu Rick Rubin); luego ánimo, estilo, acordes y el resto.',
-      'Guía: nuevo «Modo principiante» para empezar de cero — elige ánimo y estilo, revelado paso a paso, y abre el taller ya preparado (ánimo/género/bpm por URL).',
-      'Archivo: fuera de la portada y sólo para Schair y Rolando (el invitado ya no entra).',
-      'Nuevo género Lo-fi hip hop (sin autor fijo) y nuevo autor Martin Lee Gore (Depeche Mode) en Synth pop.',
-      'Nuevo estado de ánimo: Concentración (para leer o trabajar).',
-      'Arreglo: el tempo propio del bajo ahora cambia el ritmo en tiempo real (se relee cada compás).',
-    ] },
-    { fecha:'2026-09-06 · noche', items:[
-      'Mezcla (tipo Songsterr): «Reproducir todo» suena batería, bajo, acordes, guitarra y lead juntos y sincronizados, con silenciar (M) y aislar (S) por pista. [en prueba: confirmar el audio en vivo]',
-    ] },
-    { fecha:'2026-09-06 · tarde', items:[
-      'Bajo: patrones con nombre (raíz sostenida, trip hop, punk, synth pop, reggae, raíz y quinta) que se escriben de un clic.',
-      'Metrónomo también en beat y bajo durante la reproducción, con o sin grabación.',
-      'Botón «Deshacer» en beat y en bajo (una edición a la vez).',
-      'Invitado: aviso corregido — sí puede guardar sus patrones en el navegador.',
-    ] },
-    { fecha:'2026-09-06', items:[
-      'Guitarra: números de dedo y de cuerda/traste en el mástil, timbres propios de ukelele/acústica/eléctrica, sugerencias en tarjetas + fila diatónica, y selectores de género/estilo/ánimo.',
-      'Arreglo: las formas abiertas de acordes ahora se muestran con notación española (antes salían cejillas).',
-      'Invitado: tras la presentación elige entre Trabajo guiado o directo; botón «Continuar al taller» en la guía.',
-      'Fix: la preescucha del piano ya no apila notas al cambiar de acorde rápido (nota que quedaba en loop).',
-      'Fix: «Piano lead» ahora suena con la melodía aunque no haya progresión guardada.',
-    ] },
-  ];
-  const BUGS = [
-    { estado:'prueba',   txt:'Mezcla (pestaña ▶ Mezcla): reproducir todo junto + silenciar/aislar — confirmar el audio en vivo.' },
-    { estado:'prueba',   txt:'Sincronía entre pistas al reproducir todo — confirmar en vivo.' },
-    { estado:'resuelto', txt:'Nota que quedaba «dando vueltas» al cambiar de acorde muy rápido en piano.' },
-    { estado:'resuelto', txt:'«Piano lead» a veces no funcionaba (faltaba progresión).' },
-    { estado:'resuelto', txt:'Bajo digital: botones de patrón (raíz sostenida, trip hop, etc.).' },
-    { estado:'resuelto', txt:'Metrónomo con opción de sonar con o sin grabación.' },
-    { estado:'abierto',  txt:'Presets de beat y de bajo ya hechos + cuantización.' },
-    { estado:'resuelto', txt:'Guardar el patrón en el navegador, incl. invitado (ya funcionaba; aviso corregido).' },
-    { estado:'resuelto', txt:'Botón de deshacer en beat y bajo.' },
-    { estado:'resuelto', txt:'Sugerencias: verificado que se aplican (bajo y rueda).' },
-  ];
+  // Changelog y bugs viven en site/changelog.json (fuente única, compartida con la portada).
+  let CHANGELOG = [], BUGS = [];
   function renderAdmin() {
     const cl = $('adminChangelog'); if (cl) { cl.innerHTML='';
       CHANGELOG.forEach(e=>{ const d=el('div',{class:'admin-entry'}); d.append(el('span',{class:'fecha'}, e.fecha)); const ul=el('ul',{}); e.items.forEach(it=>ul.append(el('li',{}, it))); d.append(ul); cl.append(d); }); }
@@ -3578,7 +3518,7 @@
   $('copyLetra').addEventListener('click', async ()=>{ const b=$('copyLetra'); try { await navigator.clipboard.writeText(letraTexto()); b.textContent='Copiado'; } catch(e) { b.textContent='No se pudo copiar'; } setTimeout(()=>b.textContent='Copiar como texto', 1400); });
 
   document.body.dataset.quien = S.quien;
-  renderAdmin();
+  (async () => { try { const r = await fetch('changelog.json', {cache:'no-store'}); if (r.ok) { const j = await r.json(); CHANGELOG = j.changelog || []; BUGS = j.bugs || []; } } catch(e){} renderAdmin(); })();
   if (/^https?:$/.test(location.protocol)) {
     $('navbar').hidden = false;
     $('navAtras').addEventListener('click', ()=>{ if (history.length > 1) history.back(); else location.href = 'index.html'; });

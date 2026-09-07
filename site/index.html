@@ -25,6 +25,14 @@
   .ws-import .ws-lbl { font-weight: 600; font-size: 13px; }
   .ws-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px; }
   .ws-vacio { color: var(--muted); font-size: 13px; }
+  .cl-portada { margin: 22px 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+  .cl-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .cl-portada h2 { margin: 0 0 4px; }
+  .cl-list { max-height: 340px; overflow-y: auto; margin-top: 8px; padding-right: 4px; }
+  .cl-entry { margin-bottom: 12px; }
+  .cl-fecha { font-family: var(--mono, monospace); font-size: 11px; letter-spacing: .04em; color: var(--muted); text-transform: uppercase; }
+  .cl-entry ul { margin: 4px 0 0; padding-left: 18px; }
+  .cl-entry li { font-size: 13px; margin-bottom: 3px; line-height: 1.4; }
 </style>
 </head>
 <body>
@@ -83,6 +91,13 @@
       </div>
       <p class="intro" id="wsImportInfo" style="margin:0">Un <b>.denavi</b> trae el proyecto entero; un <b>.mid</b> carga su beat. Se abren en el taller.</p>
     </div>
+  </section>
+
+  <section class="cl-portada" id="clPortada" hidden>
+    <div class="cl-head">
+      <h2>Novedades · registro de cambios</h2>
+    </div>
+    <div id="clList" class="cl-list"></div>
   </section>
 
   <div class="acceso-invitado">
@@ -169,6 +184,20 @@
   if (wm) wm.addEventListener('change', async e => { const f = e.target.files[0]; if (!f) return; const data = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); }); if (stash('midi', data, f.name)) location.href = 'app.html?importar=1&modo=beat'; else $('wsImportInfo').textContent = 'No pude preparar la importación (archivo muy grande).'; });
 
   $('workshop').hidden = false;
+})();
+</script>
+<script>
+(() => {
+  let quien = null; try { quien = localStorage.getItem('denavilab.sesion'); } catch (e) {}
+  if (quien !== 'rolando') return;   // el changelog en la portada es solo para Rolando
+  const $ = id => document.getElementById(id);
+  const el = (t, a = {}, ...k) => { const n = document.createElement(t); for (const [x, v] of Object.entries(a)) { if (x === 'class') n.className = v; else n.setAttribute(x, v); } k.forEach(c => n.append(c)); return n; };
+  fetch('changelog.json', { cache:'no-store' }).then(r => r.ok ? r.json() : null).then(j => {
+    if (!j || !j.changelog) return;
+    const box = $('clList');
+    j.changelog.forEach(e => { const d = el('div', {class:'cl-entry'}); d.append(el('div', {class:'cl-fecha'}, e.fecha)); const ul = el('ul'); (e.items || []).forEach(it => ul.append(el('li', {}, it))); d.append(ul); box.append(d); });
+    $('clPortada').hidden = false;
+  }).catch(() => {});
 })();
 </script>
 <script src="acceso.js" defer></script>
