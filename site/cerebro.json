@@ -1,0 +1,8 @@
+{
+ "_nota": "Cerebro compartido de DenaviLAB. Base comun que Rolando y Schair cargan al entrar; se fusiona (en lectura) con el cerebro local de cada navegador. Para actualizarlo: en la Rueda, abrir el Cerebro, pulsar 'Exportar para compartir', reemplazar este archivo y commitear. Formato = mismo que el cerebro local.",
+ "progs": 0,
+ "acordes": {},
+ "trans": { "m": {}, "M": {} },
+ "trans2": { "m": {}, "M": {} },
+ "patrones": {}
+}

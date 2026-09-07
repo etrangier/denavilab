@@ -980,11 +980,12 @@
             <div class="cerebro-pats" id="cerebroPats"></div>
             <div class="row cerebro-acc">
               <button class="ghost" id="expCerebro" type="button">Exportar cerebro</button>
+              <button class="ghost" id="expCerebroRepo" type="button">Exportar para compartir</button>
               <button class="ghost" id="impCerebroBtn" type="button">Importar / fusionar</button>
               <input type="file" id="impCerebro" accept=".json" hidden>
               <button class="ghost danger" id="olvidarCerebro" type="button">Reiniciar</button>
             </div>
-            <p class="hint" id="cerebroInfo">El cerebro vive en este navegador; evoluciona con lo que guardas y olvida poco a poco lo viejo. Exporta para fusionarlo con el de Schair.</p>
+            <p class="hint" id="cerebroInfo">El cerebro vive en este navegador y se fusiona con una base compartida del sitio (cerebro.json). «Exportar para compartir» genera ese archivo con lo tuyo + lo común: reemplázalo en site/ y commitéalo para que Schair lo cargue. «Exportar cerebro» es solo tu respaldo personal.</p>
           </div>
         </details>
         <div class="mezcla" id="mezcla" hidden>
@@ -1310,7 +1311,16 @@
   // Fila del grado según el prior funcional (respaldo musical cuando falta info).
   const priorFun = (deg) => (deg && PRIOR_FUN[S.key.mode][deg]) || (S.key.mode==='m' ? { i:60, V:40 } : { I:60, V:40 });
   // Lo que TÚ sueles hacer desde este grado (conteos crudos de tus vueltas guardadas).
-  const obsRow = (deg) => { const t=(usoGet().trans||{})[S.key.mode]||{}; return (deg && t[deg]) || {}; };
+  let CEREBRO_BASE = null;                        // base compartida cargada de cerebro.json (repo)
+  const cerebroBase = () => CEREBRO_BASE || {};
+  const obsRow = (deg) => {
+    if (!deg) return {};
+    const md=S.key.mode;
+    const loc=((usoGet().trans||{})[md]||{})[deg]||{};
+    const sha=((cerebroBase().trans||{})[md]||{})[deg]||{};
+    const out={...loc}; for (const k in sha) out[k]=(out[k]||0)+sha[k];
+    return out;
+  };
   // rowFor mezcla el prior del género con tus hábitos: con pocos datos manda el género;
   // a medida que repites un movimiento, tu costumbre pesa más (mezcla tipo bayesiana).
   const PES_PERSONAL = 12;   // cuánto vale cada movimiento tuyo frente al prior del género
@@ -1331,7 +1341,7 @@
     const first = S.prog[0] || S.cand || cur; const firstDeg = degreeOf(first.pc, first.q);
     const seq = [...S.prog, ...(S.cand ? [S.cand] : [])];
     // Segundo orden aprendido: si en este contexto de dos acordes sueles seguir con uno concreto, lo premiamos.
-    const ctx2 = (()=>{ if (seq.length<2) return null; const f1=degreeOf(seq[seq.length-1].pc,seq[seq.length-1].q); const f2=degreeOf(seq[seq.length-2].pc,seq[seq.length-2].q); if(!f1||!f2) return null; const tm=(usoGet().trans2||{})[S.key.mode]||{}; const r2=tm[f2+'>'+f1]; if(!r2) return null; const tot=Object.values(r2).reduce((a,b)=>a+b,0)||1; return {r2,tot}; })();
+    const ctx2 = (()=>{ if (seq.length<2) return null; const f1=degreeOf(seq[seq.length-1].pc,seq[seq.length-1].q); const f2=degreeOf(seq[seq.length-2].pc,seq[seq.length-2].q); if(!f1||!f2) return null; const md=S.key.mode, key=f2+'>'+f1; const lr=((usoGet().trans2||{})[md]||{})[key]||{}; const sr=((cerebroBase().trans2||{})[md]||{})[key]||{}; const r2={...lr}; for(const k in sr) r2[k]=(r2[k]||0)+sr[k]; if(!Object.keys(r2).length) return null; const tot=Object.values(r2).reduce((a,b)=>a+b,0)||1; return {r2,tot}; })();
     let entries = Object.entries(row);
     if (S.mode === 'piano' || S.mode === 'lead') {   // piano: más opciones para improvisar (diatónicos + algún prestado)
       const extra = {};
@@ -2247,7 +2257,8 @@
   $('undo').addEventListener('click', ()=>{ if (S.cand) S.cand=null; else S.prog.pop(); renderAll(); });
   $('clear').addEventListener('click', ()=>{ S.prog=[]; S.cand=null; renderAll(); });
   if ($('generar')) $('generar').addEventListener('click', ()=>{ const seq=generarVuelta(); if (!seq.length) return; S.prog=seq; S.cand=null; renderAll(); $('summary').textContent='Vuelta generada por el cerebro (mezcla el estilo con tus hábitos). Ajústala, guárdala o vuelve a generar.'; if (!isPlaying) { const first=S.prog[0]; if (first) previewChord(first); } });
-  if ($('expCerebro')) $('expCerebro').addEventListener('click', ()=>{ deliver(`denavilab-cerebro-${S.quien}.json`, JSON.stringify(usoGet(),null,1), 'application/json'); if ($('cerebroInfo')) $('cerebroInfo').textContent='Cerebro exportado.'; });
+  if ($('expCerebro')) $('expCerebro').addEventListener('click', ()=>{ deliver(`denavilab-cerebro-${S.quien}.json`, JSON.stringify(usoGet(),null,1), 'application/json'); if ($('cerebroInfo')) $('cerebroInfo').textContent='Cerebro exportado (respaldo personal).'; });
+  if ($('expCerebroRepo')) $('expCerebroRepo').addEventListener('click', exportarParaRepo);
   if ($('impCerebroBtn')) $('impCerebroBtn').addEventListener('click', ()=>$('impCerebro').click());
   if ($('impCerebro')) $('impCerebro').addEventListener('change', async e=>{ const f=e.target.files[0]; if(!f) return; try { const o=JSON.parse(await f.text()); fusionarCerebro(o); if ($('cerebroInfo')) $('cerebroInfo').textContent='Cerebro fusionado con el importado.'; renderCerebro(); renderAll(); } catch(err){ if ($('cerebroInfo')) $('cerebroInfo').textContent='No pude leer ese archivo de cerebro.'; } e.target.value=''; });
   if ($('olvidarCerebro')) $('olvidarCerebro').addEventListener('click', ()=>{ if (!confirm('¿Reiniciar el cerebro? Se borra lo aprendido en este navegador (no toca tus progresiones guardadas).')) return; _usoCache=null; try { localStorage.removeItem(usoKey()); } catch(e){} renderCerebro(); renderAll(); if ($('cerebroInfo')) $('cerebroInfo').textContent='Cerebro reiniciado.'; });
@@ -2933,14 +2944,20 @@
     for (const d of degs) { const l = Math.min(len, S.bars-used); if (l<=0) break; const c = chordOfDegree(d); out.push({ pc:c.pc, q:c.q, len:l, manera:1 }); used += l; }
     return out;
   }
-  function fusionarCerebro(o) {
-    const u = usoGet(); u.trans=u.trans||{m:{},M:{}}; u.trans2=u.trans2||{m:{},M:{}}; u.acordes=u.acordes||{}; u.patrones=u.patrones||{};
+  function mezclarCerebros(a, o) {
+    const u = JSON.parse(JSON.stringify(a||{})); u.trans=u.trans||{m:{},M:{}}; u.trans2=u.trans2||{m:{},M:{}}; u.acordes=u.acordes||{}; u.patrones=u.patrones||{};
     const addRows = (dst,src)=>{ if(!src) return; for(const k in src){ dst[k]=dst[k]||{}; for(const j in src[k]) dst[k][j]=(dst[k][j]||0)+src[k][j]; } };
-    ['m','M'].forEach(md=>{ if(o.trans&&o.trans[md]){ u.trans[md]=u.trans[md]||{}; addRows(u.trans[md],o.trans[md]); } if(o.trans2&&o.trans2[md]){ u.trans2[md]=u.trans2[md]||{}; addRows(u.trans2[md],o.trans2[md]); } });
-    if(o.acordes) for(const k in o.acordes) u.acordes[k]=(u.acordes[k]||0)+o.acordes[k];
-    if(o.patrones) for(const k in o.patrones){ if(u.patrones[k]) u.patrones[k].n+=(o.patrones[k].n||0); else u.patrones[k]={...o.patrones[k]}; }
-    u.progs=(u.progs||0)+(o.progs||0);
-    usoSet(u);
+    ['m','M'].forEach(md=>{ if(o&&o.trans&&o.trans[md]){ u.trans[md]=u.trans[md]||{}; addRows(u.trans[md],o.trans[md]); } if(o&&o.trans2&&o.trans2[md]){ u.trans2[md]=u.trans2[md]||{}; addRows(u.trans2[md],o.trans2[md]); } });
+    if(o&&o.acordes) for(const k in o.acordes) u.acordes[k]=(u.acordes[k]||0)+o.acordes[k];
+    if(o&&o.patrones) for(const k in o.patrones){ if(u.patrones[k]) u.patrones[k].n+=(o.patrones[k].n||0); else u.patrones[k]={...o.patrones[k]}; }
+    u.progs=(u.progs||0)+((o&&o.progs)||0);
+    return u;
+  }
+  function fusionarCerebro(o) { usoSet(mezclarCerebros(usoGet(), o)); }
+  function exportarParaRepo() {
+    const merged = mezclarCerebros(usoGet(), cerebroBase()); delete merged._nota;
+    deliver('cerebro.json', JSON.stringify(merged, null, 1), 'application/json');
+    if ($('cerebroInfo')) $('cerebroInfo').textContent = 'Listo: reemplaza site/cerebro.json con este archivo y commitéalo para que Schair lo cargue.';
   }
   function cargarPatron(p) {
     const len = Math.min(S.defLen,S.bars)||1; let used=0; const out=[];
@@ -2950,11 +2967,15 @@
   }
   function renderCerebro() {
     const box = $('cerebroPats'); if (!box) return;
-    const u = usoGet(), n = u.progs||0;
-    const top = Object.entries(u.acordes||{}).sort((a,b)=>b[1]-a[1]).slice(0,4).map(x=>x[0]).join(' ');
-    $('cerebroStat').textContent = n ? `Aprendido de ${Math.round(n)} vuelta(s) tuya(s). Acordes frecuentes: ${top||'—'}.` : 'Aún sin datos: guarda vueltas (o pulsa Generar) y el cerebro empezará a reconocer tus patrones.';
+    const u = usoGet(), b = cerebroBase();
+    const n = Math.round(u.progs||0), nb = Math.round(b.progs||0);
+    const ac = {...(u.acordes||{})}; for (const k in (b.acordes||{})) ac[k]=(ac[k]||0)+b.acordes[k];
+    const top = Object.entries(ac).sort((a,b)=>b[1]-a[1]).slice(0,4).map(x=>x[0]).join(' ');
+    $('cerebroStat').textContent = (n||nb) ? `Aprendido de ${n} vuelta(s) tuya(s)${nb?` + ${nb} de la base compartida`:''}. Acordes frecuentes: ${top||'—'}.` : 'Aún sin datos: guarda vueltas (o pulsa Generar) y el cerebro empezará a reconocer tus patrones.';
+    const P={}; const addP=src=>{ for(const k in (src||{})){ const q=src[k]; if(P[k]) P[k]={...P[k],n:P[k].n+(q.n||0)}; else P[k]={...q}; } };
+    addP(u.patrones); addP(b.patrones);
     box.innerHTML='';
-    const pats = Object.entries(u.patrones||{}).filter(([,p])=>p.n>=2 && p.mode===S.key.mode).sort((a,b)=>b[1].n-a[1].n).slice(0,6);
+    const pats = Object.entries(P).filter(([,p])=>p.n>=2 && p.mode===S.key.mode).sort((a,b)=>b[1].n-a[1].n).slice(0,6);
     if (!pats.length) { box.append(el('p',{class:'hint',style:'margin:0'}, 'Todavía nada repetido en esta tonalidad. Cuando repitas una vuelta, aparece aquí para reusarla.')); return; }
     pats.forEach(([,p])=>{ const chords = p.degs.map(d=>{ const c=chordOfDegree(d); return chordLabel(c.pc,c.q); }).join(' – '); box.append(el('button',{class:'sug-b', title:'cargar este patrón en la tonalidad actual', onclick:()=>cargarPatron(p)}, `${chords}  · ×${p.n}`)); });
   }
@@ -3969,6 +3990,7 @@
     if (typeof renderAll==='function') renderAll();
     if (PAR.get('guia')==='principiante') document.body.classList.add('modo-principiante');
   })();
+  (async () => { try { const r = await fetch('cerebro.json', { cache:'no-store' }); if (r.ok) { const j = await r.json(); if (j && typeof j==='object') { CEREBRO_BASE = j; if ($('cerebroPats')) renderCerebro(); } } } catch(e){} })();
   const pedido = PAR.get('modo');
   setMode(MODOS.includes(pedido) ? pedido : 'beat');
 })();
