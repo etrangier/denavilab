@@ -2453,7 +2453,7 @@
   function renderComboGenero(){ const l=$('genreVal'); if(!l) return; const g=$('genre')?$('genre').value:S.genre; const b=$('band')?$('band').value:S.band; l.textContent = g ? (b ? g+' · '+b : g) : '—'; }
   const bandasDe = g => GENRES[g] ? Object.keys(GENRES[g]) : [];
   function itemEstilo(g){
-    const actual=$('genre')?$('genre').value:S.genre;
+    const actual=$('genre')?$('genre').value:S.genre, usos=(stGet().generos)||{};
     const li=el('li',{class:'combo-opt'+(g===actual?' activo':'')+(usos[g]?' usado':''), role:'option', 'data-tipo':'estilo', 'data-g':g, tabindex:'-1'},
       el('span',{class:'opt-nom'}, g));
     li.append(el('span',{class:'opt-mas','aria-hidden':'true'},'›'));
