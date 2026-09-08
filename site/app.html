@@ -765,7 +765,7 @@
           <div class="row"><input type="text" id="guitNuevo" placeholder="añade un acorde: Am, C, G, Bb, F#m…" autocomplete="off"><button class="ghost" id="guitAdd" style="flex:0 0 auto">+ acorde</button></div>
         </div>
         <div class="field" id="guitEditorBox" hidden>
-          <span class="lbl">Mástil · <span id="guitSelNombre">—</span> · clic en un traste; la columna de la izquierda es «al aire» (0) o «muteada» (×)</span>
+          <span class="lbl">Mástil · <span id="guitSelNombre">—</span> · <b>arrastra los círculos</b> por cuerdas y trastes (o haz clic); la columna de la izquierda pone la cuerda «al aire» (○) o «muteada» (×)</span>
           <div class="seq-scroll"><svg id="guitFret" viewBox="0 0 660 200" role="img" aria-label="Mástil de la guitarra"></svg></div>
           <div class="hint">Número dentro del punto = dedo sugerido (1 índice · 2 medio · 3 anular · 4 meñique). A la izquierda va el número de cuerda; abajo, el traste.</div>
           <div class="hint" id="guitNotas"></div>
@@ -3833,14 +3833,15 @@
     if (!S.guitar.prog.length) S.key = defaultKey() || S.key;   // clave para las sugerencias, sin tocar acordes ya puestos
   }
 
+  let guitDrag = null;   // arrastre de un círculo por el mástil
   function paintGuitFret() {
     const g = S.guitar; const svg = $('guitFret'); if (!svg) return; svg.innerHTML='';
-    const c = g.prog[g.sel]; if (!c) { $('guitEditorBox').hidden = true; return; }
+    const c = g.prog[g.sel]; if (!c) { $('guitEditorBox').hidden = true; guitDrag = null; return; }
     $('guitEditorBox').hidden = false;
     $('guitSelNombre').textContent = c.name;
     const NCU = afin().open.length; const NF = 5, L = 92, T = 20, FW = 104, SH = 28;
     const maxFret = Math.max(2, ...c.frets.filter(f=>f>0));
-    const base = maxFret > NF ? maxFret - NF + 1 : 0;   // desplaza la ventana si el acorde es agudo
+    const base = guitDrag ? guitDrag.base : (maxFret > NF ? maxFret - NF + 1 : 0);   // ventana estable durante el arrastre
     // dedos sugeridos: por orden de traste (1 índice · 2 medio · 3 anular · 4 meñique); un mismo traste = cejilla, mismo dedo
     const fretsUsados = [...new Set(c.frets.filter(f=>f>0))].sort((a,b)=>a-b);
     const dedoDe = real => { const i = fretsUsados.indexOf(real); return i<0 ? null : Math.min(4, i+1); };
@@ -3858,7 +3859,6 @@
       const om = svgEl('text',{class:'fb-note', x:L-24, y:y+4, 'text-anchor':'middle', style:'fill:var(--text)'}); om.textContent = muteada?'×':(abierto?'○':'·'); gm.append(om); svg.append(gm);
       // trastes 1..NF
       for (let f=1; f<=NF; f++) { const real=base+f; const x=L+(f-0.5)*FW;
-        const hit=svgEl('circle',{cx:x, cy:y, r:11, fill:'transparent', style:'cursor:pointer'}); hit.addEventListener('click',()=>poner(cu, real)); svg.append(hit);
         if (c.frets[cu]===real) {
           const isRoot=(afin().open[cu]+real)%12===c.pc;
           svg.append(svgEl('circle',{class:isRoot?'fb-root':'fb-tone', cx:x, cy:y, r:10}));
@@ -3872,6 +3872,30 @@
     // número de traste real bajo cada casilla
     for (let f=1; f<=NF; f++) { const real=base+f; const x=L+(f-0.5)*FW; const ft=svgEl('text',{class:'fb-fnum',x:x,y:T+SH*(NCU-1)+22,'text-anchor':'middle'}); ft.textContent=String(real); svg.append(ft); }
     $('guitNotas').textContent = 'Notas: ' + (guitNotas(c.frets).map(m=>nota(m%12, c.pc)).join(' ') || '(cuerdas muteadas)');
+    // ── Edición con el mouse: arrastrar los círculos por cuerdas y trastes ──
+    svg.style.touchAction = 'none';
+    const celdaDesde = e => {
+      const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+      const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
+      if (loc.x < L - 6) return null;                              // zona al aire/mute y números: su propio botón
+      const fila = Math.max(0, Math.min(NCU-1, Math.round((loc.y - T) / SH)));
+      const cu = (NCU-1) - fila;
+      let val;
+      if (loc.x < L + FW*0.15) val = 0;                            // arrastrar al nut = cuerda al aire
+      else { const f = Math.max(1, Math.min(NF, Math.floor((loc.x - L) / FW) + 1)); val = base + f; }
+      return { cu, val };
+    };
+    svg.onpointerdown = e => { const cel = celdaDesde(e); if (!cel) return; e.preventDefault();
+      guitDrag = { base, snap: c.frets.slice(), origen: cel.cu }; c.frets[cel.cu] = cel.val;
+      try { svg.setPointerCapture(e.pointerId); } catch (_) {}
+      paintGuitFret(); sonarAcorde(c); };
+    svg.onpointermove = e => { if (!guitDrag) return; const cel = celdaDesde(e); if (!cel) return;
+      if (cel.cu !== guitDrag.origen) { c.frets[guitDrag.origen] = guitDrag.snap[guitDrag.origen]; guitDrag.origen = cel.cu; }   // mover el dedo a otra cuerda
+      c.frets[cel.cu] = cel.val; paintGuitFret(); };
+    svg.onpointerup = svg.onpointercancel = () => { if (!guitDrag) return; guitDrag = null;
+      c.name = null; guitRefrescaNombre(c); renderGuitProg();
+      $('guitNotas').textContent = 'Notas: ' + (guitNotas(c.frets).map(m=>nota(m%12, c.pc)).join(' ') || '(cuerdas muteadas)');
+      sonarAcorde(c); paintGuitFret(); };
   }
   function guitRefrescaNombre(c) {
     // tras editar el mástil, reintenta ponerle nombre al acorde por sus notas
