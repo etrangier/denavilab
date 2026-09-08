@@ -405,6 +405,8 @@
   .cerebro-pats { display: flex; flex-wrap: wrap; gap: 6px; }
   .cerebro-acc { display: flex; flex-wrap: wrap; gap: 6px; }
   #generar { border-color: var(--accent); color: var(--accent); }
+  .gen-beat { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+  #genBeat { border-color: var(--accent); color: var(--accent); font-weight: 600; }
   .bar-box.next { border-color: var(--accent); }
   .bar-box.cand-box { border: 1px dashed var(--accent); background: var(--accent-soft); }
   .bar-box.playing { background: var(--accent); color: var(--accent-ink); }
@@ -897,6 +899,11 @@
           <div class="field solo-clasico" style="flex:2 1 220px">
             <span class="lbl">Patrón base</span>
             <select id="drumPreset"></select>
+            <div class="gen-beat">
+              <button type="button" class="chip" id="genBeat" title="crea un beat según el estilo y lo que más usas">🎲 Generar beat</button>
+              <button type="button" class="chip" id="genBeatOtra" title="otro ejemplo del mismo estilo" disabled>↻ Otra variación</button>
+            </div>
+            <span class="hint" id="genBeatInfo"></span>
           </div>
           <div class="field solo-clasico" style="flex:1 1 140px">
             <span class="lbl">Largo del patrón</span>
@@ -1986,6 +1993,56 @@
     ROWS.forEach(([id])=>{ const arr = new Array(64).fill(0); for (let b=0;b<len;b++) p[id].forEach(s=>arr[b*16+s]=1); S.drums.pat[id]=arr; });
     S.drums.name = name; renderSeq();
   }
+
+  // ───────── Generador de beats: se alimenta de lo que más usas y del estilo del momento ─────────
+  let beatSeed = null, listoParaAutoBeat = false;
+  const beatRnd = a => a[Math.floor(Math.random()*a.length)];
+  const beatChance = pr => Math.random() < pr;
+  function beatSemillas() {
+    const grupos = {};
+    presetsMios().forEach(k => { if (k==='Vacío' || k.startsWith('Mi base')) return; const b = k.includes(' · ') ? k.split(' · ')[0] : k; (grupos[b] = grupos[b] || []).push(k); });
+    const usos = (usoGet().beats) || {}, delGenero = new Set(Object.keys(GENRES[S.genre] || {}));
+    const pesos = {};
+    Object.keys(grupos).forEach(b => { let w = 1; if (delGenero.has(b)) w += 4; if (b === S.band) w += 3; grupos[b].forEach(k => w += (usos[k] || 0) * 2); pesos[b] = w; });
+    return { grupos, pesos };
+  }
+  function elegirSemilla() {
+    const { grupos, pesos } = beatSemillas(); const bandas = Object.keys(grupos); if (!bandas.length) return null;
+    let tot = bandas.reduce((a,b)=>a+pesos[b], 0), r = Math.random()*tot;
+    for (const b of bandas) { r -= pesos[b]; if (r <= 0) return { banda:b, plantillas:grupos[b] }; }
+    return { banda:bandas[0], plantillas:grupos[bandas[0]] };
+  }
+  function variarBeat(base) {
+    const kick=new Set(base.kick), snare=new Set(base.snare), hh=new Set(base.hh), oh=new Set(base.oh);
+    if (beatChance(0.5)) kick.add(beatRnd([2,3,6,7,10,11,14,15]));                                   // un bombo extra a contratiempo
+    if (beatChance(0.35) && kick.size>2) { const q=[...kick].filter(x=>x!==0 && x!==8); if (q.length) kick.delete(beatRnd(q)); }
+    if (beatChance(0.4)) snare.add(beatRnd([7,14,15]));                                               // ghost / anticipo de caja
+    if (beatChance(0.2)) snare.add(beatRnd([2,6,10]));
+    const dens = beatRnd(['8','16','off','base','base']);                                             // densidad del hi-hat
+    if (dens==='8') { hh.clear(); [0,2,4,6,8,10,12,14].forEach(x=>hh.add(x)); }
+    else if (dens==='16') { hh.clear(); for (let i=0;i<16;i++) hh.add(i); }
+    else if (dens==='off') { hh.clear(); [2,6,10,14].forEach(x=>hh.add(x)); }
+    if (beatChance(0.5) && hh.size>2) hh.delete(beatRnd([...hh]));
+    if (beatChance(0.4)) hh.add(beatRnd([1,3,5,7,9,11,13,15]));
+    if (beatChance(0.5)) { oh.clear(); oh.add(beatRnd([6,7,14,15])); }                                // un hi-hat abierto que respira
+    const ord = z => [...z].sort((a,b)=>a-b);
+    return { kick:ord(kick), snare:ord(snare), hh:ord(hh), oh:ord(oh) };
+  }
+  function aplicarBeat16(pat, nombre) {
+    snapBeat(); const len = S.drums.len;
+    ROWS.forEach(([id])=>{ const arr = new Array(64).fill(0); for (let b=0;b<len;b++) (pat[id]||[]).forEach(z=>arr[b*16+z]=1); S.drums.pat[id]=arr; });
+    S.drums.name = nombre; renderSeq();
+  }
+  function generarBeat(nuevo) {
+    if (nuevo || !beatSeed) beatSeed = elegirSemilla();
+    if (!beatSeed) return;
+    const plantilla = PRESETS[beatRnd(beatSeed.plantillas)] || { kick:[0,8], snare:[4,12], hh:[0,4,8,12], oh:[] };
+    const base = { kick:plantilla.kick||[], snare:plantilla.snare||[], hh:plantilla.hh||[], oh:plantilla.oh||[] };
+    aplicarBeat16(variarBeat(base), `${beatSeed.banda} · generado`);
+    if (typeof stBump==='function') stBump('usos', 'generar beat');
+    const otra = $('genBeatOtra'); if (otra) otra.disabled = false;
+    const info = $('genBeatInfo'); if (info) info.textContent = `Generado a partir de «${beatSeed.banda}» (lo que más usas y el estilo). «Otra variación» = otro ejemplo del mismo; «Generar» = cambia de estilo.`;
+  }
   // Un consejo que va cambiando a medida que se arma el beat. No es un tutorial aparte:
   // mira lo que hay puesto en la rejilla y dice lo siguiente que suele tocar hacer.
   const VOZ = {
@@ -2345,6 +2402,8 @@
     renderAll();
   }
   $('drumPreset').addEventListener('change', e=>{ snapBeat(); loadPreset(e.target.value); sugerirDesdeBeat(e.target.value); });
+  if ($('genBeat')) $('genBeat').addEventListener('click', ()=>generarBeat(true));
+  if ($('genBeatOtra')) $('genBeatOtra').addEventListener('click', ()=>generarBeat(false));
   $('drumPreset').value = 'Vacío'; loadPreset('Vacío');   // se empieza con el patrón en blanco
   $('copy').addEventListener('click', async ()=>{ try { await navigator.clipboard.writeText($('summary').textContent); $('copy').textContent='Copiado'; setTimeout(()=>$('copy').textContent='Copiar',1200); } catch(e) { $('copy').textContent='No se pudo copiar'; } });
 
@@ -2707,6 +2766,7 @@
     if (m==='bajod') renderBassSeq();
     $('midiAddWrap').hidden = (m==='bajod' || m==='beat') || !midiAccess;
     $('kbTitle').textContent = `Akai MPK mini ${S.kbKeys===37?'Plus · 37':'· 25'} teclas · do a do · OCT en 0` + (m==='bajod' ? ' · clic o MIDI = suena el bajo' : '');
+    if (m==='beat' && listoParaAutoBeat && !S.donner.on && !hasDrums()) generarBeat(true);   // se genera solo al entrar si está vacío
     renderAll();
   }
   $('mode').addEventListener('change', e=>setMode(e.target.value));
@@ -3968,6 +4028,7 @@
   (async () => { try { const r = await fetch('cerebro.json', { cache:'no-store' }); if (r.ok) { const j = await r.json(); if (j && typeof j==='object') { CEREBRO_BASE = j; if ($('cerebroPats')) renderCerebro(); } } } catch(e){} })();
   const pedido = PAR.get('modo');
   setMode(MODOS.includes(pedido) ? pedido : 'beat');
+  listoParaAutoBeat = true;
   // Deep-link desde la Biblioteca: abrir un ítem guardado y, si se pide, exportar su MIDI
   (() => {
     const abrir = PAR.get('abrir'); if (!abrir) return;
