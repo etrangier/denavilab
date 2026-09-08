@@ -64,7 +64,7 @@
     <div class="biblio-midi">
       <span class="lbl">Importar un MIDI externo</span>
       <div class="row"><input type="file" id="midiImport" accept=".mid,.midi" multiple aria-label="Importar MIDI"></div>
-      <span class="hint" id="midiImportInfo">Guarda archivos <code>.mid</code> en esta biblioteca (en este navegador) para tenerlos a mano y volver a descargarlos. No se abren en el taller.</span>
+      <span class="hint" id="midiImportInfo">Guarda archivos <code>.mid</code> en esta biblioteca (en este navegador) para tenerlos a mano, escucharlos aquí y volver a descargarlos. No se abren en el taller.</span>
       <div id="midis" class="biblio-items"></div>
     </div>
     <p class="aviso"><b>Sólo viven aquí.</b> No viajan a la otra máquina ni a otro navegador, y se pierden si borras los datos del sitio. Para que algo llegue al otro, exporta el archivo y súbelo a la biblioteca compartida.</p>
@@ -172,7 +172,95 @@
   }
 
   const MIDIS = 'rueda.midis';
+
+  // ── Reproductor de MIDI (preview): parsea el .mid y lo suena con Web Audio ──
+  // No es un reproductor General MIDI completo: los canales melódicos suenan con un tono
+  // suave y el canal 9 (batería) con percusión sintetizada. Sirve para reconocer la idea.
+  const midiPlayer = (() => {
+    let ctx = null, activos = [], finTimer = null, btnActual = null;
+    const info = msg => { const s = $('midiImportInfo'); if (s) s.textContent = msg; };
+
+    function bufDeDataUrl(u) {
+      const bin = atob(u.slice(u.indexOf(',') + 1)); const a = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+      return a.buffer;
+    }
+    function parse(buf) {
+      const d = new DataView(buf); let p = 0;
+      const u32 = () => { const v = d.getUint32(p); p += 4; return v; }, u16 = () => { const v = d.getUint16(p); p += 2; return v; }, u8 = () => d.getUint8(p++);
+      const vlq = () => { let v = 0, b; do { b = u8(); v = (v << 7) | (b & 0x7f); } while (b & 0x80); return v; };
+      if (u32() !== 0x4d546864) throw new Error('no es MIDI'); u32(); u16(); const ntr = u16(); let tpb = u16();
+      if (tpb & 0x8000 || !tpb) tpb = 96;   // SMPTE u 0: aproximamos
+      const tempos = [], abiertas = {}, notas = [];
+      const pop = (ch, note, tk) => { const s = abiertas[(ch << 8) | note]; if (s && s.length) { const on = s.shift(); notas.push({ ch, note, vel: on.vel, tick: on.tick, endTick: tk }); } };
+      for (let t = 0; t < ntr; t++) {
+        if (u32() !== 0x4d54726b) break; const len = u32(), end = p + len; let tick = 0, st = 0;
+        while (p < end) {
+          tick += vlq(); let b = u8();
+          if (b === 0xff) { const type = u8(), l = vlq(); if (type === 0x51 && l === 3) tempos.push({ tick, uspb: (u8() << 16) | (u8() << 8) | u8() }); else p += l; continue; }
+          if (b === 0xf0 || b === 0xf7) { p += vlq(); continue; }
+          if (b & 0x80) { st = b; b = u8(); }
+          const cmd = st & 0xf0, ch = st & 0x0f;
+          if (cmd === 0x90) { const note = b, vel = u8(); if (vel > 0) { (abiertas[(ch << 8) | note] = abiertas[(ch << 8) | note] || []).push({ tick, vel }); } else pop(ch, note, tick); }
+          else if (cmd === 0x80) { const note = b; u8(); pop(ch, note, tick); }
+          else if (cmd === 0xa0 || cmd === 0xb0 || cmd === 0xe0) { u8(); }
+          // 0xc0/0xd0: sin bytes extra (b ya consumió el dato)
+        }
+        Object.keys(abiertas).forEach(k => { while (abiertas[k] && abiertas[k].length) { const on = abiertas[k].shift(); notas.push({ ch: (+k) >> 8, note: (+k) & 0xff, vel: on.vel, tick: on.tick, endTick: tick }); } });
+        p = end;
+      }
+      return { tpb, tempos, notas };
+    }
+    function crearReloj(tempos, tpb) {
+      const evs = tempos.slice().sort((a, b) => a.tick - b.tick);
+      if (!evs.length || evs[0].tick > 0) evs.unshift({ tick: 0, uspb: 500000 });   // 120 bpm por defecto
+      return tick => { let sec = 0; for (let i = 0; i < evs.length; i++) { const ini = evs[i].tick, fin = i + 1 < evs.length ? evs[i + 1].tick : Infinity; if (tick <= ini) break; sec += (Math.min(tick, fin) - ini) * (evs[i].uspb / 1e6) / tpb; if (tick <= fin) break; } return sec; };
+    }
+    function tono(note, vel, start, dur, out) {
+      const f = 440 * Math.pow(2, (note - 69) / 12);
+      const osc = ctx.createOscillator(); osc.type = 'triangle'; osc.frequency.value = f;
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = Math.min(6500, f * 6 + 900);
+      const g = ctx.createGain(); const pico = Math.max(0.04, Math.min(0.42, vel / 127 * 0.42)); const r = Math.min(0.35, dur * 0.5);
+      g.gain.setValueAtTime(0, start); g.gain.linearRampToValueAtTime(pico, start + 0.008);
+      g.gain.setValueAtTime(pico, Math.max(start + 0.008, start + dur - r)); g.gain.linearRampToValueAtTime(0.0001, start + dur);
+      osc.connect(lp); lp.connect(g); g.connect(out); osc.start(start); osc.stop(start + dur + 0.03); activos.push(osc, g, lp);
+    }
+    function percusion(note, start, out) {
+      if (note === 35 || note === 36) {
+        const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine';
+        o.frequency.setValueAtTime(130, start); o.frequency.exponentialRampToValueAtTime(45, start + 0.12);
+        g.gain.setValueAtTime(0.9, start); g.gain.exponentialRampToValueAtTime(0.001, start + 0.16);
+        o.connect(g); g.connect(out); o.start(start); o.stop(start + 0.18); activos.push(o, g); return;
+      }
+      const caja = note === 38 || note === 40 || note === 37, abierto = note === 46 || note === 44;
+      const dur = caja ? 0.18 : abierto ? 0.24 : 0.045;
+      const src = ctx.createBufferSource(), len = Math.ceil(ctx.sampleRate * dur), b = ctx.createBuffer(1, len, ctx.sampleRate), dch = b.getChannelData(0);
+      for (let i = 0; i < len; i++) dch[i] = Math.random() * 2 - 1; src.buffer = b;
+      const filt = ctx.createBiquadFilter(); filt.type = caja ? 'bandpass' : 'highpass'; filt.frequency.value = caja ? 1800 : 7000;
+      const g = ctx.createGain(); const pico = caja ? 0.5 : 0.26; g.gain.setValueAtTime(pico, start); g.gain.exponentialRampToValueAtTime(0.001, start + dur);
+      src.connect(filt); filt.connect(g); g.connect(out); src.start(start); src.stop(start + dur + 0.02); activos.push(src, g, filt);
+    }
+    function resetBtn() { if (btnActual) { btnActual.textContent = '▶ Escuchar'; btnActual = null; } }
+    function stop() { if (finTimer) { clearTimeout(finTimer); finTimer = null; } activos.forEach(n => { try { n.stop && n.stop(); } catch (e) {} try { n.disconnect(); } catch (e) {} }); activos = []; resetBtn(); }
+    function play(dataUrl, btn) {
+      stop();
+      let parsed; try { parsed = parse(bufDeDataUrl(dataUrl)); } catch (e) { info('No pude leer ese MIDI: ' + e.message); return; }
+      const { tpb, tempos, notas } = parsed;
+      if (!notas.length) { info('Ese MIDI no trae notas para sonar.'); return; }
+      try { ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { info('Este navegador no deja reproducir audio.'); return; }
+      if (ctx.state === 'suspended') ctx.resume();
+      const reloj = crearReloj(tempos, tpb), out = ctx.createGain(); out.gain.value = 0.85; out.connect(ctx.destination);
+      const t0 = ctx.currentTime + 0.06; let maxFin = 0; const N = Math.min(notas.length, 4000);
+      for (let i = 0; i < N; i++) { const nn = notas[i]; const s = t0 + reloj(nn.tick), dur = Math.max(0.05, t0 + reloj(nn.endTick) - s); maxFin = Math.max(maxFin, s + dur); if (nn.ch === 9) percusion(nn.note, s, out); else tono(nn.note, nn.vel, s, dur, out); }
+      btnActual = btn; if (btn) btn.textContent = '⏸ Detener';
+      info('Sonando (vista previa sintetizada; en tu DAW suena con tus instrumentos).');
+      finTimer = setTimeout(stop, Math.max(400, (maxFin - ctx.currentTime + 0.25) * 1000));
+    }
+    return { toggle(dataUrl, btn) { if (btnActual === btn) stop(); else play(dataUrl, btn); }, stop };
+  })();
+
   function renderMidis() {
+    midiPlayer.stop();
     const cont = $('midis'); if (!cont) return; cont.innerHTML = '';
     const list = leer(MIDIS);
     if (!list.length) { cont.append(el('p', {class:'hint', style:'margin:6px 0 0'}, 'No has importado ningún MIDI todavía.')); return; }
@@ -180,9 +268,12 @@
       const fila = el('div', {class:'biblio-fila'});
       fila.append(el('span', {class:'biblio-nom', title:m.name}, m.name + (m.size ? `  ·  ${Math.round(m.size/1024)} KB` : '')));
       const acc = el('span', {class:'biblio-acc'});
+      const play = el('button', {class:'btn ghost mini', type:'button', title:'escuchar una vista previa sintetizada'}, '▶ Escuchar');
+      play.addEventListener('click', () => midiPlayer.toggle(m.data, play));
+      acc.append(play);
       acc.append(el('a', {class:'btn ghost mini', href:m.data, download:m.name}, 'Descargar'));
       const del = el('button', {class:'btn ghost mini', type:'button'}, 'Borrar');
-      del.addEventListener('click', () => { const l = leer(MIDIS); l.splice(i,1); guardar(MIDIS, l); renderMidis(); });
+      del.addEventListener('click', () => { midiPlayer.stop(); const l = leer(MIDIS); l.splice(i,1); guardar(MIDIS, l); renderMidis(); });
       acc.append(del); fila.append(acc); cont.append(fila);
     });
   }

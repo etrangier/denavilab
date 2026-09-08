@@ -584,6 +584,8 @@
         <button class="ghost" id="expMidiOne">MIDI · sólo esta pista</button>
         <button class="ghost" id="expMidiAll">MIDI · todas las pistas</button>
         <button class="ghost" id="expPdf">PDF · notas y ficha técnica</button>
+        <label class="ghost" for="impMidiBiblio" style="display:block; text-align:center; border-radius:6px; padding:8px 12px; border:1px solid var(--line); cursor:pointer">Importar MIDI (a la Biblioteca)</label>
+        <input type="file" id="impMidiBiblio" accept=".mid,.midi" multiple hidden>
         <span class="lbl" style="margin-top:6px">La maqueta entera, en un archivo</span>
         <button class="ghost" id="expProyecto">Guardar la maqueta (.denavi)</button>
         <label class="ghost" for="impProyecto" style="display:block; text-align:center; border-radius:6px; padding:8px 12px; border:1px solid var(--line); cursor:pointer">Abrir una maqueta guardada</label>
@@ -3495,6 +3497,19 @@
     const f = e.target.files[0]; if (!f) return;
     try { $('midiFileInfo').textContent = importarBeatMidi(await f.arrayBuffer(), f.name); }
     catch (err) { $('midiFileInfo').textContent = 'No pude leer ese archivo: ' + err.message; }
+  });
+
+  // Importar un .mid a la Biblioteca (mismo almacén que la página Biblioteca: se escucha/descarga allí)
+  if ($('impMidiBiblio')) $('impMidiBiblio').addEventListener('change', async e=>{
+    const files = [...e.target.files]; e.target.value=''; if (!files.length) return;
+    const KEY = 'rueda.midis'; let list; try { list = JSON.parse(localStorage.getItem(KEY)||'[]'); } catch(_) { list = []; }
+    let ok = 0;
+    for (const f of files) {
+      try { const data = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); });
+        list.push({ name:f.name, size:f.size, fecha:new Date().toISOString().slice(0,10), data }); ok++; } catch(_) {}
+    }
+    try { localStorage.setItem(KEY, JSON.stringify(list)); $('expInfo').textContent = `${ok} MIDI guardado(s) en la Biblioteca (este navegador). Ábrela para escucharlo o descargarlo.`; }
+    catch(_) { $('expInfo').textContent = 'No cupo en el almacenamiento del navegador (¿archivo muy grande?).'; }
   });
 
 
