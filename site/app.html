@@ -108,6 +108,11 @@
   .readout .big { font-family: var(--display); font-size: 30px; font-weight: 700; line-height: 1.1; }
   .readout .notes { font-family: var(--mono); font-size: 16px; color: var(--accent); }
   .readout .sub { color: var(--muted); font-size: 12px; }
+  .readout .ro-right { display: flex; align-items: center; gap: 12px; }
+  .readout .ro-mini { line-height: 0; }
+  .readout .ro-mini .mini { width: 88px; grid-column: auto; grid-row: auto; }
+  #wheel g.slot { cursor: pointer; }
+  #wheel g.slot:hover path { filter: brightness(1.12); }
   .slot { cursor: pointer; }
   .slot circle, .slot path { fill: var(--surface-2); stroke: var(--line); stroke-width: 1; transition: fill .15s; }
   .slot text { fill: var(--text); font-family: var(--display); font-weight: 500; pointer-events: none; }
@@ -562,7 +567,10 @@
             <div class="big" id="roName">—</div>
             <div class="sub" id="roSub"></div>
           </div>
-          <div class="notes" id="roNotes"></div>
+          <div class="ro-right">
+            <div class="ro-mini" id="roMini"></div>
+            <div class="notes" id="roNotes"></div>
+          </div>
         </div>
         <div class="tipbox" id="tipBox"></div>
         <div class="cand" id="candBar" hidden>
@@ -1477,6 +1485,8 @@
         g.append(t);
         const p = svgEl('text',{class:'sug-pct', x:tx, y:ty+ (ring.q==='d'?12:16), 'text-anchor':'middle'}); g.append(p);
         g.addEventListener('click', ()=>propose({pc,q:ring.q}));
+        g.addEventListener('mouseenter', ()=>{ S.hover={pc,q:ring.q}; renderReadout(); });
+        g.addEventListener('mouseleave', ()=>{ if (S.hover && S.hover.pc===pc && S.hover.q===ring.q) { S.hover=null; renderReadout(); } });
         g.addEventListener('keydown', e=>{ if (e.key==='Enter'||e.key===' ') { e.preventDefault(); propose({pc,q:ring.q}); } });
         svg.append(g); slots[pc+ring.q] = { g, p, cx:tx, cy:ty };
       }
@@ -1551,6 +1561,7 @@
     const inst = instLabel().toLowerCase();
     $('candBar').hidden = !S.cand; if (S.cand) $('candSave').textContent = remaining() > 0 ? `Guardar ${chordLabel(S.cand.pc,S.cand.q)} en el compás ${fmtLen(usedBars()+1)}` : 'Progresión completa';
     $('roSub').textContent = (S.hover ? 'Al pasar el cursor · ' : S.playing>=0 ? (S.playing===S.prog.length ? 'Sonando el acorde de prueba · ' : `Sonando compás ${S.playing+1} · `) : S.cand ? 'Probando · ' : S.prog.length ? 'Último guardado · ' : 'Acorde inicial · ') + (deg ? `${roleOf(c.pc,c.q)[0]} (grado ${deg} en ${keyName(S.key)})` : 'fuera de la tonalidad') + (isDiatonic(c.pc,c.q)||!deg ? '' : ' · prestado') + ` · ${inst}`;
+    const rm = $('roMini'); if (rm) { rm.innerHTML=''; rm.append(miniKeyboard(c.pc, c.q)); }
     $('tipBox').innerHTML = tipHtml();
     paintKeyboard(c);
   }
@@ -1570,7 +1581,7 @@
     $('sugPhase').textContent = phaseText() + (S.band!=='Tus hábitos' && _nAj>0 ? ` · afinado con ${_nAj} paso${_nAj===1?'':'s'} tuyo${_nAj===1?'':'s'}` : '');
     const full = remaining() <= 0;
     suggestions().slice(0, S.mode==='piano'?6:4).forEach(s=>{
-      const b = el('button',{class:'sug', onclick:()=>propose(s)},
+      const b = el('button',{class:'sug', onclick:()=>propose(s), onmouseenter:()=>{ S.hover={pc:s.pc,q:s.q}; renderReadout(); }, onmouseleave:()=>{ if (S.hover && S.hover.pc===s.pc && S.hover.q===s.q) { S.hover=null; renderReadout(); } }},
         el('span',{class:'nm'}, chordLabel(s.pc,s.q)),
         el('span',{class:'nt'}, notesText(s.pc,s.q)),
         el('span',{class:'deg'}, `${s.id} · ${s.pct}%` + (isDiatonic(s.pc,s.q)?'':' · prestado') + (s.moved!==null && s.moved!==undefined ? ` · mueve ${s.moved} dedo${s.moved===1?'':'s'}` : '') + (s.bank ? ` · sigue «${s.bank}»` : '')),
@@ -1704,7 +1715,7 @@
   function propose(c) {
     if (remaining() <= 0) return;
     if (!S.prog.length && c.q!=='d') { S.root=c.pc; S.qual=c.q; $('root').value=S.root; $('qual').value=S.qual; S.key = defaultKey() || S.key; }
-    S.cand = {pc:c.pc, q:c.q};
+    S.cand = {pc:c.pc, q:c.q}; S.hover = null;
     renderAll();
     if (!isPlaying) previewChord(c);
   }
