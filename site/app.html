@@ -113,8 +113,10 @@
   .combo-btn:hover, .combo-btn:focus-visible { border-color: var(--accent); }
   .combo-val { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .combo-caret { color: var(--muted); font-size: 11px; flex: 0 0 auto; }
-  .combo-pop { position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; right: auto; width: min(440px, 92vw); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 6px; display: flex; flex-direction: column; }
+  .combo-pop { position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; right: auto; width: min(330px, 90vw); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 6px; display: flex; flex-direction: column; }
   .combo-cols { display: flex; gap: 6px; max-height: 260px; }
+  .combo-col-l { flex: 0 0 auto; width: 148px; }
+  .combo-col-r { flex: 1 1 auto; min-width: 0; }
   .combo-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
   .combo-col-r { border-left: 1px solid var(--line); padding-left: 6px; }
   .combo-col .combo-list { overflow-y: auto; }
@@ -124,8 +126,8 @@
   .combo-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
   .combo-opt { display: flex; align-items: baseline; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
   .combo-opt:hover, .combo-opt:focus-visible, .combo-opt.on { background: var(--accent-soft); outline: none; }
-  .combo-opt .opt-nom { font-weight: 600; }
-  .combo-opt .opt-cat { font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-right: auto; }
+  .combo-opt .opt-nom { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: auto; }
+  .combo-opt .opt-cat { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-right: auto; white-space: nowrap; }
   .combo-opt .opt-uso { color: var(--accent); font-size: 11px; }
   .combo-opt .opt-mas { color: var(--muted); font-size: 13px; }
   .combo-back { padding: 6px 8px; color: var(--accent); font-size: 12.5px; cursor: pointer; border-radius: 6px; }
@@ -2451,9 +2453,10 @@
   function itemEstilo(g){
     const usos=(stGet().generos)||{}, actual=$('genre')?$('genre').value:S.genre;
     const li=el('li',{class:'combo-opt'+(g===actual?' activo':''), role:'option', 'data-tipo':'estilo', 'data-g':g, tabindex:'-1'},
-      el('span',{class:'opt-nom'}, g), el('span',{class:'opt-cat'}, GENRE_CAT_CORTA[estiloCategoria(g)]||estiloCategoria(g)));
+      el('span',{class:'opt-nom'}, g));
     if(usos[g]) li.append(el('span',{class:'opt-uso', title:'lo usas seguido'},'★'));
     li.append(el('span',{class:'opt-mas','aria-hidden':'true'},'›'));
+    li.addEventListener('mouseenter', ()=>mostrarBandas(g, false));
     li.addEventListener('click', ()=>mostrarBandas(g, true));
     return li;
   }
@@ -2488,10 +2491,12 @@
     ordenarGeneros().forEach(g=>list.append(itemEstilo(g)));
   }
   function elegirBanda(g,b){
-    const gsel=$('genre'), bsel=$('band');
-    if(gsel && gsel.value!==g){ gsel.value=g; gsel.dispatchEvent(new Event('change',{bubbles:true})); }
-    if(bsel){ bsel.value=b; bsel.dispatchEvent(new Event('change',{bubbles:true})); }
-    cerrarComboGenero(); renderComboGenero(); if($('genreBtn')) $('genreBtn').focus();
+    try {
+      const gsel=$('genre'), bsel=$('band');
+      if(gsel && gsel.value!==g){ gsel.value=g; gsel.dispatchEvent(new Event('change',{bubbles:true})); }
+      if(bsel){ bsel.value=b; bsel.dispatchEvent(new Event('change',{bubbles:true})); }
+      renderComboGenero();
+    } finally { cerrarComboGenero(); if($('genreBtn')) $('genreBtn').focus(); }
   }
   function abrirComboGenero(){ const pop=$('genrePop'); if(!pop) return; if($('genreSearch')) $('genreSearch').value=''; construirListaGenero(''); mostrarBandas(($('genre')?$('genre').value:S.genre)||ordenarGeneros()[0], false); pop.hidden=false; $('genreBtn').setAttribute('aria-expanded','true'); setTimeout(()=>{ if($('genreSearch')) $('genreSearch').focus(); },0); }
   function cerrarComboGenero(){ const pop=$('genrePop'); if(pop) pop.hidden=true; if($('genreBtn')) $('genreBtn').setAttribute('aria-expanded','false'); }
