@@ -1,6 +1,18 @@
 {
  "changelog": [
   {
+   "fecha": "2026-09-08",
+   "items": [
+    "UX/UI (sutil): pestañas de modo navegables por teclado (tablist), foco visible en más botones, transiciones suaves y un pelo más de contraste; se respeta «reducir movimiento».",
+    "Invitado: la portada invita a un externo a probar sin cuenta; en el taller, una barra «Primeros pasos» que se cierra y se recuerda.",
+    "Maquetas: guarda el proyecto ENTERO con nombre en el navegador y reábrelo de un clic desde el taller, el WorkShop de la portada o la Biblioteca (además del archivo .denavi).",
+    "Encabezado (Pad/Piano): al pasar el cursor por un acorde de la rueda o una sugerencia, se previsualiza ahí (nombre, notas y mini-teclado); el mini refleja el tamaño real del MPK (25/37) al instante.",
+    "Cuerdas: acordes de Rolando muy simples (3 dedos máx.) y rotulados en do-re-mi; mover acordes ‹ ›, «Tocar la vuelta» y «Con todo», editar el mástil arrastrando los círculos, y un cabezal que resalta el acorde que suena.",
+    "Batería: «Generar beat» que aprende de lo que más usas + «Otra variación».",
+    "Estilos: nuevo género IDM (Aphex Twin, Boards of Canada, Autechre) y beats de Thom Yorke por proyecto solista (The Eraser, Tomorrow's Modern Boxes, Atoms for Peace, Anima)."
+   ]
+  },
+  {
    "fecha": "2026-09-07",
    "items": [
     "Beats: la «Mi base 26 ag impro» se renombró a «Massive Attack · loop hipnótico» y quedó bajo Massive Attack (trip hop); se quitó su botón de acceso rápido.",
