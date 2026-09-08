@@ -23,7 +23,7 @@
     --surface-2: #26232f;
     --line: #322e3f;
     --text: #ede9f3;
-    --muted: #9b95ab;
+    --muted: #a7a1b6;
     --accent: #e8a94a;
     --accent-ink: #1a1207;
     --accent-soft: rgba(232,169,74,.18);
@@ -68,6 +68,15 @@
   .app { max-width: 1320px; margin: 0 auto; padding: 20px 20px 48px; display: grid; gap: 18px; }
   .modos-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
   .invitado-aviso { border-left: 3px solid var(--key-line); padding-left: 10px; }
+  .avisos { display: flex; flex-direction: column; gap: 8px; }
+  .avisos:empty { display: none; }
+  .aviso-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 8px; padding: 8px 12px; font-size: 13px; color: var(--muted); }
+  .aviso-bar.invitado { border-left-color: var(--key-line); }
+  .aviso-txt { flex: 1 1 240px; }
+  .aviso-txt b { color: var(--text); }
+  .aviso-link { color: var(--accent); text-decoration: none; font-weight: 600; white-space: nowrap; }
+  .aviso-x { background: none; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font-size: 12px; padding: 3px 8px; cursor: pointer; }
+  .aviso-x:hover, .aviso-x:focus-visible { border-color: var(--accent); color: var(--accent); }
   .invitado-aviso .lbl { color: var(--accent); }
   body.invitado .navsesion .candado { color: var(--key-line); }
   .mtab { font: inherit; font-family: var(--display); font-weight: 700; font-size: 14px; cursor: pointer;
@@ -86,6 +95,9 @@
   .field { display: grid; gap: 6px; }
   select, input[type=number], input[type=text] { width: 100%; background: var(--surface-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; font: inherit; }
   select:focus-visible, input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .sug:focus-visible, .sug-b:focus-visible, .door:focus-visible, .guit-ch:focus-visible, .bar-box:focus-visible, .rg-cell:focus-visible, .mix-btn:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .mtab, .chip, .navlink, button, .sug, .door, .sug-b { transition: border-color .15s ease, background-color .15s ease, color .15s ease, box-shadow .15s ease; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; } }
   .row { display: flex; gap: 8px; align-items: center; }
   .row > * { flex: 1; }
   input[type=range] { width: 100%; accent-color: var(--accent); }
@@ -447,6 +459,7 @@
   </header>
 
   <nav class="modos-tabs" id="modosTabs" aria-label="Secciones del taller"></nav>
+  <div class="avisos" id="avisos"></div>
 
   <div class="grid">
     <!-- ───────── Configuración ───────── -->
@@ -2325,9 +2338,19 @@
 
   // ───────── Controles ─────────
   const MODOS_TABS = [['beat','Batería'],['pad','Rueda · Pad'],['piano','Piano'],['lead','Piano lead'],['guitarra','Guitarra'],['letra','Letra'],['mezcla','▶ Mezcla']];
+  function navTabsKey(e) {
+    const tabs = [...$('modosTabs').querySelectorAll('.mtab')];
+    const i = tabs.indexOf(document.activeElement); if (i<0) return;
+    let j = i;
+    if (e.key==='ArrowRight' || e.key==='ArrowDown') j = (i+1)%tabs.length;
+    else if (e.key==='ArrowLeft' || e.key==='ArrowUp') j = (i-1+tabs.length)%tabs.length;
+    else if (e.key==='Home') j = 0; else if (e.key==='End') j = tabs.length-1; else return;
+    e.preventDefault(); tabs[j].focus(); setMode(tabs[j].dataset.m);
+  }
   function renderModosTabs() {
-    const nav = $('modosTabs'); if (!nav) return; nav.innerHTML='';
-    MODOS_TABS.forEach(([m,t])=> nav.append(el('button',{class:'mtab', type:'button', 'data-m':m, 'aria-current':String(S.mode===m), onclick:()=>setMode(m)}, t)));
+    const nav = $('modosTabs'); if (!nav) return; nav.setAttribute('role','tablist'); nav.innerHTML='';
+    MODOS_TABS.forEach(([m,t])=>{ const on=S.mode===m;
+      nav.append(el('button',{class:'mtab', type:'button', role:'tab', 'data-m':m, 'aria-current':String(on), 'aria-selected':String(on), tabindex: on?'0':'-1', onclick:()=>setMode(m), onkeydown:navTabsKey}, t)); });
   }
   function fillSelects() {
     const g = $('genre'); Object.keys(GENRES).forEach(k=>g.append(el('option',{value:k},k)));
@@ -2777,7 +2800,7 @@
     if (typeof rec !== 'undefined' && rec) stopRec();
     stBump('secciones', m);
     S.mode = m; $('mode').value = m;
-    document.querySelectorAll('#modosTabs .mtab').forEach(b=>b.setAttribute('aria-current', String(b.dataset.m===m)));
+    document.querySelectorAll('#modosTabs .mtab').forEach(b=>{ const on=b.dataset.m===m; b.setAttribute('aria-current', String(on)); b.setAttribute('aria-selected', String(on)); b.tabIndex = on?0:-1; });
     S.inst = m==='bajod' ? 'bajod' : (m==='piano'||m==='lead') ? 'piano' : $('inst').value; if (m==='pad'||m==='piano') S.keysMode = m;
     if (m==='pad') S.padInst = $('inst').value;
     if (m==='piano') renderPianoPanel();
@@ -3198,6 +3221,23 @@
     const all = [...t0, ...tracks.flat()];
     const head = [...str4('MThd'), ...u32b(6), 0,1, 0,tracks.length+1, (TPB>>8)&255, TPB&255];
     return new Uint8Array([...head, ...all]);
+  }
+  function renderAvisos() {
+    const box = $('avisos'); if (!box) return; box.innerHTML='';
+    let visto=false; try { visto = localStorage.getItem('denavilab.tipTaller')==='1'; } catch(e){}
+    if (!visto) {
+      const t = el('div',{class:'aviso-bar'});
+      t.append(el('span',{class:'aviso-txt'}, el('b',{},'Primeros pasos: '), 'elige una sección arriba (Batería, Pad, Piano…), prueba las sugerencias y pulsa ▶ para escuchar. Nada se rompe: experimenta.'));
+      t.append(el('button',{class:'aviso-x', type:'button', 'aria-label':'entendido, ocultar este aviso', onclick:()=>{ try{ localStorage.setItem('denavilab.tipTaller','1'); }catch(e){} t.remove(); }}, 'entendido'));
+      box.append(t);
+    }
+    if (S.quien==='invitado') {
+      const t = el('div',{class:'aviso-bar invitado'});
+      t.append(el('span',{class:'aviso-txt'}, el('b',{},'Estás como invitado. '), 'Toca y prueba con todo; guardar, exportar y la biblioteca están desactivados.'));
+      t.append(el('a',{class:'aviso-link', href:'index.html'}, 'Entrar con tu clave →'));
+      t.append(el('button',{class:'aviso-x', type:'button', 'aria-label':'ocultar este aviso', onclick:()=>t.remove()}, '×'));
+      box.append(t);
+    }
   }
   function aplicarRestriccionesInvitado() {
     if (S.quien !== 'invitado') return;
@@ -4129,6 +4169,7 @@
     if (PAR.get('guia')==='principiante') document.body.classList.add('modo-principiante');
   })();
   (async () => { try { const r = await fetch('cerebro.json', { cache:'no-store' }); if (r.ok) { const j = await r.json(); if (j && typeof j==='object') { CEREBRO_BASE = j; if ($('cerebroPats')) renderCerebro(); } } } catch(e){} })();
+  renderAvisos();
   const pedido = PAR.get('modo');
   setMode(MODOS.includes(pedido) ? pedido : 'beat');
   listoParaAutoBeat = true;
