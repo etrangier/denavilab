@@ -340,6 +340,7 @@
   .fb-lbl { font-family: var(--mono); font-size: 10px; fill: var(--muted); text-anchor: middle; }
   .fb-note { font-family: var(--mono); font-size: 9px; fill: var(--accent-ink); text-anchor: middle; pointer-events: none; }
   .guit-prog { display: flex; flex-wrap: wrap; gap: 8px; }
+  .gc-notas, .gs-notas { font-family: var(--mono); font-size: 10px; color: var(--accent); letter-spacing: .02em; }
   .guit-ch { display: grid; gap: 4px; justify-items: center; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px; cursor: pointer; font: inherit; color: var(--text); }
   .guit-ch.sel { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
   .guit-ch .gc-nom { font-family: var(--display); font-weight: 700; font-size: 16px; }
@@ -3793,7 +3794,33 @@
   const nombreGuit = (pc,q) => nota(pc, pc) + (q==='m'?'m':q==='d'?'dim':'');
   // Forma en el mástil para un acorde: primero la biblioteca; si no, cejilla movible; si es
   // raro, la voz genérica (traste más bajo con nota del acorde en cada cuerda).
+  // Tríada (3 notas) del acorde, ignorando la 7ª: para Rolando queremos formas de 3 dedos como mucho
+  const triada = (pc,q) => (q==='M'?[0,4,7]:q==='m'?[0,3,7]:[0,3,6]).map(i=>(pc+i)%12);
+  // Notas del acorde en do-re-mi (para Rolando, que lee notas y no cifrado)
+  const notasSolf = (pc,q) => triada(pc,q).map(n=>NAMES[n%12]).join(' ');
+  // Ventana compacta: para cada cuerda elegida, el traste más bajo (en [base, base+3]) que dé una nota del acorde
+  function ventanaSimple(opens, ton) {
+    for (let base=0; base<=10; base++) {
+      const fr = opens.map(op => { for (let d=0; d<=3; d++) { const f=base+d; if (ton.includes((op+f)%12)) return f; } return null; });
+      if (fr.every(f=>f!=null)) return fr;
+    }
+    return opens.map(()=>0);
+  }
+  // Forma SIMPLE (Rolando): tríada de 3 dedos como mucho, baja y movible
+  function formaSimple(pc,q) {
+    const ton = triada(pc,q), opens = afin().open;
+    if (S.guitar.instrumento==='ukelele') {
+      let v = ventanaSimple(opens, ton);
+      if (v.filter(f=>f>0).length > 3) v = [-1, ...ventanaSimple(opens.slice(1), ton)];   // mutea la 1ª cuerda si hace falta un 4º dedo
+      return v;
+    }
+    const idx = [2,3,4];                                    // re · sol · si (cuerdas centrales, cómodas)
+    const v3 = ventanaSimple(idx.map(i=>opens[i]), ton);
+    const frets = [-1,-1,-1,-1,-1,-1]; idx.forEach((i,k)=>frets[i]=v3[k]);
+    return frets;
+  }
   function formaDe(pc,q) {
+    if (S.quien==='rolando') return formaSimple(pc,q);        // Rolando: cuerdas rudimentarias → formas muy simples
     const nom = LETRAS[pc] + (q==='m'?'m':q==='d'?'dim':'');   // clave en inglés para las formas (FORMAS/UKE_FORMAS), sea cual sea la notación mostrada
     if (S.guitar.instrumento==='ukelele') {
       if (UKE_FORMAS[nom]) return UKE_FORMAS[nom].slice();
@@ -3917,6 +3944,7 @@
     g.prog.forEach((c,i)=>{
       const box = el('button',{class:'guit-ch'+(i===g.sel?' sel':''), onclick:()=>{ g.sel=i; renderGuitarra(); }});
       box.append(el('span',{class:'gc-nom'}, c.name || nombreGuit(c.pc,c.q)));
+      if (S.quien==='rolando') box.append(el('span',{class:'gc-notas'}, notasSolf(c.pc,c.q)));
       box.append(guitMini(c.frets));
       const ctrl = el('span',{class:'gc-bars'});
       ctrl.append(el('button',{class:'tiny', title:'mover a la izquierda', ...(i===0?{disabled:''}:{}), onclick:e=>{ e.stopPropagation(); moverGuit(i,-1); }},'‹'));
@@ -3948,6 +3976,7 @@
     guitSugerencias().forEach(sug=>{
       const b = el('button',{class:'guit-sug'+(sug.pct>=100?' tonica':''), title:'añadir '+nombreGuit(sug.pc,sug.q), onclick:()=>{ const g=S.guitar; g.prog.push(acordeNuevo(sug.pc,sug.q)); g.sel=g.prog.length-1; renderGuitarra(); sonarAcorde(g.prog[g.sel]); }});
       b.append(el('span',{class:'gs-nom'}, nombreGuit(sug.pc,sug.q)));
+      if (S.quien==='rolando') b.append(el('span',{class:'gs-notas'}, notasSolf(sug.pc,sug.q)));
       const rol = roleOf(sug.pc, sug.q)[0] || '';
       b.append(el('span',{class:'gs-deg'}, sug.id + (rol ? ' · ' + rol : '')));
       b.append(guitMini(formaDe(sug.pc, sug.q)));
