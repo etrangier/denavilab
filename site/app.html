@@ -348,6 +348,7 @@
   .gc-notas, .gs-notas { font-family: var(--mono); font-size: 10px; color: var(--accent); letter-spacing: .02em; }
   .guit-ch { display: grid; gap: 4px; justify-items: center; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px; cursor: pointer; font: inherit; color: var(--text); }
   .guit-ch.sel { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .guit-ch.playing { border-color: var(--accent); background: var(--key-tint); box-shadow: 0 0 0 2px var(--accent); }
   .guit-ch .gc-nom { font-family: var(--display); font-weight: 700; font-size: 16px; }
   .gc-mini { width: 54px; height: 46px; display: block; }
   .gc-bars { display: inline-flex; align-items: center; gap: 3px; }
@@ -2273,10 +2274,10 @@
       if (mode==='guitarra' && S.guitar.metron) scheduleMetronomo(t0, beat, totalBars || 1);
       if ((mode==='drums' || mode==='bass') && S.metron) scheduleMetronomo(t0, beat, totalBars || S.bars);
       if ((mode==='all' || mode==='lead') && S.metron) scheduleMetronomo(t0, beat, totalBars || S.bars);
-      if (mode === 'guitarra') scheduleGuit(t0, totalBars, beat);
+      if (mode === 'guitarra') { scheduleGuit(t0, totalBars, beat); guitPlayhead(t0, totalBars, beat); }
       if (mode === 'all') {
         if (hasBassD() && suena('bass')) scheduleBassSeq(t0, totalBars, beat);
-        if (S.guitar.prog.length && suena('guitar')) scheduleGuit(t0, totalBars, beat);
+        if (S.guitar.prog.length && suena('guitar')) { scheduleGuit(t0, totalBars, beat); guitPlayhead(t0, totalBars, beat); }
         if (hasLead() && suena('lead')) scheduleLead(t0, totalBars, beat);
       }
       if (mode === 'bass') {
@@ -2319,7 +2320,7 @@
       const drift = (t0 - ctx.currentTime)*1000; if (S.loop && !stopFlag && drift > 0) await wait(drift);
     } while (S.loop && !stopFlag);
     S.playing=-1; stopFlag=false; isPlaying=false; if ($('playMezcla')) $('playMezcla').textContent='▶ Reproducir todo'; $('play').textContent='▶ Reproducir todo'; $('playDrums').textContent='▶ Sólo batería'; $('playBass').textContent='▶ Bajo'; $('playGuit').textContent='▶ Tocar la vuelta'; if ($('playGuitAll')) $('playGuitAll').textContent='▶ Con todo'; $('candPlay').textContent='▶ Reproducir la vuelta'; $('playLead').textContent='▶ Piano lead';
-    document.querySelectorAll('.st.now').forEach(n=>n.classList.remove('now')); renderBars(); renderReadout();
+    document.querySelectorAll('.st.now').forEach(n=>n.classList.remove('now')); cancelAnimationFrame(guitRaf); document.querySelectorAll('#guitProg .guit-ch.playing').forEach(n=>n.classList.remove('playing')); renderBars(); renderReadout();
   }
 
   // ───────── Controles ─────────
@@ -2987,6 +2988,22 @@
         voice(bassMidi(r), tStart, six*n*(glideTo!==null?1.02:0.9), 'bajod', S.bassd.acc[idx]?0.62:0.42, glideTo!==null ? { glideTo, glideAt: six*n*0.7 } : null); s+=n;
       }
     }
+  }
+  let guitRaf = 0;
+  // Cabezal de la guitarra: resalta la tarjeta del acorde que suena mientras se toca la vuelta
+  function guitPlayhead(t0, totalBars, beat) {
+    const g = S.guitar; if (!g.prog.length) return;
+    const barDur = beat*4, end = t0 + totalBars*barDur;
+    const mapa = []; g.prog.forEach((c,i)=>{ for (let b=0;b<(c.bars||1);b++) mapa.push(i); });
+    const nb = mapa.length || 1;
+    const tick = () => {
+      const cards = document.querySelectorAll('#guitProg .guit-ch');
+      const now = ctx.currentTime;
+      if (now>=end || stopFlag) { cards.forEach(n=>n.classList.remove('playing')); return; }
+      if (now>=t0) { const bar=Math.floor((now-t0)/barDur)%nb; const idx=mapa[bar]; cards.forEach((n,k)=>n.classList.toggle('playing', k===idx)); }
+      guitRaf = requestAnimationFrame(tick);
+    };
+    cancelAnimationFrame(guitRaf); guitRaf = requestAnimationFrame(tick);
   }
   let leadRaf = 0;
   function leadPlayhead(t0, beat, totalBars) {
