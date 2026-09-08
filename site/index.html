@@ -163,6 +163,22 @@
     { clave:'rueda.leads', ti:'Melodías',modo:'lead',  filtro:null },
   ];
   const cont = $('wsList'); let total = 0;
+  // Maquetas: proyecto completo (se abre entero)
+  (() => {
+    const items = leer('rueda.maquetas').map((it,i)=>({it,i}));
+    if (!items.length) return; total += items.length;
+    items.sort((a,b)=>(b.it.ts||0)-(a.it.ts||0)||b.i-a.i);
+    const caja = el('div',{class:'ws-col'});
+    caja.append(el('div',{class:'ws-col-ti'}, 'Maquetas · ' + items.length));
+    const pick = el('div',{class:'ws-pick'});
+    const sel = el('select',{class:'ws-sel','aria-label':'Maquetas'});
+    items.forEach(({it,i})=>{ const fecha=it.ts?new Date(it.ts).toLocaleDateString('es-CL'):''; sel.append(el('option',{value:String(i)}, (it.name||'(sin nombre)')+(fecha?'  ·  '+fecha:''))); });
+    const play = el('button',{class:'ws-btn play',type:'button',title:'abrir la maqueta y reproducir todo'}, '▶ Reproducir');
+    play.addEventListener('click', ()=> location.href = `app.html?maqueta=${sel.value}&play=1`);
+    const abrir = el('button',{class:'ws-btn',type:'button'}, 'Abrir');
+    abrir.addEventListener('click', ()=> location.href = `app.html?maqueta=${sel.value}`);
+    pick.append(sel, play, abrir); caja.append(pick); cont.append(caja);
+  })();
   COLS.forEach(col => {
     const token = col.clave.split('.')[1];
     const items = leer(col.clave).map((it,i)=>({it,i})).filter(x => col.filtro ? col.filtro(x.it) : true);

@@ -114,6 +114,32 @@
   function pintarLocal() {
     const cont = $('local'); cont.innerHTML = '';
     let total = 0;
+    // Maquetas (proyecto entero): abrir o reproducir todo
+    (() => {
+      const items = leer('rueda.maquetas').map((it,i)=>({it,i})).sort((a,b)=>(b.it.ts||0)-(a.it.ts||0)||b.i-a.i);
+      total += items.length;
+      const caja = el('div', {class:'coleccion'});
+      const cab = el('div', {class:'col-cab'});
+      cab.append(el('span', {class:'col-ti'}, 'Maquetas'));
+      cab.append(el('span', {class:'col-n'}, items.length ? items.length + ' guardada(s)' : 'ninguna todavía'));
+      caja.append(cab);
+      caja.append(el('p', {class:'col-pie'}, 'proyectos completos guardados en este navegador'));
+      if (items.length) {
+        const lista = el('div', {class:'biblio-items'});
+        items.forEach(({it,i}) => {
+          const fila = el('div', {class:'biblio-fila'});
+          fila.append(el('span', {class:'biblio-nom', title: it.name || ''}, (it.name || '(sin nombre)') + (it.ts ? '  ·  ' + new Date(it.ts).toLocaleDateString('es-CL') : '')));
+          const acc = el('span', {class:'biblio-acc'});
+          acc.append(el('a', {class:'btn ghost mini', href:`app.html?maqueta=${i}&play=1`, title:'abrir y reproducir todo'}, '▶ Reproducir'));
+          acc.append(el('a', {class:'btn ghost mini', href:`app.html?maqueta=${i}`}, 'Abrir'));
+          fila.append(acc); lista.append(fila);
+        });
+        caja.append(lista);
+      } else {
+        caja.append(el('a', {class:'btn ghost', href:'app.html'}, 'Ir al taller'));
+      }
+      cont.append(caja);
+    })();
     COLECCIONES.forEach(col => {
       const token = col.clave.split('.')[1];
       const items = leer(col.clave).map((it,i)=>({it,i})).filter(x => col.filtro ? col.filtro(x.it) : true)

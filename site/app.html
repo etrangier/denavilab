@@ -562,6 +562,9 @@
         <button class="ghost" id="expProyecto">Guardar la maqueta (.denavi)</button>
         <label class="ghost" for="impProyecto" style="display:block; text-align:center; border-radius:6px; padding:8px 12px; border:1px solid var(--line); cursor:pointer">Abrir una maqueta guardada</label>
         <input type="file" id="impProyecto" accept=".denavi,.json" hidden>
+        <span class="lbl" style="margin-top:6px">La maqueta entera, en este navegador</span>
+        <div class="row"><input type="text" id="maquetaName" placeholder="nombre, ej. verso trip hop"><button class="ghost" id="saveMaqueta" style="flex:0 0 auto">Guardar</button></div>
+        <div class="row"><select id="savedMaquetas" aria-label="Maquetas guardadas"></select><button class="ghost" id="abrirMaqueta" style="flex:0 0 auto">Abrir</button><button class="ghost danger" id="delMaqueta" style="flex:0 0 auto">Borrar</button></div>
         <div class="campo-biblio" id="bloqueBiblio" hidden>
           <span class="lbl" style="margin-top:6px">Biblioteca compartida</span>
           <button class="ghost" id="biblioConectar">Conectar la biblioteca</button>
@@ -3231,13 +3234,6 @@
       t.append(el('button',{class:'aviso-x', type:'button', 'aria-label':'entendido, ocultar este aviso', onclick:()=>{ try{ localStorage.setItem('denavilab.tipTaller','1'); }catch(e){} t.remove(); }}, 'entendido'));
       box.append(t);
     }
-    if (S.quien==='invitado') {
-      const t = el('div',{class:'aviso-bar invitado'});
-      t.append(el('span',{class:'aviso-txt'}, el('b',{},'Estás como invitado. '), 'Toca y prueba con todo; guardar, exportar y la biblioteca están desactivados.'));
-      t.append(el('a',{class:'aviso-link', href:'index.html'}, 'Entrar con tu clave →'));
-      t.append(el('button',{class:'aviso-x', type:'button', 'aria-label':'ocultar este aviso', onclick:()=>t.remove()}, '×'));
-      box.append(t);
-    }
   }
   function aplicarRestriccionesInvitado() {
     if (S.quien !== 'invitado') return;
@@ -3375,6 +3371,23 @@
     catch (err) { $('expInfo').textContent = 'No pude abrir ese archivo: ' + (err.message || err); }
     e.target.value = '';
   });
+  // Maqueta entera guardada en el navegador (proyecto completo, como el .denavi pero sin archivo)
+  function renderSavedMaquetas() {
+    const sel = $('savedMaquetas'); if (!sel) return; sel.innerHTML='';
+    sel.append(el('option',{value:''},'— maquetas guardadas —'));
+    store.get('rueda.maquetas').map((it,i)=>({it,i})).sort((a,b)=>(b.it.ts||0)-(a.it.ts||0)||b.i-a.i)
+      .forEach(({it,i})=>sel.append(el('option',{value:String(i)}, (it.name||'(sin nombre)') + (it.ts?'  ·  '+new Date(it.ts).toLocaleDateString('es-CL'):''))));
+  }
+  if ($('saveMaqueta')) $('saveMaqueta').addEventListener('click', ()=>{
+    stBump('usos','guardar maqueta');
+    const name = $('maquetaName').value.trim() || (S.letra.titulo || ('maqueta '+new Date().toLocaleDateString()));
+    const list = store.get('rueda.maquetas'); list.push({ name, ts:Date.now(), proyecto: proyectoActual() }); store.set('rueda.maquetas', list);
+    $('maquetaName').value=''; renderSavedMaquetas(); $('savedMaquetas').value=String(list.length-1);
+    if ($('expInfo')) $('expInfo').textContent = `Maqueta «${name}» guardada en este navegador.`;
+  });
+  if ($('abrirMaqueta')) $('abrirMaqueta').addEventListener('click', ()=>{ const v=$('savedMaquetas').value; if(v==='')return; const it=store.get('rueda.maquetas')[+v]; if(!it)return; try{ const info=aplicarProyecto(it.proyecto, it.name); if($('expInfo'))$('expInfo').textContent=info; }catch(e){ if($('expInfo'))$('expInfo').textContent='No pude abrir la maqueta.'; } });
+  if ($('delMaqueta')) $('delMaqueta').addEventListener('click', ()=>{ const v=$('savedMaquetas').value; if(v==='')return; const list=store.get('rueda.maquetas'); list.splice(+v,1); store.set('rueda.maquetas',list); renderSavedMaquetas(); });
+  renderSavedMaquetas();
 
   $('expPdf').addEventListener('click', ()=>deliver(`rueda-ficha-${stamp()}.pdf`, makePdf(projectLines()), 'application/pdf'));
 
@@ -4199,6 +4212,13 @@
       stBump('usos','importar'); if (obj.tipo==='denavi') { const info = aplicarProyecto(JSON.parse(obj.data), obj.nombre||'proyecto'); if ($('expInfo')) $('expInfo').textContent = info; }
       else if (obj.tipo==='midi') { setMode('beat'); const info = importarBeatMidi(b64ToBuf(obj.data), obj.nombre||'beat'); if ($('midiFileInfo')) $('midiFileInfo').textContent = info; }
     } catch(err){ if ($('expInfo')) $('expInfo').textContent = 'No pude importar el proyecto: ' + (err.message||err); }
+  })();
+  // Abrir una maqueta guardada en el navegador (deep-link desde WorkShop/Biblioteca)
+  (() => {
+    const mq = PAR.get('maqueta'); if (mq==null || mq==='') return;
+    const it = store.get('rueda.maquetas')[+mq]; if (!it || !it.proyecto) return;
+    try { const info = aplicarProyecto(it.proyecto, it.name||'maqueta'); if ($('expInfo')) $('expInfo').textContent = info; } catch(e){}
+    if (PAR.get('play')==='1') setTimeout(()=>{ try { play('all'); } catch(e){} }, 550);
   })();
 })();
 </script>
