@@ -113,9 +113,9 @@
   .combo-btn:hover, .combo-btn:focus-visible { border-color: var(--accent); }
   .combo-val { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .combo-caret { color: var(--muted); font-size: 11px; flex: 0 0 auto; }
-  .combo-pop { position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; right: auto; width: min(330px, 90vw); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 6px; display: flex; flex-direction: column; }
+  .combo-pop { position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; right: auto; width: min(288px, 88vw); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 6px; display: flex; flex-direction: column; }
   .combo-cols { display: flex; gap: 6px; max-height: 260px; }
-  .combo-col-l { flex: 0 0 auto; width: 148px; }
+  .combo-col-l { flex: 0 0 auto; width: 128px; }
   .combo-col-r { flex: 1 1 auto; min-width: 0; }
   .combo-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
   .combo-col-r { border-left: 1px solid var(--line); padding-left: 6px; }
@@ -2448,6 +2448,7 @@
   }
   $('genre').addEventListener('change', e=>{ S.genre=e.target.value; stBump('generos', S.genre); fillBands(); renderAll(); agruparPresets(); if (typeof consejoBeat==='function') consejoBeat(); if (typeof consejeroBeat!=='undefined') consejeroBeat.refrescar('vacio', htmlVacio()); });
   // ── Combo de estilos: dos columnas — estilos a la izquierda, sus bandas a la derecha ──
+  let comboHoverTimer=null, comboEstiloActual=null;
   function renderComboGenero(){ const l=$('genreVal'); if(!l) return; const g=$('genre')?$('genre').value:S.genre; const b=$('band')?$('band').value:S.band; l.textContent = g ? (b ? g+' · '+b : g) : '—'; }
   const bandasDe = g => GENRES[g] ? Object.keys(GENRES[g]) : [];
   function itemEstilo(g){
@@ -2456,8 +2457,9 @@
       el('span',{class:'opt-nom'}, g));
     if(usos[g]) li.append(el('span',{class:'opt-uso', title:'lo usas seguido'},'★'));
     li.append(el('span',{class:'opt-mas','aria-hidden':'true'},'›'));
-    li.addEventListener('mouseenter', ()=>mostrarBandas(g, false));
-    li.addEventListener('click', ()=>mostrarBandas(g, true));
+    li.addEventListener('mouseenter', ()=>{ clearTimeout(comboHoverTimer); comboHoverTimer=setTimeout(()=>mostrarBandas(g, false), 140); });
+    li.addEventListener('mouseleave', ()=>{ clearTimeout(comboHoverTimer); });
+    li.addEventListener('click', ()=>{ clearTimeout(comboHoverTimer); mostrarBandas(g, true); });
     return li;
   }
   function itemBanda(g,b,ctx){
@@ -2469,6 +2471,8 @@
   }
   function mostrarBandas(g, foco){
     const wrap=$('genreSubWrap'), sub=$('genreSub'), cab=$('genreSubCab'); if(!wrap||!GENRES[g]) return;
+    if(comboEstiloActual===g && !wrap.hidden && !foco) return;   // ya está: no reconstruir (evita el salto al mover el cursor)
+    comboEstiloActual=g;
     [...$('genreList').querySelectorAll('.combo-opt[data-tipo="estilo"]')].forEach(li=>li.classList.toggle('activo', li.dataset.g===g));
     cab.textContent = g + ' · elige banda';
     sub.innerHTML=''; bandasDe(g).forEach(b=>sub.append(itemBanda(g,b)));
@@ -2499,7 +2503,7 @@
     } finally { cerrarComboGenero(); if($('genreBtn')) $('genreBtn').focus(); }
   }
   function abrirComboGenero(){ const pop=$('genrePop'); if(!pop) return; if($('genreSearch')) $('genreSearch').value=''; construirListaGenero(''); mostrarBandas(($('genre')?$('genre').value:S.genre)||ordenarGeneros()[0], false); pop.hidden=false; $('genreBtn').setAttribute('aria-expanded','true'); setTimeout(()=>{ if($('genreSearch')) $('genreSearch').focus(); },0); }
-  function cerrarComboGenero(){ const pop=$('genrePop'); if(pop) pop.hidden=true; if($('genreBtn')) $('genreBtn').setAttribute('aria-expanded','false'); }
+  function cerrarComboGenero(){ clearTimeout(comboHoverTimer); comboEstiloActual=null; const pop=$('genrePop'); if(pop) pop.hidden=true; if($('genreBtn')) $('genreBtn').setAttribute('aria-expanded','false'); }
   const comboFocL = () => [...$('genreList').querySelectorAll('.combo-opt')];
   const comboFocR = () => $('genreSub') ? [...$('genreSub').querySelectorAll('.combo-opt')] : [];
   if ($('genreBtn')) $('genreBtn').addEventListener('click', ()=>{ $('genrePop').hidden ? abrirComboGenero() : cerrarComboGenero(); });
@@ -2517,6 +2521,7 @@
     else if(e.key==='ArrowLeft'){ e.preventDefault(); const l=comboFocL()[0]; if(l) l.focus(); }
     else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); if(document.activeElement.click) document.activeElement.click(); }
     else if(e.key==='Escape'){ cerrarComboGenero(); $('genreBtn').focus(); } });
+  if ($('genreSubWrap')) $('genreSubWrap').addEventListener('mouseenter', ()=>clearTimeout(comboHoverTimer));
   document.addEventListener('pointerdown', e=>{ const c=$('genreCombo'); if(c && $('genrePop') && !$('genrePop').hidden && !c.contains(e.target)) cerrarComboGenero(); });
   renderComboGenero();
   $('band').addEventListener('change', e=>{ S.band=e.target.value; applyBand(); renderAll(); agruparPresets(); if (typeof consejoBeat==='function') consejoBeat(); if (typeof consejeroBeat!=='undefined') consejeroBeat.refrescar('vacio', htmlVacio()); });
