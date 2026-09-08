@@ -107,6 +107,21 @@
   .chip { background: var(--surface-2); border: 1px solid var(--line); color: var(--text); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer; }
   .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
   .chip small { color: inherit; opacity: .7; margin-left: 4px; }
+  #genre { display: none; }
+  .combo { position: relative; }
+  .combo-btn { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; font: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; color: var(--text); cursor: pointer; text-align: left; }
+  .combo-btn:hover, .combo-btn:focus-visible { border-color: var(--accent); }
+  .combo-val { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .combo-caret { color: var(--muted); font-size: 11px; flex: 0 0 auto; }
+  .combo-pop { position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; right: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 6px; max-height: 300px; display: flex; flex-direction: column; }
+  .combo-search { width: 100%; font: inherit; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; color: var(--text); margin-bottom: 6px; }
+  .combo-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
+  .combo-opt { display: flex; align-items: baseline; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+  .combo-opt:hover, .combo-opt:focus-visible, .combo-opt.on { background: var(--accent-soft); outline: none; }
+  .combo-opt .opt-nom { font-weight: 600; }
+  .combo-opt .opt-cat { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+  .combo-opt .opt-uso { margin-left: auto; color: var(--accent); font-size: 11px; }
+  .combo-empty { padding: 8px; color: var(--muted); font-size: 13px; }
   .sello { color: var(--muted); font-size: 12.5px; border-left: 2px solid var(--accent); padding-left: 10px; }
   button.primary, button.ghost { font: inherit; border-radius: 6px; padding: 8px 12px; cursor: pointer; border: 1px solid var(--line); }
   button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
@@ -480,7 +495,14 @@
       </div>
       <div class="field" data-modes="beat bajod pad piano lead">
         <span class="lbl">Género</span>
-        <select id="genre"></select>
+        <select id="genre" aria-hidden="true" tabindex="-1"></select>
+        <div class="combo" id="genreCombo">
+          <button type="button" class="combo-btn" id="genreBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Estilo — abrir buscador"><span class="combo-val" id="genreVal">—</span><span class="combo-caret" aria-hidden="true">▾</span></button>
+          <div class="combo-pop" id="genrePop" hidden role="dialog" aria-label="Elegir estilo">
+            <input type="text" id="genreSearch" class="combo-search" placeholder="buscar estilo…" aria-label="Buscar estilo" autocomplete="off" spellcheck="false">
+            <ul class="combo-list" id="genreList" role="listbox" aria-label="Estilos"></ul>
+          </div>
+        </div>
       </div>
       <div class="field" data-modes="beat bajod pad piano lead">
         <span class="lbl">Banda de referencia</span>
@@ -1730,7 +1752,7 @@
     };
     filaEn($('mixRows')); filaEn($('mixRowsMezcla')); filaEn($('mixRowsBeat'));
   }
-  function renderAll() { renderKeyChips(); renderBarChips(); renderOptChips(); paintWheel(); renderSugs(); renderBars(); renderReadout(); renderMixer(); if (S.mode==='piano') renderPianoPanel(); if (S.mode==='lead') renderLead(); if ($('cerebroPats')) renderCerebro(); $('initNotes').textContent = `Teclas: ${notesText(S.root,S.qual)}`; }
+  function renderAll() { renderKeyChips(); renderBarChips(); renderOptChips(); paintWheel(); renderSugs(); renderBars(); renderReadout(); renderMixer(); if (S.mode==='piano') renderPianoPanel(); if (S.mode==='lead') renderLead(); if ($('cerebroPats')) renderCerebro(); if (typeof renderComboGenero==='function') renderComboGenero(); $('initNotes').textContent = `Teclas: ${notesText(S.root,S.qual)}`; }
 
   // Primer clic en la rueda = acorde de partida (recalcula la tonalidad); los siguientes se van encadenando.
   // Probar un acorde: se muestra, suena y ramifica, pero no entra a la progresión hasta «Guardar»
@@ -2378,13 +2400,14 @@
     ['Rock y alternativo', ['Rock','Alternativo']],
     ['A tu medida', ['Personal']],
   ];
-  function llenarGeneros(sel) {
-    sel.innerHTML=''; const puestos = new Set();
-    GENRE_CATS.forEach(([cat, gens]) => { const disp = gens.filter(g=>GENRES[g]); if (!disp.length) return;
-      const og = el('optgroup',{label:cat}); disp.forEach(g=>{ og.append(el('option',{value:g}, g)); puestos.add(g); }); sel.append(og); });
-    const otros = Object.keys(GENRES).filter(g=>!puestos.has(g));
-    if (otros.length) { const og=el('optgroup',{label:'Otros'}); otros.forEach(g=>og.append(el('option',{value:g},g))); sel.append(og); }
+  const estiloCategoria = g => { for (const [cat,gens] of GENRE_CATS) if (gens.includes(g)) return cat; return 'Otros'; };
+  const GENRE_CAT_CORTA = { 'Electrónica y downtempo':'electrónica', 'Pop y synth':'pop', 'Rock y alternativo':'rock', 'A tu medida':'a tu medida', 'Otros':'otros' };
+  // Orden adaptativo: por frecuencia de uso (más usado primero) y, a igualdad (o si es tu primera vez), alfabético.
+  function ordenarGeneros() {
+    const usos = (stGet().generos) || {};
+    return Object.keys(GENRES).slice().sort((a,b)=> (usos[b]||0)-(usos[a]||0) || a.localeCompare(b,'es'));
   }
+  function llenarGeneros(sel) { sel.innerHTML=''; ordenarGeneros().forEach(g => sel.append(el('option',{value:g}, g))); }
   function fillSelects() {
     const g = $('genre'); llenarGeneros(g);
     if (!GENRES[S.genre]) S.genre = Object.keys(GENRES)[0];
@@ -2408,7 +2431,35 @@
     if (!S.bpmFijado) { if (S.animo && ANIMOS[S.animo]) { S.bars = ANIMOS[S.animo].bars; setBpm(ANIMOS[S.animo].bpm); } else setBpm(def); }
     S.key = defaultKey() || S.key; S.prog = [];
   }
-  $('genre').addEventListener('change', e=>{ S.genre=e.target.value; fillBands(); renderAll(); agruparPresets(); if (typeof consejoBeat==='function') consejoBeat(); if (typeof consejeroBeat!=='undefined') consejeroBeat.refrescar('vacio', htmlVacio()); });
+  $('genre').addEventListener('change', e=>{ S.genre=e.target.value; stBump('generos', S.genre); fillBands(); renderAll(); agruparPresets(); if (typeof consejoBeat==='function') consejoBeat(); if (typeof consejeroBeat!=='undefined') consejeroBeat.refrescar('vacio', htmlVacio()); });
+  // ── Combo de estilos: buscable, compacto y ordenado (alfabético si es tu primera vez; por frecuencia si ya usaste) ──
+  function renderComboGenero(){ const l=$('genreVal'); if (l) l.textContent = ($('genre')?$('genre').value:S.genre) || '—'; }
+  function construirListaGenero(filtro){
+    const list=$('genreList'); if(!list) return; list.innerHTML='';
+    const f=(filtro||'').trim().toLowerCase(); const usos=(stGet().generos)||{}; const actual=$('genre')?$('genre').value:S.genre;
+    const gens=ordenarGeneros().filter(g=> !f || g.toLowerCase().includes(f) || (GENRE_CAT_CORTA[estiloCategoria(g)]||'').includes(f) || estiloCategoria(g).toLowerCase().includes(f));
+    if(!gens.length){ list.append(el('li',{class:'combo-empty'},'sin resultados')); return; }
+    gens.forEach(g=>{ const on=g===actual;
+      const li=el('li',{class:'combo-opt'+(on?' on':''), role:'option', 'aria-selected':String(on), 'data-g':g, tabindex:'-1'},
+        el('span',{class:'opt-nom'}, g), el('span',{class:'opt-cat'}, GENRE_CAT_CORTA[estiloCategoria(g)]||estiloCategoria(g)));
+      if(usos[g]) li.append(el('span',{class:'opt-uso', title:'lo usas seguido'},'★'));
+      li.addEventListener('click', ()=>elegirGenero(g));
+      list.append(li);
+    });
+  }
+  function elegirGenero(g){ const sel=$('genre'); if(!sel) return; sel.value=g; sel.dispatchEvent(new Event('change',{bubbles:true})); cerrarComboGenero(); if($('genreBtn')) $('genreBtn').focus(); }
+  function abrirComboGenero(){ const pop=$('genrePop'); if(!pop) return; if($('genreSearch')) $('genreSearch').value=''; construirListaGenero(''); pop.hidden=false; $('genreBtn').setAttribute('aria-expanded','true'); setTimeout(()=>{ if($('genreSearch')) $('genreSearch').focus(); },0); }
+  function cerrarComboGenero(){ const pop=$('genrePop'); if(pop) pop.hidden=true; if($('genreBtn')) $('genreBtn').setAttribute('aria-expanded','false'); }
+  if ($('genreBtn')) $('genreBtn').addEventListener('click', ()=>{ $('genrePop').hidden ? abrirComboGenero() : cerrarComboGenero(); });
+  if ($('genreSearch')) $('genreSearch').addEventListener('input', e=>construirListaGenero(e.target.value));
+  if ($('genreSearch')) $('genreSearch').addEventListener('keydown', e=>{ if(e.key==='Escape'){ cerrarComboGenero(); $('genreBtn').focus(); } else if(e.key==='ArrowDown'){ e.preventDefault(); const o=$('genreList').querySelector('.combo-opt'); if(o) o.focus(); } else if(e.key==='Enter'){ e.preventDefault(); const o=$('genreList').querySelector('.combo-opt'); if(o) elegirGenero(o.dataset.g); } });
+  if ($('genreList')) $('genreList').addEventListener('keydown', e=>{ const opts=[...$('genreList').querySelectorAll('.combo-opt')]; const i=opts.indexOf(document.activeElement);
+    if(e.key==='ArrowDown'){ e.preventDefault(); (opts[i+1]||opts[0]||$('genreSearch')).focus(); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); (i<=0?$('genreSearch'):opts[i-1]).focus(); }
+    else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); const g=document.activeElement && document.activeElement.dataset && document.activeElement.dataset.g; if(g) elegirGenero(g); }
+    else if(e.key==='Escape'){ cerrarComboGenero(); $('genreBtn').focus(); } });
+  document.addEventListener('pointerdown', e=>{ const c=$('genreCombo'); if(c && $('genrePop') && !$('genrePop').hidden && !c.contains(e.target)) cerrarComboGenero(); });
+  renderComboGenero();
   $('band').addEventListener('change', e=>{ S.band=e.target.value; applyBand(); renderAll(); agruparPresets(); if (typeof consejoBeat==='function') consejoBeat(); if (typeof consejeroBeat!=='undefined') consejeroBeat.refrescar('vacio', htmlVacio()); });
   function setBpmBloqueo(v) {
     S.bpmBloqueado = v;
@@ -4182,7 +4233,7 @@
   $('guitCapo').addEventListener('change', e=>{ S.guitar.capo=+e.target.value; renderGuitarra(); });
   $('guitBpm').addEventListener('input', e=>{ setBpm(e.target.value, true); });
   $('guitMetron').addEventListener('change', e=>{ S.guitar.metron=e.target.checked; });
-  if ($('guitGenre')) $('guitGenre').addEventListener('change', e=>{ if (!GENRES[e.target.value]) return; S.genre=e.target.value; if (!GENRES[S.genre][S.band]) S.band=Object.keys(GENRES[S.genre])[0]; if ($('genre')) $('genre').value=S.genre; guitAplicaContexto(); renderGuitarra(); });
+  if ($('guitGenre')) $('guitGenre').addEventListener('change', e=>{ if (!GENRES[e.target.value]) return; S.genre=e.target.value; if (!GENRES[S.genre][S.band]) S.band=Object.keys(GENRES[S.genre])[0]; if ($('genre')) $('genre').value=S.genre; stBump('generos', S.genre); if (typeof renderComboGenero==='function') renderComboGenero(); guitAplicaContexto(); renderGuitarra(); });
   if ($('guitBand')) $('guitBand').addEventListener('change', e=>{ S.band=e.target.value; if ($('band')) $('band').value=S.band; guitAplicaContexto(); renderGuitarra(); });
   if ($('guitAnimo')) $('guitAnimo').addEventListener('change', e=>{ S.animo=e.target.value; const a=ANIMOS[S.animo]; if (a){ setBpm(a.bpm, true); S.bars=a.bars; if (!S.guitar.prog.length) S.key={...S.key, mode:a.mode}; } if ($('animo')) { $('animo').value=S.animo; $('animoSello').textContent=(ANIMOS[S.animo]||{}).sello||''; } renderGuitarra(); });
   $('guitAdd').addEventListener('click', ()=>{ const r=parseGuit($('guitNuevo').value); if (!r) { $('guitResumen').textContent='no reconocí ese acorde'; return; } const g=S.guitar; g.prog.push(acordeNuevo(r.pc,r.q)); g.sel=g.prog.length-1; $('guitNuevo').value=''; renderGuitarra(); sonarAcorde(g.prog[g.sel]); });
