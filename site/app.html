@@ -2435,9 +2435,9 @@
     if (!S.bpmFijado) { if (S.animo && ANIMOS[S.animo]) { S.bars = ANIMOS[S.animo].bars; setBpm(ANIMOS[S.animo].bpm); } else setBpm(def); }
     S.key = defaultKey() || S.key; S.prog = [];
   }
-  $('genre').addEventListener('change', e=>{ S.genre=e.target.value; stBump('generos', S.genre); fillBands(); renderAll(); agruparPresets(); if (typeof consejoBeat==='function') consejoBeat(); if (typeof consejeroBeat!=='undefined') consejeroBeat.refrescar('vacio', htmlVacio()); });
+  $('genre').addEventListener('change', e=>{ S.genre=e.target.value; stBump('generos', S.genre); fillBands(); renderAll(); agruparPresets(); sincronizarPatronBase(); if (typeof consejoBeat==='function') consejoBeat(); if (typeof consejeroBeat!=='undefined') consejeroBeat.refrescar('vacio', htmlVacio()); });
   function renderComboGenero(){}   // (combo personalizado retirado; se usa el <select> nativo)
-  $('band').addEventListener('change', e=>{ S.band=e.target.value; applyBand(); renderAll(); agruparPresets(); if (typeof consejoBeat==='function') consejoBeat(); if (typeof consejeroBeat!=='undefined') consejeroBeat.refrescar('vacio', htmlVacio()); });
+  $('band').addEventListener('change', e=>{ S.band=e.target.value; applyBand(); renderAll(); agruparPresets(); sincronizarPatronBase(); if (typeof consejoBeat==='function') consejoBeat(); if (typeof consejeroBeat!=='undefined') consejeroBeat.refrescar('vacio', htmlVacio()); });
   function setBpmBloqueo(v) {
     S.bpmBloqueado = v;
     if ($('bpmLock')) $('bpmLock').checked = v;
@@ -2492,6 +2492,15 @@
       const og=el('optgroup',{label:(delGenero.includes(g)?'★ ':'')+g}); ks.forEach(k=>og.append(el('option',{value:k}, k.split(' · ').slice(1).join(' · ') || k))); sel.append(og);
     });
     if (prev) sel.value = prev;
+  }
+  // Al elegir estilo/banda a la izquierda, refleja esa banda en «Patrón base» (derecha) y
+  // carga su beat, para no repetir la elección. El tempo/compases ya los pone el ánimo/banda.
+  function sincronizarPatronBase() {
+    const sel = $('drumPreset'); if (!sel) return;
+    const opt = [...sel.options].find(o => o.value !== 'Vacío' && !o.value.startsWith('Mi base') && o.value.split(' · ')[0] === S.band);
+    if (!opt || sel.value === opt.value) return;   // banda sin beat propio, o ya elegido: no repisa la rejilla
+    snapBeat(); sel.value = opt.value; loadPreset(opt.value);
+    const db = $('drumBpm'); if (db) db.textContent = S.bpm;
   }
   agruparPresets();
   // Al elegir un beat, sugiere el tempo y los compases de su banda (la banda va en el nombre,
