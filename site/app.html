@@ -113,14 +113,15 @@
   .combo-btn:hover, .combo-btn:focus-visible { border-color: var(--accent); }
   .combo-val { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .combo-caret { color: var(--muted); font-size: 11px; flex: 0 0 auto; }
-  .combo-pop { position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; right: auto; width: min(288px, 88vw); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 6px; display: flex; flex-direction: column; }
+  .combo-pop { position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; right: auto; width: min(296px, 88vw); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 6px; display: flex; flex-direction: column; }
   .combo-cols { display: flex; gap: 6px; max-height: 260px; }
-  .combo-col-l { flex: 0 0 auto; width: 128px; }
+  .combo-col-l { flex: 0 0 auto; width: 136px; }
   .combo-col-r { flex: 1 1 auto; min-width: 0; }
   .combo-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
   .combo-col-r { border-left: 1px solid var(--line); padding-left: 6px; }
   .combo-col .combo-list { overflow-y: auto; }
   .combo-opt.activo { background: var(--accent-soft); }
+  .combo-col-l .combo-opt.usado .opt-nom::after { content: '·'; color: var(--accent); margin-left: 5px; }
   @media (max-width: 560px) { .combo-pop { width: min(440px, 96vw); } .combo-cols { flex-direction: column; max-height: 320px; } .combo-col-r { border-left: none; border-top: 1px solid var(--line); padding-left: 0; padding-top: 6px; margin-top: 4px; } }
   .combo-search { width: 100%; font: inherit; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; color: var(--text); margin-bottom: 6px; }
   .combo-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
@@ -2452,10 +2453,9 @@
   function renderComboGenero(){ const l=$('genreVal'); if(!l) return; const g=$('genre')?$('genre').value:S.genre; const b=$('band')?$('band').value:S.band; l.textContent = g ? (b ? g+' · '+b : g) : '—'; }
   const bandasDe = g => GENRES[g] ? Object.keys(GENRES[g]) : [];
   function itemEstilo(g){
-    const usos=(stGet().generos)||{}, actual=$('genre')?$('genre').value:S.genre;
-    const li=el('li',{class:'combo-opt'+(g===actual?' activo':''), role:'option', 'data-tipo':'estilo', 'data-g':g, tabindex:'-1'},
+    const actual=$('genre')?$('genre').value:S.genre;
+    const li=el('li',{class:'combo-opt'+(g===actual?' activo':'')+(usos[g]?' usado':''), role:'option', 'data-tipo':'estilo', 'data-g':g, tabindex:'-1'},
       el('span',{class:'opt-nom'}, g));
-    if(usos[g]) li.append(el('span',{class:'opt-uso', title:'lo usas seguido'},'★'));
     li.append(el('span',{class:'opt-mas','aria-hidden':'true'},'›'));
     li.addEventListener('mouseenter', ()=>{ clearTimeout(comboHoverTimer); comboHoverTimer=setTimeout(()=>mostrarBandas(g, false), 140); });
     li.addEventListener('mouseleave', ()=>{ clearTimeout(comboHoverTimer); });
