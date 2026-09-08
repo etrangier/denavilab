@@ -113,7 +113,13 @@
   .combo-btn:hover, .combo-btn:focus-visible { border-color: var(--accent); }
   .combo-val { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .combo-caret { color: var(--muted); font-size: 11px; flex: 0 0 auto; }
-  .combo-pop { position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; right: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 6px; max-height: 300px; display: flex; flex-direction: column; }
+  .combo-pop { position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; right: auto; width: min(440px, 92vw); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 6px; display: flex; flex-direction: column; }
+  .combo-cols { display: flex; gap: 6px; max-height: 260px; }
+  .combo-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .combo-col-r { border-left: 1px solid var(--line); padding-left: 6px; }
+  .combo-col .combo-list { overflow-y: auto; }
+  .combo-opt.activo { background: var(--accent-soft); }
+  @media (max-width: 560px) { .combo-pop { width: min(440px, 96vw); } .combo-cols { flex-direction: column; max-height: 320px; } .combo-col-r { border-left: none; border-top: 1px solid var(--line); padding-left: 0; padding-top: 6px; margin-top: 4px; } }
   .combo-search { width: 100%; font: inherit; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; color: var(--text); margin-bottom: 6px; }
   .combo-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
   .combo-opt { display: flex; align-items: baseline; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
@@ -502,9 +508,12 @@
         <select id="genre" aria-hidden="true" tabindex="-1"></select>
         <div class="combo" id="genreCombo">
           <button type="button" class="combo-btn" id="genreBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Estilo — abrir buscador"><span class="combo-val" id="genreVal">—</span><span class="combo-caret" aria-hidden="true">▾</span></button>
-          <div class="combo-pop" id="genrePop" hidden role="dialog" aria-label="Elegir estilo">
-            <input type="text" id="genreSearch" class="combo-search" placeholder="buscar estilo…" aria-label="Buscar estilo" autocomplete="off" spellcheck="false">
-            <ul class="combo-list" id="genreList" role="listbox" aria-label="Estilos"></ul>
+          <div class="combo-pop" id="genrePop" hidden role="dialog" aria-label="Elegir estilo y banda">
+            <input type="text" id="genreSearch" class="combo-search" placeholder="buscar estilo o banda…" aria-label="Buscar estilo o banda" autocomplete="off" spellcheck="false">
+            <div class="combo-cols">
+              <div class="combo-col combo-col-l"><ul class="combo-list" id="genreList" role="listbox" aria-label="Estilos"></ul></div>
+              <div class="combo-col combo-col-r" id="genreSubWrap" hidden><div class="combo-cab" id="genreSubCab"></div><ul class="combo-list" id="genreSub" role="listbox" aria-label="Bandas"></ul></div>
+            </div>
           </div>
         </div>
       </div>
@@ -2436,44 +2445,44 @@
     S.key = defaultKey() || S.key; S.prog = [];
   }
   $('genre').addEventListener('change', e=>{ S.genre=e.target.value; stBump('generos', S.genre); fillBands(); renderAll(); agruparPresets(); if (typeof consejoBeat==='function') consejoBeat(); if (typeof consejeroBeat!=='undefined') consejeroBeat.refrescar('vacio', htmlVacio()); });
-  // ── Combo de estilos: árbol buscable (estilos → bandas), compacto y ordenado ──
-  let comboNivel='estilos', comboEstilo=null;
+  // ── Combo de estilos: dos columnas — estilos a la izquierda, sus bandas a la derecha ──
   function renderComboGenero(){ const l=$('genreVal'); if(!l) return; const g=$('genre')?$('genre').value:S.genre; const b=$('band')?$('band').value:S.band; l.textContent = g ? (b ? g+' · '+b : g) : '—'; }
   const bandasDe = g => GENRES[g] ? Object.keys(GENRES[g]) : [];
   function itemEstilo(g){
-    const usos=(stGet().generos)||{};
-    const li=el('li',{class:'combo-opt', role:'option', 'data-tipo':'estilo', 'data-g':g, tabindex:'-1'},
+    const usos=(stGet().generos)||{}, actual=$('genre')?$('genre').value:S.genre;
+    const li=el('li',{class:'combo-opt'+(g===actual?' activo':''), role:'option', 'data-tipo':'estilo', 'data-g':g, tabindex:'-1'},
       el('span',{class:'opt-nom'}, g), el('span',{class:'opt-cat'}, GENRE_CAT_CORTA[estiloCategoria(g)]||estiloCategoria(g)));
     if(usos[g]) li.append(el('span',{class:'opt-uso', title:'lo usas seguido'},'★'));
     li.append(el('span',{class:'opt-mas','aria-hidden':'true'},'›'));
-    li.addEventListener('click', ()=>{ comboNivel='bandas'; comboEstilo=g; if($('genreSearch')) $('genreSearch').value=''; construirListaGenero(''); const first=$('genreList').querySelector('.combo-opt'); if(first) first.focus(); });
+    li.addEventListener('click', ()=>mostrarBandas(g, true));
     return li;
   }
-  function itemBanda(g,b){
+  function itemBanda(g,b,ctx){
     const on = ($('genre')&&$('genre').value===g) && ($('band')&&$('band').value===b);
-    const li=el('li',{class:'combo-opt'+(on?' on':''), role:'option', 'aria-selected':String(on), 'data-tipo':'banda', 'data-g':g, 'data-b':b, tabindex:'-1'},
-      el('span',{class:'opt-nom'}, b), el('span',{class:'opt-cat'}, g));
+    const li=el('li',{class:'combo-opt'+(on?' on':''), role:'option', 'aria-selected':String(on), 'data-tipo':'banda', 'data-g':g, 'data-b':b, tabindex:'-1'}, el('span',{class:'opt-nom'}, b));
+    if(ctx) li.append(el('span',{class:'opt-cat'}, g));
     li.addEventListener('click', ()=>elegirBanda(g,b));
     return li;
+  }
+  function mostrarBandas(g, foco){
+    const wrap=$('genreSubWrap'), sub=$('genreSub'), cab=$('genreSubCab'); if(!wrap||!GENRES[g]) return;
+    [...$('genreList').querySelectorAll('.combo-opt[data-tipo="estilo"]')].forEach(li=>li.classList.toggle('activo', li.dataset.g===g));
+    cab.textContent = g + ' · elige banda';
+    sub.innerHTML=''; bandasDe(g).forEach(b=>sub.append(itemBanda(g,b)));
+    wrap.hidden=false;
+    if(foco){ const first=sub.querySelector('.combo-opt'); if(first) first.focus(); }
   }
   function construirListaGenero(filtro){
     const list=$('genreList'); if(!list) return; list.innerHTML='';
     const f=(filtro||'').trim().toLowerCase();
     if(f){
+      if($('genreSubWrap')) $('genreSubWrap').hidden=true;
       let n=0;
       ordenarGeneros().forEach(g=>{
         if(g.toLowerCase().includes(f) || (GENRE_CAT_CORTA[estiloCategoria(g)]||'').includes(f) || estiloCategoria(g).toLowerCase().includes(f)){ list.append(itemEstilo(g)); n++; }
-        bandasDe(g).forEach(b=>{ if(b.toLowerCase().includes(f)){ list.append(itemBanda(g,b)); n++; } });
+        bandasDe(g).forEach(b=>{ if(b.toLowerCase().includes(f)){ list.append(itemBanda(g,b,true)); n++; } });
       });
       if(!n) list.append(el('li',{class:'combo-empty'},'sin resultados'));
-      return;
-    }
-    if(comboNivel==='bandas' && comboEstilo && GENRES[comboEstilo]){
-      const back=el('li',{class:'combo-back', tabindex:'-1'}, '‹ Volver a estilos');
-      back.addEventListener('click', ()=>{ comboNivel='estilos'; comboEstilo=null; construirListaGenero(''); const first=$('genreList').querySelector('.combo-opt'); if(first) first.focus(); });
-      list.append(back);
-      list.append(el('li',{class:'combo-cab'}, comboEstilo + ' · elige banda'));
-      bandasDe(comboEstilo).forEach(b=>list.append(itemBanda(comboEstilo,b)));
       return;
     }
     ordenarGeneros().forEach(g=>list.append(itemEstilo(g)));
@@ -2484,16 +2493,24 @@
     if(bsel){ bsel.value=b; bsel.dispatchEvent(new Event('change',{bubbles:true})); }
     cerrarComboGenero(); renderComboGenero(); if($('genreBtn')) $('genreBtn').focus();
   }
-  function abrirComboGenero(){ const pop=$('genrePop'); if(!pop) return; comboNivel='estilos'; comboEstilo=null; if($('genreSearch')) $('genreSearch').value=''; construirListaGenero(''); pop.hidden=false; $('genreBtn').setAttribute('aria-expanded','true'); setTimeout(()=>{ if($('genreSearch')) $('genreSearch').focus(); },0); }
+  function abrirComboGenero(){ const pop=$('genrePop'); if(!pop) return; if($('genreSearch')) $('genreSearch').value=''; construirListaGenero(''); mostrarBandas(($('genre')?$('genre').value:S.genre)||ordenarGeneros()[0], false); pop.hidden=false; $('genreBtn').setAttribute('aria-expanded','true'); setTimeout(()=>{ if($('genreSearch')) $('genreSearch').focus(); },0); }
   function cerrarComboGenero(){ const pop=$('genrePop'); if(pop) pop.hidden=true; if($('genreBtn')) $('genreBtn').setAttribute('aria-expanded','false'); }
-  const comboFocusables = () => [...$('genreList').querySelectorAll('.combo-opt, .combo-back')];
+  const comboFocL = () => [...$('genreList').querySelectorAll('.combo-opt')];
+  const comboFocR = () => $('genreSub') ? [...$('genreSub').querySelectorAll('.combo-opt')] : [];
   if ($('genreBtn')) $('genreBtn').addEventListener('click', ()=>{ $('genrePop').hidden ? abrirComboGenero() : cerrarComboGenero(); });
   if ($('genreSearch')) $('genreSearch').addEventListener('input', e=>construirListaGenero(e.target.value));
-  if ($('genreSearch')) $('genreSearch').addEventListener('keydown', e=>{ if(e.key==='Escape'){ cerrarComboGenero(); $('genreBtn').focus(); } else if(e.key==='ArrowDown'){ e.preventDefault(); const o=comboFocusables()[0]; if(o) o.focus(); } else if(e.key==='Enter'){ e.preventDefault(); const o=comboFocusables()[0]; if(o) o.click(); } });
-  if ($('genreList')) $('genreList').addEventListener('keydown', e=>{ const opts=comboFocusables(); const i=opts.indexOf(document.activeElement);
+  if ($('genreSearch')) $('genreSearch').addEventListener('keydown', e=>{ if(e.key==='Escape'){ cerrarComboGenero(); $('genreBtn').focus(); } else if(e.key==='ArrowDown'){ e.preventDefault(); const o=comboFocL()[0]; if(o) o.focus(); } });
+  if ($('genreList')) $('genreList').addEventListener('keydown', e=>{ const opts=comboFocL(); const i=opts.indexOf(document.activeElement);
     if(e.key==='ArrowDown'){ e.preventDefault(); (opts[i+1]||opts[0]||$('genreSearch')).focus(); }
     else if(e.key==='ArrowUp'){ e.preventDefault(); (i<=0?$('genreSearch'):opts[i-1]).focus(); }
-    else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); if(document.activeElement && document.activeElement.click) document.activeElement.click(); }
+    else if(e.key==='ArrowRight'){ e.preventDefault(); const li=document.activeElement; if(li.dataset && li.dataset.tipo==='estilo') mostrarBandas(li.dataset.g, true); }
+    else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); if(document.activeElement.click) document.activeElement.click(); }
+    else if(e.key==='Escape'){ cerrarComboGenero(); $('genreBtn').focus(); } });
+  if ($('genreSub')) $('genreSub').addEventListener('keydown', e=>{ const opts=comboFocR(); const i=opts.indexOf(document.activeElement);
+    if(e.key==='ArrowDown'){ e.preventDefault(); (opts[i+1]||opts[0]).focus(); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); (opts[i-1]||opts[0]).focus(); }
+    else if(e.key==='ArrowLeft'){ e.preventDefault(); const l=comboFocL()[0]; if(l) l.focus(); }
+    else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); if(document.activeElement.click) document.activeElement.click(); }
     else if(e.key==='Escape'){ cerrarComboGenero(); $('genreBtn').focus(); } });
   document.addEventListener('pointerdown', e=>{ const c=$('genreCombo'); if(c && $('genrePop') && !$('genrePop').hidden && !c.contains(e.target)) cerrarComboGenero(); });
   renderComboGenero();
