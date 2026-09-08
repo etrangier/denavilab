@@ -776,7 +776,8 @@
           <div class="chips" id="guitRasgueoPresets"></div>
         </div>
         <div class="actions">
-          <button class="primary" id="playGuit">▶ Guitarra</button>
+          <button class="primary" id="playGuit" title="reproduce solo la vuelta de guitarra">▶ Tocar la vuelta</button>
+          <button class="ghost" id="playGuitAll" title="reproduce la guitarra junto con las demás pistas">▶ Con todo</button>
           <label class="hint"><input type="checkbox" class="loopChk" checked> loop</label>
           <label class="hint"><input type="checkbox" id="guitDrums"> con batería</label>
           <button class="ghost" id="clearGuit">Limpiar</button>
@@ -2228,7 +2229,7 @@
     stopFlag=false; isPlaying = true; if (typeof stopPreview==='function') stopPreview(); let beat = 60/(mode==='bass' ? bassBpm() : S.bpm), barDur = beat*4; let t0 = ctx.currentTime + 0.1;
     if (mode === 'lead' && !S.prog.length && !hasLead()) { $('leadProg').textContent = 'Graba una melodía o guarda una progresión en Pad/Piano para escuchar el lead.'; isPlaying=false; return; }
     let withChords, seq, totalBars, withDrums;
-    $('play').textContent = '■ Detener'; $('playDrums').textContent = '■ Detener'; $('playBass').textContent = '■ Detener'; $('playLead').textContent = '■ Detener'; $('playGuit').textContent = '■ Detener'; $('candPlay').textContent = '■ Detener'; if ($('playMezcla')) $('playMezcla').textContent = '■ Detener';
+    $('play').textContent = '■ Detener'; $('playDrums').textContent = '■ Detener'; $('playBass').textContent = '■ Detener'; $('playLead').textContent = '■ Detener'; $('playGuit').textContent = '■ Detener'; if ($('playGuitAll')) $('playGuitAll').textContent = '■ Detener'; $('candPlay').textContent = '■ Detener'; if ($('playMezcla')) $('playMezcla').textContent = '■ Detener';
     do {   // una pasada; con «loop» se repite hasta Detener
       beat = 60/(mode==='bass' ? bassBpm() : S.bpm); barDur = beat*4;   // relee el tempo cada vuelta (bajo con tempo propio, o bpm cambiado)
       // Se relee el estado en cada vuelta: agregar/cambiar/quitar un acorde entra en la siguiente pasada
@@ -2293,7 +2294,7 @@
       // corrige la deriva del reloj de JS respecto al de audio
       const drift = (t0 - ctx.currentTime)*1000; if (S.loop && !stopFlag && drift > 0) await wait(drift);
     } while (S.loop && !stopFlag);
-    S.playing=-1; stopFlag=false; isPlaying=false; if ($('playMezcla')) $('playMezcla').textContent='▶ Reproducir todo'; $('play').textContent='▶ Reproducir todo'; $('playDrums').textContent='▶ Sólo batería'; $('playBass').textContent='▶ Bajo'; $('playGuit').textContent='▶ Guitarra'; $('candPlay').textContent='▶ Reproducir la vuelta'; $('playLead').textContent='▶ Piano lead';
+    S.playing=-1; stopFlag=false; isPlaying=false; if ($('playMezcla')) $('playMezcla').textContent='▶ Reproducir todo'; $('play').textContent='▶ Reproducir todo'; $('playDrums').textContent='▶ Sólo batería'; $('playBass').textContent='▶ Bajo'; $('playGuit').textContent='▶ Tocar la vuelta'; if ($('playGuitAll')) $('playGuitAll').textContent='▶ Con todo'; $('candPlay').textContent='▶ Reproducir la vuelta'; $('playLead').textContent='▶ Piano lead';
     document.querySelectorAll('.st.now').forEach(n=>n.classList.remove('now')); renderBars(); renderReadout();
   }
 
@@ -3881,6 +3882,12 @@
     c.name = c.name || (nombreGuit(c.pc,c.q)+' (editado)');
   }
 
+  function moverGuit(i, dir) {
+    const g=S.guitar; const j=i+dir; if (j<0 || j>=g.prog.length) return;
+    const t=g.prog[i]; g.prog[i]=g.prog[j]; g.prog[j]=t;
+    if (g.sel===i) g.sel=j; else if (g.sel===j) g.sel=i;
+    renderGuitarra();
+  }
   function renderGuitProg() {
     const g = S.guitar; const cont = $('guitProg'); if (!cont) return; cont.innerHTML='';
     g.prog.forEach((c,i)=>{
@@ -3888,10 +3895,12 @@
       box.append(el('span',{class:'gc-nom'}, c.name || nombreGuit(c.pc,c.q)));
       box.append(guitMini(c.frets));
       const ctrl = el('span',{class:'gc-bars'});
+      ctrl.append(el('button',{class:'tiny', title:'mover a la izquierda', ...(i===0?{disabled:''}:{}), onclick:e=>{ e.stopPropagation(); moverGuit(i,-1); }},'‹'));
       ctrl.append(el('button',{class:'tiny', title:'menos compases', onclick:e=>{ e.stopPropagation(); c.bars=Math.max(1,(c.bars||1)-1); renderGuitarra(); }},'−'));
       ctrl.append(el('span',{class:'gc-n'}, (c.bars||1)+(c.bars===1?' comp':' comp')));
       ctrl.append(el('button',{class:'tiny', title:'más compases', onclick:e=>{ e.stopPropagation(); c.bars=(c.bars||1)+1; renderGuitarra(); }},'+'));
-      ctrl.append(el('button',{class:'tiny', title:'quitar', onclick:e=>{ e.stopPropagation(); g.prog.splice(i,1); g.sel=Math.max(0,g.sel-(i<=g.sel?1:0)); renderGuitarra(); }},'✕'));
+      ctrl.append(el('button',{class:'tiny', title:'mover a la derecha', ...(i===g.prog.length-1?{disabled:''}:{}), onclick:e=>{ e.stopPropagation(); moverGuit(i,1); }},'›'));
+      ctrl.append(el('button',{class:'tiny danger', title:'quitar', onclick:e=>{ e.stopPropagation(); g.prog.splice(i,1); g.sel=Math.max(0,g.sel-(i<=g.sel?1:0)); renderGuitarra(); }},'✕'));
       box.append(ctrl);
       cont.append(box);
     });
@@ -4005,6 +4014,7 @@
   $('clearGuit').addEventListener('click', ()=>{ S.guitar.prog=[]; S.guitar.sel=0; renderGuitarra(); });
   $('guitDrums').addEventListener('change', e=>{ S.guitar.withDrums = e.target.checked; });
   $('playGuit').addEventListener('click', ()=>play('guitarra'));
+  if ($('playGuitAll')) $('playGuitAll').addEventListener('click', ()=>play('all'));
   $('saveGuit').addEventListener('click', ()=>{ const name=$('guitName').value.trim()||('guitarra '+new Date().toLocaleDateString()); const list=store.get('rueda.guitar'); list.push({name, prog:JSON.parse(JSON.stringify(S.guitar.prog))}); store.set('rueda.guitar', list); renderSaved('savedGuit','rueda.guitar'); $('guitName').value=''; });
   $('savedGuit').addEventListener('change', e=>{ const it=store.get('rueda.guitar')[+e.target.value]; if (!it) return; S.guitar.prog=it.prog.map(c=>({...c, frets:c.frets.slice()})); S.guitar.sel=0; renderGuitarra(); });
   $('delGuit').addEventListener('click', ()=>{ const v=$('savedGuit').value; if (v==='') return; const list=store.get('rueda.guitar'); list.splice(+v,1); store.set('rueda.guitar', list); renderSaved('savedGuit','rueda.guitar'); });
