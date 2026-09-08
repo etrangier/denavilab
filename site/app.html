@@ -119,8 +119,12 @@
   .combo-opt { display: flex; align-items: baseline; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
   .combo-opt:hover, .combo-opt:focus-visible, .combo-opt.on { background: var(--accent-soft); outline: none; }
   .combo-opt .opt-nom { font-weight: 600; }
-  .combo-opt .opt-cat { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
-  .combo-opt .opt-uso { margin-left: auto; color: var(--accent); font-size: 11px; }
+  .combo-opt .opt-cat { font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-right: auto; }
+  .combo-opt .opt-uso { color: var(--accent); font-size: 11px; }
+  .combo-opt .opt-mas { color: var(--muted); font-size: 13px; }
+  .combo-back { padding: 6px 8px; color: var(--accent); font-size: 12.5px; cursor: pointer; border-radius: 6px; }
+  .combo-back:hover, .combo-back:focus-visible { background: var(--accent-soft); outline: none; }
+  .combo-cab { padding: 4px 8px 2px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
   .combo-empty { padding: 8px; color: var(--muted); font-size: 13px; }
   .sello { color: var(--muted); font-size: 12.5px; border-left: 2px solid var(--accent); padding-left: 10px; }
   button.primary, button.ghost { font: inherit; border-radius: 6px; padding: 8px 12px; cursor: pointer; border: 1px solid var(--line); }
@@ -1228,24 +1232,24 @@
         M: { I:{vi:34, IV:22, ii:20, V:14, iii:10}, ii:{V:56, I:24, IV:20}, iii:{vi:44, IV:32, ii:24}, IV:{V:30, I:28, ii:24, iii:18}, V:{I:60, vi:24, IV:16}, vi:{ii:44, IV:24, V:18, I:14}, 'vii°':{I:100}, bVII:{I:56, IV:44}, bVI:{bVII:60, I:40}, iv:{I:60, ii:22, bVI:18}, bIII:{IV:50, bVII:30, I:20} } },
     },
     'IDM': {
-      'Aphex Twin': { bpm:[70,140,92], sello:'IDM melódico y ambiental: menor con séptimas mayores y giros modales, pads que evolucionan lento sobre ritmos intrincados.', pref:'minor',
+      'Aphex Twin': { bpm:[70,140,92], sello:'Todo secuenciado al detalle: de baladas de piano andante (Avril 14th) al drill\\'n\\'bass que despedaza breaks. El truco: el acorde mayor que se agria a menor y pads-drone que no resuelven.', pref:'minor',
         m: { i:{VI:24, iv:20, III:18, VII:16, v:12, bII:6, IV:4}, VI:{VII:30, III:24, iv:22, i:24}, III:{VI:36, VII:26, iv:20, i:18}, iv:{i:34, v:22, VII:22, VI:22}, VII:{i:44, VI:28, III:28}, v:{i:46, iv:28, VI:26}, V:{i:64, VI:36}, bII:{i:70, VII:30}, 'ii°':{V:55, i:45}, IV:{i:46, v:28, VII:26} },
         M: { I:{vi:26, IV:24, iii:18, V:16, ii:16}, vi:{IV:34, ii:24, I:22, iii:20}, IV:{I:30, V:26, ii:22, vi:22}, iii:{vi:46, IV:32, ii:22}, V:{I:50, vi:50}, ii:{V:50, IV:28, vi:22}, 'vii°':{I:100}, bVII:{IV:46, I:34, bVI:20}, bVI:{bVII:50, I:30, IV:20}, iv:{I:60, vi:24, bVI:16}, bIII:{IV:50, bVII:30, I:20} } },
-      'Boards of Canada': { bpm:[60,100,84], sello:'Nostalgia hazy y destemplada: mayor con el bVII y el vi que caen, melodía pentatónica melancólica y pads envejecidos.', pref:'major',
+      'Boards of Canada': { bpm:[60,100,84], sello:'Boom-bap destemplado a ~84 (caja en el 3), quintas sin tercera y modos (mixolidio, dórico), afinado un pelo abajo; nostalgia hazy con desasosiego y frases que no cuadran con el loop.', pref:'major',
         M: { I:{bVII:24, vi:22, IV:22, V:16, iii:16}, bVII:{IV:40, I:34, bVI:26}, vi:{IV:32, bVII:24, I:22, ii:22}, IV:{I:32, V:24, bVII:22, vi:22}, iii:{vi:48, IV:30, ii:22}, V:{I:46, vi:34, IV:20}, ii:{V:48, IV:28, vi:24}, bVI:{bVII:50, IV:30, I:20}, iv:{I:60, vi:24, bVI:16}, bIII:{IV:50, bVII:30, I:20}, 'vii°':{I:100} },
         m: { i:{VI:26, VII:22, iv:20, III:18, v:14}, VI:{VII:38, III:24, iv:20, i:18}, VII:{i:42, VI:28, III:30}, III:{VI:40, VII:28, iv:20, i:12}, iv:{i:36, VII:24, VI:22, v:18}, v:{i:48, VI:30, iv:22}, V:{i:60, VI:40}, bII:{i:100}, 'ii°':{V:60, i:40}, IV:{i:50, VII:50} } },
-      'Autechre': { bpm:[70,160,110], sello:'IDM abstracto y quebrado: armonía estática o modal que casi no resuelve; el ritmo manda más que los acordes.', pref:'minor',
+      'Autechre': { bpm:[70,160,110], sello:'Jams largos editados durante meses y secuenciadores que se desfasan: del electro roto con funk de b-boy al grid que se rompe solo. Armonía estática o modal, casi sin cadencia.', pref:'minor',
         m: { i:{iv:22, VII:22, VI:20, III:18, v:10, IV:8}, iv:{i:34, VII:26, VI:22, v:18}, VII:{i:40, VI:30, III:30}, VI:{VII:34, III:26, iv:22, i:18}, III:{VI:34, VII:30, i:22, iv:14}, v:{i:44, iv:30, VI:26}, V:{i:70, VI:30}, bII:{i:100}, 'ii°':{i:60, V:40}, IV:{i:50, VII:50} },
         M: { I:{bVII:26, IV:22, vi:20, bIII:16, V:16}, bVII:{IV:40, I:34, bVI:26}, IV:{I:34, bVII:24, V:22, vi:20}, vi:{IV:34, bVII:26, ii:20, I:20}, bIII:{IV:46, bVII:30, I:24}, V:{I:60, vi:40}, ii:{V:52, IV:28, vi:20}, bVI:{bVII:60, I:40}, iv:{I:70, bVI:30}, iii:{vi:50, IV:50}, 'vii°':{I:100} } },
     },
     'Lofi house': {
-      'DJ Seinfeld': { bpm:[118,126,122], sello:'Lo-fi house emotivo: bucles menores cálidos con séptimas, pads destemplados y esa melancolía de casete sobre un 4x4.', pref:'minor',
+      'DJ Seinfeld': { bpm:[118,126,122], sello:'Diario de una ruptura: house cálido y llorón, bucles menores de min7 con piano filtrado y alguna voz hablada de acento emocional. Ancla: iv–i–VI–i.', pref:'minor',
         m: { i:{VI:24, iv:20, III:18, VII:16, v:12, IV:6, 'ii°':4}, VI:{VII:32, III:24, iv:22, i:22}, iv:{i:34, v:24, VII:22, VI:20}, III:{VI:38, VII:26, iv:20, i:16}, VII:{i:44, VI:28, III:28}, v:{i:44, VI:30, iv:26}, 'ii°':{V:50, i:30, VII:20}, V:{i:60, VI:40}, bII:{i:100}, IV:{i:46, v:28, VII:26} },
         M: { I:{vi:26, IV:24, ii:20, iii:16, V:14}, vi:{IV:32, ii:26, V:22, I:20}, IV:{I:30, V:26, ii:24, vi:20}, ii:{V:52, IV:26, vi:22}, iii:{vi:46, IV:32, ii:22}, V:{I:50, vi:50}, 'vii°':{I:100}, bVII:{IV:46, I:34, bVI:20}, bVI:{bVII:50, I:30, IV:20}, iv:{I:60, ii:22, bVI:18}, bIII:{IV:50, bVII:30, I:20} } },
-      'Ross from Friends': { bpm:[118,128,123], sello:'House lo-fi melódico y algo jazz: acordes de 7ª que giran (I–vi–ii–V y parientes), cálido y luminoso pero nostálgico.', pref:'major',
+      'Ross from Friends': { bpm:[118,128,123], sello:'Cava samples de soul viejo y se samplea tocando en vivo: deep house melódico maj7/min7, cálido y cósmico. Loops tipo Imaj7–IVmaj7–ii–vi.', pref:'major',
         M: { I:{vi:24, IV:22, ii:20, V:18, iii:16}, ii:{V:50, IV:26, vi:24}, iii:{vi:44, IV:32, ii:24}, IV:{V:30, I:26, ii:24, vi:20}, V:{I:46, vi:34, IV:20}, vi:{ii:34, IV:26, V:22, I:18}, 'vii°':{I:60, iii:40}, bVII:{IV:46, I:34, bVI:20}, bVI:{bVII:50, I:30, IV:20}, iv:{I:60, vi:24, bVI:16}, bIII:{IV:50, bVII:30, I:20} },
         m: { i:{VI:26, iv:22, III:18, VII:18, v:16}, VI:{VII:34, III:24, iv:22, i:20}, iv:{i:34, v:24, VII:22, VI:20}, III:{VI:40, VII:28, iv:20, i:12}, VII:{i:42, VI:28, III:30}, v:{i:46, VI:30, iv:24}, V:{i:60, VI:40}, bII:{i:100}, 'ii°':{V:60, i:40}, IV:{i:50, VII:50} } },
-      'Mall Grab': { bpm:[120,130,125], sello:'Lo-fi house crudo y con pegada: bucles menores hipnóticos (i–VII–VI), saturación de casete y groove directo de club.', pref:'minor',
+      'Mall Grab': { bpm:[120,130,125], sello:'Sampleo dusty tipo J Dilla sobre 4x4 con swing pesado: vampiros menores de dos acordes lifteados de disco/soul, crudo y nostálgico pero de pista.', pref:'minor',
         m: { i:{VII:24, VI:22, iv:20, III:16, v:12, IV:6}, VII:{i:44, VI:28, III:28}, VI:{VII:38, III:22, i:22, iv:18}, iv:{i:36, VII:24, VI:22, v:18}, III:{VI:38, VII:28, iv:20, i:14}, v:{i:48, VI:28, iv:24}, V:{i:64, VI:36}, bII:{i:100}, 'ii°':{V:55, i:45}, IV:{i:44, VII:32, v:24} },
         M: { I:{IV:26, V:22, vi:22, bVII:16, ii:14}, IV:{I:32, V:28, vi:22, ii:18}, V:{I:44, vi:34, IV:22}, vi:{IV:34, ii:24, V:22, I:20}, ii:{V:52, IV:26, vi:22}, iii:{vi:50, IV:30, ii:20}, 'vii°':{I:100}, bVII:{IV:46, I:34, bVI:20}, bVI:{bVII:60, I:40}, iv:{I:70, bVI:30}, bIII:{IV:50, bVII:30, I:20} } },
     },
@@ -2045,15 +2049,15 @@
     'Thom Yorke · Anima (skittering)': { kick:[0,7,8,11], snare:[4,12,15], hh:[0,2,4,5,8,10,12,13], oh:[6] },
     'Thom Yorke · Suspiria (ritual lento)': { kick:[0,10], snare:[8], hh:[0,3,6,9,12,15], oh:[14] },
     // ── IDM (Rolando) ──
-    'Aphex Twin · drill and bass': { kick:[0,3,7,10,14], snare:[4,6,12], hh:[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15], oh:[] },
+    'Aphex Twin · drill and bass': { kick:[0,6,10], snare:[3,4,7,9,13,15], hh:[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15], oh:[2,10] },
     'Aphex Twin · ambient lento': { kick:[0,10], snare:[8], hh:[0,4,8,12], oh:[14] },
-    'Boards of Canada · hip-hop nostálgico': { kick:[0,6,10], snare:[4,12], hh:[0,2,4,6,8,10,12,14], oh:[7] },
+    'Boards of Canada · boom-bap a media (~84)': { kick:[0,10], snare:[8], hh:[0,2,4,6,8,10,12,14], oh:[] },
     'Boards of Canada · vals hazy': { kick:[0,6], snare:[8], hh:[0,3,6,9,12,15], oh:[] },
     'Autechre · glitch quebrado': { kick:[0,5,8,11], snare:[4,12,14], hh:[0,1,3,6,8,9,11,14], oh:[13] },
     // ── Lofi house (Rolando) ──
     'DJ Seinfeld · house nostálgico': { kick:[0,4,8,12], snare:[4,12], hh:[0,2,4,6,8,10,12,14], oh:[2,6,10,14] },
-    'Ross from Friends · house jazzy': { kick:[0,4,8,12], snare:[4,12], hh:[0,2,4,6,8,10,12,14], oh:[6,14] },
-    'Mall Grab · house crudo': { kick:[0,4,8,12], snare:[4,12], hh:[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15], oh:[2,6,10,14] },
+    'Ross from Friends · house jazzy (16avos vivos)': { kick:[0,4,8,11,12], snare:[4,7,12,15], hh:[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15], oh:[2,6,10,14] },
+    'Mall Grab · house crudo (swing dusty)': { kick:[0,4,8,12], snare:[4,12], hh:[2,6,10,14,15], oh:[6,14] },
     'Lofi house · shuffle destemplado': { kick:[0,4,8,12], snare:[4,12], hh:[0,3,4,7,8,11,12,15], oh:[14] },
     'Vacío': { kick:[], snare:[], hh:[], oh:[] },
   };
@@ -2432,31 +2436,64 @@
     S.key = defaultKey() || S.key; S.prog = [];
   }
   $('genre').addEventListener('change', e=>{ S.genre=e.target.value; stBump('generos', S.genre); fillBands(); renderAll(); agruparPresets(); if (typeof consejoBeat==='function') consejoBeat(); if (typeof consejeroBeat!=='undefined') consejeroBeat.refrescar('vacio', htmlVacio()); });
-  // ── Combo de estilos: buscable, compacto y ordenado (alfabético si es tu primera vez; por frecuencia si ya usaste) ──
-  function renderComboGenero(){ const l=$('genreVal'); if (l) l.textContent = ($('genre')?$('genre').value:S.genre) || '—'; }
+  // ── Combo de estilos: árbol buscable (estilos → bandas), compacto y ordenado ──
+  let comboNivel='estilos', comboEstilo=null;
+  function renderComboGenero(){ const l=$('genreVal'); if(!l) return; const g=$('genre')?$('genre').value:S.genre; const b=$('band')?$('band').value:S.band; l.textContent = g ? (b ? g+' · '+b : g) : '—'; }
+  const bandasDe = g => GENRES[g] ? Object.keys(GENRES[g]) : [];
+  function itemEstilo(g){
+    const usos=(stGet().generos)||{};
+    const li=el('li',{class:'combo-opt', role:'option', 'data-tipo':'estilo', 'data-g':g, tabindex:'-1'},
+      el('span',{class:'opt-nom'}, g), el('span',{class:'opt-cat'}, GENRE_CAT_CORTA[estiloCategoria(g)]||estiloCategoria(g)));
+    if(usos[g]) li.append(el('span',{class:'opt-uso', title:'lo usas seguido'},'★'));
+    li.append(el('span',{class:'opt-mas','aria-hidden':'true'},'›'));
+    li.addEventListener('click', ()=>{ comboNivel='bandas'; comboEstilo=g; if($('genreSearch')) $('genreSearch').value=''; construirListaGenero(''); const first=$('genreList').querySelector('.combo-opt'); if(first) first.focus(); });
+    return li;
+  }
+  function itemBanda(g,b){
+    const on = ($('genre')&&$('genre').value===g) && ($('band')&&$('band').value===b);
+    const li=el('li',{class:'combo-opt'+(on?' on':''), role:'option', 'aria-selected':String(on), 'data-tipo':'banda', 'data-g':g, 'data-b':b, tabindex:'-1'},
+      el('span',{class:'opt-nom'}, b), el('span',{class:'opt-cat'}, g));
+    li.addEventListener('click', ()=>elegirBanda(g,b));
+    return li;
+  }
   function construirListaGenero(filtro){
     const list=$('genreList'); if(!list) return; list.innerHTML='';
-    const f=(filtro||'').trim().toLowerCase(); const usos=(stGet().generos)||{}; const actual=$('genre')?$('genre').value:S.genre;
-    const gens=ordenarGeneros().filter(g=> !f || g.toLowerCase().includes(f) || (GENRE_CAT_CORTA[estiloCategoria(g)]||'').includes(f) || estiloCategoria(g).toLowerCase().includes(f));
-    if(!gens.length){ list.append(el('li',{class:'combo-empty'},'sin resultados')); return; }
-    gens.forEach(g=>{ const on=g===actual;
-      const li=el('li',{class:'combo-opt'+(on?' on':''), role:'option', 'aria-selected':String(on), 'data-g':g, tabindex:'-1'},
-        el('span',{class:'opt-nom'}, g), el('span',{class:'opt-cat'}, GENRE_CAT_CORTA[estiloCategoria(g)]||estiloCategoria(g)));
-      if(usos[g]) li.append(el('span',{class:'opt-uso', title:'lo usas seguido'},'★'));
-      li.addEventListener('click', ()=>elegirGenero(g));
-      list.append(li);
-    });
+    const f=(filtro||'').trim().toLowerCase();
+    if(f){
+      let n=0;
+      ordenarGeneros().forEach(g=>{
+        if(g.toLowerCase().includes(f) || (GENRE_CAT_CORTA[estiloCategoria(g)]||'').includes(f) || estiloCategoria(g).toLowerCase().includes(f)){ list.append(itemEstilo(g)); n++; }
+        bandasDe(g).forEach(b=>{ if(b.toLowerCase().includes(f)){ list.append(itemBanda(g,b)); n++; } });
+      });
+      if(!n) list.append(el('li',{class:'combo-empty'},'sin resultados'));
+      return;
+    }
+    if(comboNivel==='bandas' && comboEstilo && GENRES[comboEstilo]){
+      const back=el('li',{class:'combo-back', tabindex:'-1'}, '‹ Volver a estilos');
+      back.addEventListener('click', ()=>{ comboNivel='estilos'; comboEstilo=null; construirListaGenero(''); const first=$('genreList').querySelector('.combo-opt'); if(first) first.focus(); });
+      list.append(back);
+      list.append(el('li',{class:'combo-cab'}, comboEstilo + ' · elige banda'));
+      bandasDe(comboEstilo).forEach(b=>list.append(itemBanda(comboEstilo,b)));
+      return;
+    }
+    ordenarGeneros().forEach(g=>list.append(itemEstilo(g)));
   }
-  function elegirGenero(g){ const sel=$('genre'); if(!sel) return; sel.value=g; sel.dispatchEvent(new Event('change',{bubbles:true})); cerrarComboGenero(); if($('genreBtn')) $('genreBtn').focus(); }
-  function abrirComboGenero(){ const pop=$('genrePop'); if(!pop) return; if($('genreSearch')) $('genreSearch').value=''; construirListaGenero(''); pop.hidden=false; $('genreBtn').setAttribute('aria-expanded','true'); setTimeout(()=>{ if($('genreSearch')) $('genreSearch').focus(); },0); }
+  function elegirBanda(g,b){
+    const gsel=$('genre'), bsel=$('band');
+    if(gsel && gsel.value!==g){ gsel.value=g; gsel.dispatchEvent(new Event('change',{bubbles:true})); }
+    if(bsel){ bsel.value=b; bsel.dispatchEvent(new Event('change',{bubbles:true})); }
+    cerrarComboGenero(); renderComboGenero(); if($('genreBtn')) $('genreBtn').focus();
+  }
+  function abrirComboGenero(){ const pop=$('genrePop'); if(!pop) return; comboNivel='estilos'; comboEstilo=null; if($('genreSearch')) $('genreSearch').value=''; construirListaGenero(''); pop.hidden=false; $('genreBtn').setAttribute('aria-expanded','true'); setTimeout(()=>{ if($('genreSearch')) $('genreSearch').focus(); },0); }
   function cerrarComboGenero(){ const pop=$('genrePop'); if(pop) pop.hidden=true; if($('genreBtn')) $('genreBtn').setAttribute('aria-expanded','false'); }
+  const comboFocusables = () => [...$('genreList').querySelectorAll('.combo-opt, .combo-back')];
   if ($('genreBtn')) $('genreBtn').addEventListener('click', ()=>{ $('genrePop').hidden ? abrirComboGenero() : cerrarComboGenero(); });
   if ($('genreSearch')) $('genreSearch').addEventListener('input', e=>construirListaGenero(e.target.value));
-  if ($('genreSearch')) $('genreSearch').addEventListener('keydown', e=>{ if(e.key==='Escape'){ cerrarComboGenero(); $('genreBtn').focus(); } else if(e.key==='ArrowDown'){ e.preventDefault(); const o=$('genreList').querySelector('.combo-opt'); if(o) o.focus(); } else if(e.key==='Enter'){ e.preventDefault(); const o=$('genreList').querySelector('.combo-opt'); if(o) elegirGenero(o.dataset.g); } });
-  if ($('genreList')) $('genreList').addEventListener('keydown', e=>{ const opts=[...$('genreList').querySelectorAll('.combo-opt')]; const i=opts.indexOf(document.activeElement);
+  if ($('genreSearch')) $('genreSearch').addEventListener('keydown', e=>{ if(e.key==='Escape'){ cerrarComboGenero(); $('genreBtn').focus(); } else if(e.key==='ArrowDown'){ e.preventDefault(); const o=comboFocusables()[0]; if(o) o.focus(); } else if(e.key==='Enter'){ e.preventDefault(); const o=comboFocusables()[0]; if(o) o.click(); } });
+  if ($('genreList')) $('genreList').addEventListener('keydown', e=>{ const opts=comboFocusables(); const i=opts.indexOf(document.activeElement);
     if(e.key==='ArrowDown'){ e.preventDefault(); (opts[i+1]||opts[0]||$('genreSearch')).focus(); }
     else if(e.key==='ArrowUp'){ e.preventDefault(); (i<=0?$('genreSearch'):opts[i-1]).focus(); }
-    else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); const g=document.activeElement && document.activeElement.dataset && document.activeElement.dataset.g; if(g) elegirGenero(g); }
+    else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); if(document.activeElement && document.activeElement.click) document.activeElement.click(); }
     else if(e.key==='Escape'){ cerrarComboGenero(); $('genreBtn').focus(); } });
   document.addEventListener('pointerdown', e=>{ const c=$('genreCombo'); if(c && $('genrePop') && !$('genrePop').hidden && !c.contains(e.target)) cerrarComboGenero(); });
   renderComboGenero();
