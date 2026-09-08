@@ -107,7 +107,6 @@
   .chip { background: var(--surface-2); border: 1px solid var(--line); color: var(--text); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer; }
   .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
   .chip small { color: inherit; opacity: .7; margin-left: 4px; }
-  #genre { display: none; }
   .combo { position: relative; }
   .combo-btn { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; font: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; color: var(--text); cursor: pointer; text-align: left; }
   .combo-btn:hover, .combo-btn:focus-visible { border-color: var(--accent); }
@@ -507,17 +506,7 @@
       </div>
       <div class="field" data-modes="beat bajod pad piano lead">
         <span class="lbl">Género</span>
-        <select id="genre" aria-hidden="true" tabindex="-1"></select>
-        <div class="combo" id="genreCombo">
-          <button type="button" class="combo-btn" id="genreBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Estilo — abrir buscador"><span class="combo-val" id="genreVal">—</span><span class="combo-caret" aria-hidden="true">▾</span></button>
-          <div class="combo-pop" id="genrePop" hidden role="dialog" aria-label="Elegir estilo y banda">
-            <input type="text" id="genreSearch" class="combo-search" placeholder="buscar estilo o banda…" aria-label="Buscar estilo o banda" autocomplete="off" spellcheck="false">
-            <div class="combo-cols">
-              <div class="combo-col combo-col-l"><ul class="combo-list" id="genreList" role="listbox" aria-label="Estilos"></ul></div>
-              <div class="combo-col combo-col-r" id="genreSubWrap" hidden><div class="combo-cab" id="genreSubCab"></div><ul class="combo-list" id="genreSub" role="listbox" aria-label="Bandas"></ul></div>
-            </div>
-          </div>
-        </div>
+        <select id="genre" aria-label="Estilo"></select>
       </div>
       <div class="field" data-modes="beat bajod pad piano lead">
         <span class="lbl">Banda de referencia</span>
@@ -2447,82 +2436,7 @@
     S.key = defaultKey() || S.key; S.prog = [];
   }
   $('genre').addEventListener('change', e=>{ S.genre=e.target.value; stBump('generos', S.genre); fillBands(); renderAll(); agruparPresets(); if (typeof consejoBeat==='function') consejoBeat(); if (typeof consejeroBeat!=='undefined') consejeroBeat.refrescar('vacio', htmlVacio()); });
-  // ── Combo de estilos: dos columnas — estilos a la izquierda, sus bandas a la derecha ──
-  let comboHoverTimer=null, comboEstiloActual=null;
-  function renderComboGenero(){ const l=$('genreVal'); if(!l) return; const g=$('genre')?$('genre').value:S.genre; const b=$('band')?$('band').value:S.band; l.textContent = g ? (b ? g+' · '+b : g) : '—'; }
-  const bandasDe = g => GENRES[g] ? Object.keys(GENRES[g]) : [];
-  function itemEstilo(g){
-    const actual=$('genre')?$('genre').value:S.genre, usos=(stGet().generos)||{};
-    const li=el('li',{class:'combo-opt'+(g===actual?' activo':'')+(usos[g]?' usado':''), role:'option', 'data-tipo':'estilo', 'data-g':g, tabindex:'-1'},
-      el('span',{class:'opt-nom'}, g));
-    li.append(el('span',{class:'opt-mas','aria-hidden':'true'},'›'));
-    li.addEventListener('mouseenter', ()=>{ clearTimeout(comboHoverTimer); comboHoverTimer=setTimeout(()=>mostrarBandas(g, false), 140); });
-    li.addEventListener('mouseleave', ()=>{ clearTimeout(comboHoverTimer); });
-    li.addEventListener('click', ()=>{ clearTimeout(comboHoverTimer); mostrarBandas(g, true); });
-    return li;
-  }
-  function itemBanda(g,b,ctx){
-    const on = ($('genre')&&$('genre').value===g) && ($('band')&&$('band').value===b);
-    const li=el('li',{class:'combo-opt'+(on?' on':''), role:'option', 'aria-selected':String(on), 'data-tipo':'banda', 'data-g':g, 'data-b':b, tabindex:'-1'}, el('span',{class:'opt-nom'}, b));
-    if(ctx) li.append(el('span',{class:'opt-cat'}, g));
-    li.addEventListener('click', ()=>elegirBanda(g,b));
-    return li;
-  }
-  function mostrarBandas(g, foco){
-    const wrap=$('genreSubWrap'), sub=$('genreSub'), cab=$('genreSubCab'); if(!wrap||!GENRES[g]) return;
-    if(comboEstiloActual===g && !wrap.hidden && !foco) return;   // ya está: no reconstruir (evita el salto al mover el cursor)
-    comboEstiloActual=g;
-    [...$('genreList').querySelectorAll('.combo-opt[data-tipo="estilo"]')].forEach(li=>li.classList.toggle('activo', li.dataset.g===g));
-    cab.textContent = g + ' · elige banda';
-    sub.innerHTML=''; bandasDe(g).forEach(b=>sub.append(itemBanda(g,b)));
-    wrap.hidden=false;
-    if(foco){ const first=sub.querySelector('.combo-opt'); if(first) first.focus(); }
-  }
-  function construirListaGenero(filtro){
-    const list=$('genreList'); if(!list) return; list.innerHTML='';
-    const f=(filtro||'').trim().toLowerCase();
-    if(f){
-      if($('genreSubWrap')) $('genreSubWrap').hidden=true;
-      let n=0;
-      ordenarGeneros().forEach(g=>{
-        if(g.toLowerCase().includes(f) || (GENRE_CAT_CORTA[estiloCategoria(g)]||'').includes(f) || estiloCategoria(g).toLowerCase().includes(f)){ list.append(itemEstilo(g)); n++; }
-        bandasDe(g).forEach(b=>{ if(b.toLowerCase().includes(f)){ list.append(itemBanda(g,b,true)); n++; } });
-      });
-      if(!n) list.append(el('li',{class:'combo-empty'},'sin resultados'));
-      return;
-    }
-    ordenarGeneros().forEach(g=>list.append(itemEstilo(g)));
-  }
-  function elegirBanda(g,b){
-    try {
-      const gsel=$('genre'), bsel=$('band');
-      if(gsel && gsel.value!==g){ gsel.value=g; gsel.dispatchEvent(new Event('change',{bubbles:true})); }
-      if(bsel){ bsel.value=b; bsel.dispatchEvent(new Event('change',{bubbles:true})); }
-      renderComboGenero();
-    } finally { cerrarComboGenero(); if($('genreBtn')) $('genreBtn').focus(); }
-  }
-  function abrirComboGenero(){ const pop=$('genrePop'); if(!pop) return; if($('genreSearch')) $('genreSearch').value=''; construirListaGenero(''); mostrarBandas(($('genre')?$('genre').value:S.genre)||ordenarGeneros()[0], false); pop.hidden=false; $('genreBtn').setAttribute('aria-expanded','true'); setTimeout(()=>{ if($('genreSearch')) $('genreSearch').focus(); },0); }
-  function cerrarComboGenero(){ clearTimeout(comboHoverTimer); comboEstiloActual=null; const pop=$('genrePop'); if(pop) pop.hidden=true; if($('genreBtn')) $('genreBtn').setAttribute('aria-expanded','false'); }
-  const comboFocL = () => [...$('genreList').querySelectorAll('.combo-opt')];
-  const comboFocR = () => $('genreSub') ? [...$('genreSub').querySelectorAll('.combo-opt')] : [];
-  if ($('genreBtn')) $('genreBtn').addEventListener('click', ()=>{ $('genrePop').hidden ? abrirComboGenero() : cerrarComboGenero(); });
-  if ($('genreSearch')) $('genreSearch').addEventListener('input', e=>construirListaGenero(e.target.value));
-  if ($('genreSearch')) $('genreSearch').addEventListener('keydown', e=>{ if(e.key==='Escape'){ cerrarComboGenero(); $('genreBtn').focus(); } else if(e.key==='ArrowDown'){ e.preventDefault(); const o=comboFocL()[0]; if(o) o.focus(); } });
-  if ($('genreList')) $('genreList').addEventListener('keydown', e=>{ const opts=comboFocL(); const i=opts.indexOf(document.activeElement);
-    if(e.key==='ArrowDown'){ e.preventDefault(); (opts[i+1]||opts[0]||$('genreSearch')).focus(); }
-    else if(e.key==='ArrowUp'){ e.preventDefault(); (i<=0?$('genreSearch'):opts[i-1]).focus(); }
-    else if(e.key==='ArrowRight'){ e.preventDefault(); const li=document.activeElement; if(li.dataset && li.dataset.tipo==='estilo') mostrarBandas(li.dataset.g, true); }
-    else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); if(document.activeElement.click) document.activeElement.click(); }
-    else if(e.key==='Escape'){ cerrarComboGenero(); $('genreBtn').focus(); } });
-  if ($('genreSub')) $('genreSub').addEventListener('keydown', e=>{ const opts=comboFocR(); const i=opts.indexOf(document.activeElement);
-    if(e.key==='ArrowDown'){ e.preventDefault(); (opts[i+1]||opts[0]).focus(); }
-    else if(e.key==='ArrowUp'){ e.preventDefault(); (opts[i-1]||opts[0]).focus(); }
-    else if(e.key==='ArrowLeft'){ e.preventDefault(); const l=comboFocL()[0]; if(l) l.focus(); }
-    else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); if(document.activeElement.click) document.activeElement.click(); }
-    else if(e.key==='Escape'){ cerrarComboGenero(); $('genreBtn').focus(); } });
-  if ($('genreSubWrap')) $('genreSubWrap').addEventListener('mouseenter', ()=>clearTimeout(comboHoverTimer));
-  document.addEventListener('pointerdown', e=>{ const c=$('genreCombo'); if(c && $('genrePop') && !$('genrePop').hidden && !c.contains(e.target)) cerrarComboGenero(); });
-  renderComboGenero();
+  function renderComboGenero(){}   // (combo personalizado retirado; se usa el <select> nativo)
   $('band').addEventListener('change', e=>{ S.band=e.target.value; applyBand(); renderAll(); agruparPresets(); if (typeof consejoBeat==='function') consejoBeat(); if (typeof consejeroBeat!=='undefined') consejeroBeat.refrescar('vacio', htmlVacio()); });
   function setBpmBloqueo(v) {
     S.bpmBloqueado = v;
