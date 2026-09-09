@@ -1615,7 +1615,7 @@
     $('roName').textContent = chordLabel(c.pc,c.q);
     $('roNotes').textContent = notesText(c.pc,c.q);
     const deg = degreeOf(c.pc,c.q);
-    const inst = instLabel().toLowerCase();
+    const inst = (S.mode==='pad' && S.inst==='pad') ? timbreActual().nom : instLabel().toLowerCase();
     $('candBar').hidden = !S.cand; if (S.cand) $('candSave').textContent = remaining() > 0 ? `Guardar ${chordLabel(S.cand.pc,S.cand.q)} en el compás ${fmtLen(usedBars()+1)}` : 'Progresión completa';
     $('roSub').textContent = (S.hover ? 'Al pasar el cursor · ' : S.playing>=0 ? (S.playing===S.prog.length ? 'Sonando el acorde de prueba · ' : `Sonando compás ${S.playing+1} · `) : S.cand ? 'Probando · ' : S.prog.length ? 'Último guardado · ' : 'Acorde inicial · ') + (deg ? `${roleOf(c.pc,c.q)[0]} (grado ${deg} en ${keyName(S.key)})` : 'fuera de la tonalidad') + (isDiatonic(c.pc,c.q)||!deg ? '' : ' · prestado') + ` · ${inst}`;
     const rm = $('roMini'); if (rm) { rm.innerHTML=''; rm.append(miniTecladoMPK(c.pc, c.q)); }
@@ -1733,7 +1733,7 @@
   }
   function mixTracks() {
     const t = [];
-    if (S._chord.pad.prog.length || S._chord.pad.cand) t.push(['chords:pad', (CAPA_LBL[S.padInst]||'Pad')]);
+    if (S._chord.pad.prog.length || S._chord.pad.cand) t.push(['chords:pad', (CAPA_LBL[S.padInst]||'Pad') + (S.padInst==='pad' ? ' · '+timbreActual().nom : '')]);
     if (S._chord.piano.prog.length || S._chord.piano.cand) t.push(['chords:piano', 'Piano']);
     t.push(['drums','Batería'], ['guitar','Guitarra'], ['lead','Piano lead']);   // bajo digital oculto por ahora
     return t;
@@ -1840,16 +1840,49 @@
   let ctx=null, stopFlag=false;
   const midiOfKey = k => 48 + k;                               // tecla 0 = do3 en OCT 0
   const freq = m => 440*Math.pow(2,(m-69)/12);
+  // ── Timbres de teclado vintage por estilo/artista (Yamaha, Casio, Roland y análogos 80s).
+  //    Cada preset arma los osciladores del Pad (mk) + su filtro (f) y devuelve la envolvente.
+  //    El sonido del Pad cambia solo al cambiar de género o banda (ver timbreActual()).
+  const TIMBRES = {
+    juno:    { nom:'Juno · pad cálido',        build:(mk,f,t,gv)=>{ mk('sawtooth',-8,0,.34); mk('sawtooth',8,0,.34); mk('sawtooth',0,-1,.30); mk('sine',0,-1,.18); f.frequency.setValueAtTime(360,t); f.frequency.linearRampToValueAtTime(1000,t+0.9); f.Q.value=0.7; return {a:0.45, rel:1.0, sus:gv*0.82, dec:1.3}; } },
+    jupiter: { nom:'Jupiter · brass poly',      build:(mk,f,t,gv)=>{ mk('sawtooth',-6,0,.34); mk('sawtooth',7,0,.34); mk('square',0,0,.18); mk('sine',0,-1,.16); f.frequency.setValueAtTime(520,t); f.frequency.linearRampToValueAtTime(1700,t+0.45); f.Q.value=1.6; return {a:0.12, rel:0.5, sus:gv*0.72, dec:0.8}; } },
+    dxep:    { nom:'DX · Rhodes eléctrico',     build:(mk,f,t,gv)=>{ mk('sine',0,0,.7); mk('sine',0,1,.2); mk('triangle',0,2,.08); f.frequency.setValueAtTime(2200,t); f.frequency.exponentialRampToValueAtTime(900,t+0.9); f.Q.value=0.5; return {a:0.004, rel:0.5, sus:gv*0.3, dec:1.0}; } },
+    dxbell:  { nom:'DX · campanas',             build:(mk,f,t,gv)=>{ mk('sine',0,0,.6); mk('sine',0,1,.3); mk('sine',4,2,.14); mk('sine',0,3,.06); f.frequency.setValueAtTime(4200,t); f.Q.value=0.4; return {a:0.002, rel:0.45, sus:gv*0.2, dec:0.7}; } },
+    solina:  { nom:'Solina · cuerdas',          build:(mk,f,t,gv)=>{ mk('sawtooth',-11,0,.2); mk('sawtooth',11,0,.2); mk('sawtooth',-4,0,.18); mk('sawtooth',5,0,.18); mk('sine',0,-1,.14); f.frequency.setValueAtTime(700,t); f.frequency.linearRampToValueAtTime(1250,t+1.2); f.Q.value=0.5; return {a:0.6, rel:1.6, sus:gv*0.85, dec:1.6}; } },
+    prophet: { nom:'Prophet · analógico',       build:(mk,f,t,gv)=>{ mk('sawtooth',-5,0,.32); mk('square',6,0,.24); mk('sawtooth',0,-1,.2); mk('sine',0,-1,.14); f.frequency.setValueAtTime(440,t); f.frequency.linearRampToValueAtTime(1500,t+0.6); f.Q.value=4; return {a:0.2, rel:0.9, sus:gv*0.7, dec:1.0}; } },
+    casio:   { nom:'Casio · digital fino',      build:(mk,f,t,gv)=>{ mk('square',0,0,.5); mk('square',3,1,.14); mk('sine',0,0,.2); f.frequency.setValueAtTime(1800,t); f.Q.value=1; return {a:0.01, rel:0.3, sus:gv*0.5, dec:0.5}; } },
+    organo:  { nom:'Órgano combo',              build:(mk,f,t,gv)=>{ mk('sine',0,0,.5); mk('sine',0,1,.3); mk('sine',700,0,.16); mk('sine',0,2,.12); mk('square',0,1,.08); f.frequency.setValueAtTime(2500,t); f.Q.value=0.3; return {a:0.01, rel:0.12, sus:gv*0.95, dec:0.2}; } },
+    glasspad:{ nom:'Pad de cinta',              build:(mk,f,t,gv)=>{ mk('triangle',-13,0,.3); mk('triangle',13,0,.3); mk('sine',0,-1,.24); mk('sawtooth',0,0,.12); f.frequency.setValueAtTime(300,t); f.frequency.linearRampToValueAtTime(820,t+1.2); f.Q.value=0.6; return {a:0.7, rel:1.8, sus:gv*0.8, dec:1.6}; } },
+    chorus:  { nom:'Juno chorus',               build:(mk,f,t,gv)=>{ mk('sawtooth',-11,0,.26); mk('sawtooth',11,0,.26); mk('triangle',0,0,.3); mk('sine',0,-1,.16); f.frequency.setValueAtTime(500,t); f.frequency.linearRampToValueAtTime(1100,t+0.8); f.Q.value=0.8; return {a:0.25, rel:0.9, sus:gv*0.78, dec:1.0}; } },
+  };
+  const TIMBRE_BANDA = {
+    'Portishead':'dxep', 'Massive Attack':'solina',
+    'Pet Shop Boys':'dxbell', 'Depeche Mode':'prophet', 'New Order':'juno', 'Martin Lee Gore':'solina',
+    'Green Day':'organo', 'Rock clásico':'organo', 'La Ley':'jupiter',
+    'Anime · J-pop':'dxbell', 'Balada de anime':'solina',
+    'Mac DeMarco':'chorus', 'boy pablo':'chorus', 'Talk Talk':'solina', 'Fuji Kaze':'dxep',
+    'Thom Yorke':'prophet', 'Damon Albarn':'dxep',
+    'Lo-fi (para estudiar)':'dxep',
+    'Aphex Twin':'prophet', 'Boards of Canada':'glasspad', 'Autechre':'casio',
+    'DJ Seinfeld':'dxep', 'Ross from Friends':'juno', 'Mall Grab':'juno',
+    'Tus hábitos':'juno',
+  };
+  const TIMBRE_GENERO = {
+    'Trip hop':'dxep', 'Synth pop':'juno', 'Rock':'organo', 'Anime':'dxbell',
+    'Bedroom pop':'chorus', 'Alternativo':'prophet', 'Lo-fi hip hop':'dxep',
+    'IDM':'prophet', 'Lofi house':'juno', 'Personal':'juno',
+  };
+  const timbreKey = () => TIMBRE_BANDA[S.band] || TIMBRE_GENERO[S.genre] || 'juno';
+  const timbreActual = () => TIMBRES[timbreKey()] || TIMBRES.juno;
+
   function voice(m, t, dur, kind, gainV=0.25, opts=null) {
     const g = ctx.createGain(), f = ctx.createBiquadFilter(); f.type='lowpass';
     const oscs = [];
     const mk = (type, det=0, oct=0, lvl=1) => { const o=ctx.createOscillator(); o.type=type; o.frequency.value=freq(m+oct*12); o.detune.value=det; o._det=det; if (opts && opts.glideTo!==undefined) { o.frequency.setValueAtTime(freq(m+oct*12), t+opts.glideAt); o.frequency.exponentialRampToValueAtTime(freq(opts.glideTo+oct*12), t+dur); } const og=ctx.createGain(); og.gain.value=lvl; o.connect(og); og.connect(f); oscs.push(o); };
     let a=0.005, rel=0.25, sus=gainV*0.5, dec=0.4;
     switch (kind) {
-      case 'pad':   // Classic Analog Pad: sierras desafinadas, ataque lento, filtro suave (menos agudo)
-        mk('sawtooth',-8,0,.34); mk('sawtooth',8,0,.34); mk('sawtooth',0,-1,.32); mk('sine',0,-1,.2);
-        f.frequency.setValueAtTime(360,t); f.frequency.linearRampToValueAtTime(1000,t+0.9); f.Q.value=0.7;
-        a=0.5; rel=1.0; sus=gainV*0.82; dec=1.3; break;
+      case 'pad': {  // el timbre del Pad lo decide el estilo/artista (teclados vintage); cambia solo
+        const e = timbreActual().build(mk, f, t, gainV); a=e.a; rel=e.rel; sus=e.sus; dec=e.dec; break; }
       case 'coro':  // Pad de voces (evoca el «Enjoy the Silence» de Depeche Mode): cálido y coral
         mk('sawtooth',-6,0,.2); mk('sawtooth',6,0,.2); mk('sawtooth',-13,0,.13); mk('triangle',0,0,.42); mk('sine',0,-1,.22);
         f.frequency.setValueAtTime(600,t); f.frequency.linearRampToValueAtTime(1150,t+0.7); f.Q.value=3;
@@ -2237,12 +2270,12 @@
     }
   }
   let playheadRaf = 0, bassRaf = 0;
-  function drumPlayhead(t0, beat, totalBars) {
+  function drumPlayhead(t0, beat, totalBars, desde=0) {
     const steps = S.drums.len*16, sixteenth = beat/4, end = t0 + totalBars*beat*4;
     const tick = () => {
       document.querySelectorAll('.st.now').forEach(n=>n.classList.remove('now'));
       const now = ctx.currentTime; if (now >= end || stopFlag) return;
-      if (now >= t0) { const s = Math.floor((now - t0)/sixteenth) % steps; document.querySelectorAll(`.st[data-s="${s}"]`).forEach(n=>n.classList.add('now')); }
+      if (now >= t0) { const s = (Math.floor((now - t0)/sixteenth) + desde*16) % steps; document.querySelectorAll(`.st[data-s="${s}"]`).forEach(n=>n.classList.add('now')); }
       playheadRaf = requestAnimationFrame(tick);
     };
     cancelAnimationFrame(playheadRaf); playheadRaf = requestAnimationFrame(tick);
@@ -2315,6 +2348,7 @@
     stopFlag=false; isPlaying = true; if (typeof stopPreview==='function') stopPreview(); let beat = 60/(mode==='bass' ? bassBpm() : S.bpm), barDur = beat*4; let t0 = ctx.currentTime + 0.1;
     if (mode === 'lead' && !S.prog.length && !hasLead()) { $('leadProg').textContent = 'Graba una melodía o guarda una progresión en Pad/Piano para escuchar el lead.'; isPlaying=false; return; }
     let withChords, seq, totalBars, withDrums;
+    let drumPhase = 0;   // fase del patrón de batería: se acarrea entre vueltas para que el groove no se reinicie (fluye aunque los compases de la progresión no sean múltiplo del largo del patrón)
     $('play').textContent = '■ Detener'; $('playDrums').textContent = '■ Detener'; $('playBass').textContent = '■ Detener'; $('playLead').textContent = '■ Detener'; $('playGuit').textContent = '■ Detener'; if ($('playGuitAll')) $('playGuitAll').textContent = '■ Detener'; $('candPlay').textContent = '■ Detener'; if ($('playMezcla')) $('playMezcla').textContent = '■ Detener';
     do {   // una pasada; con «loop» se repite hasta Detener
       beat = 60/(mode==='bass' ? bassBpm() : S.bpm); barDur = beat*4;   // relee el tempo cada vuelta (bajo con tempo propio, o bpm cambiado)
@@ -2355,12 +2389,12 @@
         t0 = tb - totalBars*barDur;   // el t0 += totalBars*barDur de abajo lo deja en el tiempo real acumulado
       }
       if (mode === 'lead') { scheduleLead(t0, totalBars, beat); leadPlayhead(t0, beat, totalBars); if ($('leadBass').checked && hasBassD()) scheduleBassSeq(t0, totalBars, beat); }
-      if (withDrums && mode !== 'drums') { if (S.donner.on) scheduleDonner(t0, totalBars, beat); else { scheduleDrums(t0, totalBars, beat); drumPlayhead(t0, beat, totalBars); } }
+      if (withDrums && mode !== 'drums') { if (S.donner.on) scheduleDonner(t0, totalBars, beat, drumPhase); else { scheduleDrums(t0, totalBars, beat, drumPhase); drumPlayhead(t0, beat, totalBars, drumPhase); } }
       if (mode === 'drums') {
         // compás a compás, releyendo la rejilla: lo que edites entra en la vuelta siguiente
-        if (!S.donner.on) drumPlayhead(t0, beat, totalBars);
+        if (!S.donner.on) drumPlayhead(t0, beat, totalBars, drumPhase);
         for (let b=0; b<totalBars && !stopFlag; b++) {
-          (S.donner.on ? scheduleDonner : scheduleDrums)(t0 + b*barDur, 1, beat, b);
+          (S.donner.on ? scheduleDonner : scheduleDrums)(t0 + b*barDur, 1, beat, drumPhase + b);
           const falta = (t0 + (b+1)*barDur - 0.08 - ctx.currentTime)*1000; if (falta > 0) await wait(falta);
         }
       }
@@ -2377,6 +2411,8 @@
         await wait(totalBars*barDur*1000);
       }
       t0 += totalBars*barDur;
+      const dlen = S.donner.on ? Math.max(1, S.donner.len) : Math.max(1, S.drums.len);
+      drumPhase = (drumPhase + Math.round(totalBars)) % dlen;   // el patrón continúa donde quedó, sin reiniciarse en cada vuelta
       // corrige la deriva del reloj de JS respecto al de audio
       const drift = (t0 - ctx.currentTime)*1000; if (S.loop && !stopFlag && drift > 0) await wait(drift);
     } while (S.loop && !stopFlag);
