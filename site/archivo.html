@@ -216,14 +216,29 @@
       if (!evs.length || evs[0].tick > 0) evs.unshift({ tick: 0, uspb: 500000 });   // 120 bpm por defecto
       return tick => { let sec = 0; for (let i = 0; i < evs.length; i++) { const ini = evs[i].tick, fin = i + 1 < evs.length ? evs[i + 1].tick : Infinity; if (tick <= ini) break; sec += (Math.min(tick, fin) - ini) * (evs[i].uspb / 1e6) / tpb; if (tick <= fin) break; } return sec; };
     }
+    // Tono cálido, tipo piano/pad eléctrico: dos osciladores con leve detune + un sub para
+    // el cuerpo, envolvente con ataque suave y decaimiento al sostén, y un filtro que cierra.
     function tono(note, vel, start, dur, out) {
       const f = 440 * Math.pow(2, (note - 69) / 12);
-      const osc = ctx.createOscillator(); osc.type = 'triangle'; osc.frequency.value = f;
-      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = Math.min(6500, f * 6 + 900);
-      const g = ctx.createGain(); const pico = Math.max(0.04, Math.min(0.42, vel / 127 * 0.42)); const r = Math.min(0.35, dur * 0.5);
-      g.gain.setValueAtTime(0, start); g.gain.linearRampToValueAtTime(pico, start + 0.008);
-      g.gain.setValueAtTime(pico, Math.max(start + 0.008, start + dur - r)); g.gain.linearRampToValueAtTime(0.0001, start + dur);
-      osc.connect(lp); lp.connect(g); g.connect(out); osc.start(start); osc.stop(start + dur + 0.03); activos.push(osc, g, lp);
+      const g = ctx.createGain();
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.4;
+      lp.frequency.setValueAtTime(Math.min(7200, f * 8 + 1200), start);
+      lp.frequency.exponentialRampToValueAtTime(Math.min(5200, f * 3 + 500), start + Math.min(1.1, dur + 0.05));
+      const o1 = ctx.createOscillator(); o1.type = 'triangle'; o1.frequency.value = f;
+      const o2 = ctx.createOscillator(); o2.type = 'sine'; o2.frequency.value = f; o2.detune.value = 7;
+      const o3 = ctx.createOscillator(); o3.type = 'sine'; o3.frequency.value = f / 2;   // sub para cuerpo
+      const gSub = ctx.createGain(); gSub.gain.value = 0.22; o3.connect(gSub); gSub.connect(g);
+      o1.connect(g); o2.connect(g);
+      const pico = Math.max(0.05, Math.min(0.4, vel / 127 * 0.4));
+      const a = 0.015, d = Math.min(0.55, dur * 0.6), sus = Math.max(0.002, pico * 0.55), r = Math.min(0.5, dur * 0.5);
+      g.gain.setValueAtTime(0.0006, start);
+      g.gain.linearRampToValueAtTime(pico, start + a);
+      g.gain.exponentialRampToValueAtTime(sus, start + a + d);
+      g.gain.setValueAtTime(sus, Math.max(start + a + d, start + dur - r));
+      g.gain.exponentialRampToValueAtTime(0.0005, start + dur + 0.03);
+      g.connect(lp); lp.connect(out);
+      [o1, o2, o3].forEach(o => { o.start(start); o.stop(start + dur + 0.08); activos.push(o); });
+      activos.push(g, lp, gSub);
     }
     function percusion(note, start, out) {
       if (note === 35 || note === 36) {

@@ -586,6 +586,7 @@
         <button class="ghost" id="expPdf">PDF · notas y ficha técnica</button>
         <label class="ghost" for="impMidiBiblio" style="display:block; text-align:center; border-radius:6px; padding:8px 12px; border:1px solid var(--line); cursor:pointer">Importar MIDI (a la Biblioteca)</label>
         <input type="file" id="impMidiBiblio" accept=".mid,.midi" multiple hidden>
+        <button class="ghost" id="stopMidiPrev" type="button" hidden>⏸ Detener vista previa</button>
         <span class="lbl" style="margin-top:6px">La maqueta entera, en un archivo</span>
         <button class="ghost" id="expProyecto">Guardar la maqueta (.denavi)</button>
         <label class="ghost" for="impProyecto" style="display:block; text-align:center; border-radius:6px; padding:8px 12px; border:1px solid var(--line); cursor:pointer">Abrir una maqueta guardada</label>
@@ -3499,17 +3500,111 @@
     catch (err) { $('midiFileInfo').textContent = 'No pude leer ese archivo: ' + err.message; }
   });
 
-  // Importar un .mid a la Biblioteca (mismo almacén que la página Biblioteca: se escucha/descarga allí)
+  // ── Vista previa de un MIDI importado: lo suena al instante con un motor cálido (piano/pad).
+  //    Reutiliza el ctx/master del taller. Notas melódicas = tono; canal 9 = percusión. ──
+  const previewMidi = (() => {
+    let activos = [], finTimer = null;
+    function parse(buf) {
+      const d = new DataView(buf); let p = 0;
+      const u32 = () => { const v = d.getUint32(p); p += 4; return v; }, u16 = () => { const v = d.getUint16(p); p += 2; return v; }, u8 = () => d.getUint8(p++);
+      const vlq = () => { let v = 0, b; do { b = u8(); v = (v << 7) | (b & 0x7f); } while (b & 0x80); return v; };
+      if (u32() !== 0x4d546864) throw new Error('no es MIDI'); u32(); u16(); const ntr = u16(); let tpb = u16();
+      if (tpb & 0x8000 || !tpb) tpb = 96;
+      const tempos = [], abiertas = {}, notas = [];
+      const pop = (ch, note, tk) => { const s = abiertas[(ch << 8) | note]; if (s && s.length) { const on = s.shift(); notas.push({ ch, note, vel: on.vel, tick: on.tick, endTick: tk }); } };
+      for (let t = 0; t < ntr; t++) {
+        if (u32() !== 0x4d54726b) break; const len = u32(), end = p + len; let tick = 0, st = 0;
+        while (p < end) {
+          tick += vlq(); let b = u8();
+          if (b === 0xff) { const type = u8(), l = vlq(); if (type === 0x51 && l === 3) tempos.push({ tick, uspb: (u8() << 16) | (u8() << 8) | u8() }); else p += l; continue; }
+          if (b === 0xf0 || b === 0xf7) { p += vlq(); continue; }
+          if (b & 0x80) { st = b; b = u8(); }
+          const cmd = st & 0xf0, ch = st & 0x0f;
+          if (cmd === 0x90) { const note = b, vel = u8(); if (vel > 0) { (abiertas[(ch << 8) | note] = abiertas[(ch << 8) | note] || []).push({ tick, vel }); } else pop(ch, note, tick); }
+          else if (cmd === 0x80) { const note = b; u8(); pop(ch, note, tick); }
+          else if (cmd === 0xa0 || cmd === 0xb0 || cmd === 0xe0) { u8(); }
+        }
+        Object.keys(abiertas).forEach(k => { while (abiertas[k] && abiertas[k].length) { const on = abiertas[k].shift(); notas.push({ ch: (+k) >> 8, note: (+k) & 0xff, vel: on.vel, tick: on.tick, endTick: tick }); } });
+        p = end;
+      }
+      return { tpb, tempos, notas };
+    }
+    function crearReloj(tempos, tpb) {
+      const evs = tempos.slice().sort((a, b) => a.tick - b.tick);
+      if (!evs.length || evs[0].tick > 0) evs.unshift({ tick: 0, uspb: 500000 });
+      return tick => { let sec = 0; for (let i = 0; i < evs.length; i++) { const ini = evs[i].tick, fin = i + 1 < evs.length ? evs[i + 1].tick : Infinity; if (tick <= ini) break; sec += (Math.min(tick, fin) - ini) * (evs[i].uspb / 1e6) / tpb; if (tick <= fin) break; } return sec; };
+    }
+    function tono(note, vel, start, dur, out) {
+      const f = 440 * Math.pow(2, (note - 69) / 12);
+      const g = ctx.createGain();
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.4;
+      lp.frequency.setValueAtTime(Math.min(7200, f * 8 + 1200), start);
+      lp.frequency.exponentialRampToValueAtTime(Math.min(5200, f * 3 + 500), start + Math.min(1.1, dur + 0.05));
+      const o1 = ctx.createOscillator(); o1.type = 'triangle'; o1.frequency.value = f;
+      const o2 = ctx.createOscillator(); o2.type = 'sine'; o2.frequency.value = f; o2.detune.value = 7;
+      const o3 = ctx.createOscillator(); o3.type = 'sine'; o3.frequency.value = f / 2;
+      const gSub = ctx.createGain(); gSub.gain.value = 0.22; o3.connect(gSub); gSub.connect(g);
+      o1.connect(g); o2.connect(g);
+      const pico = Math.max(0.05, Math.min(0.4, vel / 127 * 0.4));
+      const a = 0.015, dd = Math.min(0.55, dur * 0.6), sus = Math.max(0.002, pico * 0.55), r = Math.min(0.5, dur * 0.5);
+      g.gain.setValueAtTime(0.0006, start);
+      g.gain.linearRampToValueAtTime(pico, start + a);
+      g.gain.exponentialRampToValueAtTime(sus, start + a + dd);
+      g.gain.setValueAtTime(sus, Math.max(start + a + dd, start + dur - r));
+      g.gain.exponentialRampToValueAtTime(0.0005, start + dur + 0.03);
+      g.connect(lp); lp.connect(out);
+      [o1, o2, o3].forEach(o => { o.start(start); o.stop(start + dur + 0.08); activos.push(o); });
+      activos.push(g, lp, gSub);
+    }
+    function percusion(note, start, out) {
+      if (note === 35 || note === 36) {
+        const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine';
+        o.frequency.setValueAtTime(130, start); o.frequency.exponentialRampToValueAtTime(45, start + 0.12);
+        g.gain.setValueAtTime(0.9, start); g.gain.exponentialRampToValueAtTime(0.001, start + 0.16);
+        o.connect(g); g.connect(out); o.start(start); o.stop(start + 0.18); activos.push(o, g); return;
+      }
+      const caja = note === 38 || note === 40 || note === 37, abierto = note === 46 || note === 44;
+      const dur = caja ? 0.18 : abierto ? 0.24 : 0.045;
+      const src = ctx.createBufferSource(), len = Math.ceil(ctx.sampleRate * dur), b = ctx.createBuffer(1, len, ctx.sampleRate), dch = b.getChannelData(0);
+      for (let i = 0; i < len; i++) dch[i] = Math.random() * 2 - 1; src.buffer = b;
+      const filt = ctx.createBiquadFilter(); filt.type = caja ? 'bandpass' : 'highpass'; filt.frequency.value = caja ? 1800 : 7000;
+      const g = ctx.createGain(); const pico = caja ? 0.5 : 0.26; g.gain.setValueAtTime(pico, start); g.gain.exponentialRampToValueAtTime(0.001, start + dur);
+      src.connect(filt); filt.connect(g); g.connect(out); src.start(start); src.stop(start + dur + 0.02); activos.push(src, g, filt);
+    }
+    function stop() { if (finTimer) { clearTimeout(finTimer); finTimer = null; } activos.forEach(n => { try { n.stop && n.stop(); } catch (e) {} try { n.disconnect(); } catch (e) {} }); activos = []; const b = $('stopMidiPrev'); if (b) b.hidden = true; }
+    function play(buf) {
+      stop();
+      let parsed; try { parsed = parse(buf); } catch (e) { return false; }
+      const { tpb, tempos, notas } = parsed; if (!notas.length) return false;
+      ensureAudio(); unlockAudio();
+      const out = ctx.createGain(); out.gain.value = 0.85; out.connect(typeof master !== 'undefined' && master ? master : ctx.destination);
+      const reloj = crearReloj(tempos, tpb), t0 = ctx.currentTime + 0.06; let maxFin = 0; const N = Math.min(notas.length, 4000);
+      for (let i = 0; i < N; i++) { const nn = notas[i]; const s = t0 + reloj(nn.tick), dur = Math.max(0.05, t0 + reloj(nn.endTick) - s); maxFin = Math.max(maxFin, s + dur); if (nn.ch === 9) percusion(nn.note, s, out); else tono(nn.note, nn.vel, s, dur, out); }
+      const b = $('stopMidiPrev'); if (b) b.hidden = false;
+      finTimer = setTimeout(stop, Math.max(400, (maxFin - ctx.currentTime + 0.25) * 1000));
+      return true;
+    }
+    return { play, stop };
+  })();
+  if ($('stopMidiPrev')) $('stopMidiPrev').addEventListener('click', () => previewMidi.stop());
+
+  // Importar un .mid a la Biblioteca (mismo almacén que la página Biblioteca) y sonarlo al instante
   if ($('impMidiBiblio')) $('impMidiBiblio').addEventListener('change', async e=>{
     const files = [...e.target.files]; e.target.value=''; if (!files.length) return;
     const KEY = 'rueda.midis'; let list; try { list = JSON.parse(localStorage.getItem(KEY)||'[]'); } catch(_) { list = []; }
-    let ok = 0;
+    let ok = 0, ultimoBuf = null;
     for (const f of files) {
-      try { const data = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); });
-        list.push({ name:f.name, size:f.size, fecha:new Date().toISOString().slice(0,10), data }); ok++; } catch(_) {}
+      try {
+        const data = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); });
+        list.push({ name:f.name, size:f.size, fecha:new Date().toISOString().slice(0,10), data }); ok++;
+        try { ultimoBuf = await f.arrayBuffer(); } catch(_) {}
+      } catch(_) {}
     }
-    try { localStorage.setItem(KEY, JSON.stringify(list)); $('expInfo').textContent = `${ok} MIDI guardado(s) en la Biblioteca (este navegador). Ábrela para escucharlo o descargarlo.`; }
-    catch(_) { $('expInfo').textContent = 'No cupo en el almacenamiento del navegador (¿archivo muy grande?).'; }
+    let guardado = true;
+    try { localStorage.setItem(KEY, JSON.stringify(list)); }
+    catch(_) { guardado = false; $('expInfo').textContent = 'No cupo en el almacenamiento del navegador (¿archivo muy grande?).'; }
+    const sonando = ultimoBuf ? previewMidi.play(ultimoBuf) : false;
+    if (guardado) $('expInfo').textContent = `${ok} MIDI guardado(s) en la Biblioteca${sonando ? ' · sonando la vista previa' : ''}. Ábrela para escucharlo o descargarlo.`;
   });
 
 
