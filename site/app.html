@@ -927,7 +927,7 @@
           <span class="lbl">Mezcla · todas las pistas juntas</span>
           <span class="lbl" id="mezclaResumen"></span>
         </div>
-        <p class="hint" id="mezclaVacio" hidden>Todavía no has programado nada. Arma un beat en <b>Batería</b>, una línea en <b>Bajo</b>, unos acordes en <b>Rueda·Pad</b>… y vuelve aquí para escucharlos todos juntos.</p>
+        <p class="hint" id="mezclaVacio" hidden>Todavía no has programado nada. Arma un beat en <b>Batería</b>, una línea en <b>Bajo</b>, unos acordes en <b>Pad</b>… y vuelve aquí para escucharlos todos juntos.</p>
         <div class="mix-rows" id="mixRowsMezcla"></div>
         <div class="actions">
           <button class="primary" id="playMezcla">▶ Reproducir todo</button>
@@ -2422,7 +2422,7 @@
   }
 
   // ───────── Controles ─────────
-  const MODOS_TABS = [['beat','Batería'],['pad','Rueda · Pad'],['piano','Piano'],['lead','Piano lead'],['guitarra','Guitarra'],['letra','Letra'],['mezcla','▶ Mezcla']];
+  const MODOS_TABS = [['beat','Batería'],['pad','Pad'],['piano','Piano'],['lead','Piano lead'],['guitarra','Guitarra'],['letra','Letra'],['mezcla','▶ Mezcla']];
   function navTabsKey(e) {
     const tabs = [...$('modosTabs').querySelectorAll('.mtab')];
     const i = tabs.indexOf(document.activeElement); if (i<0) return;
