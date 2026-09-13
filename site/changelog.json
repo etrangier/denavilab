@@ -3,6 +3,7 @@
   {
    "fecha": "2026-09-13",
    "items": [
+    "Mapa de la canción: más claro y práctico, en tres pasos (arma las partes, escribe la letra, llévala a Logic), con formas listas («Canción típica», «Corta»), − / + por compases, minuto de cada parte y aviso de letra apretada. Ya está en la guía paso a paso: paso 5 del modo principiante y un paso nuevo en las rutas de Rolando y Schair.",
     "Letra: nueva línea de tiempo de Estructura y letra (Intro, Verso, Coro…) con bloques que se estiran por compases y su letra adentro; al exportar el MIDI, cada sección llega a Logic como marcador y las palabras se reparten al tempo."
    ]
   },

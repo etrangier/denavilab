@@ -267,13 +267,14 @@
   .est-add .ghost { margin-left: auto; padding: 5px 10px; font-size: 12px; }
   .est-scroll { overflow-x: auto; padding-bottom: 8px; }
   .est-regla, .est-pista { display: flex; width: max-content; min-width: 100%; }
+  .est-regla[hidden] { display: none; }
   .est-regla { height: 18px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
   .est-regla span { flex: 0 0 var(--est-px); border-left: 1px solid var(--line); padding-left: 4px; line-height: 18px; }
   .est-regla span.fuerte { border-left-color: var(--muted); color: var(--text); }
-  .est-pista { align-items: stretch; min-height: 172px; }
-  .est-vacia { align-self: center; color: var(--muted); font-size: 12px; padding: 0 4px; }
+  .est-pista { align-items: stretch; min-height: 214px; }
+  .est-vacia { align-self: center; display: grid; gap: 8px; justify-items: start; padding: 8px 4px; }
   .est-bloque { --tono: var(--accent); container-type: inline-size; position: relative; flex: 0 0 calc(var(--c) * var(--est-px)); min-width: 0;
-                display: grid; grid-template-rows: auto auto 1fr; gap: 6px; padding: 7px 16px 8px 8px;
+                display: grid; grid-template-rows: auto auto 1fr auto; gap: 6px; padding: 7px 16px 8px 8px;
                 border: 1px solid var(--line); border-top: 3px solid var(--tono); border-radius: 8px;
                 background-color: color-mix(in srgb, var(--tono) 9%, var(--surface-2));
                 background-image: repeating-linear-gradient(to right, transparent 0 calc(var(--est-px) - 1px), color-mix(in srgb, var(--tono) 20%, transparent) calc(var(--est-px) - 1px) var(--est-px)); }
@@ -284,6 +285,8 @@
   .est-bloque[data-tipo="puente"] { --tono: #7f8a4f; }
   .est-bloque[data-tipo="final"]  { --tono: #8c6b4f; }
   .est-bloque.redim { box-shadow: 0 0 0 2px var(--accent-soft); }
+  .estructura { transition: box-shadow .5s; }
+  .estructura.destacado { box-shadow: 0 0 0 3px var(--accent); }
   .est-top { display: flex; align-items: center; gap: 4px; min-width: 0; }
   .est-bloque input.est-titulo { flex: 1 1 auto; min-width: 0; width: auto; padding: 3px 6px; background: transparent; border-color: transparent;
                                  font-family: var(--display); font-weight: 700; font-size: 13px; }
@@ -296,7 +299,22 @@
              background: repeating-linear-gradient(to bottom, var(--tono) 0 2px, transparent 2px 5px); }
   .est-asa:hover, .est-asa:focus-visible, .est-bloque.redim .est-asa { opacity: 1; outline: none; }
   .est-top .tiny.danger:hover { border-color: #c4572f; color: #c4572f; }
-  @container (max-width: 110px) { .est-mover { display: none; } .est-meta span + span { display: none; } }
+  .est-h { margin: 0; font-family: var(--display); font-size: 18px; line-height: 1.2; }
+  .est-intro { margin: 3px 0 0; max-width: 72ch; }
+  .est-pasos { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1.2fr) minmax(0,1fr); gap: 10px; }
+  .est-paso { display: flex; gap: 9px; align-items: flex-start; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; }
+  .est-paso > div { display: grid; gap: 6px; min-width: 0; }
+  .est-paso .hint { margin: 0; }
+  .est-num { flex: 0 0 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-family: var(--mono); font-size: 12px; font-weight: 600; display: grid; place-items: center; }
+  body.invitado .est-paso3 { display: none; }
+  @media (max-width: 860px) { .est-pasos { grid-template-columns: 1fr; } }
+  .est-pie { display: flex; align-items: center; gap: 5px; min-width: 0; font-size: 11.5px; color: var(--muted); }
+  .est-comp { font-family: var(--mono); font-size: 11px; color: var(--text); white-space: nowrap; }
+  .est-dens { margin-left: auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .est-dens.apretado { color: #c4572f; font-weight: 600; }
+  .est-bloque.apretado textarea { border-color: #c4572f; }
+  @container (max-width: 250px) { .est-dens:not(.apretado) { display: none; } }
+  @container (max-width: 130px) { .est-mover, .est-meta span + span, .est-comp { display: none; } }
   @media (max-width: 700px) { .estructura { --est-px: 44px; } }
   .vuelta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .ac-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 3px 5px 3px 8px; }
@@ -525,27 +543,48 @@
   <nav class="modos-tabs" id="modosTabs" aria-label="Secciones del taller"></nav>
   <div class="avisos" id="avisos"></div>
 
-  <!-- ───────── Línea de tiempo: estructura y letra (va al MIDI) ───────── -->
-  <section class="panel estructura" id="estructura" data-modes="letra mezcla" aria-label="Estructura y letra">
+  <!-- ───────── Mapa de la canción: partes y letra (va al MIDI) ───────── -->
+  <section class="panel estructura" id="estructura" data-modes="letra mezcla" aria-label="Mapa de la canción">
     <div class="est-cab">
-      <span class="lbl">Estructura y letra · en el MIDI van como marcadores de sección y letra al tempo</span>
+      <div>
+        <h2 class="est-h">Mapa de la canción</h2>
+        <p class="hint est-intro">Ordena las partes (intro, verso, coro…) y escribe la letra de cada una. Al exportar, Logic la recibe ya dividida: cada parte con su nombre en el compás donde empieza, y la letra encima.</p>
+      </div>
       <span class="lbl" id="estResumen"></span>
     </div>
-    <div class="est-add">
-      <span class="hint">Añadir:</span>
-      <button class="chip" type="button" data-est="intro">Intro</button>
-      <button class="chip" type="button" data-est="verso">Verso</button>
-      <button class="chip" type="button" data-est="pre">Pre-coro</button>
-      <button class="chip" type="button" data-est="coro">Coro</button>
-      <button class="chip" type="button" data-est="puente">Puente</button>
-      <button class="chip" type="button" data-est="final">Final</button>
-      <button class="ghost" type="button" id="estDesdeLetra">Traer las secciones de la letra</button>
+    <div class="est-pasos">
+      <div class="est-paso"><span class="est-num">1</span><div>
+        <b>Arma las partes</b>
+        <div class="est-add">
+          <button class="chip" type="button" data-est="intro">+ Intro</button>
+          <button class="chip" type="button" data-est="verso">+ Verso</button>
+          <button class="chip" type="button" data-est="pre">+ Pre-coro</button>
+          <button class="chip" type="button" data-est="coro">+ Coro</button>
+          <button class="chip" type="button" data-est="puente">+ Puente</button>
+          <button class="chip" type="button" data-est="final">+ Final</button>
+          <button class="chip" type="button" id="estDesdeLetra" title="crea las partes a partir de las secciones de la pestaña Letra">↧ desde mi letra</button>
+        </div>
+      </div></div>
+      <div class="est-paso"><span class="est-num">2</span><div>
+        <b>Escribe la letra</b>
+        <p class="hint">Dentro de cada parte. Con <b>−</b> y <b>+</b> eliges cuántos compases dura (o arrastra su borde derecho); con ← → la cambias de lugar.</p>
+      </div></div>
+      <div class="est-paso est-paso3"><span class="est-num">3</span><div>
+        <b>Llévala a Logic</b>
+        <button class="primary" type="button" id="estExportar">Exportar .mid</button>
+        <span class="hint" id="estInfo">Incluye también la batería, el bajo y los acordes que tengas.</span>
+      </div></div>
     </div>
     <div class="est-scroll">
       <div class="est-regla" id="estRegla" aria-hidden="true"></div>
       <div class="est-pista" id="estPista"></div>
     </div>
-    <div class="hint">Arrastra el borde derecho de un bloque para cambiar sus compases (o enfócalo y usa ← →). Al exportar el MIDI, cada título llega a Logic como marcador y las palabras se reparten parejas a lo largo de su bloque.</div>
+    <details class="help">
+      <summary>¿Qué llega a Logic?</summary>
+      <p><b>Las partes</b> llegan como <b>marcadores</b>: al arrastrar el archivo a Logic, cada una aparece con su nombre (Intro, Verso, Coro…) justo en el compás donde empieza. Te sirven para ubicarte en la canción de un vistazo.</p>
+      <p><b>La letra</b> va en una pista aparte llamada «Letra». Las palabras se reparten <b>parejas</b> a lo largo de su parte: no siguen la melodía, son una guía de qué se canta en cada compás. Si una parte dice «muy apretado», dale más compases.</p>
+      <p><b>El tempo</b> es el del proyecto (<span id="estBpm">72</span> bpm; se cambia en Batería o Pad) y todo va en 4/4. Los minutos que ves en cada parte se calculan con ese tempo.</p>
+    </details>
   </section>
 
   <div class="grid">
@@ -3419,40 +3458,89 @@
     return { marcas, letra, fin: inicio };
   }
 
-  // ───────── Línea de tiempo: estructura y letra ─────────
+  // ───────── Mapa de la canción: partes y letra ─────────
   // Bloques en fila, uno tras otro; cada uno dura N compases de 4/4 y lleva su letra.
   const EST_TIPOS = { intro:['Intro',4], verso:['Verso',8], pre:['Pre-coro',4], coro:['Coro',8], puente:['Puente',4], final:['Final',4] };
   const DE_LETRA = { intro:'intro', estrofa:'verso', 'pre-estribillo':'pre', estribillo:'coro', puente:'puente', solo:'puente', final:'final' };
+  const EST_PLANTILLAS = { tipica:['intro','verso','coro','verso','coro','puente','coro','final'], corta:['verso','coro','verso','coro'] };
   const EST_MAX = 64;
   const estBloques = () => S.estructura.bloques;
   const estPx = () => parseFloat(getComputedStyle($('estructura')).getPropertyValue('--est-px')) || 56;
   const palabrasDe = txt => String(txt || '').split(/\s+/).filter(Boolean).length;
+  const minSeg = x => { x = Math.round(x); return `${Math.floor(x/60)}:${String(x%60).padStart(2,'0')}`; };
+  const num1 = x => String(Math.round(x*10)/10).replace('.', ',');
+  const nuevoBloque = tipo => { const [nombre, compases] = EST_TIPOS[tipo]; const n = estBloques().filter(b=>b.tipo===tipo).length; return { tipo, titulo: n ? `${nombre} ${n+1}` : nombre, compases, letra:'' }; };
+  const letraConPartes = () => S.letra.secciones.filter(x => compasesDe(x) || x.lineas.some(l=>l.t.trim()));
+  // Cuánta letra cabe: guía en palabras por tiempo (un compás de 4/4 = 4 tiempos).
+  function densidad(b) {
+    const n = palabrasDe(b.letra), tiempos = b.compases * 4;
+    if (!n) return { txt:'sin letra: sólo el nombre', apretado:false };
+    if (n > tiempos * 2) return { txt:'muy apretado', apretado:true };
+    const cada = tiempos / n;
+    return { txt: `${n} pal. · ` + (cada === 1 ? '1 por tiempo' : cada > 1 ? `1 cada ${num1(cada)} tiempos` : `${num1(1/cada)} por tiempo`), apretado:false };
+  }
+  function usarPlantilla(clave) {
+    if (estBloques().length && !confirm('¿Cambiar las partes actuales por esta forma?')) return;
+    S.estructura.bloques = [];
+    EST_PLANTILLAS[clave].forEach(t => estBloques().push(nuevoBloque(t)));
+    renderEstructura();
+  }
+  function traerDeLetra() {
+    const secs = letraConPartes();
+    if (!secs.length) { $('estInfo').textContent = 'Tu letra aún no tiene secciones con versos: escríbelas abajo, en «Letra y acordes».'; return; }
+    if (estBloques().length && !confirm(`¿Cambiar las ${estBloques().length} partes actuales por las ${secs.length} secciones de tu letra?`)) return;
+    S.estructura.bloques = secs.map(x => { const tipo = DE_LETRA[x.tipo] || 'verso';
+      return { tipo, titulo: x.tipo==='solo' ? 'Solo' : EST_TIPOS[tipo][0], compases: Math.max(1, Math.min(EST_MAX, Math.round(compasesDe(x)) || EST_TIPOS[tipo][1])), letra: x.lineas.map(l=>l.t.trim()).filter(Boolean).join('\n') }; });
+    renderEstructura();
+  }
   function renderEstructura() {
     const pista = $('estPista'), regla = $('estRegla'); if (!pista) return;
     const bl = estBloques(); pista.innerHTML = ''; regla.innerHTML = '';
+    const seg = 240 / S.bpm;   // segundos por compás de 4/4
     const total = bl.reduce((a,b)=>a+b.compases, 0);
-    $('estResumen').textContent = bl.length ? `${bl.length} bloque(s) · ${total} compás(es)` : '';
+    $('estResumen').textContent = bl.length ? `${bl.length} parte(s) · ${total} compases · ${minSeg(total*seg)} a ${S.bpm} bpm` : '';
+    $('estBpm').textContent = S.bpm;
+    $('estExportar').disabled = !bl.length;
+    regla.hidden = !bl.length;
     for (let c=0; c<Math.max(total, 16); c++) regla.append(el('span', c%4===0 ? {class:'fuerte'} : {}, c%4===0 ? String(c+1) : ''));
-    if (!bl.length) { pista.append(el('span', {class:'est-vacia'}, 'Todavía no hay bloques: añade una Intro, un Verso o un Coro.')); return; }
+    if (!bl.length) {
+      const fila = el('div', {class:'est-add'},
+        el('button', {class:'ghost', type:'button', onclick:()=>usarPlantilla('tipica')}, 'Canción típica · intro, verso, coro, puente y final'),
+        el('button', {class:'ghost', type:'button', onclick:()=>usarPlantilla('corta')}, 'Corta · verso y coro, dos veces'));
+      if (letraConPartes().length) fila.append(el('button', {class:'ghost', type:'button', onclick:traerDeLetra}, 'Usar las secciones de mi letra'));
+      pista.append(el('div', {class:'est-vacia'}, el('b', {}, 'Empieza con una forma y después la ajustas'), fila,
+        el('span', {class:'hint'}, 'o añade parte por parte con los botones del paso 1.')));
+      return;
+    }
+    const enfocar = (i, sel) => { const c = $('estPista').querySelectorAll('.est-bloque')[i]; const n = c && c.querySelector(sel); if (n && !n.disabled) n.focus(); };
     let inicio = 0;
     bl.forEach((b, i) => {
       const ini = inicio; inicio += b.compases;
       const caja = el('div', {class:'est-bloque', 'data-tipo':b.tipo, style:`--c:${b.compases}`});
-      const titulo = el('input', {type:'text', class:'est-titulo', 'aria-label':`Título del bloque ${i+1}`, autocomplete:'off'});
+      const titulo = el('input', {type:'text', class:'est-titulo', 'aria-label':`Nombre de la parte ${i+1}`, autocomplete:'off'});
       titulo.value = b.titulo; titulo.addEventListener('input', ()=>{ b.titulo = titulo.value; });
-      const mover = d => { const j = i+d; if (j<0 || j>=bl.length) return; [bl[i], bl[j]] = [bl[j], bl[i]]; renderEstructura(); };
-      const antes = el('button', {class:'tiny est-mover', type:'button', title:'Mover antes', onclick:()=>mover(-1)}, '←'); antes.disabled = i===0;
-      const despues = el('button', {class:'tiny est-mover', type:'button', title:'Mover después', onclick:()=>mover(1)}, '→'); despues.disabled = i===bl.length-1;
-      const quitar = el('button', {class:'tiny danger', type:'button', title:'Quitar bloque', onclick:()=>{ bl.splice(i,1); renderEstructura(); }}, '×');
-      const rango = el('span'), cuenta = el('span');
-      const pintarMeta = () => { rango.textContent = b.compases>1 ? `c. ${ini+1}–${ini+b.compases}` : `c. ${ini+1}`; const n = palabrasDe(b.letra); cuenta.textContent = `${b.compases} comp.` + (n ? ` · ${n} pal.` : ''); };
-      const letra = el('textarea', {rows:'4', placeholder:'letra de esta parte…', 'aria-label':`Letra del bloque ${i+1}`});
-      letra.value = b.letra || ''; letra.addEventListener('input', ()=>{ b.letra = letra.value; pintarMeta(); });
-      const asa = el('div', {class:'est-asa', role:'slider', tabindex:'0', title:'arrastra para cambiar los compases', 'aria-label':`Compases del bloque ${i+1}`, 'aria-valuemin':'1', 'aria-valuemax':String(EST_MAX), 'aria-valuenow':String(b.compases)});
-      const fijar = n => { n = Math.max(1, Math.min(EST_MAX, Math.round(n))); if (n===b.compases) return false; b.compases = n; caja.style.setProperty('--c', n); asa.setAttribute('aria-valuenow', String(n)); pintarMeta(); return true; };
+      const mover = d => { const j = i+d; if (j<0 || j>=bl.length) return; [bl[i], bl[j]] = [bl[j], bl[i]]; renderEstructura(); enfocar(j, d<0 ? '.est-antes' : '.est-despues'); };
+      const antes = el('button', {class:'tiny est-mover est-antes', type:'button', title:'Mover esta parte antes', onclick:()=>mover(-1)}, '←'); antes.disabled = i===0;
+      const despues = el('button', {class:'tiny est-mover est-despues', type:'button', title:'Mover esta parte después', onclick:()=>mover(1)}, '→'); despues.disabled = i===bl.length-1;
+      const quitar = el('button', {class:'tiny danger', type:'button', title:'Quitar esta parte', onclick:()=>{ bl.splice(i,1); renderEstructura(); }}, '×');
+      const rango = el('span'), reloj = el('span'), comp = el('span', {class:'est-comp'}), dens = el('span', {class:'est-dens'});
+      const menos = el('button', {class:'tiny est-menos', type:'button', title:'Un compás menos', onclick:()=>cambiar(-1)}, '−');
+      const mas = el('button', {class:'tiny est-mas', type:'button', title:'Un compás más', onclick:()=>cambiar(1)}, '+');
+      const letra = el('textarea', {rows:'4', placeholder:`letra de ${b.titulo || 'esta parte'}… (si no tiene, déjalo vacío)`, 'aria-label':`Letra de ${b.titulo || 'la parte '+(i+1)}`});
+      const asa = el('div', {class:'est-asa', role:'slider', tabindex:'0', title:'arrastra para cambiar los compases', 'aria-label':`Compases de ${b.titulo || 'la parte '+(i+1)}`, 'aria-valuemin':'1', 'aria-valuemax':String(EST_MAX), 'aria-valuenow':String(b.compases)});
+      const pintar = () => {
+        rango.textContent = b.compases>1 ? `c. ${ini+1}–${ini+b.compases}` : `c. ${ini+1}`;
+        reloj.textContent = `${minSeg(ini*seg)}–${minSeg((ini+b.compases)*seg)}`;
+        comp.textContent = b.compases===1 ? '1 compás' : `${b.compases} compases`;
+        const d = densidad(b); dens.textContent = d.txt; dens.title = d.apretado ? `${palabrasDe(b.letra)} palabras: más de dos por tiempo. Dale más compases a esta parte.` : d.txt; dens.classList.toggle('apretado', d.apretado); caja.classList.toggle('apretado', d.apretado);
+        menos.disabled = b.compases<=1; mas.disabled = b.compases>=EST_MAX;
+      };
+      const fijar = n => { n = Math.max(1, Math.min(EST_MAX, Math.round(n))); if (n===b.compases) return false; b.compases = n; caja.style.setProperty('--c', n); asa.setAttribute('aria-valuenow', String(n)); pintar(); return true; };
+      const cambiar = d => { if (fijar(b.compases+d)) { renderEstructura(); enfocar(i, d<0 ? '.est-menos' : '.est-mas'); } };
+      letra.value = b.letra || ''; letra.addEventListener('input', ()=>{ b.letra = letra.value; pintar(); });
       asa.addEventListener('keydown', e=>{
         const d = (e.key==='ArrowRight'||e.key==='ArrowUp') ? 1 : (e.key==='ArrowLeft'||e.key==='ArrowDown') ? -1 : 0; if (!d) return;
-        e.preventDefault(); if (fijar(b.compases+d)) { renderEstructura(); const a = $('estPista').querySelectorAll('.est-asa')[i]; if (a) a.focus(); }
+        e.preventDefault(); if (fijar(b.compases+d)) { renderEstructura(); enfocar(i, '.est-asa'); }
       });
       asa.addEventListener('pointerdown', e=>{
         e.preventDefault(); asa.setPointerCapture(e.pointerId); caja.classList.add('redim');
@@ -3461,24 +3549,24 @@
         const soltar = () => { asa.removeEventListener('pointermove', arrastrar); renderEstructura(); };
         asa.addEventListener('pointermove', arrastrar); asa.addEventListener('pointerup', soltar, {once:true}); asa.addEventListener('pointercancel', soltar, {once:true});
       });
-      pintarMeta();
-      caja.append(el('div', {class:'est-top'}, titulo, antes, despues, quitar), el('div', {class:'est-meta'}, rango, cuenta), letra, asa);
+      pintar();
+      caja.append(el('div', {class:'est-top'}, titulo, antes, despues, quitar), el('div', {class:'est-meta'}, rango, reloj), letra,
+        el('div', {class:'est-pie'}, menos, comp, mas, dens), asa);
       pista.append(caja);
     });
   }
   document.querySelectorAll('[data-est]').forEach(btn => btn.addEventListener('click', ()=>{
-    const tipo = btn.dataset.est, [nombre, compases] = EST_TIPOS[tipo];
-    const repetidos = estBloques().filter(b=>b.tipo===tipo).length;
-    estBloques().push({ tipo, titulo: repetidos ? `${nombre} ${repetidos+1}` : nombre, compases, letra:'' });
+    estBloques().push(nuevoBloque(btn.dataset.est));
     renderEstructura(); const sc = $('estPista').parentNode; sc.scrollLeft = sc.scrollWidth;
   }));
-  $('estDesdeLetra').addEventListener('click', ()=>{
-    const secs = S.letra.secciones.filter(x => compasesDe(x) || x.lineas.some(l=>l.t.trim()));
-    if (!secs.length) { $('estResumen').textContent = 'La letra aún no tiene secciones con versos o compases.'; return; }
-    if (estBloques().length && !confirm(`¿Cambiar los ${estBloques().length} bloques de la línea de tiempo por las ${secs.length} secciones de la letra?`)) return;
-    S.estructura.bloques = secs.map(x => { const tipo = DE_LETRA[x.tipo] || 'verso';
-      return { tipo, titulo: x.tipo==='solo' ? 'Solo' : EST_TIPOS[tipo][0], compases: Math.max(1, Math.min(EST_MAX, Math.round(compasesDe(x)) || EST_TIPOS[tipo][1])), letra: x.lineas.map(l=>l.t.trim()).filter(Boolean).join('\n') }; });
-    renderEstructura();
+  $('estDesdeLetra').addEventListener('click', traerDeLetra);
+  $('estExportar').addEventListener('click', async ()=>{
+    stBump('usos','exportar MIDI');
+    const d = buildMidi('all'); if (!d) { $('estInfo').textContent = 'Añade al menos una parte.'; return; }
+    const nombre = (S.letra.titulo || 'cancion').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'cancion';
+    await deliver(`${nombre}-${stamp()}.mid`, d, 'audio/midi');
+    const r = $('expInfo').textContent;
+    $('estInfo').textContent = /^(Descargado|Guardado)/.test(r) ? `${r} Arrástralo a la ventana de Logic.` : r;
   });
   function renderAvisos() {
     const box = $('avisos'); if (!box) return; box.innerHTML='';
@@ -4548,7 +4636,10 @@
   (async () => { try { const r = await fetch('cerebro.json', { cache:'no-store' }); if (r.ok) { const j = await r.json(); if (j && typeof j==='object') { CEREBRO_BASE = j; if ($('cerebroPats')) renderCerebro(); } } } catch(e){} })();
   renderAvisos();
   const pedido = PAR.get('modo');
-  setMode(MODOS.includes(pedido) ? pedido : 'beat');
+  // ?ir=mapa (lo usa la guía): abre Letra, deja a la vista el Mapa de la canción y lo resalta un momento
+  const irMapa = PAR.get('ir') === 'mapa';
+  setMode(irMapa && !['letra','mezcla'].includes(pedido) ? 'letra' : MODOS.includes(pedido) ? pedido : 'beat');
+  if (irMapa && $('estructura')) setTimeout(()=>{ const m = $('estructura'); m.scrollIntoView({ behavior:'smooth', block:'start' }); m.classList.add('destacado'); setTimeout(()=>m.classList.remove('destacado'), 2400); }, 150);
   listoParaAutoBeat = true;
   // Deep-link desde la Biblioteca: abrir un ítem guardado y, si se pide, exportar su MIDI
   (() => {
