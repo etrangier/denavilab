@@ -260,6 +260,44 @@
   .sec-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
   .sec-tipo { width: auto; min-width: 150px; text-transform: capitalize; }
   .sec-btns { display: flex; gap: 4px; }
+  /* ───────── Línea de tiempo: estructura y letra ───────── */
+  .estructura { --est-px: 56px; gap: 10px; }
+  .est-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .est-add { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .est-add .ghost { margin-left: auto; padding: 5px 10px; font-size: 12px; }
+  .est-scroll { overflow-x: auto; padding-bottom: 8px; }
+  .est-regla, .est-pista { display: flex; width: max-content; min-width: 100%; }
+  .est-regla { height: 18px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .est-regla span { flex: 0 0 var(--est-px); border-left: 1px solid var(--line); padding-left: 4px; line-height: 18px; }
+  .est-regla span.fuerte { border-left-color: var(--muted); color: var(--text); }
+  .est-pista { align-items: stretch; min-height: 172px; }
+  .est-vacia { align-self: center; color: var(--muted); font-size: 12px; padding: 0 4px; }
+  .est-bloque { --tono: var(--accent); container-type: inline-size; position: relative; flex: 0 0 calc(var(--c) * var(--est-px)); min-width: 0;
+                display: grid; grid-template-rows: auto auto 1fr; gap: 6px; padding: 7px 16px 8px 8px;
+                border: 1px solid var(--line); border-top: 3px solid var(--tono); border-radius: 8px;
+                background-color: color-mix(in srgb, var(--tono) 9%, var(--surface-2));
+                background-image: repeating-linear-gradient(to right, transparent 0 calc(var(--est-px) - 1px), color-mix(in srgb, var(--tono) 20%, transparent) calc(var(--est-px) - 1px) var(--est-px)); }
+  .est-bloque[data-tipo="intro"]  { --tono: #a88d62; }
+  .est-bloque[data-tipo="verso"]  { --tono: var(--accent); }
+  .est-bloque[data-tipo="pre"]    { --tono: #c9803a; }
+  .est-bloque[data-tipo="coro"]   { --tono: #c4572f; }
+  .est-bloque[data-tipo="puente"] { --tono: #7f8a4f; }
+  .est-bloque[data-tipo="final"]  { --tono: #8c6b4f; }
+  .est-bloque.redim { box-shadow: 0 0 0 2px var(--accent-soft); }
+  .est-top { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  .est-bloque input.est-titulo { flex: 1 1 auto; min-width: 0; width: auto; padding: 3px 6px; background: transparent; border-color: transparent;
+                                 font-family: var(--display); font-weight: 700; font-size: 13px; }
+  .est-bloque input.est-titulo:hover, .est-bloque input.est-titulo:focus { border-color: var(--line); background: var(--surface); }
+  .est-meta { display: flex; justify-content: space-between; gap: 6px; font-family: var(--mono); font-size: 10.5px; color: var(--muted); white-space: nowrap; overflow: hidden; }
+  .est-bloque textarea { width: 100%; min-height: 88px; resize: none; background: var(--surface); color: var(--text); border: 1px solid var(--line);
+                         border-radius: 6px; padding: 6px 8px; font: inherit; font-size: 13px; line-height: 1.4; }
+  .est-bloque textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .est-asa { position: absolute; top: 8px; bottom: 8px; right: 3px; width: 9px; border-radius: 4px; cursor: ew-resize; touch-action: none; opacity: .45;
+             background: repeating-linear-gradient(to bottom, var(--tono) 0 2px, transparent 2px 5px); }
+  .est-asa:hover, .est-asa:focus-visible, .est-bloque.redim .est-asa { opacity: 1; outline: none; }
+  .est-top .tiny.danger:hover { border-color: #c4572f; color: #c4572f; }
+  @container (max-width: 110px) { .est-mover { display: none; } .est-meta span + span { display: none; } }
+  @media (max-width: 700px) { .estructura { --est-px: 44px; } }
   .vuelta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .ac-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 3px 5px 3px 8px; }
   .ac-chip .ac-nom { width: 62px; background: transparent; border: none; padding: 2px 0; font-family: var(--display); font-weight: 700; font-size: 14px; }
@@ -486,6 +524,29 @@
 
   <nav class="modos-tabs" id="modosTabs" aria-label="Secciones del taller"></nav>
   <div class="avisos" id="avisos"></div>
+
+  <!-- ───────── Línea de tiempo: estructura y letra (va al MIDI) ───────── -->
+  <section class="panel estructura" id="estructura" data-modes="letra mezcla" aria-label="Estructura y letra">
+    <div class="est-cab">
+      <span class="lbl">Estructura y letra · en el MIDI van como marcadores de sección y letra al tempo</span>
+      <span class="lbl" id="estResumen"></span>
+    </div>
+    <div class="est-add">
+      <span class="hint">Añadir:</span>
+      <button class="chip" type="button" data-est="intro">Intro</button>
+      <button class="chip" type="button" data-est="verso">Verso</button>
+      <button class="chip" type="button" data-est="pre">Pre-coro</button>
+      <button class="chip" type="button" data-est="coro">Coro</button>
+      <button class="chip" type="button" data-est="puente">Puente</button>
+      <button class="chip" type="button" data-est="final">Final</button>
+      <button class="ghost" type="button" id="estDesdeLetra">Traer las secciones de la letra</button>
+    </div>
+    <div class="est-scroll">
+      <div class="est-regla" id="estRegla" aria-hidden="true"></div>
+      <div class="est-pista" id="estPista"></div>
+    </div>
+    <div class="hint">Arrastra el borde derecho de un bloque para cambiar sus compases (o enfócalo y usa ← →). Al exportar el MIDI, cada título llega a Logic como marcador y las palabras se reparten parejas a lo largo de su bloque.</div>
+  </section>
 
   <div class="grid">
     <!-- ───────── Configuración ───────── -->
@@ -1280,6 +1341,7 @@
     swing: 0,
     piano: { autoInv:true, manera:1, lh:'none' },
     letra: { titulo:'', secciones:[], concepto:'', tema:'', apuntes:'', libreta:'', ref:null },
+    estructura: { bloques:[] },   // línea de tiempo: {tipo, titulo, compases, letra}
     guitar: { prog:[], sel:0, withDrums:false, instrumento:'acustica', capo:0, metron:false, strum:['D','','D','U','','U','D','U'] },
     metron: false,
     lead: { lh:'root13', rh:'melody', split:12, tool:'note', mel:new Array(128).fill(-1), acc:new Array(128).fill(0) },
@@ -3275,12 +3337,12 @@
   const vlqBytes = n => { const out=[n&0x7f]; n>>=7; while (n>0) { out.unshift((n&0x7f)|0x80); n>>=7; } return out; };
   const str4 = t => [...t].map(c=>c.charCodeAt(0));
   const u32b = n => [(n>>>24)&255,(n>>>16)&255,(n>>>8)&255,n&255];
-  function midiTrack(name, events, extra=[]) {   // events: {t(ticks), bytes[]} absolutos
+  function midiTrack(name, events, extra=[], fin=0) {   // events: {t(ticks), bytes[]} absolutos
     events.sort((a,b)=>a.t-b.t || (a.bytes[0]&0xf0)-(b.bytes[0]&0xf0));
     let last=0; const body=[...extra];
     const nm = [...name].map(c=>{ const code=c.charCodeAt(0); return code<128 ? code : (CP[c] ?? 0x3f); }); body.push(0,0xff,0x03,...vlqBytes(nm.length),...nm);
     for (const e of events) { body.push(...vlqBytes(e.t-last), ...e.bytes); last=e.t; }
-    body.push(0,0xff,0x2f,0); return [...str4('MTrk'), ...u32b(body.length), ...body];
+    body.push(...vlqBytes(Math.max(0, fin-last)),0xff,0x2f,0); return [...str4('MTrk'), ...u32b(body.length), ...body];
   }
   const noteEv = (ch, note, vel, tStart, tLen, arr) => { arr.push({t:tStart, bytes:[0x90|ch, note, vel]}); arr.push({t:tStart+tLen, bytes:[0x80|ch, note, 0]}); };
   function trackChords(seq, piano=false) {
@@ -3318,8 +3380,10 @@
     const chordBars = Math.max(padProg.reduce((a,c)=>a+c.len,0), pianoProg.reduce((a,c)=>a+c.len,0));
     const bars = chordBars ? Math.max(chordBars,1) : S.bars;
     const tracks = [];
-    const tempo = Math.round(60000000/bpm); const t0 = midiTrack('DenaviLAB', [], [0,0xff,0x51,3,(tempo>>16)&255,(tempo>>8)&255,tempo&255, 0,0xff,0x58,4,4,2,24,8]);
+    const forma = eventosEstructura();   // marcadores a la pista de tempo; la letra, a su propia pista
+    const tempo = Math.round(60000000/bpm); const t0 = midiTrack('DenaviLAB', forma.marcas, [0,0xff,0x51,3,(tempo>>16)&255,(tempo>>8)&255,tempo&255, 0,0xff,0x58,4,4,2,24,8], forma.fin);
     const wantAll = which==='all';
+    if ((wantAll || which==='letra') && forma.letra.length) tracks.push(midiTrack('Letra', forma.letra, [], forma.fin));
     if (wantAll) { if (padProg.length) tracks.push(trackChords(padProg, false)); if (pianoProg.length) tracks.push(trackChords(pianoProg, true)); }
     else if (which==='pad' && padProg.length) tracks.push(trackChords(padProg, false));
     else if (which==='piano' && pianoProg.length) tracks.push(trackChords(pianoProg, true));
@@ -3327,11 +3391,95 @@
     if ((wantAll || which==='bajod') && hasBassD()) tracks.push(trackBassD(which==='bajod' && S.bassd.own ? S.bassd.bars : bars));
     if ((wantAll || which==='guitarra') && S.guitar.prog.length) tracks.push(trackGuit());
     if ((wantAll || which==='beat') && hasDrums()) tracks.push(trackDrums(bars));
-    if (!tracks.length) return null;
+    if (!tracks.length && !((wantAll || which==='letra') && forma.marcas.length)) return null;
     const all = [...t0, ...tracks.flat()];
     const head = [...str4('MThd'), ...u32b(6), 0,1, 0,tracks.length+1, (TPB>>8)&255, TPB&255];
     return new Uint8Array([...head, ...all]);
   }
+  // ───────── Estructura y letra → meta eventos del MIDI ─────────
+  // Todo se calcula en ticks ABSOLUTOS y enteros; midiTrack() los pasa a delta (vlq de t − t anterior),
+  // así que no hay error que se acumule: un bloque empieza exactamente en
+  // (compases de los bloques anteriores) × 4 × TPB, en el 4/4 que declara el FF 58 de la pista de tempo.
+  const TICKS_COMPAS = 4 * TPB;   // 1920 con TPB = 480
+  const textoMidi = t => [...t].map(c=>{ const code=c.charCodeAt(0); return code<128 ? code : (CP[c] ?? 0x3f); });
+  const metaTexto = (tipo, texto) => { const b = textoMidi(texto); return [0xff, tipo, ...vlqBytes(b.length), ...b]; };
+  function eventosEstructura() {
+    const marcas = [], letra = []; let inicio = 0;
+    for (const b of S.estructura.bloques) {
+      const largo = Math.max(1, Math.round(b.compases)) * TICKS_COMPAS;
+      marcas.push({ t: inicio, bytes: metaTexto(0x06, (b.titulo || '').trim() || 'Sección') });   // FF 06 · marcador
+      // Una palabra por evento con su separador al final (RP-026): espacio entre palabras, \r al cerrar cada renglón.
+      const palabras = String(b.letra || '').split('\n')
+        .flatMap(l => { const w = l.split(/\s+/).filter(Boolean); return w.map((p, k) => p + (k === w.length-1 ? '\r' : ' ')); });
+      // Reparto parejo: la palabra i cae en inicio + ⌊i·largo/n⌋ (enteros; la primera coincide con el marcador).
+      const n = palabras.length;
+      palabras.forEach((p, i) => letra.push({ t: inicio + Math.floor(i * largo / n), bytes: metaTexto(0x05, p) }));   // FF 05 · letra
+      inicio += largo;
+    }
+    return { marcas, letra, fin: inicio };
+  }
+
+  // ───────── Línea de tiempo: estructura y letra ─────────
+  // Bloques en fila, uno tras otro; cada uno dura N compases de 4/4 y lleva su letra.
+  const EST_TIPOS = { intro:['Intro',4], verso:['Verso',8], pre:['Pre-coro',4], coro:['Coro',8], puente:['Puente',4], final:['Final',4] };
+  const DE_LETRA = { intro:'intro', estrofa:'verso', 'pre-estribillo':'pre', estribillo:'coro', puente:'puente', solo:'puente', final:'final' };
+  const EST_MAX = 64;
+  const estBloques = () => S.estructura.bloques;
+  const estPx = () => parseFloat(getComputedStyle($('estructura')).getPropertyValue('--est-px')) || 56;
+  const palabrasDe = txt => String(txt || '').split(/\s+/).filter(Boolean).length;
+  function renderEstructura() {
+    const pista = $('estPista'), regla = $('estRegla'); if (!pista) return;
+    const bl = estBloques(); pista.innerHTML = ''; regla.innerHTML = '';
+    const total = bl.reduce((a,b)=>a+b.compases, 0);
+    $('estResumen').textContent = bl.length ? `${bl.length} bloque(s) · ${total} compás(es)` : '';
+    for (let c=0; c<Math.max(total, 16); c++) regla.append(el('span', c%4===0 ? {class:'fuerte'} : {}, c%4===0 ? String(c+1) : ''));
+    if (!bl.length) { pista.append(el('span', {class:'est-vacia'}, 'Todavía no hay bloques: añade una Intro, un Verso o un Coro.')); return; }
+    let inicio = 0;
+    bl.forEach((b, i) => {
+      const ini = inicio; inicio += b.compases;
+      const caja = el('div', {class:'est-bloque', 'data-tipo':b.tipo, style:`--c:${b.compases}`});
+      const titulo = el('input', {type:'text', class:'est-titulo', 'aria-label':`Título del bloque ${i+1}`, autocomplete:'off'});
+      titulo.value = b.titulo; titulo.addEventListener('input', ()=>{ b.titulo = titulo.value; });
+      const mover = d => { const j = i+d; if (j<0 || j>=bl.length) return; [bl[i], bl[j]] = [bl[j], bl[i]]; renderEstructura(); };
+      const antes = el('button', {class:'tiny est-mover', type:'button', title:'Mover antes', onclick:()=>mover(-1)}, '←'); antes.disabled = i===0;
+      const despues = el('button', {class:'tiny est-mover', type:'button', title:'Mover después', onclick:()=>mover(1)}, '→'); despues.disabled = i===bl.length-1;
+      const quitar = el('button', {class:'tiny danger', type:'button', title:'Quitar bloque', onclick:()=>{ bl.splice(i,1); renderEstructura(); }}, '×');
+      const rango = el('span'), cuenta = el('span');
+      const pintarMeta = () => { rango.textContent = b.compases>1 ? `c. ${ini+1}–${ini+b.compases}` : `c. ${ini+1}`; const n = palabrasDe(b.letra); cuenta.textContent = `${b.compases} comp.` + (n ? ` · ${n} pal.` : ''); };
+      const letra = el('textarea', {rows:'4', placeholder:'letra de esta parte…', 'aria-label':`Letra del bloque ${i+1}`});
+      letra.value = b.letra || ''; letra.addEventListener('input', ()=>{ b.letra = letra.value; pintarMeta(); });
+      const asa = el('div', {class:'est-asa', role:'slider', tabindex:'0', title:'arrastra para cambiar los compases', 'aria-label':`Compases del bloque ${i+1}`, 'aria-valuemin':'1', 'aria-valuemax':String(EST_MAX), 'aria-valuenow':String(b.compases)});
+      const fijar = n => { n = Math.max(1, Math.min(EST_MAX, Math.round(n))); if (n===b.compases) return false; b.compases = n; caja.style.setProperty('--c', n); asa.setAttribute('aria-valuenow', String(n)); pintarMeta(); return true; };
+      asa.addEventListener('keydown', e=>{
+        const d = (e.key==='ArrowRight'||e.key==='ArrowUp') ? 1 : (e.key==='ArrowLeft'||e.key==='ArrowDown') ? -1 : 0; if (!d) return;
+        e.preventDefault(); if (fijar(b.compases+d)) { renderEstructura(); const a = $('estPista').querySelectorAll('.est-asa')[i]; if (a) a.focus(); }
+      });
+      asa.addEventListener('pointerdown', e=>{
+        e.preventDefault(); asa.setPointerCapture(e.pointerId); caja.classList.add('redim');
+        const x0 = e.clientX, c0 = b.compases, px = estPx();
+        const arrastrar = ev => fijar(c0 + (ev.clientX - x0) / px);   // se ajusta al compás más cercano
+        const soltar = () => { asa.removeEventListener('pointermove', arrastrar); renderEstructura(); };
+        asa.addEventListener('pointermove', arrastrar); asa.addEventListener('pointerup', soltar, {once:true}); asa.addEventListener('pointercancel', soltar, {once:true});
+      });
+      pintarMeta();
+      caja.append(el('div', {class:'est-top'}, titulo, antes, despues, quitar), el('div', {class:'est-meta'}, rango, cuenta), letra, asa);
+      pista.append(caja);
+    });
+  }
+  document.querySelectorAll('[data-est]').forEach(btn => btn.addEventListener('click', ()=>{
+    const tipo = btn.dataset.est, [nombre, compases] = EST_TIPOS[tipo];
+    const repetidos = estBloques().filter(b=>b.tipo===tipo).length;
+    estBloques().push({ tipo, titulo: repetidos ? `${nombre} ${repetidos+1}` : nombre, compases, letra:'' });
+    renderEstructura(); const sc = $('estPista').parentNode; sc.scrollLeft = sc.scrollWidth;
+  }));
+  $('estDesdeLetra').addEventListener('click', ()=>{
+    const secs = S.letra.secciones.filter(x => compasesDe(x) || x.lineas.some(l=>l.t.trim()));
+    if (!secs.length) { $('estResumen').textContent = 'La letra aún no tiene secciones con versos o compases.'; return; }
+    if (estBloques().length && !confirm(`¿Cambiar los ${estBloques().length} bloques de la línea de tiempo por las ${secs.length} secciones de la letra?`)) return;
+    S.estructura.bloques = secs.map(x => { const tipo = DE_LETRA[x.tipo] || 'verso';
+      return { tipo, titulo: x.tipo==='solo' ? 'Solo' : EST_TIPOS[tipo][0], compases: Math.max(1, Math.min(EST_MAX, Math.round(compasesDe(x)) || EST_TIPOS[tipo][1])), letra: x.lineas.map(l=>l.t.trim()).filter(Boolean).join('\n') }; });
+    renderEstructura();
+  });
   function renderAvisos() {
     const box = $('avisos'); if (!box) return; box.innerHTML='';
     let visto=false; try { visto = localStorage.getItem('denavilab.tipTaller')==='1'; } catch(e){}
@@ -3419,6 +3567,7 @@
         sec.lineas.forEach(l => { const t=(l.t||'').trim(), a=(l.a||'').trim(); if (t||a) m(a.padEnd(14) + t); });
       });
     }
+    if (S.estructura.bloques.length) { sp(); h('Estructura'); let c=0; S.estructura.bloques.forEach(b=>{ p(`${(b.titulo||'Sección').padEnd(14)} compás ${c+1}–${c+b.compases} · ${b.compases} compás(es)`); c+=b.compases; }); }
     sp(); h('Batería');
     p(`Sonido: ${({analog:'Analógica',cr78:'CR-78 minimalista','808':'TR-808',linn:'LinnDrum'})[S.drums.kit]||S.drums.kit} · patrón: ${S.drums.name||'propio'} · largo ${S.drums.len} compás(es) · 16 casillas por compás · ${S.bpm} bpm`);
     if (hasDrums()) ROWS.forEach(([id,label])=>{ let row=''; for (let b=0;b<S.drums.len;b++) { row += (b?'  |  ':'') + Array.from({length:16},(_,s)=>S.drums.pat[id][b*16+s]?'x':'·').join(''); } m(`${label.padEnd(15)} ${row}`); }); else p('(sin patrón)');
@@ -3426,7 +3575,7 @@
     p(`${S.bassd.own?`tempo y compases propios: ${S.bassd.bpm} bpm · ${S.bassd.bars} compases`:`usa el tempo y los compases del proyecto`} · patrón de ${S.bassd.len} compás(es) · octava ${S.bassd.oct>0?'+1':S.bassd.oct<0?'−1':'0'} (MIDI ${bassMidi(0)}–${bassMidi(16)}) · swing ${Math.round(S.swing*100)}%`);
     if (hasBassD()) { for (let b=0;b<S.bassd.len;b++) { const cells=Array.from({length:16},(_,s)=>{ const i=b*16+s, r=S.bassd.grid[i]; return r<0?'·':BASS_NOTES[r]+(r>=12?'′':'')+(S.bassd.acc[i]?'>':'')+(S.bassd.slide[i]?'~':''); }); m(`compás ${b+1}: ${cells.join(' ')}`); } p('> = acento · ~ = ligado (glide) al siguiente'); } else p('(sin línea programada)');
     sp(); h('Notas técnicas');
-    p('Archivos MIDI: formato 1, 480 ticks por negra, pistas: Pad o Piano (canal 1), Bajo digital (canal 2, programa 38), Batería (canal 10: bombo 36, caja 38, hi-hat 42, abierto 46). Velocidades del bajo: acento 112, normal 88.');
+    p('Archivos MIDI: formato 1, 480 ticks por negra, pistas: Pad o Piano (canal 1), Bajo digital (canal 2, programa 38), Batería (canal 10: bombo 36, caja 38, hi-hat 42, abierto 46). Velocidades del bajo: acento 112, normal 88. Estructura: cada bloque va como marcador (FF 06) en la pista de tempo, y su letra en la pista «Letra» (FF 05).');
     p('En Logic: arrastra el .mid a la sesión; cada pista llega como región propia y ahí eliges los sonidos definitivos.');
     return L;
   }
@@ -3439,7 +3588,7 @@
       titulo: S.letra.titulo || '',
       musica: { genre:S.genre, band:S.band, animo:S.animo, bpm:S.bpm, bars:S.bars, key:S.key, root:S.root, qual:S.qual,
                 voicing:S.voicing, defLen:S.defLen, kbKeys:S.kbKeys, notacion:S.notacion, swing:S.swing },
-      prog: S.prog, drums: S.drums, bassd: S.bassd, lead: S.lead, piano: S.piano, letra: S.letra, guitar: S.guitar };
+      prog: S.prog, drums: S.drums, bassd: S.bassd, lead: S.lead, piano: S.piano, letra: S.letra, guitar: S.guitar, estructura: S.estructura };
   }
   $('expProyecto').addEventListener('click', ()=>{
     stBump('usos','exportar .denavi');
@@ -3464,12 +3613,13 @@
     if (d.piano) S.piano = d.piano;
     if (d.letra) S.letra = d.letra;
     if (d.guitar) S.guitar = d.guitar;
+    S.estructura = d.estructura && Array.isArray(d.estructura.bloques) ? d.estructura : { bloques:[] };
     S.cand = null;
     $('bpm').value = S.bpm; $('bpmVal').textContent = S.bpm; $('bpmRange').textContent = `${S.band}: ${band().bpm[0]}–${band().bpm[1]} bpm`;
     $('root').value = S.root; $('qual').value = S.qual;
     $('drumKit').value = KITS[S.drums.kit] ? S.drums.kit : 'cr78';
     $('swing').value = S.swing || 0; $('swingVal').textContent = (S.swing||0) + '%';
-    buildKeyboard(); buildWheel(); renderAll(); renderSeq(); renderBassSeq(); llenarProgsDeLetra(); renderLetra(); renderGuitarra();
+    buildKeyboard(); buildWheel(); renderAll(); renderSeq(); renderBassSeq(); llenarProgsDeLetra(); renderLetra(); renderGuitarra(); renderEstructura();
     return `Abierta «${nombre}»` + (d.por ? ` · la guardó ${d.por}` : '') + (d.guardado ? ` el ${new Date(d.guardado).toLocaleDateString('es-CL')}` : '') + '.';
   }
   $('impProyecto').addEventListener('change', async e => {
@@ -4379,7 +4529,7 @@
   $('savedGuit').addEventListener('change', e=>{ const it=store.get('rueda.guitar')[+e.target.value]; if (!it) return; S.guitar.prog=it.prog.map(c=>({...c, frets:c.frets.slice()})); S.guitar.sel=0; renderGuitarra(); });
   $('delGuit').addEventListener('click', ()=>{ const v=$('savedGuit').value; if (v==='') return; const list=store.get('rueda.guitar'); list.splice(+v,1); store.set('rueda.guitar', list); renderSaved('savedGuit','rueda.guitar'); });
 
-  renderModosTabs(); buildKeyboard(); buildWheel(); fillSelects(); renderAll(); renderBassSeq(); renderSaved('savedLetras','rueda.letras'); llenarProgsDeLetra(); renderLetra(); renderSaved('savedGuit','rueda.guitar');
+  renderModosTabs(); buildKeyboard(); buildWheel(); fillSelects(); renderAll(); renderBassSeq(); renderSaved('savedLetras','rueda.letras'); llenarProgsDeLetra(); renderLetra(); renderEstructura(); renderSaved('savedGuit','rueda.guitar');
   // Instrumento de entrada: ?modo=beat|bajod|pad|piano|lead|letra|guitarra (lo usa la portada para entrar directo a un paso)
   const MODOS = ['beat','pad','piano','lead','letra','guitarra','mezcla'];
   const PAR = new URLSearchParams(location.search);

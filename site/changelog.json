@@ -1,6 +1,12 @@
 {
  "changelog": [
   {
+   "fecha": "2026-09-13",
+   "items": [
+    "Letra: nueva línea de tiempo de Estructura y letra (Intro, Verso, Coro…) con bloques que se estiran por compases y su letra adentro; al exportar el MIDI, cada sección llega a Logic como marcador y las palabras se reparten al tempo."
+   ]
+  },
+  {
    "fecha": "2026-09-08",
    "items": [
     "UX/UI (sutil): pestañas de modo navegables por teclado (tablist), foco visible en más botones, transiciones suaves y un pelo más de contraste; se respeta «reducir movimiento».",
