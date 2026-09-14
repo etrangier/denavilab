@@ -295,7 +295,8 @@
   .est-mus-fila .chip { font-size: 11px; padding: 3px 8px; }
   .est-bloque select.est-igual { width: 100%; padding: 3px 6px; font-size: 11.5px; }
   .est-bloque.en-taller { box-shadow: inset 0 0 0 2px var(--tono); }
-  .est-aviso { color: var(--text); }
+  .est-aviso { color: var(--text); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+  .est-aviso .chip { font-size: 12px; padding: 4px 10px; }
   .est-aviso:empty { display: none; }
   .est-mini { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 8px; padding: 8px 12px; }
   .est-mini[hidden] { display: none; }
@@ -599,7 +600,7 @@
     <div class="hint est-aviso" id="estAviso" role="status"></div>
     <details class="help">
       <summary>¿Qué llega a Logic?</summary>
-      <p><b>La música de cada parte:</b> compón en Batería, Pad o Piano como siempre y, cuando te guste, pulsa <b>«Guardar lo que suena»</b> en la parte donde va (también puedes hacerlo desde la barra del mapa, arriba de cada sección). Para retocarla, <b>«Abrir»</b> la trae de vuelta al taller. Las partes que se repiten (Coro 2, Verso 2) quedan <b>«igual que»</b> la primera: si cambias el Coro, cambian todos; elige «música propia» para separarlas.</p>
+      <p><b>La música de cada parte:</b> compón en Batería, Pad o Piano como siempre y, cuando te guste, pulsa <b>«Guardar lo que suena»</b> en la parte donde va (también puedes hacerlo desde la barra del mapa, arriba de cada sección). Para oírla, <b>«▶ Escuchar»</b>; para retocarla, <b>«Abrir»</b> la trae de vuelta al taller y te lleva a su instrumento. Las partes que se repiten (Coro 2, Verso 2) quedan <b>«igual que»</b> la primera: si cambias el Coro, cambian todos; elige «música propia» para separarlas.</p>
       <p><b>Al exportar</b>, si alguna parte tiene música sale la <b>canción entera</b>: cada parte con su música, repetida hasta llenar sus compases; las partes sin música quedan en silencio.</p>
       <p><b>Las partes</b> llegan como <b>marcadores</b>: al arrastrar el archivo a Logic, cada una aparece con su nombre (Intro, Verso, Coro…) justo en el compás donde empieza. Te sirven para ubicarte en la canción de un vistazo.</p>
       <p><b>La letra</b> va en una pista aparte llamada «Letra». Las palabras se reparten <b>parejas</b> a lo largo de su parte: no siguen la melodía, son una guía de qué se canta en cada compás. Si una parte dice «muy apretado», dale más compases.</p>
@@ -3523,12 +3524,13 @@
   }
 
   // ── Música por parte ──
-  const fotoMusica = () => clonar({ chord:S._chord, drums:S.drums, bassd:S.bassd, lead:S.lead, piano:S.piano, guitar:S.guitar });
+  const fotoMusica = () => clonar({ chord:S._chord, drums:S.drums, bassd:S.bassd, lead:S.lead, piano:S.piano, guitar:S.guitar, donner:{ len:S.donner.len, grid:S.donner.grid } });
+  const firma = f => JSON.stringify({ ...f, donner: undefined });   // compara sin el cuadro D1 (las partes viejas no lo traen)
   const fotoDe = b => b.igual ? ((parteDe(b.igual) || {}).musica || null) : (b.musica || null);
   function resumenMusica(f) {
     if (!f) return '';
     const t = [];
-    if (ROWS.some(([id]) => f.drums.pat[id].some(Boolean))) t.push('batería');
+    if (ROWS.some(([id]) => f.drums.pat[id].some(Boolean)) || (f.donner && DONNER_CH.some(([k]) => (f.donner.grid[k] || []).some(Boolean)))) t.push('batería');
     if (f.chord.pad.prog.length || f.chord.pad.cand) t.push('pad');
     if (f.chord.piano.prog.length || f.chord.piano.cand) t.push('piano');
     if (f.bassd.grid.some(r => r >= 0)) t.push('bajo');
@@ -3536,31 +3538,58 @@
     if (f.guitar.prog.length) t.push('guitarra');
     return t.join(' · ');
   }
-  function avisoMapa(txt) { if ($('estAviso')) $('estAviso').textContent = txt; if ($('estMiniTxt')) $('estMiniTxt').textContent = txt; }
+  function avisoMapa(txt, acciones = []) {
+    const av = $('estAviso');
+    if (av) { av.innerHTML = ''; av.append(el('span', {}, txt)); acciones.forEach(([t, fn]) => av.append(el('button', {class:'chip', type:'button', onclick:fn}, t))); }
+    if ($('estMiniTxt')) $('estMiniTxt').textContent = txt;
+  }
   function aplicarMusica(c) {
     if (isPlaying) stopAll();
     S._chord = c.chord; S.drums = c.drums; S.bassd = c.bassd; S.lead = c.lead; S.piano = c.piano; S.guitar = c.guitar;
+    if (c.donner) { S.donner.grid = c.donner.grid; S.donner.len = c.donner.len; }
     if ($('drumKit')) $('drumKit').value = KITS[S.drums.kit] ? S.drums.kit : 'cr78';
+    const dp = $('drumPreset'); if (dp) dp.value = [...dp.options].some(o => o.value === S.drums.name) ? S.drums.name : '';
     renderAll(); renderSeq(); renderBassSeq(); renderGuitarra(); if (S.mode === 'lead') renderLead();
   }
   function guardarEnParte(b) {
     const f = fotoMusica(), r = resumenMusica(f);
     if (!r) { avisoMapa('El taller está vacío: arma algo en Batería, Pad o Piano y vuelve a guardarlo aquí.'); return; }
     const antes = fotoDe(b);
-    if (antes && JSON.stringify(antes) !== JSON.stringify(f) && !confirm(`«${b.titulo}» ya tiene música (${resumenMusica(antes)}). ¿Reemplazarla por lo que suena ahora (${r})?`)) return;
+    if (antes && firma(antes) !== firma(f) && !confirm(`«${b.titulo}» ya tiene música (${resumenMusica(antes)}). ¿Reemplazarla por lo que suena ahora (${r})?`)) return;
     b.musica = f; b.igual = null; S.estructura.enTaller = b.id;
     renderEstructura();
     const siguen = estBloques().filter(x => x.igual === b.id).map(x => x.titulo);
     avisoMapa(`Guardado en «${b.titulo}»: ${r}.` + (siguen.length ? ` También suena en ${siguen.join(', ')}.` : ''));
   }
-  function abrirParte(b) {
-    const fuente = b.igual ? parteDe(b.igual) : b; if (!fuente || !fuente.musica) return;
-    const actual = fotoMusica(), txt = JSON.stringify(actual);
-    const aSalvo = !resumenMusica(actual) || estBloques().some(x => x.musica && JSON.stringify(x.musica) === txt);
-    if (!aSalvo && !confirm(`Lo que suena ahora en el taller no está guardado en ninguna parte. ¿Reemplazarlo por la música de «${fuente.titulo}»?`)) return;
-    aplicarMusica(clonar(fuente.musica)); S.estructura.enTaller = fuente.id;
+  const EDITAR_EN = [['batería','beat','Batería'], ['pad','pad','Pad'], ['piano','piano','Piano'], ['melodía','lead','Piano lead'], ['guitarra','guitarra','Guitarra']];
+  let escuchandoId = null;
+  const sonando = fuente => isPlaying && fuente && escuchandoId === fuente.id;
+  function accionesDe(fuente) {
+    const tiene = resumenMusica(fuente.musica).split(' · ');
+    return [[sonando(fuente) ? '■ Detener' : '▶ Escuchar', () => escucharParte(fuente)],
+            ...EDITAR_EN.filter(([k]) => tiene.includes(k)).map(([, m, nom]) => [`Editar en ${nom} →`, () => setMode(m)])];
+  }
+  // Carga la música de la parte en el taller. Devuelve la parte de donde sale la música, o null si se cancela.
+  function abrirParte(b, silencioso) {
+    const fuente = b.igual ? parteDe(b.igual) : b; if (!fuente || !fuente.musica) return null;
+    const actual = fotoMusica();
+    if (firma(actual) !== firma(fuente.musica)) {   // si ya está en el taller, no hay nada que preguntar
+      const aSalvo = !resumenMusica(actual) || estBloques().some(x => x.musica && firma(x.musica) === firma(actual));
+      if (!aSalvo && !confirm(`Lo que suena ahora en el taller no está guardado en ninguna parte. ¿Reemplazarlo por la música de «${fuente.titulo}»?`)) return null;
+      aplicarMusica(clonar(fuente.musica));
+    }
+    S.estructura.enTaller = fuente.id;
     renderEstructura();
-    avisoMapa(`En el taller: la música de «${fuente.titulo}». Edítala en Batería, Pad o Piano y vuelve a «Guardar lo que suena» en esa parte.`);
+    if (!silencioso) avisoMapa(`Listo: la música de «${fuente.titulo}» (${resumenMusica(fuente.musica)}) está en el taller. Escúchala o edítala en su instrumento; después vuelve a «Guardar lo que suena» en esa parte.`, accionesDe(fuente));
+    return fuente;
+  }
+  function escucharParte(b) {
+    const cual = b.igual ? parteDe(b.igual) : b;
+    if (isPlaying) { const eraEsta = sonando(cual); stopAll(); escuchandoId = null; if (eraEsta) { renderEstructura(); avisoMapa(`Detenido «${cual.titulo}».`, accionesDe(cual)); return; } }
+    const fuente = abrirParte(b, true); if (!fuente) return;
+    escuchandoId = fuente.id;
+    play('all');
+    setTimeout(() => { renderEstructura(); avisoMapa(`Sonando «${fuente.titulo}» (${resumenMusica(fuente.musica)}), en loop.`, accionesDe(fuente)); }, 250);
   }
 
   // ── Exportar la canción entera ──
@@ -3709,7 +3738,8 @@
         (b.igual ? (fuente ? `igual que ${fuente.titulo}` + (f ? ` · ${resumenMusica(f)}` : ' (aún sin música)') : 'la parte enlazada ya no está') : (f ? resumenMusica(f) : 'sin música todavía'));
       musTxt.title = musTxt.textContent;
       const btnGuardar = el('button', {class:'chip', type:'button', title:'Guarda en esta parte una copia de lo que suena ahora en el taller: batería, acordes, bajo, melodía y guitarra', onclick:()=>guardarEnParte(b)}, '⤓ Guardar lo que suena');
-      const btnAbrir = el('button', {class:'chip', type:'button', title:'Carga la música de esta parte en el taller para escucharla o editarla', onclick:()=>abrirParte(b)}, '↗ Abrir'); btnAbrir.disabled = !f;
+      const btnAbrir = el('button', {class:'chip', type:'button', title:'Carga la música de esta parte en el taller para editarla en su instrumento', onclick:()=>abrirParte(b)}, '↗ Abrir'); btnAbrir.disabled = !f;
+      const btnEscuchar = el('button', {class:'chip', type:'button', title:'Hace sonar la música guardada en esta parte', onclick:()=>escucharParte(b)}, sonando(fuente || b) ? '■ Detener' : '▶ Escuchar'); btnEscuchar.disabled = !f;
       const igual = el('select', {class:'est-igual', 'aria-label':`De dónde sale la música de ${b.titulo || 'esta parte'}`});
       igual.append(el('option', {value:''}, 'música propia'));
       bl.forEach(x => { if (x !== b && !x.igual) igual.append(el('option', {value:x.id}, `igual que ${x.titulo || 'otra parte'}`)); });
@@ -3724,7 +3754,7 @@
       });
       pintar();
       caja.append(el('div', {class:'est-top'}, titulo, antes, despues, quitar), el('div', {class:'est-meta'}, rango, reloj),
-        el('div', {class:'est-musica' + (f ? ' llena' : '')}, musTxt, el('div', {class:'est-mus-fila'}, btnGuardar, btnAbrir), igual),
+        el('div', {class:'est-musica' + (f ? ' llena' : '')}, musTxt, el('div', {class:'est-mus-fila'}, btnGuardar, btnEscuchar, btnAbrir), igual),
         letra, el('div', {class:'est-pie'}, menos, comp, mas, dens), asa);
       pista.append(caja);
     });
