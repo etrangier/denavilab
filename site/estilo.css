@@ -94,9 +94,7 @@ h2 { font-family: var(--display); font-weight: 700; font-size: 22px; margin: 0 0
 .step .ti { font-family: var(--display); font-weight: 700; font-size: 17px; }
 .step .why { grid-column: 2; font-size: 13.5px; color: var(--muted); }
 .step .chev { font-family: var(--mono); font-size: 11px; color: var(--muted); }
-.step .chev::before { content: "abrir +"; }
 .step[open] .chev { color: var(--accent); }
-.step[open] .chev::before { content: "cerrar \2212"; }
 .step .body { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 14px; margin: 0 16px 16px 54px; }
 .step .body p { margin: 0; max-width: 66ch; }
 .step .body b { color: var(--text); font-weight: 600; }
@@ -289,7 +287,6 @@ html[data-quien="invitado"] .solo-invitado { display: block; }
 .guia-opcion:hover { border-color: var(--accent); }
 .guia-opcion:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .guia-opcion[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--surface-2); }
-.guia-opcion[aria-pressed="true"] b::after { content: "  ✓"; color: var(--accent); }
 html[data-quien="rolando"] .guia-opcion[data-para~="rolando"], html[data-quien="schair"] .guia-opcion[data-para~="schair"] { display: grid; }
 .antes { padding: 12px 18px; }
 .antes-t { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
@@ -304,7 +301,6 @@ html[data-quien="rolando"] .guia-opcion[data-para~="rolando"], html[data-quien="
 .ruta-barra { flex: 1 1 auto; height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; }
 .ruta-barra i { display: block; height: 100%; width: 0; background: var(--ok); transition: width .3s ease; }
 .step.hecho .num { background: var(--ok); }
-.step.hecho .ti::after { content: "  ✓ hecho"; font-family: var(--mono); font-size: 10.5px; letter-spacing: .05em; color: var(--ok); vertical-align: middle; }
 .step .body .en-corto { margin: 0; padding-left: 18px; display: grid; gap: 5px; max-width: 64ch; }
 .step .body .en-corto li { font-size: 14.5px; }
 .paso-pie { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
@@ -339,3 +335,97 @@ html[data-quien="rolando"] .guia-opcion[data-para~="rolando"], html[data-quien="
 .ej-acordes { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
 .ej-ac { font-family: var(--mono); font-size: 12px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); }
 .ej-ac.ahora { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+/* ───────── Trabajo guiado · cabecera que se encoge, «Siguiente paso», pestañas y línea de tiempo ───────── */
+.pag-guia .intro, .pag-guia .step .body p, .pag-guia .leccion .cuerpo p, .pag-guia .needs li, .pag-guia .fuente { text-align: left; hyphens: manual; }
+.guia-safari { background: var(--surface); border: 1px solid var(--err); border-left-width: 4px; border-radius: 10px; padding: 10px 14px; margin: 0 0 14px; font-size: 14px; }
+.guia-safari b { color: var(--err); }
+.guia-opcion { transition: border-color .15s, background .15s, transform .15s; box-shadow: var(--shadow); }
+.guia-opcion:hover { transform: translateY(-1px); }
+.antes > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+.antes > summary::-webkit-details-marker { display: none; }
+.antes > summary::after { content: "+"; font-size: 13px; }
+.antes[open] > summary::after { content: "\2212"; }
+.antes > summary.antes-t { margin: 0; }
+.antes[open] > summary.antes-t { margin-bottom: 8px; }
+.antes > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+.guia-cab.compacta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin: 0 0 22px; }
+.guia-cab.compacta .quien { margin: 0; }
+.guia-cab.compacta .guia-h { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.guia-cab.compacta .guia-safari { flex-basis: 100%; margin: 0; }
+.guia-cab.compacta .guia-elige { display: inline-flex; gap: 2px; margin: 0; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.guia-cab.compacta .guia-opcion { display: inline-flex; padding: 6px 14px; border: none; border-radius: 999px; background: transparent; box-shadow: none; transform: none; color: var(--muted); font-size: 13.5px; font-weight: 600; }
+.guia-cab.compacta .guia-opcion > * { display: none !important; }
+.guia-cab.compacta .guia-opcion::before { content: attr(data-corto); }
+.guia-cab.compacta .guia-opcion:hover { color: var(--text); }
+.guia-cab.compacta .guia-opcion[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.guia-cab.compacta .antes { margin-left: auto; padding: 0; background: none; border: none; }
+.guia-cab.compacta .antes > summary { border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; }
+.guia-cab.compacta .antes > summary:hover { border-color: var(--accent); color: var(--accent); }
+.guia-cab.compacta .antes[open] { flex-basis: 100%; margin-left: 0; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 18px; }
+.guia-cab.compacta .antes[open] > summary { border: none; padding: 0; }
+
+.ruta-sigue { display: grid; gap: 8px; background: var(--surface); border: 1px solid var(--accent); border-left-width: 4px; border-radius: 14px; padding: 16px 18px; margin: 0 0 18px; box-shadow: var(--shadow); }
+.ruta-sigue:empty { display: none; }
+.ruta-sigue.completa { border-color: var(--ok); }
+.rs-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; }
+.rs-eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.ruta-sigue.completa .rs-eyebrow { color: var(--ok); }
+.rs-cuenta { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.rs-ti { font-family: var(--display); font-weight: 700; font-size: 23px; line-height: 1.15; margin: 0; }
+.rs-why { margin: 0; color: var(--muted); max-width: 60ch; }
+.rs-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.rs-puntos { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--line); }
+.rs-punto { font: inherit; font-family: var(--mono); font-size: 12px; width: 32px; height: 32px; padding: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); transition: border-color .15s, transform .15s; }
+.rs-punto:hover { border-color: var(--accent); transform: translateY(-1px); }
+.rs-punto:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rs-punto.hecho { background: var(--ok); border-color: var(--ok); color: #06110c; }
+.rs-punto.actual { border: 2px solid var(--accent); color: var(--text); font-weight: 600; }
+
+.guia-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 12px 0 18px; }
+.guia-tabs[hidden] { display: none; }
+.guia-tab { font: inherit; font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  background: none; color: var(--muted); border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 8px 12px; }
+.guia-tab:hover { color: var(--text); }
+.guia-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px 6px 0 0; }
+.guia-tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.gt-n { font-family: var(--mono); font-size: 11px; font-weight: 400; color: var(--muted); background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; }
+.tab-oculta { display: none !important; }
+section.solo-cab { margin-bottom: 0; }
+.en-pestana > h2 { display: none; }
+
+.steps { position: relative; }
+.steps::before { content: ""; position: absolute; left: 28px; top: 24px; bottom: 24px; width: 2px; background: var(--line); }
+.step { position: relative; transition: border-color .15s, box-shadow .15s; }
+.step > summary:hover .ti { color: var(--accent); }
+.step .chev { transition: transform .2s ease; }
+.step .chev::before { content: "\25BE"; font-size: 15px; }
+.step[open] .chev { transform: rotate(180deg); }
+.step.actual { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.step.saltado .ti { color: var(--muted); }
+.step.saltado .num { background: transparent; border: 1px dashed var(--muted); color: var(--muted); }
+.st-badge { font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; vertical-align: middle;
+  color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; margin-left: 10px; }
+.st-badge:empty { display: none; }
+.st-badge.hecho { color: var(--ok); border-color: var(--ok); }
+.st-badge.siguiente { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+.step > summary:hover .st-badge { color: inherit; }
+.step > summary:hover .st-badge.siguiente { color: var(--accent-ink); }
+.paso-hecho { color: var(--text); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; transition: border-color .15s, color .15s; }
+.paso-hecho:hover { border-color: var(--ok); }
+.paso-hecho:has(input:checked) { color: var(--ok); border-color: var(--ok); }
+.paso-hecho:has(input:disabled) { cursor: default; }
+.paso-hecho input { accent-color: var(--ok); margin: 0; }
+.paso-saltar { font: inherit; font-size: 13px; color: var(--muted); background: none; border: none; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 4px 2px; }
+.paso-saltar:hover { color: var(--text); }
+.paso-saltar[hidden] { display: none; }
+.leccion.hecha .lec { background: var(--ok); }
+.leccion .cuerpo .paso-pie { margin-top: 2px; }
+.lec-progreso { margin: 0 0 12px; }
+@media (max-width: 700px) {
+  .rs-ti { font-size: 20px; }
+  .guia-cab.compacta .antes { margin-left: 0; }
+  .st-badge { margin-left: 6px; }
+}

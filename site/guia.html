@@ -16,12 +16,12 @@
 })();
 </script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="estilo.css">
+<link rel="stylesheet" href="estilo.css?v=20260915b">
 <script>
 (()=>{try{const K='denavilab.stats';const o=JSON.parse(localStorage.getItem(K)||'{}');const n=Date.now();o.visitas=(o.visitas||0)+1;o.primera=o.primera||n;o.ultima=n;o.paginas=o.paginas||{};const pg=(location.pathname.split('/').pop()||'index.html');o.paginas[pg]=(o.paginas[pg]||0)+1;let h='directo';const r=document.referrer||'';try{if(r){const u=new URL(r);h=u.hostname===location.hostname?'interno':u.hostname;}}catch(e){}o.procedencias=o.procedencias||{};o.procedencias[h]=(o.procedencias[h]||0)+1;localStorage.setItem(K,JSON.stringify(o));}catch(e){}})();
 </script>
 </head>
-<body>
+<body class="pag-guia">
 <div class="wrap">
 
   <nav class="navbar">
@@ -36,19 +36,20 @@
   <header class="guia-cab">
     <p class="quien">Trabajo guiado</p>
     <h1 class="guia-h" id="guiaTitulo">¿Cómo quieres empezar?</h1>
+    <p class="guia-safari" id="guiaSafari" hidden><b>Este navegador no tiene Web MIDI.</b> Aquí no funcionan el MPK ni la descarga del .mid: abre DenaviLab en Chrome, Opera o Edge, en un computador.</p>
     <div class="guia-elige" id="guiaElige">
-      <button type="button" class="guia-opcion" data-vista="principiante" aria-pressed="false">
+      <button type="button" class="guia-opcion" data-vista="principiante" data-corto="Primera vez" aria-pressed="false">
         <b>Es mi primera vez</b>
         <span>Siete pasos cortos, de un pulso vacío a una canción en MIDI. No hace falta saber música.</span>
       </button>
-      <button type="button" class="guia-opcion" data-vista="ruta" data-para="rolando schair" aria-pressed="false">
+      <button type="button" class="guia-opcion" data-vista="ruta" data-para="rolando schair" data-corto="Mi ruta" aria-pressed="false">
         <b>Ya sé lo básico</b>
         <span data-para="rolando">Tu ruta con el MPK, paso a paso, y siete lecciones para el teclado.</span>
         <span data-para="schair">Tu ruta sin teclado, paso a paso, y siete lecciones para guitarra y letra.</span>
       </button>
     </div>
-    <div class="needs antes">
-      <p class="antes-t">Antes de empezar</p>
+    <details class="needs antes" id="guiaAntes" open>
+      <summary class="antes-t">Antes de empezar</summary>
       <ul>
         <li class="ojo"><b>Usa Chrome, Opera o Edge.</b> Safari no tiene Web MIDI: ni el MPK ni la descarga del .mid funcionan ahí.</li>
         <li data-para="rolando"><b>El teclado.</b> Un Akai MPK mini de 25 o 37 teclas por USB: las teclas tocan notas y los pads la batería. Sin teclado también funciona, con el mouse.</li>
@@ -56,7 +57,7 @@
         <li><b>Se guarda en este navegador.</b> Lo que tienes abierto se autoguarda; «Guardar» le pone nombre, y el .denavi lo lleva a otro computador.</li>
         <li><b>Los ejemplos suenan aquí mismo.</b> Pulsa ▶ en cualquiera: no tocan tu taller ni lo que guardaste.</li>
       </ul>
-    </div>
+    </details>
   </header>
 
   <!-- ═══════════ Principiante (para todos) ═══════════ -->
@@ -163,7 +164,7 @@
     <p class="quien">Ruta de Schair</p>
     <h2>Tu ruta</h2>
     <p class="intro">Tú tienes la guitarra y la voz; la batería, el bajo y los teclados se arman aquí con el mouse. Cada paso te dice lo esencial en tres líneas, y se marca solo cuando tu taller ya lo tiene.</p>
-    <div class="ruta-progreso"><span class="ruta-progreso-txt"></span><span class="ruta-barra"><i></i></span></div>
+    <div class="ruta-sigue" aria-live="polite"></div>
 
     <div class="steps">
 
@@ -306,7 +307,8 @@
   </section>
 
   <section data-para="schair" data-vista="ruta">
-    <h2>Material de estudio</h2>
+    <h2>Lecciones</h2>
+    <div class="ruta-progreso lec-progreso"><span class="ruta-progreso-txt"></span><span class="ruta-barra"><i></i></span></div>
     <p class="fuente">Siete lecciones adaptadas de la Guía 2 del proyecto («El ritmo y las progresiones»), pasadas del teclado a la guitarra y a la escritura de letras. Misma estructura que allá: qué es, qué haces, cómo sabes que ya lo tienes, y en qué se equivoca todo el mundo la primera vez. Cada ejemplo suena aquí mismo.</p>
     <div class="lecciones">
       <details class="leccion">
@@ -386,7 +388,7 @@
     <p class="quien">Ruta de Rolando</p>
     <h2>Tu ruta</h2>
     <p class="intro">El orden en que suele armarse una maqueta. Cada paso te dice lo esencial en tres líneas; el botón te deja en el instrumento, y el paso se marca solo cuando tu taller ya lo tiene. Puedes saltarte los que quieras.</p>
-    <div class="ruta-progreso"><span class="ruta-progreso-txt"></span><span class="ruta-barra"><i></i></span></div>
+    <div class="ruta-sigue" aria-live="polite"></div>
 
     <div class="steps">
 
@@ -540,7 +542,8 @@
 
 
   <section data-para="rolando" data-vista="ruta">
-    <h2>Material de estudio</h2>
+    <h2>Lecciones</h2>
+    <div class="ruta-progreso lec-progreso"><span class="ruta-progreso-txt"></span><span class="ruta-barra"><i></i></span></div>
     <p class="fuente">Siete lecciones para el teclado y el MPK, con la misma estructura que las de Schair: qué es, qué haces, cómo sabes que ya lo tienes, y en qué se equivoca todo el mundo la primera vez. Cada ejemplo suena aquí mismo.</p>
     <div class="lecciones">
       <details class="leccion">
@@ -756,7 +759,8 @@ const DETECTA_TXT = { bateria:'un beat', acordes:'una vuelta de acordes', bajo:'
 })();
 </script>
 <script>
-/* Cómo empezar: una sola ruta a la vista. Se recuerda la elección; ?vista=… la fija al volver del taller. */
+/* Cómo empezar: una sola ruta a la vista. Se recuerda la elección; ?vista=… la fija al volver del taller.
+   La primera vez se ven dos tarjetas grandes y «Antes de empezar» abierto; ya elegido, la cabecera se encoge a un conmutador. */
 (() => {
   const quien = document.documentElement.dataset.quien;
   const tieneRuta = quien === 'rolando' || quien === 'schair';
@@ -766,59 +770,170 @@ const DETECTA_TXT = { bateria:'un beat', acordes:'una vuelta de acordes', bajo:'
   if (!tieneRuta) vista = 'principiante';
   if (vista !== 'principiante' && vista !== 'ruta') vista = null;
   if (par.get('vista')) { try { localStorage.setItem(CLAVE, vista); } catch (e) {} }
+  const cab = document.querySelector('.guia-cab'), antes = document.getElementById('guiaAntes');
   const opciones = [...document.querySelectorAll('.guia-opcion')];
   const secciones = [...document.querySelectorAll('[data-vista]')].filter(n => !n.classList.contains('guia-opcion'));
+  if (antes) antes.open = !vista;
+  if (!navigator.requestMIDIAccess) document.getElementById('guiaSafari').hidden = false;   // Safari, iPhone/iPad: sin Web MIDI
   function aplicar() {
     secciones.forEach(n => { n.hidden = n.dataset.vista !== vista; });
     opciones.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.vista === vista)));
+    cab.classList.toggle('compacta', !!vista);
   }
   opciones.forEach(b => b.addEventListener('click', () => {
+    const primera = !vista;
     vista = b.dataset.vista; try { localStorage.setItem(CLAVE, vista); } catch (e) {}
+    if (primera && antes) antes.open = false;
     aplicar();
-    const s = secciones.find(n => !n.hidden && getComputedStyle(n).display !== 'none'); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const s = secciones.find(n => !n.hidden && getComputedStyle(n).display !== 'none'); if (s && primera) s.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }));
   if (!tieneRuta) { document.getElementById('guiaElige').hidden = true; document.getElementById('guiaTitulo').textContent = 'Paso a paso'; }
   aplicar();
-  const n = +par.get('paso');
-  if (vista === 'ruta' && n) {
-    const sec = document.querySelector(`section[data-para~="${quien}"][data-vista="ruta"]`);
-    const st = sec && sec.querySelectorAll('.step')[n - 1];
-    if (st) { st.open = true; setTimeout(() => st.scrollIntoView({ block: 'start' }), 60); }
-  } else if (vista === 'principiante' && par.get('vista')) {
+  if (vista === 'principiante' && par.get('vista')) {
     const act = document.querySelector('.prin-paso.activo'); if (act) setTimeout(() => act.scrollIntoView({ block: 'center' }), 60);
   }
 })();
 </script>
 <script>
-/* Rutas: cada paso se marca hecho a mano, o solo cuando el taller ya lo tiene. El avance queda en este navegador. */
+/* Rutas: tarjeta «Siguiente paso», pestañas Pasos · Lecciones, un paso abierto a la vez.
+   Cada paso se marca hecho a mano o solo cuando el taller ya lo tiene; se puede saltar. El avance queda en este navegador. */
 (() => {
   const quien = document.documentElement.dataset.quien; if (quien !== 'rolando' && quien !== 'schair') return;
-  const sec = document.querySelector(`section[data-para~="${quien}"][data-vista="ruta"]`); if (!sec) return;
-  const CLAVE = 'denavilab.ruta.' + quien;
-  let estado = { hechos: [] }; try { estado = JSON.parse(localStorage.getItem(CLAVE) || 'null') || estado; } catch (e) {}
+  const [sec, secLec] = document.querySelectorAll(`section[data-para~="${quien}"][data-vista="ruta"]`); if (!sec) return;
+  const CLAVE = 'denavilab.ruta.' + quien, CLAVE_TAB = 'denavilab.guiaTab.' + quien;
+  let estado = { hechos: [], saltados: [], lecciones: [] };
+  try { Object.assign(estado, JSON.parse(localStorage.getItem(CLAVE) || 'null') || {}); } catch (e) {}
+  const guardar = () => { try { localStorage.setItem(CLAVE, JSON.stringify(estado)); } catch (e) {} };
+  const quita = (lista, n) => (lista || []).filter(x => x !== n);
+  const el = (tag, attrs = {}, ...hijos) => { const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) { if (k === 'class') n.className = v; else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v); }
+    n.append(...hijos); return n; };
+  const par = new URLSearchParams(location.search);
   const proyecto = leerProyecto();
   const pasos = [...sec.querySelectorAll('.steps > .step')];
-  function pintar() {
-    let hechos = 0;
-    pasos.forEach((st, i) => {
-      const det = st.dataset.detecta, visto = !!(det && DETECTA[det] && DETECTA[det](proyecto));
-      const hecho = visto || estado.hechos.includes(i + 1); if (hecho) hechos++;
-      st.classList.toggle('hecho', hecho);
-      const est = st.querySelector('.paso-estado'); if (est) est.textContent = visto ? `✓ En tu taller ya está: ${DETECTA_TXT[det]}.` : '';
-      const chk = st.querySelector('.paso-hecho input'); if (chk) { chk.checked = hecho; chk.disabled = visto; }
-    });
-    sec.querySelector('.ruta-progreso-txt').textContent = `${hechos} de ${pasos.length} pasos hechos`;
-    sec.querySelector('.ruta-barra i').style.width = Math.round(hechos / pasos.length * 100) + '%';
+  const lecciones = secLec ? [...secLec.querySelectorAll('.leccion')] : [];
+  const hero = sec.querySelector('.ruta-sigue');
+  const visto = st => { const d = st.dataset.detecta; return !!(d && DETECTA[d] && DETECTA[d](proyecto)); };
+  const hecho = i => visto(pasos[i]) || estado.hechos.includes(i + 1);
+  const unoAbierto = (lista, abierto) => { if (abierto.open) lista.forEach(o => { if (o !== abierto) o.open = false; }); };
+  let actual = -1, tab = 'pasos';
+
+  // Pestañas
+  const tabPasos = el('button', { type: 'button', role: 'tab', class: 'guia-tab', onclick: () => irTab('pasos') }, 'Pasos', el('span', { class: 'gt-n' }));
+  const tabLec = el('button', { type: 'button', role: 'tab', class: 'guia-tab', onclick: () => irTab('lecciones') }, 'Lecciones', el('span', { class: 'gt-n' }));
+  const tabs = el('div', { class: 'guia-tabs', role: 'tablist', 'aria-label': 'Tu ruta y tus lecciones' }, tabPasos, tabLec);
+  sec.querySelector('h2').after(tabs);
+  if (secLec) secLec.classList.add('en-pestana'); else tabs.hidden = true;
+  function aplicarTab() {
+    const enPasos = tab !== 'lecciones' || !secLec;
+    [sec.querySelector('.intro'), hero, sec.querySelector('.steps')].forEach(n => n && n.classList.toggle('tab-oculta', !enPasos));
+    sec.classList.toggle('solo-cab', !enPasos);
+    if (secLec) secLec.classList.toggle('tab-oculta', enPasos);
+    tabPasos.setAttribute('aria-selected', String(enPasos)); tabLec.setAttribute('aria-selected', String(!enPasos));
   }
+  function irTab(t) { tab = t; try { localStorage.setItem(CLAVE_TAB, t); } catch (e) {} aplicarTab(); }
+
+  function abrir(i, desplazar) {
+    const st = pasos[i]; if (!st) return;
+    if (tab === 'lecciones') irTab('pasos');
+    st.open = true;
+    if (desplazar) setTimeout(() => st.scrollIntoView({ behavior: 'smooth', block: 'start' }), 40);
+  }
+
+  // Cada paso: insignia de estado y «Saltar por ahora»
   pasos.forEach((st, i) => {
-    const chk = st.querySelector('.paso-hecho input'); if (!chk) return;
-    chk.addEventListener('change', () => {
-      estado.hechos = estado.hechos.filter(x => x !== i + 1); if (chk.checked) estado.hechos.push(i + 1);
-      try { localStorage.setItem(CLAVE, JSON.stringify(estado)); } catch (e) {}
-      pintar();
+    const n = i + 1, ti = st.querySelector('.ti'), why = st.querySelector('.why');
+    st.dataset.titulo = ti.textContent.trim();
+    if (/^Opcional\b/.test((why && why.textContent.trim()) || '')) st.classList.add('opcional');
+    ti.append(el('span', { class: 'st-badge' }));
+    const pie = st.querySelector('.paso-pie'), chk = st.querySelector('.paso-hecho input');
+    if (pie) pie.append(el('button', { type: 'button', class: 'paso-saltar', onclick: () => {
+      const saltado = estado.saltados.includes(n);
+      estado.saltados = quita(estado.saltados, n); if (!saltado) estado.saltados.push(n);
+      guardar(); pintar();
+      if (!saltado) { st.open = false; if (actual >= 0 && actual !== i) abrir(actual, true); }
+    }}));
+    if (chk) chk.addEventListener('change', () => {
+      estado.hechos = quita(estado.hechos, n); estado.saltados = quita(estado.saltados, n);
+      if (chk.checked) estado.hechos.push(n);
+      guardar(); pintar();
+      if (chk.checked) { st.open = false; if (actual >= 0) abrir(actual, true); }
     });
+    st.addEventListener('toggle', () => unoAbierto(pasos, st));
   });
-  pintar();
+
+  function pintar() {
+    let cuenta = 0; actual = -1;
+    pasos.forEach((st, i) => { const h = hecho(i); if (h) cuenta++; if (actual < 0 && !h && !estado.saltados.includes(i + 1)) actual = i; });
+    if (actual < 0) actual = pasos.findIndex((st, i) => !hecho(i));   // sólo quedan saltados: vuelve al primero
+    pasos.forEach((st, i) => {
+      const h = hecho(i), v = visto(st), saltado = !h && estado.saltados.includes(i + 1);
+      st.classList.toggle('hecho', h); st.classList.toggle('actual', i === actual); st.classList.toggle('saltado', saltado);
+      const badge = st.querySelector('.st-badge');
+      const [txt, cls] = h ? ['✓ hecho', 'hecho'] : i === actual ? ['siguiente', 'siguiente'] : saltado ? ['saltado', 'saltado'] : st.classList.contains('opcional') ? ['opcional', ''] : ['', ''];
+      badge.textContent = txt; badge.className = 'st-badge' + (cls ? ' ' + cls : '');
+      const est = st.querySelector('.paso-estado'); if (est) est.textContent = v ? `✓ En tu taller ya está: ${DETECTA_TXT[st.dataset.detecta]}.` : '';
+      const chk = st.querySelector('.paso-hecho input'); if (chk) { chk.checked = h; chk.disabled = v; }
+      const salt = st.querySelector('.paso-saltar'); if (salt) { salt.hidden = h; salt.textContent = saltado ? 'Retomar este paso' : 'Saltar por ahora'; }
+    });
+    tabPasos.querySelector('.gt-n').textContent = `${cuenta}/${pasos.length}`;
+    pintarHero(cuenta);
+  }
+
+  function pintarHero(cuenta) {
+    if (!hero) return;
+    const total = pasos.length, st = pasos[actual];
+    hero.innerHTML = ''; hero.classList.toggle('completa', !st);
+    const puntos = el('div', { class: 'rs-puntos', role: 'group', 'aria-label': 'Los pasos de tu ruta' });
+    pasos.forEach((p, i) => { const h = hecho(i);
+      puntos.append(el('button', { type: 'button', class: 'rs-punto' + (h ? ' hecho' : '') + (i === actual ? ' actual' : ''), title: p.dataset.titulo,
+        'aria-label': `Paso ${i + 1}: ${p.dataset.titulo}${h ? ', hecho' : ''}`, onclick: () => abrir(i, true) }, h ? '✓' : String(i + 1))); });
+    const cabeza = el('div', { class: 'rs-cab' },
+      el('span', { class: 'rs-eyebrow' }, st ? `Siguiente paso · ${actual + 1} de ${total}` : 'Ruta completa'),
+      el('span', { class: 'rs-cuenta' }, `${cuenta} de ${total} hechos`));
+    if (!st) {
+      hero.append(cabeza, el('p', { class: 'rs-ti' }, 'Tu maqueta ya tiene todo'),
+        el('p', { class: 'rs-why' }, 'Repasa cualquier paso con los números de abajo, o sigue aprendiendo con las lecciones.'),
+        el('div', { class: 'rs-btns' }, el('button', { type: 'button', class: 'btn', onclick: () => { irTab('lecciones'); tabs.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }, 'Ver las lecciones →')), puntos);
+      return;
+    }
+    const ir = st.querySelector('.paso-pie a.btn'), why = st.querySelector('.why');
+    const btns = el('div', { class: 'rs-btns' });
+    if (ir) btns.append(el('a', { class: 'btn', href: ir.getAttribute('href') }, ir.textContent.trim() + ' →'));
+    btns.append(el('button', { type: 'button', class: 'btn ghost', onclick: () => abrir(actual, true) }, 'Ver cómo se hace'));
+    hero.append(cabeza, el('p', { class: 'rs-ti' }, st.dataset.titulo), el('p', { class: 'rs-why' }, why ? why.textContent.trim() : ''), btns, puntos);
+  }
+
+  // Lecciones: se marcan al pasar el chequeo
+  lecciones.forEach((L, i) => {
+    const n = i + 1;
+    L.querySelector('summary .ti').append(el('span', { class: 'st-badge' }));
+    const chk = el('input', { type: 'checkbox' });
+    chk.addEventListener('change', () => {
+      estado.lecciones = quita(estado.lecciones, n); if (chk.checked) estado.lecciones.push(n);
+      guardar(); pintarLecciones();
+      const sig = lecciones[i + 1];
+      if (chk.checked) { L.open = false; if (sig && !estado.lecciones.includes(n + 1)) { sig.open = true; setTimeout(() => sig.scrollIntoView({ behavior: 'smooth', block: 'start' }), 40); } }
+    });
+    L.querySelector('.cuerpo').append(el('div', { class: 'paso-pie' }, el('label', { class: 'paso-hecho' }, chk, ' Ya pasé el chequeo')));
+    L.addEventListener('toggle', () => unoAbierto(lecciones, L));
+  });
+  function pintarLecciones() {
+    if (!secLec) return;
+    let k = 0;
+    lecciones.forEach((L, i) => { const h = estado.lecciones.includes(i + 1); if (h) k++;
+      L.classList.toggle('hecha', h); L.querySelector('.cuerpo .paso-hecho input').checked = h;
+      const b = L.querySelector('summary .st-badge'); b.textContent = h ? '✓ lista' : ''; b.className = 'st-badge' + (h ? ' hecho' : ''); });
+    const txt = secLec.querySelector('.lec-progreso .ruta-progreso-txt'); if (txt) txt.textContent = `${k} de ${lecciones.length} lecciones`;
+    const barra = secLec.querySelector('.lec-progreso .ruta-barra i'); if (barra) barra.style.width = Math.round(k / Math.max(1, lecciones.length) * 100) + '%';
+    tabLec.querySelector('.gt-n').textContent = `${k}/${lecciones.length}`;
+  }
+
+  const n = +par.get('paso');
+  tab = location.hash === '#lecciones' ? 'lecciones' : n ? 'pasos' : ((() => { try { return localStorage.getItem(CLAVE_TAB); } catch (e) { return null; } })() || 'pasos');
+  pintar(); pintarLecciones(); aplicarTab();
+  if (n && pasos[n - 1] && !sec.hidden) abrir(n - 1, true);   // al volver del taller: el paso de donde venías
+  else if (actual >= 0 && tab === 'pasos') pasos[actual].open = true;
 })();
 </script>
 <script>
