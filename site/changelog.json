@@ -1,6 +1,15 @@
 {
  "changelog": [
   {
+   "fecha": "2026-09-14",
+   "items": [
+    "Autoguardado: lo que tienes abierto en el taller se guarda solo en este navegador y al volver se recupera (con «Empezar en blanco»); si entras desde la guía o la Biblioteca, te ofrece recuperarlo en vez de pisarlo.",
+    "Maquetas y .denavi guardan las dos vueltas de acordes (Pad y Piano); antes sólo quedaba la del instrumento activo.",
+    "Invitado: «Exportar» vuelve a quedar oculto (se veía por un error de estilos); en la portada ya no aparece «Listo, estás como invitado» sin haber entrado, y se quitó el recuadro vacío que tapaba «← Atrás».",
+    "Mapa de la canción: «▶ Escuchar la canción» avanza sola de una parte a la siguiente, con una línea que recorre el mapa; «▶ Desde aquí» en cada parte y «⟲ Repetir la parte»."
+   ]
+  },
+  {
    "fecha": "2026-09-13",
    "items": [
     "Mapa de la canción: «▶ Escuchar» en cada parte para oír lo guardado sin salir del mapa; «Abrir» avisa claro qué quedó en el taller y lleva a Batería o Pad para editarlo. El patrón base y el cuadro Donner D1 también se recuperan.",

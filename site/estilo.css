@@ -271,6 +271,7 @@ html[data-quien="invitado"] .solo-invitado { display: block; }
 .prin-paso { opacity: 1; }
 .prin-paso.hecho:not(.abierto) { opacity: .7; }
 .prin-paso.activo { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+[hidden] { display: none !important; }   /* «hidden» siempre oculta, aunque la clase ponga display */
 .prin-paso[hidden] { display: none !important; }
 .prin-paso.hecho .prin-cab { cursor: pointer; }
 .prin-paso.hecho .prin-cab::after { content: 'revisar +'; margin-left: auto; font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); flex: 0 0 auto; }

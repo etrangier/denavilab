@@ -55,6 +55,7 @@
     --shadow: 0 10px 30px rgba(40,30,10,.10);
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }   /* «hidden» siempre oculta, aunque la clase o el id pongan display */
   button, select, input, .slot, .wk, .bk, .st, .rg-cell, .sug, .chip, .mtab, .navlink, .bar-box, .guit-ch, .sug-b, .door, [role=button] { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
   body { margin: 0; overflow-x: hidden; background: var(--bg); color: var(--text); font-family: var(--body); font-size: 14px; line-height: 1.45; }
   .navbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding-bottom: 4px; border-bottom: 1px solid var(--line); }
@@ -265,7 +266,7 @@
   .est-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
   .est-add { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .est-add .ghost { margin-left: auto; padding: 5px 10px; font-size: 12px; }
-  .est-scroll { overflow-x: auto; padding-bottom: 8px; }
+  .est-scroll { position: relative; overflow-x: auto; padding-bottom: 8px; }
   .est-regla, .est-pista { display: flex; width: max-content; min-width: 100%; }
   .est-regla[hidden] { display: none; }
   .est-regla { height: 18px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
@@ -295,6 +296,13 @@
   .est-mus-fila .chip { font-size: 11px; padding: 3px 8px; }
   .est-bloque select.est-igual { width: 100%; padding: 3px 6px; font-size: 11.5px; }
   .est-bloque.en-taller { box-shadow: inset 0 0 0 2px var(--tono); }
+  .est-trans { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+  .est-trans[hidden] { display: none; }
+  .est-trans .primary { padding: 7px 14px; }
+  .est-trans-txt { font-family: var(--mono); font-size: 11.5px; }
+  .est-cabezal { position: absolute; top: 0; bottom: 8px; left: 0; width: 2px; margin-left: -1px; background: var(--accent); box-shadow: 0 0 0 1px var(--surface); z-index: 3; pointer-events: none; will-change: transform; }
+  .est-cabezal[hidden] { display: none; }
+  .est-bloque.sonando { box-shadow: inset 0 0 0 2px var(--accent), 0 0 0 3px var(--accent-soft); }
   .est-aviso { color: var(--text); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
   .est-aviso .chip { font-size: 12px; padding: 4px 10px; }
   .est-aviso:empty { display: none; }
@@ -332,6 +340,7 @@
   .est-bloque.apretado textarea { border-color: #c4572f; }
   @container (max-width: 250px) { .est-dens:not(.apretado) { display: none; } }
   @container (max-width: 130px) { .est-mover, .est-meta span + span, .est-comp { display: none; } }
+  @container (max-width: 100px) { .est-musica, .est-bloque textarea, .est-dens { display: none; } }   /* partes de 1–2 compases: sólo nombre y − / + */
   @media (max-width: 700px) { .estructura { --est-px: 44px; } }
   .vuelta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .ac-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 3px 5px 3px 8px; }
@@ -593,14 +602,20 @@
         <span class="hint" id="estInfo" role="status"></span>
       </div></div>
     </div>
+    <div class="est-trans" id="estTrans" hidden>
+      <button class="primary" type="button" id="estPlayCancion">▶ Escuchar la canción</button>
+      <button class="chip" type="button" id="estRepetir" aria-pressed="false" title="En vez de pasar a la siguiente, repite la parte que está sonando (para ensayar o escribir encima)">⟲ Repetir la parte</button>
+      <span class="hint est-trans-txt" id="estTransTxt" role="status"></span>
+    </div>
     <div class="est-scroll">
+      <div class="est-cabezal" id="estCabezal" hidden aria-hidden="true"></div>
       <div class="est-regla" id="estRegla" aria-hidden="true"></div>
       <div class="est-pista" id="estPista"></div>
     </div>
     <div class="hint est-aviso" id="estAviso" role="status"></div>
     <details class="help">
       <summary>¿Qué llega a Logic?</summary>
-      <p><b>La música de cada parte:</b> compón en Batería, Pad o Piano como siempre y, cuando te guste, pulsa <b>«Guardar lo que suena»</b> en la parte donde va (también puedes hacerlo desde la barra del mapa, arriba de cada sección). Para oírla, <b>«▶ Escuchar»</b>; para retocarla, <b>«Abrir»</b> la trae de vuelta al taller y te lleva a su instrumento. Las partes que se repiten (Coro 2, Verso 2) quedan <b>«igual que»</b> la primera: si cambias el Coro, cambian todos; elige «música propia» para separarlas.</p>
+      <p><b>La música de cada parte:</b> compón en Batería, Pad o Piano como siempre y, cuando te guste, pulsa <b>«Guardar lo que suena»</b> en la parte donde va (también puedes hacerlo desde la barra del mapa, arriba de cada sección). Para oír la canción, <b>«▶ Escuchar la canción»</b> hace sonar las partes una tras otra, con una línea que avanza por el mapa; <b>«▶ Desde aquí»</b> empieza desde esa parte y <b>«⟲ Repetir la parte»</b> se queda en la que suena. Para retocar una parte, <b>«Abrir»</b> la trae al taller. Las partes que se repiten (Coro 2, Verso 2) quedan <b>«igual que»</b> la primera: si cambias el Coro, cambian todos; elige «música propia» para separarlas.</p>
       <p><b>Al exportar</b>, si alguna parte tiene música sale la <b>canción entera</b>: cada parte con su música, repetida hasta llenar sus compases; las partes sin música quedan en silencio.</p>
       <p><b>Las partes</b> llegan como <b>marcadores</b>: al arrastrar el archivo a Logic, cada una aparece con su nombre (Intro, Verso, Coro…) justo en el compás donde empieza. Te sirven para ubicarte en la canción de un vistazo.</p>
       <p><b>La letra</b> va en una pista aparte llamada «Letra». Las palabras se reparten <b>parejas</b> a lo largo de su parte: no siguen la melodía, son una guía de qué se canta en cada compás. Si una parte dice «muy apretado», dale más compases.</p>
@@ -721,6 +736,7 @@
         <label class="ghost" for="impProyecto" style="display:block; text-align:center; border-radius:6px; padding:8px 12px; border:1px solid var(--line); cursor:pointer">Abrir una maqueta guardada</label>
         <input type="file" id="impProyecto" accept=".denavi,.json" hidden>
         <span class="lbl" style="margin-top:6px">La maqueta entera, en este navegador</span>
+        <div class="hint">Lo que tienes abierto se guarda solo en este navegador mientras trabajas. «Guardar» le pone nombre para tener versiones; el .denavi sirve para llevarlo a otro computador.</div>
         <div class="row"><input type="text" id="maquetaName" placeholder="nombre, ej. verso trip hop"><button class="ghost" id="saveMaqueta" style="flex:0 0 auto">Guardar</button></div>
         <div class="row"><select id="savedMaquetas" aria-label="Maquetas guardadas"></select><button class="ghost" id="abrirMaqueta" style="flex:0 0 auto">Abrir</button><button class="ghost danger" id="delMaqueta" style="flex:0 0 auto">Borrar</button></div>
         <div class="campo-biblio" id="bloqueBiblio" hidden>
@@ -2482,6 +2498,7 @@
     let drumPhase = 0;   // fase del patrón de batería: se acarrea entre vueltas para que el groove no se reinicie (fluye aunque los compases de la progresión no sean múltiplo del largo del patrón)
     $('play').textContent = '■ Detener'; $('playDrums').textContent = '■ Detener'; $('playBass').textContent = '■ Detener'; $('playLead').textContent = '■ Detener'; $('playGuit').textContent = '■ Detener'; if ($('playGuitAll')) $('playGuitAll').textContent = '■ Detener'; $('candPlay').textContent = '■ Detener'; if ($('playMezcla')) $('playMezcla').textContent = '■ Detener';
     do {   // una pasada; con «loop» se repite hasta Detener
+      if (cancionRep && !cancionRep.siguiente()) break;   // canción del mapa: carga la parte que toca; sin más partes, termina
       beat = 60/(mode==='bass' ? bassBpm() : S.bpm); barDur = beat*4;   // relee el tempo cada vuelta (bajo con tempo propio, o bpm cambiado)
       // Se relee el estado en cada vuelta: agregar/cambiar/quitar un acorde entra en la siguiente pasada
       const _pad = S._chord.pad, _pia = S._chord.piano;
@@ -2491,11 +2508,13 @@
       seq = withChords ? [..._base] : [];
       totalBars = withChords ? (Math.max(_padB, _piaB) || S.bars) : mode==='lead' ? leadBarsTotal() : mode==='guitarra' ? guitBars() : (mode==='bass' ? bassBars() : S.bars);
       if (mode==='all') totalBars = Math.max(totalBars || S.bars, hasBassD()?S.bassd.len:1, S.guitar.prog.length?guitBars():1, hasLead()?leadBarsTotal():1);
+      if (cancionRep) { totalBars = cancionRep.bars; seq = withChords ? llenarVuelta(_base, totalBars, 'len') : []; drumPhase = 0; cancionRep.inicioPasada(t0, barDur); }   // la vuelta dura lo que la parte
       withDrums = mode === 'drums' || (mode==='all' && S.drums.on && suena('drums')) || (mode==='bass' && S.bassd.withDrums) || (mode==='lead' && $('leadDrums').checked) || (mode==='guitarra' && S.guitar.withDrums);
       if (withChords) { chordPistas().forEach(pp=>{ if (!suena(pp.id) || !(pp.prog.length || pp.cand)) return;
         const usados = pp.prog.reduce((a,c)=>a+c.len,0), rest = S.bars - usados;
-        const seqP = [...pp.prog, ...(pp.cand && rest>0 ? [{pc:pp.cand.pc, q:pp.cand.q, len:Math.min(S.defLen, rest)}] : [])];
-        let tt = t0; seqP.forEach((c,i)=>{ c._i=i; scheduleChord(c, tt, beat, pp.inst, pp.prog); tt += c.len*barDur; }); }); }
+        const seqP = cancionRep ? llenarVuelta(pp.prog.length ? pp.prog : [{pc:pp.cand.pc, q:pp.cand.q, len:S.defLen}], totalBars, 'len')
+                                : [...pp.prog, ...(pp.cand && rest>0 ? [{pc:pp.cand.pc, q:pp.cand.q, len:Math.min(S.defLen, rest)}] : [])];
+        let tt = t0; seqP.forEach((c,i)=>{ c._i=i; scheduleChord(c, tt, beat, pp.inst, cancionRep ? seqP : pp.prog); tt += c.len*barDur; }); }); }
       if (rec && rec.metron) scheduleMetronomo(t0, beat, totalBars || S.bars);
       if (mode==='guitarra' && S.guitar.metron) scheduleMetronomo(t0, beat, totalBars || 1);
       if ((mode==='drums' || mode==='bass') && S.metron) scheduleMetronomo(t0, beat, totalBars || S.bars);
@@ -2545,8 +2564,8 @@
       const dlen = S.donner.on ? Math.max(1, S.donner.len) : Math.max(1, S.drums.len);
       drumPhase = (drumPhase + Math.round(totalBars)) % dlen;   // el patrón continúa donde quedó, sin reiniciarse en cada vuelta
       // corrige la deriva del reloj de JS respecto al de audio
-      const drift = (t0 - ctx.currentTime)*1000; if (S.loop && !stopFlag && drift > 0) await wait(drift);
-    } while (S.loop && !stopFlag);
+      const drift = (t0 - ctx.currentTime)*1000; if ((cancionRep || S.loop) && !stopFlag && drift > 0) await wait(drift);
+    } while ((cancionRep || S.loop) && !stopFlag);
     S.playing=-1; stopFlag=false; isPlaying=false; if ($('playMezcla')) $('playMezcla').textContent='▶ Reproducir todo'; $('play').textContent='▶ Reproducir todo'; $('playDrums').textContent='▶ Sólo batería'; $('playBass').textContent='▶ Bajo'; $('playGuit').textContent='▶ Tocar la vuelta'; if ($('playGuitAll')) $('playGuitAll').textContent='▶ Con todo'; $('candPlay').textContent='▶ Reproducir la vuelta'; $('playLead').textContent='▶ Piano lead';
     document.querySelectorAll('.st.now').forEach(n=>n.classList.remove('now')); cancelAnimationFrame(guitRaf); document.querySelectorAll('#guitProg .guit-ch.playing').forEach(n=>n.classList.remove('playing')); renderBars(); renderReadout();
   }
@@ -3552,6 +3571,7 @@
     renderAll(); renderSeq(); renderBassSeq(); renderGuitarra(); if (S.mode === 'lead') renderLead();
   }
   function guardarEnParte(b) {
+    if (cancionRep) { avisoMapa('Detén la canción antes de guardar: mientras suena, el taller va cargando las partes del mapa.'); return; }
     const f = fotoMusica(), r = resumenMusica(f);
     if (!r) { avisoMapa('El taller está vacío: arma algo en Batería, Pad o Piano y vuelve a guardarlo aquí.'); return; }
     const antes = fotoDe(b);
@@ -3562,15 +3582,14 @@
     avisoMapa(`Guardado en «${b.titulo}»: ${r}.` + (siguen.length ? ` También suena en ${siguen.join(', ')}.` : ''));
   }
   const EDITAR_EN = [['batería','beat','Batería'], ['pad','pad','Pad'], ['piano','piano','Piano'], ['melodía','lead','Piano lead'], ['guitarra','guitarra','Guitarra']];
-  let escuchandoId = null;
-  const sonando = fuente => isPlaying && fuente && escuchandoId === fuente.id;
-  function accionesDe(fuente) {
-    const tiene = resumenMusica(fuente.musica).split(' · ');
-    return [[sonando(fuente) ? '■ Detener' : '▶ Escuchar', () => escucharParte(fuente)],
+  function accionesDe(b) {
+    const fuente = b.igual ? parteDe(b.igual) : b, tiene = resumenMusica(fuente && fuente.musica).split(' · '), i = estBloques().indexOf(b);
+    return [[sonandoParte(i) ? '■ Detener' : '▶ Escuchar desde aquí', () => reproducirCancion(i)],
             ...EDITAR_EN.filter(([k]) => tiene.includes(k)).map(([, m, nom]) => [`Editar en ${nom} →`, () => setMode(m)])];
   }
-  // Carga la música de la parte en el taller. Devuelve la parte de donde sale la música, o null si se cancela.
-  function abrirParte(b, silencioso) {
+  // Carga la música de la parte en el taller para editarla. Devuelve la parte de donde sale la música, o null.
+  function abrirParte(b) {
+    if (cancionRep) { avisoMapa('Detén la canción antes de abrir una parte en el taller.'); return null; }
     const fuente = b.igual ? parteDe(b.igual) : b; if (!fuente || !fuente.musica) return null;
     const actual = fotoMusica();
     if (firma(actual) !== firma(fuente.musica)) {   // si ya está en el taller, no hay nada que preguntar
@@ -3580,16 +3599,81 @@
     }
     S.estructura.enTaller = fuente.id;
     renderEstructura();
-    if (!silencioso) avisoMapa(`Listo: la música de «${fuente.titulo}» (${resumenMusica(fuente.musica)}) está en el taller. Escúchala o edítala en su instrumento; después vuelve a «Guardar lo que suena» en esa parte.`, accionesDe(fuente));
+    avisoMapa(`Listo: la música de «${fuente.titulo}» (${resumenMusica(fuente.musica)}) está en el taller. Edítala en su instrumento y después vuelve a «Guardar lo que suena» en esa parte.`, accionesDe(b));
     return fuente;
   }
-  function escucharParte(b) {
-    const cual = b.igual ? parteDe(b.igual) : b;
-    if (isPlaying) { const eraEsta = sonando(cual); stopAll(); escuchandoId = null; if (eraEsta) { renderEstructura(); avisoMapa(`Detenido «${cual.titulo}».`, accionesDe(cual)); return; } }
-    const fuente = abrirParte(b, true); if (!fuente) return;
-    escuchandoId = fuente.id;
-    play('all');
-    setTimeout(() => { renderEstructura(); avisoMapa(`Sonando «${fuente.titulo}» (${resumenMusica(fuente.musica)}), en loop.`, accionesDe(fuente)); }, 250);
+
+  // ── Escuchar la canción: cada parte con su música, una tras otra ──
+  // play('all') relee el estado al empezar cada vuelta. Aquí cada vuelta es una parte: se carga su música
+  // y la vuelta dura sus compases. Al terminar o detener, el taller vuelve a lo que tenía.
+  let cancionRep = null, cancionActiva = null, repetirParte = false, rafCabezal = 0;
+  const sonandoParte = i => !!(cancionRep && isPlaying && cancionRep.i === i);
+  const compasesDeParte = b => Math.max(1, Math.round(b.compases));
+  function musicaVacia() {   // una parte sin música suena en silencio
+    const c = fotoMusica();
+    c.chord = { pad:{prog:[], cand:null}, piano:{prog:[], cand:null} };
+    ROWS.forEach(([id]) => c.drums.pat[id].fill(0));
+    DONNER_CH.forEach(([k]) => (c.donner.grid[k] || []).fill(0));
+    c.bassd.grid.fill(-1); c.lead.mel.fill(-1); c.guitar.prog = [];
+    return c;
+  }
+  function ponerMusica(c) {   // sin redibujar el taller: sólo cambia lo que suena
+    Object.assign(S, { _chord:c.chord, drums:c.drums, bassd:c.bassd, lead:c.lead, piano:c.piano, guitar:c.guitar });
+    if (c.donner) { S.donner.grid = c.donner.grid; S.donner.len = c.donner.len; }
+  }
+  function marcarSonando() {
+    document.querySelectorAll('#estPista .est-bloque').forEach((caja, i) => {
+      caja.classList.toggle('sonando', sonandoParte(i));
+      const btn = caja.querySelector('.est-desde'); if (btn) btn.textContent = sonandoParte(i) ? '■ Detener' : '▶ Desde aquí';
+    });
+    if ($('estPlayCancion')) $('estPlayCancion').textContent = cancionRep ? '■ Detener' : '▶ Escuchar la canción';
+  }
+  function animarCabezal() {
+    const r = cancionRep, cab = $('estCabezal'); if (!r || !cab) return;
+    if (r.barDur) {
+      const b = estBloques()[r.i], dentro = Math.max(0, Math.min(r.bars, (ctx.currentTime - r.t0) / r.barDur));
+      const x = (r.inicioBar + dentro) * estPx();
+      cab.hidden = false; cab.style.transform = `translateX(${x}px)`;
+      const sc = cab.parentNode; if (x < sc.scrollLeft + 20 || x > sc.scrollLeft + sc.clientWidth - 40) sc.scrollLeft = Math.max(0, x - 40);
+      const txt = `${b ? b.titulo : ''} · compás ${Math.min(r.bars, Math.floor(dentro) + 1)} de ${r.bars}` + (repetirParte ? ' · repitiendo' : '') + ` · ${minSeg((r.inicioBar + dentro) * r.barDur)}`;
+      if ($('estTransTxt').textContent !== txt) $('estTransTxt').textContent = txt;
+    }
+    rafCabezal = requestAnimationFrame(animarCabezal);
+  }
+  function reproducirCancion(desde = 0) {
+    if (sonandoParte(desde)) { stopAll(); return cancionActiva; }   // la misma parte: detener
+    const anterior = cancionActiva;
+    return cancionActiva = (async () => {
+      if (isPlaying) stopAll();
+      if (anterior) await anterior;                                      // que la anterior devuelva el taller antes de empezar
+      while (isPlaying) await new Promise(r => setTimeout(r, 30));
+      if (!estBloques().length || desde >= estBloques().length) return;
+      const orig = { chord:S._chord, drums:S.drums, bassd:S.bassd, lead:S.lead, piano:S.piano, guitar:S.guitar, donner:{ grid:S.donner.grid, len:S.donner.len } };
+      cancionRep = { i: desde - 1, empezo: false, bars: 1, inicioBar: 0, t0: 0, barDur: 0,
+        siguiente() {
+          const bl = estBloques();
+          if (!(repetirParte && this.empezo)) this.i++;
+          this.empezo = true;
+          if (this.i < 0 || this.i >= bl.length) return false;
+          const b = bl[this.i], f = fotoDe(b);
+          ponerMusica(f ? clonar(f) : musicaVacia());
+          this.bars = compasesDeParte(b);
+          this.inicioBar = bl.slice(0, this.i).reduce((s, x) => s + compasesDeParte(x), 0);
+          this.barDur = 0;   // el cabezal espera a que arranque la vuelta
+          marcarSonando();
+          return true;
+        },
+        inicioPasada(t0, barDur) { this.t0 = t0; this.barDur = barDur; } };
+      cancelAnimationFrame(rafCabezal); rafCabezal = requestAnimationFrame(animarCabezal);
+      try { await play('all'); }
+      finally {
+        cancelAnimationFrame(rafCabezal); cancionRep = null;
+        ponerMusica(orig);
+        if ($('estCabezal')) $('estCabezal').hidden = true;
+        renderAll(); renderSeq(); renderBassSeq(); renderGuitarra(); if (S.mode === 'lead') renderLead();
+        renderEstructura();
+      }
+    })();
   }
 
   // ── Exportar la canción entera ──
@@ -3680,6 +3764,11 @@
     $('estExportar').disabled = !bl.length;
     $('estExpModo').textContent = !bl.length ? '' : conMusica ? `La canción entera: ${conMusica} de ${bl.length} partes con música (las demás, en silencio).` : 'Aún ninguna parte tiene música: sale lo del taller repetido, con las partes y la letra.';
     renderMiniMapa();
+    $('estTrans').hidden = !bl.length;
+    $('estPlayCancion').disabled = !conMusica && !cancionRep;
+    $('estPlayCancion').textContent = cancionRep ? '■ Detener' : '▶ Escuchar la canción';
+    $('estRepetir').setAttribute('aria-pressed', String(repetirParte));
+    if (!cancionRep) $('estTransTxt').textContent = conMusica ? 'Suena cada parte con su música, una tras otra. «▶ Desde aquí» empieza desde esa parte.' : 'Guarda música en alguna parte para escuchar la canción.';
     regla.hidden = !bl.length;
     for (let c=0; c<Math.max(total, 16); c++) regla.append(el('span', c%4===0 ? {class:'fuerte'} : {}, c%4===0 ? String(c+1) : ''));
     if (!bl.length) {
@@ -3695,7 +3784,7 @@
     let inicio = 0;
     bl.forEach((b, i) => {
       const ini = inicio; inicio += b.compases;
-      const caja = el('div', {class:'est-bloque' + (S.estructura.enTaller === b.id ? ' en-taller' : ''), 'data-tipo':b.tipo, style:`--c:${b.compases}`});
+      const caja = el('div', {class:'est-bloque' + (S.estructura.enTaller === b.id ? ' en-taller' : '') + (sonandoParte(i) ? ' sonando' : ''), 'data-tipo':b.tipo, style:`--c:${b.compases}`});
       const titulo = el('input', {type:'text', class:'est-titulo', 'aria-label':`Nombre de la parte ${i+1}`, autocomplete:'off'});
       titulo.value = b.titulo; titulo.addEventListener('input', ()=>{ b.titulo = titulo.value; renderMiniMapa(); });
       const mover = d => { const j = i+d; if (j<0 || j>=bl.length) return; [bl[i], bl[j]] = [bl[j], bl[i]]; renderEstructura(); enfocar(j, d<0 ? '.est-antes' : '.est-despues'); };
@@ -3739,7 +3828,7 @@
       musTxt.title = musTxt.textContent;
       const btnGuardar = el('button', {class:'chip', type:'button', title:'Guarda en esta parte una copia de lo que suena ahora en el taller: batería, acordes, bajo, melodía y guitarra', onclick:()=>guardarEnParte(b)}, '⤓ Guardar lo que suena');
       const btnAbrir = el('button', {class:'chip', type:'button', title:'Carga la música de esta parte en el taller para editarla en su instrumento', onclick:()=>abrirParte(b)}, '↗ Abrir'); btnAbrir.disabled = !f;
-      const btnEscuchar = el('button', {class:'chip', type:'button', title:'Hace sonar la música guardada en esta parte', onclick:()=>escucharParte(b)}, sonando(fuente || b) ? '■ Detener' : '▶ Escuchar'); btnEscuchar.disabled = !f;
+      const btnDesde = el('button', {class:'chip est-desde', type:'button', title:'Escucha la canción desde esta parte: cada parte con su música, una tras otra', onclick:()=>reproducirCancion(i)}, sonandoParte(i) ? '■ Detener' : '▶ Desde aquí'); btnDesde.disabled = !conMusica;
       const igual = el('select', {class:'est-igual', 'aria-label':`De dónde sale la música de ${b.titulo || 'esta parte'}`});
       igual.append(el('option', {value:''}, 'música propia'));
       bl.forEach(x => { if (x !== b && !x.igual) igual.append(el('option', {value:x.id}, `igual que ${x.titulo || 'otra parte'}`)); });
@@ -3754,7 +3843,7 @@
       });
       pintar();
       caja.append(el('div', {class:'est-top'}, titulo, antes, despues, quitar), el('div', {class:'est-meta'}, rango, reloj),
-        el('div', {class:'est-musica' + (f ? ' llena' : '')}, musTxt, el('div', {class:'est-mus-fila'}, btnGuardar, btnEscuchar, btnAbrir), igual),
+        el('div', {class:'est-musica' + (f ? ' llena' : '')}, musTxt, el('div', {class:'est-mus-fila'}, btnGuardar, btnDesde, btnAbrir), igual),
         letra, el('div', {class:'est-pie'}, menos, comp, mas, dens), asa);
       pista.append(caja);
     });
@@ -3764,6 +3853,8 @@
     renderEstructura(); const sc = $('estPista').parentNode; sc.scrollLeft = sc.scrollWidth;
   }));
   $('estDesdeLetra').addEventListener('click', traerDeLetra);
+  $('estPlayCancion').addEventListener('click', () => { if (isPlaying) { stopAll(); return; } reproducirCancion(0); });
+  $('estRepetir').addEventListener('click', () => { repetirParte = !repetirParte; $('estRepetir').setAttribute('aria-pressed', String(repetirParte)); });
   $('estMiniGuardar').addEventListener('click', () => { const b = parteDe($('estMiniParte').value); if (b) guardarEnParte(b); });
   $('estMiniIr').addEventListener('click', e => { e.preventDefault(); setMode('letra'); setTimeout(() => $('estructura').scrollIntoView({ behavior:'smooth', block:'start' }), 60); });
   $('estExportar').addEventListener('click', async ()=>{
@@ -3882,7 +3973,7 @@
       titulo: S.letra.titulo || '',
       musica: { genre:S.genre, band:S.band, animo:S.animo, bpm:S.bpm, bars:S.bars, key:S.key, root:S.root, qual:S.qual,
                 voicing:S.voicing, defLen:S.defLen, kbKeys:S.kbKeys, notacion:S.notacion, swing:S.swing },
-      prog: S.prog, drums: S.drums, bassd: S.bassd, lead: S.lead, piano: S.piano, letra: S.letra, guitar: S.guitar, estructura: S.estructura };
+      prog: S.prog, chord: S._chord, drums: S.drums, bassd: S.bassd, lead: S.lead, piano: S.piano, letra: S.letra, guitar: S.guitar, estructura: S.estructura };
   }
   $('expProyecto').addEventListener('click', ()=>{
     stBump('usos','exportar .denavi');
@@ -3900,7 +3991,9 @@
     if (GENRES[S.genre] && GENRES[S.genre][d.musica.band]) { S.band = d.musica.band; $('band').value = S.band; applyBand(); }
       if ($('animo')) { S.animo = d.musica.animo || 'Sin definir'; $('animo').value = S.animo; $('animoSello').textContent = (ANIMOS[S.animo]||{}).sello || ''; }
     Object.assign(S, d.musica);
-    S.prog = (d.prog || []).map(c => ({...c}));
+    const vuelta = pp => ({ prog: ((pp && pp.prog) || []).map(c => ({...c})), cand: null });
+    if (d.chord && d.chord.pad && d.chord.piano) S._chord = { pad: vuelta(d.chord.pad), piano: vuelta(d.chord.piano) };   // las dos vueltas: Pad y Piano
+    else { S._chord = { pad: vuelta(null), piano: vuelta(null) }; S.prog = (d.prog || []).map(c => ({...c})); }   // maquetas viejas: sólo traían la vuelta del instrumento activo
     if (d.drums) S.drums = d.drums;
     if (d.bassd) S.bassd = d.bassd;
     if (d.lead)  S.lead  = d.lead;
@@ -4880,6 +4973,56 @@
     const it = store.get('rueda.maquetas')[+mq]; if (!it || !it.proyecto) return;
     try { const info = aplicarProyecto(it.proyecto, it.name||'maqueta'); if ($('expInfo')) $('expInfo').textContent = info; } catch(e){}
     if (PAR.get('play')==='1') setTimeout(()=>{ try { play('all'); } catch(e){} }, 550);
+  })();
+  // ───────── Autoguardado ─────────
+  // Lo que está abierto en el taller se guarda solo en este navegador mientras trabajas, y al volver se
+  // recupera. No reemplaza a «Guardar» (versiones con nombre) ni al .denavi (para llevarlo a otro lado).
+  (() => {
+    const CLAVE = 'denavilab.autoguardado';
+    const firmaP = p => JSON.stringify({ ...p, guardado: undefined });
+    const tieneAlgo = p => { try {
+      const ch = p.chord || {};
+      return !!((p.prog || []).length || ['pad','piano'].some(k => ch[k] && ch[k].prog && ch[k].prog.length) ||
+        (p.drums && Object.values(p.drums.pat || {}).some(v => v.some(Boolean))) ||
+        (p.bassd && p.bassd.grid.some(r => r >= 0)) || (p.lead && p.lead.mel.some(r => r >= 0)) || (p.guitar && p.guitar.prog.length) ||
+        (p.letra && ((p.letra.titulo || '').trim() || (p.letra.libreta || '').trim() || (p.letra.apuntes || '').trim() ||
+          p.letra.secciones.some(x => x.vuelta.length || x.lineas.some(l => (l.t || '').trim())))) ||
+        (p.estructura && p.estructura.bloques.length));
+    } catch (e) { return false; } };
+    const cuando = ts => new Date(ts).toLocaleString('es-CL', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+    let previo = null; try { previo = JSON.parse(localStorage.getItem(CLAVE) || 'null'); } catch (e) {}
+    if (previo && !(previo.proyecto && tieneAlgo(previo.proyecto))) previo = null;
+    // Si se pidió abrir o preparar otra cosa (Biblioteca, portada, guía), no se pisa: se ofrece recuperarlo.
+    const otraEntrada = ['abrir','maqueta','importar','genero','autor','animo','bpm','compases','nuevo'].some(k => PAR.has(k));
+    if (PAR.has('nuevo')) { const u = new URL(location.href); u.searchParams.delete('nuevo'); history.replaceState(null, '', u); }
+    const barra = (partes, botones) => {
+      const box = $('avisos'); if (!box) return;
+      const b = el('div', {class:'aviso-bar'}, el('span', {class:'aviso-txt'}, ...partes));
+      botones.forEach(([t, fn]) => b.append(el('button', {class:'aviso-x', type:'button', onclick:() => { fn(); b.remove(); }}, t)));
+      box.prepend(b);
+    };
+    if (previo && !otraEntrada) {
+      try {
+        aplicarProyecto(previo.proyecto, 'tu trabajo');
+        barra([el('b', {}, 'Recuperé lo que tenías abierto'), ` (se guardó solo el ${cuando(previo.ts)})`],
+              [['Empezar en blanco', () => { const u = new URL(location.href); u.searchParams.set('nuevo', '1'); location.href = u; }], ['entendido', () => {}]]);
+      } catch (e) {}
+    } else if (previo) {
+      barra([el('b', {}, 'Tienes trabajo sin guardar'), ` del ${cuando(previo.ts)}`],
+            [['Recuperarlo', () => { try { aplicarProyecto(previo.proyecto, 'tu trabajo'); } catch (e) {} }], ['no, gracias', () => {}]]);
+    }
+    // Sólo se escribe cuando tocaste algo y el proyecto cambió: abrir la página no pisa lo anterior.
+    let base = firmaP(proyectoActual()), activo = false;
+    ['pointerdown','keydown'].forEach(t => document.addEventListener(t, () => { activo = true; }, { capture:true, once:true }));
+    function autoguardar() {
+      if (!activo || cancionRep) return;   // mientras suena la canción del mapa, el taller va cargando las partes
+      let p; try { p = proyectoActual(); } catch (e) { return; }
+      const f = firmaP(p); if (f === base || !tieneAlgo(p)) return;
+      try { localStorage.setItem(CLAVE, JSON.stringify({ ts: Date.now(), proyecto: p })); base = f; } catch (e) {}
+    }
+    setInterval(autoguardar, 4000);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) autoguardar(); });
+    window.addEventListener('pagehide', autoguardar);
   })();
 })();
 </script>
