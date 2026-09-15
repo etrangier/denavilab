@@ -185,7 +185,7 @@ test('tutor sin moldes: fuera presets y bandas, se quedan tempo, compases y cuan
   for (const id of ['#genre', '#band', '#bpmRange', '#drumPreset', '#genBeat', '.saved']) await expect(page.locator(id).first()).toBeHidden();
   for (const id of ['#animo', '#bpm', '#barChips', '#drumLenChips', '#drumQuantChips', '#drumKit']) await expect(page.locator(id)).toBeVisible();
   const pestanas = await page.locator('#modosTabs .mtab:visible').evaluateAll(ts => ts.map(t => t.dataset.m));
-  expect(pestanas).toEqual(['beat', 'bajod', 'pad', 'piano']);
+  expect(pestanas).toEqual(['beat', 'bajod', 'pad', 'piano', 'lead', 'letra']);
 
   // la rueda sin porcentajes ni flechas de sugerencia
   await page.click('#modosTabs [data-m=pad]');
@@ -309,11 +309,41 @@ test('tutor escucha de verdad: dice dónde cae lo que marcaste y cuenta lo que c
   expect(errores).toEqual([]);
 });
 
+test('tutor escucha la melodía y la letra', async ({ page }) => {
+  await comoBanda(page, 'schair');
+  const errores = vigilarErrores(page);
+  await page.goto('app.html?tutor=1&modo=lead');
+  const msg = page.locator('#tutor .tu-msg');
+  await expect(page.locator('#leadLhChips')).toBeHidden();
+  await page.waitForTimeout(600);
+  const celda = (fila, paso) => page.locator(`#leadSeq .st[data-s="${paso}"]`).nth(fila);
+  await celda(10, 0).click(); await celda(8, 2).click(); await celda(6, 4).click();
+  await expect(msg).toContainText('Sumaste tres notas', { timeout: 8000 });
+
+  await page.click('#modosTabs [data-m=letra]');
+  await expect(page.locator('#estructura')).toBeHidden();
+  await page.waitForTimeout(3000);
+  await page.locator('.v-txt').first().fill('la lluvia golpea la ventana de la micro');
+  await expect(msg).toContainText('sílabas', { timeout: 14000 });
+  await expect(msg).toContainText('«lluvia»');
+  await page.locator('.v-txt').first().fill('mi corazón roto para siempre');
+  await expect(msg).toContainText('corazón roto', { timeout: 14000 });
+
+  // crítico: «¿Te convence?» da un veredicto con razón
+  await page.locator('#tutor button', { hasText: '¿Te convence?' }).click();
+  await expect(msg).toContainText(/me convence|me llega|Aún no está|buen camino|hacia dónde va|Hay algo aquí|me funciona|Aquí hay algo/);
+  await expect(msg).toContainText('frases gastadas');
+
+  const frases = await page.evaluate(() => JSON.parse(localStorage.getItem('denavilab.tutor.schair')).bitacora.map(m => m.t));
+  for (const t of frases) expect(t, t).not.toMatch(/\d/);
+  expect(errores).toEqual([]);
+});
+
 test('tutor al mínimo para Schair: batería y guitarra', async ({ page }) => {
   await comoBanda(page, 'schair');
-  await page.goto('app.html?tutor=1&modo=letra');
+  await page.goto('app.html?tutor=1&modo=mezcla');   // una pestaña fuera del tutor de Schair: vuelve a la batería
   const pestanas = await page.locator('#modosTabs .mtab:visible').evaluateAll(ts => ts.map(t => t.dataset.m));
-  expect(pestanas).toEqual(['beat', 'guitarra']);
+  expect(pestanas).toEqual(['beat', 'lead', 'guitarra', 'letra']);
   await expect(page.locator('#modosTabs [data-m=beat]')).toHaveAttribute('aria-current', 'true');
   await page.click('#modosTabs [data-m=guitarra]');
   expect(await page.locator('#guitRasgueo .rg-cell.on').count()).toBe(0);   // sin rasgueo por defecto
