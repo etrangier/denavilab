@@ -1680,6 +1680,7 @@
     bassd: { own:false, bpm:72, bars:4, len:1, oct:0, tool:'note', grid:new Array(64).fill(-1), acc:new Array(64).fill(0), slide:new Array(64).fill(0), golpe:new Array(64).fill(0), withDrums:true, acomp:'bateria' } };
   // Pad y Piano son pistas de acordes INDEPENDIENTES: cada una con su propia progresión.
   S._chord = { pad:{prog:[],cand:null}, piano:{prog:[],cand:null} };
+  if (MODO_TUTOR) S.guitar.strum = new Array(8).fill('');   // en el tutor el rasgueo también parte vacío: sin patrón por defecto
   const pistaAcorde = () => S.mode==='piano' ? 'piano' : 'pad';   // los demás modos editan la del Pad
   Object.defineProperty(S, 'prog', { configurable:true, get(){ return S._chord[pistaAcorde()].prog; }, set(v){ S._chord[pistaAcorde()].prog = v; } });
   Object.defineProperty(S, 'cand', { configurable:true, get(){ return S._chord[pistaAcorde()].cand; }, set(v){ S._chord[pistaAcorde()].cand = v; } });
@@ -5614,14 +5615,14 @@
   function scheduleGuit(t0, totalBars, beat) {
     const g = S.guitar; if (!g.prog.length) return; const barDur=beat*4, eighth=beat/2;
     const porCompas=[]; g.prog.forEach(c=>{ for (let b=0;b<(c.bars||1);b++) porCompas.push(c); });
-    const patron = (g.strum && g.strum.some(x=>x)) ? g.strum : PATRON_DEF;
+    const patron = (g.strum && g.strum.some(x=>x)) ? g.strum : (MODO_TUTOR ? [] : PATRON_DEF);   // en el tutor, sin rasgueo no suena un patrón prestado
     for (let b=0;b<totalBars;b++) { const c=porCompas[b%porCompas.length]; const tb=t0+b*barDur; const notas=guitNotas(c.frets);
       for (let e=0;e<8;e++) { const sdir=patron[e]; if (!sdir) continue; let n=1; while (e+n<8 && !patron[e+n]) n++;
         rasguear(notas, tb + e*eighth, sdir, eighth*n*0.95, 0.2); } }
   }
   function trackGuit() {
     const ev=[]; const six=TPB/4, eighth=TPB/2; let t=0;
-    const patron = (S.guitar.strum && S.guitar.strum.some(x=>x)) ? S.guitar.strum : PATRON_DEF;
+    const patron = (S.guitar.strum && S.guitar.strum.some(x=>x)) ? S.guitar.strum : (MODO_TUTOR ? [] : PATRON_DEF);
     S.guitar.prog.forEach(c=>{ const bars=Math.max(1,Math.round(c.bars||1)); const notas=guitNotas(c.frets);
       for (let b=0;b<bars;b++) { const tb=t+b*16*six;
         for (let e=0;e<8;e++) { const sdir=patron[e]; if (!sdir) continue; let n=1; while (e+n<8 && !patron[e+n]) n++;
@@ -6145,6 +6146,8 @@
     const est = { etapa: 0, bitacora: [], dichos: {} };
     try { Object.assign(est, JSON.parse(localStorage.getItem(CLAVE) || 'null') || {}); } catch (e) {}
     est.etapa = Math.max(0, Math.min(ETAPAS.length - 1, +est.etapa || 0));
+    const sesionPrevia = (() => { try { return sessionStorage.getItem('denavilab.tutorSesion') === '1'; } catch (e) { return false; } })();
+    if (!sesionPrevia) est.etapa = 0;   // cada entrada nueva al tutor: hoja en blanco y desde el pulso
     const guardar = () => { try { est.bitacora = est.bitacora.slice(-60); localStorage.setItem(CLAVE, JSON.stringify(est)); } catch (e) {} };
 
     // ── El panel
@@ -6277,7 +6280,7 @@
     if (!PESTANAS.includes(S.mode)) setMode(E0.modo || 'beat');
     else if (E0.modo && S.mode !== E0.modo && !INSTR[PAR.get('modo')]) setMode(E0.modo);
     pintarEtapa();
-    if (ultimo && Date.now() - ultimo.ts < 30 * 60000) pintar(ultimo); else decir('etapa:' + E0.id, { forzar:true });
+    if (sesionPrevia && ultimo && Date.now() - ultimo.ts < 30 * 60000) pintar(ultimo); else decir('etapa:' + E0.id, { forzar:true });
     setTimeout(tick, 0);   // la línea base, apenas termina de cargar (después del autoguardado), para no perderse lo primero que marques
     setInterval(tick, 500);
   })();
@@ -6351,7 +6354,11 @@
   // Lo que está abierto en el taller se guarda solo en este navegador mientras trabajas, y al volver se
   // recupera. No reemplaza a «Guardar» (versiones con nombre) ni al .denavi (para llevarlo a otro lado).
   (() => {
-    const CLAVE = 'denavilab.autoguardado';
+    // El tutor guarda aparte (no pisa el trabajo del taller normal) y cada entrada nueva empieza en blanco;
+    // al recargar la misma pestaña, sigue donde ibas.
+    const CLAVE = MODO_TUTOR ? 'denavilab.autoguardado.tutor' : 'denavilab.autoguardado';
+    const sesionTutor = MODO_TUTOR && (() => { try { return sessionStorage.getItem('denavilab.tutorSesion') === '1'; } catch (e) { return false; } })();
+    if (MODO_TUTOR) { try { sessionStorage.setItem('denavilab.tutorSesion', '1'); } catch (e) {} }
     const firmaP = p => JSON.stringify({ ...p, guardado: undefined });
     const tieneAlgo = p => { try {
       const ch = p.chord || {};
@@ -6366,7 +6373,7 @@
     let previo = null; try { previo = JSON.parse(localStorage.getItem(CLAVE) || 'null'); } catch (e) {}
     if (previo && !(previo.proyecto && tieneAlgo(previo.proyecto))) previo = null;
     // Si se pidió abrir o preparar otra cosa (Guardado, portada, guía), no se pisa: se ofrece recuperarlo.
-    const otraEntrada = ['abrir','maqueta','importar','genero','autor','animo','bpm','compases','nuevo'].some(k => PAR.has(k));
+    const otraEntrada = ['abrir','maqueta','importar','genero','autor','animo','bpm','compases','nuevo'].some(k => PAR.has(k)) || (MODO_TUTOR && !sesionTutor);
     if (PAR.has('nuevo')) { const u = new URL(location.href); u.searchParams.delete('nuevo'); history.replaceState(null, '', u); }
     const barra = (partes, botones) => {
       const box = $('avisos'); if (!box) return;
@@ -6381,8 +6388,8 @@
               [['Empezar en blanco', () => { const u = new URL(location.href); u.searchParams.set('nuevo', '1'); location.href = u; }], ['entendido', () => {}]]);
       } catch (e) {}
     } else if (previo) {
-      barra([el('b', {}, 'Tienes trabajo sin guardar'), ` del ${cuando(previo.ts)}`],
-            [['Recuperarlo', () => { try { aplicarProyecto(previo.proyecto, 'tu trabajo'); } catch (e) {} }], ['no, gracias', () => {}]]);
+      barra([el('b', {}, MODO_TUTOR ? 'Tienes una sesión del tutor sin guardar' : 'Tienes trabajo sin guardar'), ` del ${cuando(previo.ts)}`],
+            [[MODO_TUTOR ? 'Recuperarla' : 'Recuperarlo', () => { try { aplicarProyecto(previo.proyecto, 'tu trabajo'); } catch (e) {} }], ['no, gracias', () => {}]]);
     }
     const marcarAuto = ts => { const ai = $('autoInfo'); if (ai) { ai.textContent = '✓ Autoguardado en este navegador · ' + new Date(ts).toLocaleTimeString('es-CL', { hour:'2-digit', minute:'2-digit' }); ai.classList.add('guardar-auto'); } };
     if (previo && !otraEntrada) marcarAuto(previo.ts);

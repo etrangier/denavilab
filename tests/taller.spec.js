@@ -256,6 +256,34 @@ test('el oído aprende: crece por persona y se retroalimenta con lo que haces', 
   expect(errores).toEqual([]);
 });
 
+test('tutor: cada entrada empieza en blanco sin tocar el trabajo del taller normal', async ({ page }) => {
+  await comoBanda(page);
+  const golpesMarcados = () => page.locator('#seq .st.on').count();
+  const guardado = clave => page.evaluate(k => { const g = JSON.parse(localStorage.getItem(k) || 'null'); return g ? g.proyecto.drums.pat.kick.filter(Boolean).length : -1; }, clave);
+
+  // en el taller normal hay un beat autoguardado
+  await page.goto('app.html?modo=beat');
+  await page.click('#seq .st[data-r="kick"][data-s="0"]');
+  await page.click('#seq .st[data-r="kick"][data-s="8"]');
+  await expect.poll(() => guardado('denavilab.autoguardado'), { timeout: 8000 }).toBe(2);
+
+  // al entrar al tutor: todo en blanco (batería, secuenciador, acordes) y el trabajo normal intacto
+  await page.goto('app.html?tutor=1&modo=beat');
+  expect(await golpesMarcados()).toBe(0);
+  await page.click('#modosTabs [data-m=bajod]');
+  await expect(page.locator('#bpTira')).toHaveText(/^[\s·]*$/);
+  await page.click('#modosTabs [data-m=pad]');
+  await expect(page.locator('#summary')).toContainText('Todavía no hay acordes');
+  await page.click('#modosTabs [data-m=beat]');
+  await page.click('#seq .st[data-r="snare"][data-s="4"]');
+  await expect.poll(() => guardado('denavilab.autoguardado.tutor'), { timeout: 8000 }).toBe(0);
+  expect(await guardado('denavilab.autoguardado')).toBe(2);
+
+  // recargar la misma pestaña sigue donde ibas
+  await page.reload();
+  await expect.poll(golpesMarcados, { timeout: 4000 }).toBe(1);
+});
+
 test('tutor al mínimo para Schair: batería y guitarra', async ({ page }) => {
   await comoBanda(page, 'schair');
   await page.goto('app.html?tutor=1&modo=letra');
@@ -263,6 +291,7 @@ test('tutor al mínimo para Schair: batería y guitarra', async ({ page }) => {
   expect(pestanas).toEqual(['beat', 'guitarra']);
   await expect(page.locator('#modosTabs [data-m=beat]')).toHaveAttribute('aria-current', 'true');
   await page.click('#modosTabs [data-m=guitarra]');
+  expect(await page.locator('#guitRasgueo .rg-cell.on').count()).toBe(0);   // sin rasgueo por defecto
   for (const id of ['#guitGenre', '#guitBand', '#guitSugs', '#guitRasgueoPresets']) await expect(page.locator(id)).toBeHidden();
   for (const id of ['#guitAnimo', '#guitBpm', '#guitCapo']) await expect(page.locator(id)).toBeVisible();
   await expect(page.locator('#guitRasgueo')).toBeVisible();
