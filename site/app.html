@@ -92,10 +92,28 @@
   .bp-tecla.igual { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .bp-tecla.igual small, .bp-tecla.igual .bp-k-num { color: var(--accent-ink); }
   .bp-tecla:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .bp-tecla { min-width: 0; overflow: hidden; }
+  @media (max-width: 470px) { .bp-teclado { gap: 6px; } .bp-tecla { min-height: 60px; padding: 14px 2px 6px; } .bp-tecla b { font-size: 12px; letter-spacing: -.01em; } .bp-tecla small { font-size: 10px; } .bp-tecla .bp-k-num { top: 3px; left: 5px; font-size: 9px; } }
   .bp-pie { display: grid; gap: 8px; }
   .bp-pie .chips { align-items: center; }
   .bp-aviso { color: var(--accent); }
   .bp-aviso:empty { display: none; }
+  .bp-consejo { display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); border-left: 3px solid var(--ok); background: var(--surface); }
+  .bp-consejo b { font-family: var(--display); font-size: 15px; }
+  .bp-consejo p { margin: 0; font-size: 13.5px; color: var(--muted); }
+  .bp-consejo-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .bp-tecla.guia { border-color: var(--ok); box-shadow: 0 3px 0 var(--ok), 0 0 0 2px color-mix(in srgb, var(--ok) 35%, transparent); }
+  @media (prefers-reduced-motion: no-preference) { .bp-tecla.guia { animation: bpLatido 1.6s ease-in-out infinite; } }
+  @keyframes bpLatido { 50% { box-shadow: 0 3px 0 var(--ok), 0 0 0 5px color-mix(in srgb, var(--ok) 18%, transparent); } }
+  .bp-ejemplos { display: grid; gap: 8px; }
+  .bp-ej-lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
+  .bp-ej { display: grid; gap: 4px; align-content: start; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  .bp-ej.recomendado { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .bp-ej-cab { display: flex; justify-content: space-between; gap: 6px; align-items: baseline; }
+  .bp-ej-marca { font-family: var(--mono); font-size: 10px; letter-spacing: .05em; text-transform: uppercase; color: var(--accent); white-space: nowrap; }
+  .bp-ej small { color: var(--muted); font-size: 12px; line-height: 1.35; }
+  .bp-ej code { font-family: var(--mono); font-size: 12.5px; letter-spacing: .08em; background: var(--surface-2); border-radius: 5px; padding: 3px 7px; justify-self: start; }
+  .bp-ej .chip { justify-self: start; }
   .bp-avanzado { border: 1px dashed var(--line); border-radius: 8px; padding: 8px 12px; }
   .bp-avanzado > summary { cursor: pointer; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
   .bp-avanzado[open] > summary { color: var(--accent); margin-bottom: 10px; }
@@ -1075,6 +1093,7 @@
             <div class="bp-tira" id="bpTira" role="group" aria-label="Pasos del compás"></div>
             <div class="bp-tira bp-bombo" id="bpBombo" title="el bombo de la batería, de guía" aria-hidden="true"></div>
           </div>
+          <div class="bp-consejo" id="bpConsejo"></div>
           <div class="bp-teclado" id="bpTeclado" role="group" aria-label="Pads del bajo"></div>
           <div class="bp-pie">
             <div class="chips" id="bpRes"></div>
@@ -1082,6 +1101,17 @@
             <span class="hint bp-aviso" id="bpAviso" role="status"></span>
             <span class="hint">Toca un pad: la nota queda en el paso y avanza al siguiente. Con el teclado: <b>7 8 9</b> y <b>4 5 6</b> son las notas · <b>1</b> ← · <b>2</b> silencio · <b>3</b> → · <b>0</b> ▶ · <b>=</b> genera · <b>+</b> acento · <b>−</b> mantener · Borrar retrocede. Con el MPK, los pads 1 a 8 son las notas y los del banco B, el resto.</span>
           </div>
+          <div class="bp-ejemplos">
+            <span class="lbl">Ejemplos para empezar · un clic los escribe en todos los compases, siguiendo tus acordes</span>
+            <div class="bp-ej-lista" id="bpEjemplos"></div>
+          </div>
+          <details class="help bp-ayuda">
+            <summary>¿Qué hace cada pad? (para empezar de cero)</summary>
+            <p><b>Un compás</b> son cuatro tiempos, «uno-dos-tres-cuatro». Aquí cada tiempo se parte en dos, así que un compás tiene <b>8 pasos</b>. La pantalla verde muestra en qué paso estás: tocas un pad, la nota queda ahí y el cursor avanza al siguiente.</p>
+            <p><b>RAÍZ</b> es la nota que le da el nombre al acorde: en Lam, <i>la</i>; en Fa, <i>fa</i>. Es la más importante: con ella sola ya hay bajo. <b>QUINTA</b> suena bien sobre casi cualquier acorde. <b>OCTAVA</b> es la misma raíz, más aguda. <b>TERCERA</b> es la que dice si el acorde es alegre o triste. <b>PASO ↓</b> y <b>PASO ↑</b> son notas de la escala para ir de una nota a otra.</p>
+            <p><b>MANTENER</b> estira la nota anterior un paso más. <b>SILENCIO</b> deja un hueco: el silencio también es parte del ritmo. <b>ACENTO</b> hace más fuerte la última nota que tocaste. Los pads de nota cambian solos en cada compás, porque siguen al acorde que suena ahí.</p>
+            <p><b>La fila naranja</b> bajo los pasos es el bombo de la batería. Un bajo que cae junto al bombo suena firme; uno que cae entre medio, suelto.</p>
+          </details>
         </div>
         <details class="bp-avanzado">
           <summary>Rejilla detallada · acentos, ligados, octava, tempo propio y patrones</summary>
@@ -3442,7 +3472,7 @@
       const idx = bpCelda(BP.bar, p), row = S.bassd.grid[idx], prev = idx > 0 ? S.bassd.grid[idx - 1] : -1, sigue = row >= 0 && !g[idx] && prev === row;
       tira.append(el('button', {class:'bp-paso' + (p % (BP.res / 4) === 0 ? ' tiempo' : '') + (row >= 0 ? (sigue ? ' sigue' : ' nota') : '') + (p === BP.paso ? ' cursor' : '') + (row >= 0 && S.bassd.acc[idx] ? ' acento' : ''),
         type:'button', 'data-p': p, 'aria-label': `Paso ${p + 1}: ` + (row < 0 ? 'vacío' : sigue ? 'se mantiene' : nota(row % 12)), onclick: () => { BP.paso = p; renderBajoPads(); }},
-        row < 0 ? '·' : sigue ? '—' : nota(row % 12) + (S.bassd.acc[idx] ? '›' : '')));
+        row < 0 ? '·' : sigue ? '—' : nota(row % 12) + (row >= 12 ? '′' : '') + (S.bassd.acc[idx] ? '›' : '')));
     }
     const bombo = $('bpBombo'); bombo.innerHTML = ''; bombo.style.setProperty('--pasos', BP.res);
     const dl = Math.max(1, S.drums.len), kick = S.drums.pat.kick;
@@ -3457,6 +3487,87 @@
     [[8,'8 · corcheas'], [16,'16 · semicorcheas']].forEach(([v, t]) => rc.append(el('button', {class:'chip', type:'button', 'aria-pressed': String(BP.res === v), onclick: () => { BP.paso = Math.floor(BP.paso * v / BP.res); BP.res = v; renderBajoPads(); }}, t)));
     const lc = $('bpLargo'); lc.innerHTML = ''; lc.append(el('span', {class:'lbl'}, 'Compases del patrón'));
     [1, 2, 4].forEach(v => lc.append(el('button', {class:'chip', type:'button', 'aria-pressed': String(S.bassd.len === v), onclick: () => { const b = [...$('bassLenChips').querySelectorAll('button')].find(x => x.textContent.trim().startsWith(String(v))); if (b) b.click(); }}, String(v))));
+    renderAyudaBajo();
+  }
+  // ───────── Consejos y ejemplos del bajo, para principiantes ─────────
+  // Un consejo a la vez según lo que llevas, con los pads que conviene tocar marcados y un «Ver cómo» que lo escribe.
+  const BP_EJEMPLOS = [
+    { id:'sostenida',   t:'Raíz sostenida',          de:'Una nota larga por compás. Lo más simple, y funciona en casi todo.',                    pasos:['raiz','—','—','—','—','—','—','—'] },
+    { id:'uno-tres',    t:'Raíz en el 1 y el 3',     de:'El bajo de rock y pop: acompaña al bombo.',                                             pasos:['raiz','—','—','—','raiz','—','—','—'] },
+    { id:'raiz-quinta', t:'Raíz y quinta',           de:'Salta a la quinta en el tiempo 3: se mueve sin arriesgar.',                              pasos:['raiz','—','—','—','quinta','—','—','—'] },
+    { id:'octavas',     t:'Octavas',                 de:'Raíz abajo y arriba en corcheas: el motor del synth pop y el disco.',                    pasos:['raiz',null,'octava',null,'raiz',null,'octava',null] },
+    { id:'corcheas',    t:'Corcheas de punk',        de:'La raíz en las ocho corcheas, parejas y firmes.',                                        pasos:['raiz','raiz','raiz','raiz','raiz','raiz','raiz','raiz'] },
+    { id:'trip-hop',    t:'Trip hop con aire',       de:'Pocas notas y separadas: el silencio también toca.',                                     pasos:['raiz','—',null,'raiz',null,null,'raiz','quinta'] },
+    { id:'caminar',     t:'Caminar hacia el siguiente', de:'Raíz, tercera y quinta; en la última corchea, una nota que lleva al acorde que viene.', pasos:['raiz','—','tercera','—','quinta','—','—','hacia'] },
+  ];
+  const BP_ESTILO = { 'Trip hop':'trip-hop', 'Synth pop':'octavas', 'Anime':'octavas', 'Rock':'uno-tres', 'Alternativo':'raiz-quinta', 'Bedroom pop':'raiz-quinta', 'Lo-fi hip hop':'caminar', 'Lofi house':'octavas', 'IDM':'sostenida', 'Personal':'uno-tres' };
+  const BP_TECLA_DE = { raiz:'7', quinta:'8', octava:'9', tercera:'4', abajo:'5', sube:'6', hacia:'5/6', '—':'−' };
+  const secuenciaTeclas = pasos => pasos.map(p => p === null ? '2' : BP_TECLA_DE[p]).join(' ');
+  function aplicarPatronBajo(pasos) {
+    snapBass(); S.bassd.len = 1; bpAjustarLargo();
+    S.bassd.grid.fill(-1); S.bassd.acc.fill(0); S.bassd.slide.fill(0); golpes().fill(0);
+    const g = golpes();
+    for (let b = 0; b < S.bassd.len; b++) {
+      const n = notasDelPad(b), sig = notasDelPad(b + 1); let ultima = -1;
+      pasos.forEach((rol, p) => {
+        const i = b * 16 + p * 2; let row = -1, golpe = true;
+        if (rol === '—') { row = ultima; golpe = false; }
+        else if (rol === 'hacia') { row = sig.raiz === n.raiz ? n.quinta : sig.raiz > n.raiz ? sig.raiz - 1 : sig.raiz + 1; if (row < 0) row += 12; }   // un semitono antes del acorde que viene
+        else if (rol) row = n[rol];
+        if (row < 0) { ultima = -1; return; }
+        S.bassd.grid[i] = row; S.bassd.grid[i + 1] = row; if (golpe) g[i] = 1; ultima = row;
+      });
+      if (S.bassd.grid[b * 16] >= 0) S.bassd.acc[b * 16] = 1;
+    }
+    BP.bar = 0; BP.paso = 0; BP.res = 8; BP.ultimo = -1; renderBassSeq();
+  }
+  function arreglarRaizEnUno() { snapBass(); const g = golpes(); for (let b = 0; b < S.bassd.len; b++) { const r = notasDelPad(b).raiz, i = b * 16; S.bassd.grid[i] = r; S.bassd.grid[i + 1] = r; S.bassd.acc[i] = 0; g[i] = 1; g[i + 1] = 0; } renderBassSeq(); }
+  function dejarAire() { snapBass(); const g = golpes(); for (let b = 0; b < S.bassd.len; b++) for (let p = 1; p < 8; p += 2) { const i = b * 16 + p * 2; S.bassd.grid[i] = -1; S.bassd.grid[i + 1] = -1; S.bassd.acc[i] = 0; g[i] = 0; g[i + 1] = 0; } renderBassSeq(); }
+  function acentuarUnos() { snapBass(); for (let b = 0; b < S.bassd.len; b++) if (S.bassd.grid[b * 16] >= 0) S.bassd.acc[b * 16] = 1; renderBassSeq(); }
+  function octavaAlFinal() { snapBass(); const b = S.bassd.len - 1, n = notasDelPad(b), i = b * 16 + 8; S.bassd.grid[i] = n.octava; S.bassd.grid[i + 1] = n.octava; S.bassd.acc[i] = 0; golpes()[i] = 1; golpes()[i + 1] = 0; renderBassSeq(); }
+  function analizarBajo() {
+    const len = S.bassd.len, g = golpes(), grid = S.bassd.grid;
+    let golpesN = 0, raizUno = 0, acentos = 0, quinta = false, octava = false;
+    for (let b = 0; b < len; b++) {
+      const n = notasDelPad(b);
+      for (let s = 0; s < 16; s++) {
+        const i = b * 16 + s, r = grid[i]; if (r < 0) continue;
+        if (!(s === 0 || grid[i - 1] !== r || g[i] || S.bassd.acc[i])) continue;   // sólo donde empieza una nota
+        golpesN++; if (S.bassd.acc[i]) acentos++;
+        if (s === 0 && r % 12 === n.raiz % 12) raizUno++;
+        if (r % 12 === n.quinta % 12) quinta = true;
+        if (r === n.octava) octava = true;
+      }
+    }
+    return { vacio: !hasBassD(), sinVuelta: !vueltaDelBajo().length, golpes: golpesN / len, raizUno: raizUno === len, acentos, quinta, octava };
+  }
+  function consejoPads() {
+    const a = analizarBajo(), ver = fn => [['Ver cómo', fn, true]];
+    if (a.sinVuelta && a.vacio) return { t:'Primero, una vuelta de acordes', p:'Los pads ya suenan con la tónica, pero el bajo cobra sentido cuando sigue a los acordes: cada compás, sus propias notas. Arma cuatro acordes en Pad y vuelve.', teclas:[], botones:[['Ir a Pad →', () => setMode('pad'), false], ['Probar con la tónica', () => aplicarPatronBajo(BP_EJEMPLOS[0].pasos), true]] };
+    if (a.vacio) return { t:'Empieza por la raíz', p:'Casi todo bajo de maqueta arranca así: la nota que le da el nombre al acorde, en el 1 de cada compás. Pulsa «=» y queda escrita en todos los compases.', teclas:['igual'], botones: ver(() => aplicarPatronBajo(BP_EJEMPLOS[0].pasos)) };
+    if (!a.raizUno) return { t:'Cada compás empieza en RAÍZ', p:'El paso 1 le dice al oído qué acorde suena. Muévete al paso 1 de cada compás con ← y → y toca RAÍZ.', teclas:['raiz','izq','der'], botones: ver(arreglarRaizEnUno) };
+    if (a.golpes <= 1.01) return { t:'Que camine: RAÍZ también en el 3', p:'Una nota por compás sostiene, pero no empuja. Toca RAÍZ en el paso 1 y otra vez en el paso 5, que es el tiempo 3. Con el teclado: 7 − − − 7 − − −.', teclas:['raiz','mantener'], botones: ver(() => aplicarPatronBajo(BP_EJEMPLOS[1].pasos)) };
+    if (a.golpes > 6) return { t:'Deja respirar', p:`Tienes unos ${Math.round(a.golpes)} golpes por compás y el bajo tapa al bombo. Cambia algunas notas por SILENCIO, sobre todo las que caen entre los tiempos.`, teclas:['silencio'], botones: ver(dejarAire) };
+    if (!a.quinta && !a.octava) return { t:'Suma la QUINTA', p:'Después de la raíz, la quinta es la nota más segura: suena bien sobre casi cualquier acorde. Prueba RAÍZ en el 1 y QUINTA en el 3. Con el teclado: 7 − − − 8 − − −.', teclas:['quinta'], botones: ver(() => aplicarPatronBajo(BP_EJEMPLOS[2].pasos)) };
+    if (!a.acentos) return { t:'Marca el 1 con ACENTO', p:'Justo después de tocar la RAÍZ del paso 1, pulsa ACENTO (+): esa nota suena más fuerte y el compás se siente firme.', teclas:['acento'], botones: ver(acentuarUnos) };
+    if (!a.octava && S.bassd.len > 1) return { t:'Un salto de OCTAVA al final', p:'Para que la vuelta no aburra, en el último compás cambia la nota del tiempo 3 por OCTAVA: la misma raíz, más aguda.', teclas:['octava'], botones: ver(octavaAlFinal) };
+    return { t:'Tu bajo ya camina', p:'Tiene raíz en el 1, movimiento y acento. Prueba otro estilo de los ejemplos de abajo, o escúchalo con todo en la Mezcla.', teclas:[], botones:[['Escuchar en la Mezcla →', () => setMode('mezcla'), false]] };
+  }
+  function probarBajo(fn, texto) { fn(); if (!isPlaying) $('playBass').click(); avisoBajo(texto || 'Así suena. DESHACER (.) vuelve a lo que tenías.'); }
+  function renderAyudaBajo() {
+    const box = $('bpConsejo'); if (!box) return;
+    const c = consejoPads(); box.innerHTML = '';
+    box.append(el('span', {class:'lbl'}, 'Consejo'), el('b', {}, c.t), el('p', {}, c.p));
+    if (c.botones.length) { const fila = el('div', {class:'bp-consejo-btns'}); c.botones.forEach(([t, fn, suena]) => fila.append(el('button', {class:'chip', type:'button', onclick: () => suena ? probarBajo(fn) : fn()}, t))); box.append(fila); }
+    $('bpTeclado').querySelectorAll('.bp-tecla').forEach(b => b.classList.toggle('guia', c.teclas.includes(b.dataset.id)));
+    const reco = BP_ESTILO[S.genre] || 'uno-tres', lista = $('bpEjemplos'), clave = S.genre + '|' + reco;
+    if (lista.dataset.clave === clave) return;
+    lista.dataset.clave = clave; lista.innerHTML = '';
+    BP_EJEMPLOS.forEach(ej => lista.append(el('div', {class:'bp-ej' + (ej.id === reco ? ' recomendado' : '')},
+      el('div', {class:'bp-ej-cab'}, el('b', {}, ej.t), ej.id === reco ? el('span', {class:'bp-ej-marca'}, `para ${S.genre}`) : ''),
+      el('small', {}, ej.de),
+      el('code', {title:'las teclas para escribirlo tú, paso a paso: 7 raíz · 8 quinta · 9 octava · 4 tercera · − mantener · 2 silencio'}, secuenciaTeclas(ej.pasos)),
+      el('button', {class:'chip', type:'button', onclick: () => probarBajo(() => aplicarPatronBajo(ej.pasos), `«${ej.t}» quedó escrito en todos los compases. DESHACER (.) vuelve a lo que tenías.`)}, '▶ Probar'))));
   }
   document.addEventListener('keydown', e => {
     if (S.mode !== 'bajod' || e.metaKey || e.ctrlKey || e.altKey) return;
