@@ -132,6 +132,31 @@ test('guía: la ruta muestra el siguiente paso y avanza al marcarlo', async ({ p
   await expect(page.locator('section[data-para~="rolando"] .leccion').first()).toBeVisible();
 });
 
+test('tutor: esconde los moldes, escucha lo que marcas y responde sin decir dónde', async ({ page }) => {
+  await comoBanda(page);
+  const errores = vigilarErrores(page);
+  await page.goto('app.html?tutor=1&modo=beat');
+  const tutor = page.locator('#tutor');
+  await expect(tutor).toBeVisible();
+  await expect(page.locator('#drumPreset')).toBeHidden();
+  await expect(page.locator('#genBeat')).toBeHidden();
+  await expect(tutor.locator('.tu-etapa')).toContainText('El pulso');
+  const primero = await tutor.locator('.tu-msg').innerText();
+  expect(primero.length).toBeGreaterThan(20);
+
+  // marca un bombo: el tutor lo oye y, al quedarse quieto, contesta con otra cosa y la etapa queda lista
+  await page.click('#seq .st[data-r="kick"][data-s="0"]');
+  await expect(tutor.locator('.tu-etapa')).toContainText('✓', { timeout: 5000 });
+  await expect(tutor.locator('.tu-msg')).not.toHaveText(primero, { timeout: 8000 });
+  const mensajes = await page.evaluate(() => JSON.parse(localStorage.getItem('denavilab.tutor.rolando')).bitacora.map(m => m.t));
+  expect(mensajes.length).toBeGreaterThan(1);
+  for (const t of mensajes) expect(t, t).not.toMatch(/\d/);   // nunca posiciones ni números de paso
+
+  await tutor.locator('button', { hasText: 'Sigo' }).click();
+  await expect(tutor.locator('.tu-etapa')).toContainText('El contraste');
+  expect(errores).toEqual([]);
+});
+
 test('taller en celular: el instrumento queda arriba y se ven todas las pestañas', async ({ browser }) => {
   const contexto = await browser.newContext({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
   const page = await contexto.newPage();

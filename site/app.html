@@ -660,6 +660,52 @@
     .ir-ajustes:hover, .ir-ajustes:focus-visible { color: var(--accent); border-color: var(--accent); }
     #ajustes { scroll-margin-top: 12px; }
   }
+
+  /* ───────── Tutor a la manera de Rick Rubin ───────── */
+  body.modo-tutor .field:has(> #drumPreset), body.modo-tutor .consejos-wrap, body.modo-tutor #bpModoAyuda, body.modo-tutor #bpLeccion, body.modo-tutor #bpConsejo,
+  body.modo-tutor .bp-ejemplos, body.modo-tutor .field:has(> #bassGenChips), body.modo-tutor .field:has(> #bassPresets), body.modo-tutor .field:has(> #bassSugs),
+  body.modo-tutor #vueltasBeat, body.modo-tutor .panel:has(> #sugs), body.modo-tutor .guit-sugs-box, body.modo-tutor #guitRasgueoPresets,
+  body.modo-tutor .field:has(> #leadGenChips), body.modo-tutor #tip { display: none !important; }
+  body.modo-tutor .bp-tecla.guia { animation: none; border-color: var(--line); box-shadow: 0 3px 0 var(--line); }
+  .tutor { position: fixed; right: 16px; bottom: 16px; width: 350px; max-height: calc(100vh - 32px); overflow: auto; z-index: 60; display: grid; gap: 10px;
+    background: var(--surface); color: var(--text); border: 1px solid var(--accent); border-left-width: 4px; border-radius: 14px; padding: 14px 16px; box-shadow: 0 16px 40px rgba(0,0,0,.35); }
+  .tu-cab { display: flex; align-items: center; gap: 10px; }
+  .tu-titulo { flex: 1 1 auto; display: grid; line-height: 1.15; }
+  .tu-nombre { font-family: var(--display); font-weight: 700; font-size: 17px; }
+  .tu-sub { font-size: 12px; color: var(--muted); }
+  .tu-oido { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+  .tu-oido i { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+  .tu-oido.activo i { background: var(--accent); }
+  @media (prefers-reduced-motion: no-preference) {
+    .tu-oido i { animation: tuLatido 2.4s ease-in-out infinite; } .tu-oido.activo i { animation-duration: .8s; }
+    @keyframes tuLatido { 50% { opacity: .3; } }
+    .tu-msg.nuevo { animation: tuEntra .5s ease; } @keyframes tuEntra { from { opacity: 0; transform: translateY(4px); } }
+  }
+  .tu-min { font: inherit; background: none; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); width: 28px; height: 26px; cursor: pointer; }
+  .tutor.min .tu-cuerpo { display: none; }
+  .tu-cuerpo { display: grid; gap: 10px; }
+  .tu-etapas { display: flex; gap: 4px; }
+  .tu-punto { flex: 1 1 0; height: 5px; border-radius: 3px; background: var(--line); }
+  .tu-punto.hecha { background: var(--ok); } .tu-punto.actual { background: var(--accent); }
+  .tu-etapa { margin: 0; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+  .tu-msg { margin: 0; font-family: var(--display); font-size: 17px; line-height: 1.38; }
+  .tu-por summary, .tu-bita summary { cursor: pointer; font-size: 12.5px; color: var(--muted); }
+  .tu-por p { margin: 6px 0 4px; font-size: 13px; color: var(--muted); border-left: 3px solid var(--ok); padding-left: 10px; }
+  .tu-de { display: block; font-size: 11px; color: var(--muted); font-style: italic; padding-left: 13px; }
+  .tu-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tu-btns button { padding: 6px 11px; font-size: 13px; }
+  .tu-bita ol { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 6px; font-size: 12.5px; color: var(--muted); max-height: 180px; overflow: auto; }
+  .tu-bita time { font-family: var(--mono); font-size: 10.5px; margin-right: 6px; }
+  .tu-nota { margin: 0; font-size: 11px; color: var(--muted); }
+  .tu-nota button { font: inherit; background: none; border: none; color: var(--accent); cursor: pointer; padding: 0; text-decoration: underline; }
+  @media (min-width: 1181px) { body.modo-tutor .app { margin-right: 380px; } }
+  @media (max-width: 1180px) {
+    .tutor { left: 8px; right: 8px; bottom: 8px; width: auto; max-height: 40vh; padding: 10px 12px; gap: 8px; border-radius: 12px; }
+    body.modo-tutor { padding-bottom: 240px; }
+    .tu-cuerpo { gap: 8px; } .tu-msg { font-size: 15px; line-height: 1.32; } .tu-sub { font-size: 11px; }
+    /* en pantalla chica, lo esencial: la etapa, el mensaje y los botones; bitácora y nota con el panel abierto del todo */
+    .tutor:not(.completo) .tu-etapas, .tutor:not(.completo) .tu-bita, .tutor:not(.completo) .tu-nota { display: none; }
+  }
 </style>
 </head>
 <body>
@@ -2646,7 +2692,7 @@
       case 'uke': for (let b=0;b<nb;b++) keys.forEach((m,i)=>voice(m+12,t+b*beat+i*0.03,beat*0.7,'uke',0.15)); break;
     }
   }
-  let isPlaying = false, cancelWait = null, playGen = 0;
+  let isPlaying = false, cancelWait = null, playGen = 0, tutorOyente = null;   // tutorOyente: el tutor escucha cada vuelta que suena
   const wait = ms => new Promise(r=>{ const id=setTimeout(()=>{cancelWait=null; r();},ms); cancelWait=()=>{ clearTimeout(id); cancelWait=null; r(); }; });
   // El bajo dentro de «todo»: se programa compás a compás, un instante antes de cada uno y sobre el mismo reloj de audio que
   // el resto, así suena en sincronía y lo que escribas en el Secuenciador entra al compás siguiente (no a la vuelta siguiente).
@@ -2736,6 +2782,7 @@
         await wait(totalBars*barDur*1000);
       }
       t0 += totalBars*barDur;
+      if (tutorOyente && !stopFlag) tutorOyente.vuelta(mode);
       const dlen = S.donner.on ? Math.max(1, S.donner.len) : Math.max(1, S.drums.len);
       drumPhase = (drumPhase + Math.round(totalBars)) % dlen;   // el patrón continúa donde quedó, sin reiniciarse en cada vuelta
       // corrige la deriva del reloj de JS respecto al de audio
@@ -3251,7 +3298,7 @@
     if (m==='bajod') renderBassSeq();
     $('midiAddWrap').hidden = (m==='bajod' || m==='beat') || !midiAccess;
     $('kbTitle').textContent = `Akai MPK mini ${S.kbKeys===37?'Plus · 37':'· 25'} teclas · do a do · OCT en 0` + (m==='bajod' ? ' · clic o MIDI = suena el bajo' : '');
-    if (m==='beat' && listoParaAutoBeat && !S.donner.on && !hasDrums() && !PAR.has('guia')) generarBeat(true);   // se genera solo al entrar si está vacío (desde la guía, no: se empieza en blanco)
+    if (m==='beat' && listoParaAutoBeat && !S.donner.on && !hasDrums() && !PAR.has('guia') && !PAR.has('tutor')) generarBeat(true);   // se genera solo al entrar si está vacío (desde la guía, no: se empieza en blanco)
     renderAll();
   }
   $('mode').addEventListener('change', e=>setMode(e.target.value));
@@ -5544,6 +5591,407 @@
     const it = store.get('rueda.maquetas')[+mq]; if (!it || !it.proyecto) return;
     try { avisoGuardar(aplicarProyecto(it.proyecto, it.name||'maqueta')); } catch(e){ avisoGuardar('No pude abrir la maqueta: ' + (e.message||e)); }
     if (PAR.get('play')==='1') setTimeout(()=>{ try { play('all'); } catch(e){} }, 550);
+  })();
+  // Mensajes del tutor: frases propias, en el espíritu de ideas de Rick Rubin verificadas en su libro «El acto de crear»
+  // (Planeta, 2023) y en entrevistas (60 Minutes 2023, Tim Ferriss, Conversations with Tyler, Rolling Stone 2016, NPR,
+  // CBC Q, Tetragrammaton). No son citas: nunca dicen qué nota ni qué casilla. «de» nombra de dónde viene la idea.
+  const LIBRO = c => 'El acto de crear · ' + c;
+  const BANCO_TUTOR = {
+    // ── Etapas: la pregunta con que abre cada una
+    'etapa:pulso': [
+      { t:'Antes de marcar nada, escucha el silencio un momento. ¿Esta canción camina, flota o empuja?', por:'El pulso es el suelo: todo lo demás se mide contra él. Si lo sientes antes de escribirlo, lo que escribas tendrá intención.', de: LIBRO('Escuchar') },
+      { t:'Imagina un lugar —una calle mojada de noche, un andén vacío— y busca el latido de ese lugar.', por:'Una imagen le da dirección emocional al ritmo antes de escribirlo, y el tempo y el carácter salen solos de ahí.', de: LIBRO('Romper la monotonía') },
+    ],
+    'etapa:contraste': [
+      { t:'Ya hay algo que late. Ahora busca algo que le conteste: otro peso, otro color, otra voz.', por:'El ritmo se entiende por contraste: un golpe grave y uno más liviano se definen entre sí, como una pregunta y su respuesta.', de: LIBRO('Contexto') },
+    ],
+    'etapa:aire': [
+      { t:'Tu beat ya habla. Ahora pregúntate qué sobra, y dónde podría tropezar un poco sin caerse.', por:'Un golpe que llega donde el cuerpo no lo espera empuja el ritmo hacia adelante; y quitar deja lugar para que cada golpe pese.', de: LIBRO('Esencia') },
+    ],
+    'etapa:bajo': [
+      { t:'Escucha tu batería unas vueltas antes de escribir el bajo. ¿Dónde te pide peso? ¿Dónde te pide que no pase nada?', por:'El bajo une el cuerpo con la armonía: cuando conversa con el bombo, la base se siente una sola cosa.', de:'Entrevista en Tetragrammaton (sobre el ritmo como relación entre sonidos)' },
+      { t:'Tararea una línea encima del beat antes de tocar un pad. Lo que sale por la boca suele cantar más que lo que sale por los dedos.', por:'La voz no piensa en posiciones: sigue la sensación, y eso da líneas con forma de frase.', de: LIBRO('Semillas') },
+    ],
+    'etapa:respira': [
+      { t:'La línea ya existe. Ahora déjala respirar: una buena frase también sabe callar.', por:'Los silencios definen el ritmo de una línea: cada sonido que llega después de una pausa pesa más.', de: LIBRO('Inspiración') },
+    ],
+    'etapa:vuelta:rolando': [
+      { t:'Busca acordes que digan lo que la batería y el bajo ya sienten. No el acorde correcto: el que te mueva algo.', por:'La emoción es mejor brújula que la teoría: la teoría explica después lo que la intuición ya eligió.', de: LIBRO('Armonía') },
+    ],
+    'etapa:vuelta:schair': [
+      { t:'Toma la guitarra antes de mirar la pantalla. ¿Qué vuelta te sale sin pensar, con ganas de cantarle encima?', por:'Lo que sale tocando, sin la presión de «hacerlo bien», suele tener más de ti que lo que se planea.', de:'Entrevista en NPR (las maquetas de Johnny Cash en el living)' },
+    ],
+    'etapa:rasgueo': [
+      { t:'El rasgueo es la respiración de la guitarra. ¿Dónde podría la mano seguir moviéndose sin sonar?', por:'Si la mano deja de sonar sin detenerse, el pulso sigue y el oído escucha huecos que empujan: eso es síncopa.', de: LIBRO('Contexto') },
+    ],
+    'etapa:soltar': [
+      { t:'Escúchalo entero, sin tocar nada, como alguien que pasa por la puerta. Si algo te mueve, ya está vivo: guarda esta toma.', por:'Cerrar una idea completa enseña forma y afina el criterio para la próxima; un loop pulido sin fin no enseña eso.', de: LIBRO('Finalización') },
+      { t:'Esta toma es una página de hoy, no el libro entero. Déjala ser y deja lugar a la siguiente.', por:'Una obra termina cuando lo sientes, y siempre vienen más ideas: soltar es parte del oficio.', de: LIBRO('La mentalidad de la abundancia') },
+      { t:'No la pulas hasta que pierda lo suelto. Lo casual también es verdad.', por:'Muchas veces la versión relajada, sin sensación de permanencia, lleva más personalidad que la trabajada de más.', de:'Entrevista en NPR Fresh Air (Johnny Cash) · Tim Ferriss Show' },
+    ],
+    // ── Cuando la etapa ya tiene lo suyo
+    'listo:pulso': [{ t:'Ahí hay un corazón. Déjalo sonar varias vueltas y, cuando lo sientas tuyo, sigue.' }],
+    'listo:contraste': [{ t:'Ahora hay una conversación, no un monólogo. Escucha cómo se responden antes de seguir.' }],
+    'listo:aire': [{ t:'Algo respira y algo tropieza. Escúchalo sin mirar la pantalla: si el cuerpo se mueve, sigue.' }],
+    'listo:bajo': [{ t:'El bajo ya pisa la tierra. Escúchalo con la batería y fíjate si se sienten una sola cosa.' }],
+    'listo:respira': [{ t:'La línea respira. Cuando te den ganas de tararearla, está lista para seguir.' }],
+    'listo:vuelta': [{ t:'Hay una vuelta. Cántale encima cualquier cosa, sin palabras, y fíjate qué te pide.' }],
+    'listo:rasgueo': [{ t:'Hay aire en tu mano derecha. Escucha qué entra por esos huecos.' }],
+
+    // ── Batería
+    b_vacio: [
+      { t:'No estás haciendo la canción todavía, solo juntando semillas. Cualquier golpe que te dé curiosidad vale.', por:'Al principio se junta sin juzgar: todavía no se sabe qué idea va a crecer.', de: LIBRO('Semillas') },
+      { t:'No pienses en quién lo va a escuchar. Hazlo para ti, y quizá para un amigo.', por:'Lo que se hace para uno mismo suele tener un punto de vista; lo que se hace para gustar, se diluye.', de:'Entrevista en 60 Minutes (CBS, 2023)' },
+    ],
+    b_soloBombo: [
+      { t:'Ese latido es un corazón tranquilo. Déjalo sonar un rato: ¿qué te pide que aparezca a su lado?', por:'El bombo regular marca el pulso que el cuerpo sigue; lo demás cobra sentido en relación con él.', de: LIBRO('Escuchar') },
+      { t:'Siéntelo en el pecho, no en la pantalla. ¿Camina, corre o espera?', por:'Escuchar con el cuerpo, antes de analizar, ayuda a decidir el carácter del ritmo.', de: LIBRO('Consciencia') },
+      { t:'Un pulso solo es un suelo firme. ¿Qué pasaría si algo lo contradijera, aunque sea un instante?', por:'Probar el opuesto de lo que ya tienes muestra en qué punto de la balanza estás.', de: LIBRO('Lo contrario es cierto') },
+    ],
+    b_bomboSuelto: [
+      { t:'Tu bombo no marcha: se tambalea con gracia. ¿Hay algo firme a su alrededor que haga sentir ese tambaleo a propósito?', por:'Un golpe corrido se siente como movimiento sólo si algo estable marca dónde está el pulso.', de:'Rolling Stone 2016 (dos pulsos que se cruzan en «Going Back to Cali»)' },
+    ],
+    b_sinCaja: [
+      { t:'Hay peso abajo y brillo arriba, pero nadie golpea la mesa. ¿Qué le respondería al bombo?', por:'El diálogo entre un golpe grave y uno seco es lo que el cuerpo reconoce como groove.', de: LIBRO('Contexto') },
+    ],
+    b_cuadrado: [
+      { t:'Suena firme, como un metrónomo con botas. ¿Y si algo llegara con un poquito de prisa, o de pereza?', por:'El groove aparece cuando algo rompe un poco lo esperado —un golpe que se adelanta o se atrasa— sin perder el marco.', de: LIBRO('Pruébalo todo') },
+      { t:'Suena ordenado, casi prolijo. ¿Tu cuerpo se mueve, o sólo lo estás mirando?', por:'La señal más confiable es corporal: si al escuchar no dan ganas de moverse, falta tensión.', de:'Entrevista en 60 Minutes (CBS, 2023)' },
+      { t:'Todo cae donde el cuerpo lo espera, y el cuerpo se duerme. ¿Qué pasa si algo lo sorprende?', por:'La síncopa acentúa donde el pulso no lo espera y crea una tensión que empuja hacia adelante.', de: LIBRO('Armonía') },
+    ],
+    b_lleno: [
+      { t:'Hay mucha gente hablando a la vez. ¿Quién tiene algo que decir de verdad?', por:'Los huecos le dan definición a cada golpe; si todo suena todo el tiempo, los acentos se borran.', de: LIBRO('Esencia') },
+      { t:'Quita algo que te guste. Si no lo echas de menos, sobraba; si lo extrañas, vuelve.', por:'Reducir no es perder: con menos información, cada golpe que queda gana peso.', de:'Entrevista en 60 Minutes (CBS, 2023) · Rolling Stone 2016 («Bound 2»)' },
+      { t:'Deja sonar una sola capa. A veces la canción está escondida ahí.', por:'Una capa escuchada sola puede revelar la idea central que el conjunto tapaba.', de: LIBRO('Juego') },
+    ],
+    b_igual: [
+      { t:'La repetición puede hipnotizar o adormecer. ¿Ahora te está llevando, o te está esperando?', por:'Repetir crea trance, pero el oído necesita algún cambio de contexto para sentir la forma.', de: LIBRO('Apertura') },
+      { t:'Escúchalo como la primera vez: quizá la variación ya está ahí y sólo falta dejarla salir.', por:'Volver sobre lo mismo con atención descubre detalles que no oíste antes; un giro pequeño al cerrar la vuelta avisa que viene algo.', de: LIBRO('Nada es estático') },
+    ],
+    b_raro: [
+      { t:'Ese golpe no lo planeaste. Escúchalo otra vez antes de borrarlo: a veces el accidente sabe algo.', por:'Muchas decisiones valiosas llegan sin querer y parecen errores: es el instinto resolviendo.', de: LIBRO('Atención a las sorpresas') },
+      { t:'¿Y si ese golpe raro volviera a aparecer? Lo raro, repetido, empieza a sonar a decisión.', por:'Un evento aislado suena a error; repetido, el oído lo entiende como motivo.', de: LIBRO('Apertura') },
+    ],
+    b_vivo: [
+      { t:'Algo se movió en el cuerpo. No lo analices todavía: déjalo sonar y fíjate si te inclinas hacia adelante.', por:'Cuando algo te sorprende y te hace inclinarte a escuchar, está vivo; si dan ganas de apagarlo, no es por ahí.', de:'Tim Ferriss Show (2023)' },
+      { t:'Esto ya tiene carácter. Escúchalo acostado, con los ojos cerrados, y deja que te diga qué falta.', por:'Escuchar sin mirar saca al ojo del juicio y deja trabajar al oído.', de:'Entrevista en 60 Minutes (CBS, 2023)' },
+    ],
+    // ── Cambios que mejoran (se dicen apenas se oyen)
+    m_quitar: [{ t:'Eso. Al sacar, lo que quedó se oye más grande.', por:'Quitar hasta el hueso deja ver qué es realmente la idea.', de: LIBRO('Esencia') }],
+    m_sincopa: [{ t:'Ahí. Algo tropezó y el ritmo ganó impulso. Déjalo sonar antes de tocar otra cosa.', por:'El golpe fuera de lugar obliga al cuerpo a completar el pulso, y eso se siente como empuje.', de:'Tetragrammaton (el ritmo como relación entre sonidos)' }],
+    m_contraste: [{ t:'Ahora hay alguien que contesta. Escucha el conjunto de nuevo, no sólo lo nuevo.', por:'Una pieza pequeña cambia todo el cuadro: lo que rodea a un sonido cambia lo que ese sonido significa.', de: LIBRO('Contexto') }],
+    m_aire: [{ t:'Ahí respira. Fíjate cómo pesa lo que suena después del silencio.', por:'La pausa antes de una nota la hace sentir más fuerte.', de: LIBRO('Inspiración') }],
+    m_soltarse: [{ t:'Se soltó y la base empezó a balancearse. Escucha ese diálogo.', por:'Cuando el bajo contesta en vez de copiar al bombo, aparece el movimiento.', de: LIBRO('Cooperación') }],
+    m_hueco: [{ t:'Eso. La mano siguió y el silencio empezó a empujar.', por:'El pulso sigue aunque no suene: el oído completa el golpe que falta.', de: LIBRO('Contexto') }],
+
+    // ── Secuenciador de bajo
+    j_vacio: [
+      { t:'Antes de escribir, escucha el bombo. ¿Tu bajo quiere caminar con él o bailarle alrededor?', por:'El bajo se entiende en relación con la batería: decidir esa relación es decidir el groove.', de:'Tetragrammaton (el ritmo como relación entre sonidos)' },
+      { t:'Imagina el bajo como una segunda voz que conversa con la batería, no como su sombra.', por:'Pensar el bajo como voz lleva a líneas con frases, no sólo a golpes.', de: LIBRO('Romper la monotonía') },
+    ],
+    j_pegado: [
+      { t:'Bajo y bombo van de la mano. Es sólido. ¿Alguna vez uno debería soltarse y contestarle al otro?', por:'Juntar bajo y bombo da peso; el balanceo nace cuando el bajo se adelanta, llena un hueco o responde.', de: LIBRO('Armonía') },
+      { t:'Si todo golpea en el mismo sitio, ¿dónde queda el balanceo?', por:'Dos sonidos que siempre coinciden se vuelven uno; el groove necesita alguna diferencia entre ellos.', de: LIBRO('Contexto') },
+    ],
+    j_suelto: [
+      { t:'Tu bajo vuela lejos del bombo. Es libre, pero ¿dónde toca tierra?', por:'Coincidir con el bombo en algún momento clave le da al oído un punto de apoyo desde el cual disfrutar lo suelto.', de: LIBRO('Armonía') },
+    ],
+    j_sinAire: [
+      { t:'El bajo no respira. Una línea que calla de vez en cuando hace que cada sonido pese más.', por:'La duración y los silencios definen el ritmo de una línea: sonidos cortos con pausas crean swing.', de:'Guitar World 2024 (sonidos cortos para que el bajo sea pulso, en Slayer)' },
+      { t:'Prueba el extremo: deja la mitad de lo que tiene y escucha qué se vuelve importante.', por:'Exagerar hacia el lado opuesto muestra qué partes sostienen de verdad la línea.', de: LIBRO('Lo contrario es cierto') },
+    ],
+    j_unaNota: [
+      { t:'Una sola altura, insistente. Puede ser hipnótico. ¿Se vuelve más fuerte si en algún momento se va y regresa?', por:'Alejarse de la nota de base y volver crea tensión y descanso: es el principio de toda melodía.', de: LIBRO('Armonía') },
+    ],
+    j_vivo: [
+      { t:'El bajo ya canta. Escúchalo sin batería: ¿se reconoce la canción?', por:'Si una capa sola ya sostiene la idea, la base está bien construida.', de: LIBRO('Juego') },
+      { t:'Algo cambió en el aire. Antes de decidir si está bien, ¿qué sentiste en el cuerpo?', por:'La atención viene antes que el juicio: etiquetar demasiado pronto apaga la escucha.', de: LIBRO('Consciencia') },
+    ],
+
+    // ── Teclados
+    k_vacio: [
+      { t:'Toca un acorde y quédate en él un rato. ¿De qué color es tu canción: luz, sombra, nostalgia?', por:'Un acorde sostenido deja sentir su color antes de pensar en el siguiente.', de: LIBRO('Escuchar') },
+    ],
+    k_uno: [
+      { t:'Un solo acorde puede sostener una canción. Pero si dieras un paso, ¿hacia dónde irías: más luz o más sombra?', por:'Moverse desde un acorde de casa es crear un viaje; la dirección del primer paso define el ánimo.', de: LIBRO('Armonía') },
+    ],
+    k_predecible: [
+      { t:'Esta vuelta es una casa conocida y cómoda. ¿Te quedas a vivir, o abres una puerta?', por:'Las progresiones comunes funcionan por expectativa; una sola sorpresa hace valorar la vuelta a casa.', de: LIBRO('Reglas') },
+      { t:'Lo seguro sirve de suelo. ¿Y si un solo momento de la vuelta te dejara con una pregunta?', por:'Terminar lejos de casa deja algo abierto que hace que el loop se vuelva a encender solo.', de: LIBRO('Armonía') },
+      { t:'Esta vuelta ya la conoces bien. ¿Cómo sonaría su opuesto, aunque no te convenza?', por:'Probar lo contrario de tu costumbre cambia tu relación con lo de siempre, aunque vuelvas a ello.', de:'Tim Ferriss Show (2023)' },
+    ],
+    k_incomoda: [
+      { t:'Ese acorde incomoda. Antes de quitarlo, pregúntate si incomoda bien o incomoda mal.', por:'Un acorde de fuera de la tonalidad crea tensión; si se siente intencional, es un rasgo tuyo.', de: LIBRO('Punto de referencia') },
+      { t:'La tensión también es un sentimiento. Escucha lo que viene justo después: ¿hay alivio?', por:'La disonancia se vuelve belleza cuando algo la resuelve o la sostiene con intención.', de: LIBRO('Armonía') },
+    ],
+    k_vivo: [
+      { t:'La vuelta tiene carácter propio. Cántale encima cualquier cosa, sin palabras, y fíjate qué te pide.', por:'La voz encuentra la melodía antes que la cabeza, y te dice si la armonía sostiene algo.', de:'Rolling Stone 2016 (repetir con el beat en loop hasta que aparezca)' },
+    ],
+
+    // ── Guitarra
+    g_vacio: [
+      { t:'Toma la guitarra antes de mirar la pantalla. ¿Qué vuelta te sale sin pensar?', por:'Tocando, ocupada en los acordes, la mano deja de actuar y sale lo tuyo.', de:'Tim Ferriss Show (2023) (Neil Diamond tocando mientras canta)' },
+    ],
+    g_parejo: [
+      { t:'Tu mano va como un reloj. ¿Y si respirara con la letra?', por:'Los huecos y los acentos le dan dibujo al rasgueo; uno uniforme tapa a la batería y al bajo.', de: LIBRO('Punto de vista') },
+      { t:'Suena correcto, como tocado para alguien. Toca como si nadie estuviera escuchando.', por:'Sin la sensación de estar grabando para siempre, sale una manera más personal de tocar.', de:'Entrevista en NPR Fresh Air (Johnny Cash)' },
+      { t:'Imagina que rasgueas para alguien que duerme en la pieza de al lado. ¿Qué cambia?', por:'Una imagen concreta cambia la intención de la mano más que cualquier instrucción.', de: LIBRO('Romper la monotonía') },
+    ],
+    g_soloAbajo: [
+      { t:'Todo baja con fuerza, como un martillo. ¿Dónde podría la mano subir más liviana?', por:'Alternar golpes hacia abajo, más pesados, y hacia arriba, más livianos, crea un balanceo natural.', de: LIBRO('Contexto') },
+    ],
+    g_huecos: [
+      { t:'Esos huecos dejan respirar a la canción. No los rellenes por reflejo.', por:'El silencio del rasgueo abre espacio para la voz: así nace la pregunta y respuesta entre instrumentos.', de: LIBRO('Inspiración') },
+      { t:'Antes de llenar un hueco, prueba si la voz quiere vivir en él.', por:'Un espacio vacío en un instrumento es un lugar para otro.', de: LIBRO('Cooperación') },
+    ],
+    g_vivo: [
+      { t:'La vuelta ya se puede cantar. Pruébala con la voz antes de seguir tocando la pantalla.', por:'Si la voz encuentra lugar, la base cumple su trabajo.', de: LIBRO('Semillas') },
+    ],
+
+    // ── Momentos
+    dudas: [
+      { t:'Estás juzgando cada semilla antes de que brote. Escucha una vuelta entera sin tocar nada, y decide con el cuerpo.', por:'Cambiar muy rápido impide comparar: el oído necesita que algo se repita para saber si le gusta.', de: LIBRO('Semillas') },
+      { t:'Duda de la parte, no de ti. ¿Qué pedazo sí te gusta? Empieza desde ahí.', por:'Casi siempre la mayor parte ya funciona; basta con ajustar lo que no.', de: LIBRO('Inseguridad') },
+      { t:'Más vueltas no siempre es mejor. Compara con tu primera versión antes de borrar otra vez.', por:'Iterar sin comparar puede empeorar lo que tenías; por eso se dice que «la maqueta era mejor».', de:'Tim Ferriss Show (2023)' },
+    ],
+    quieto: [
+      { t:'Llevas un rato en el mismo lugar. Aléjate unos minutos y vuelve como si fuera la canción de otra banda.', por:'Tras muchas repeticiones el oído se vuelve ciego; una pausa devuelve la escucha fresca.', de: LIBRO('Tabula rasa') },
+      { t:'¿Todavía te emociona, o sólo lo sostienes? Si la chispa se apagó, vuelve a la semilla o busca otra.', por:'La energía es la brújula: cuando se apaga por mucho tiempo, conviene cambiar de camino.', de: LIBRO('La energía') },
+      { t:'Imagina que tu banda todavía no existe. ¿Qué tocarías para sorprenderte?', por:'Soltar lo que «debería» ser libera ideas que la costumbre tapa.', de:'Rolling Stone 2016 (Metallica)' },
+    ],
+    vueltas: [
+      { t:'Llevas varias vueltas en lo mismo. ¿Todavía te sorprende, o ya lo oyes de memoria?', por:'Si algo sigue gustando tras muchas repeticiones es sólido; si cansa, la repetición te señala qué cambiar.', de:'Tim Ferriss Show (2023)' },
+      { t:'Si te dan ganas de mostrárselo a alguien, quizá ya está. Guárdalo como la página de este día.', por:'Una obra está terminada cuando lo sientes; guardarla deja lugar a la siguiente.', de: LIBRO('Finalización') },
+    ],
+    'ayuda:bateria': [
+      { t:'No te voy a decir dónde va. Pero cuéntame: ¿qué quieres que sienta quien escuche esto?', por:'Una pregunta te devuelve al oído propio: la respuesta que encuentras tú sigue siendo tuya.', de: LIBRO('Romper la monotonía') },
+      { t:'Juega con una sola regla por un rato —por ejemplo, que nada suene dos veces igual— y mira adónde te lleva.', por:'Una limitación elegida obliga a soluciones que no son las de siempre.', de: LIBRO('Reglas provisionales') },
+      { t:'Imagina que la batería la toca alguien cansado al final de la noche. ¿Qué dejaría de tocar?', por:'Pensar en quién toca cambia el carácter más que pensar en qué golpes poner.', de: LIBRO('Romper la monotonía') },
+    ],
+    'ayuda:bajo': [
+      { t:'Tararea el bajo antes de escribirlo. Lo que sale por la boca suele ser más musical que lo que sale por los dedos.', por:'La voz sigue la sensación y da líneas con forma de frase.', de: LIBRO('Semillas') },
+      { t:'Escribe dos ideas distintas y quédate con la que te acelere el pulso. Tu cuerpo ya lo sabe.', por:'Elegir entre dos, escuchando, es más fácil que perseguir una perfecta en la cabeza.', de: LIBRO('Cómo escoger') },
+    ],
+    'ayuda:teclados': [
+      { t:'Toca los acordes muy lento y fíjate cuál te hace sentir algo. Construye alrededor de ese.', por:'La emoción indica qué idea desarrollar mejor que el razonamiento.', de: LIBRO('Experimentación') },
+      { t:'Canta una nota larga y cambia de acorde debajo: busca el que cambie lo que sientes con esa misma nota.', por:'La misma nota cambia de color según el acorde que la rodea: el contexto cambia el contenido.', de: LIBRO('Contexto') },
+    ],
+    'ayuda:guitarra': [
+      { t:'Rasguea con los ojos cerrados y deja que la mano decida. Después escribe lo que hizo.', por:'Sin mirar, la mano sigue el pulso del cuerpo y no el de la pantalla.', de: LIBRO('Escuchar') },
+      { t:'Elige algo pequeñísimo para hoy: un solo cambio que te guste de verdad.', por:'Una tarea mínima destraba más que una grande: pasar de nada a algo es lo que más cuesta.', de:'Tim Ferriss Show (2015)' },
+    ],
+    'ayuda:otro': [
+      { t:'Aquí te acompaño menos: mi oído está en la batería, el secuenciador, los teclados y la guitarra.' },
+    ],
+  };
+  // ───────── Tutor a la manera de Rick Rubin ─────────
+  // Escucha lo que haces —la rejilla de la batería, las notas del secuenciador, los acordes y el rasgueo, venga del clic,
+  // del teclado o del MPK— y cada vuelta que suena. No dice qué nota ni qué casilla: devuelve sensaciones, preguntas y
+  // consejos, en etapas. Se inspira en ideas públicas de Rick Rubin, dichas con nuestras palabras; no habla por él.
+  (() => {
+    if (!PAR.has('tutor') || !['rolando', 'schair'].includes(S.quien)) return;
+    document.body.classList.add('modo-tutor');
+    const INSTR = { beat:'bateria', bajod:'bajo', pad:'teclados', piano:'teclados', guitarra:'guitarra' };
+    const TOCAR = { beat:'playDrums', bajod:'playBass', pad:'play', piano:'play', guitarra:'playGuit' };
+
+    // ── El oído: qué hay en cada instrumento, en términos de sensación (nunca de posiciones)
+    function oirBateria() {
+      const p = S.drums.pat, len = Math.max(1, S.drums.len), n = len * 16;
+      let k = 0, sn = 0, hh = 0, oh = 0, ksFuera = 0, raros = 0;
+      for (let i = 0; i < n; i++) {
+        if (p.kick[i]) { k++; if (i % 4) ksFuera++; if (i % 2) raros++; }
+        if (p.snare[i]) { sn++; if (i % 4) ksFuera++; if (i % 2) raros++; }
+        if (p.hh[i]) hh++; if (p.oh[i]) oh++;
+      }
+      let igual = len > 1;
+      for (let b = 1; b < len && igual; b++) for (let s = 0; s < 16 && igual; s++) for (const id of ['kick','snare','hh','oh']) if (p[id][s] !== p[id][b * 16 + s]) { igual = false; break; }
+      const total = k + sn + hh + oh;
+      return { vacio: !total, k, sn, hh, oh, ksFuera, raros, porCompas: total / len, lleno: total / len >= 20,
+        soloBombo: k > 0 && sn + hh + oh === 0, sinCaja: k > 0 && sn === 0 && hh + oh > 0, cuadrado: k > 0 && sn > 0 && ksFuera === 0, igual };
+    }
+    function oirBajo() {
+      const len = Math.max(1, S.bassd.len), grid = S.bassd.grid, g = golpes(), acc = S.bassd.acc, kick = S.drums.pat.kick, dl = Math.max(1, S.drums.len);
+      let inicios = 0, conBombo = 0, vacias = 0; const alturas = new Set();
+      for (let b = 0; b < len; b++) for (let s = 0; s < 16; s++) {
+        const i = b * 16 + s, r = grid[i];
+        if (r < 0) { vacias++; continue; }
+        if (!(s === 0 || grid[i - 1] !== r || g[i] || acc[i])) continue;
+        inicios++; alturas.add(r); if (kick[(b % dl) * 16 + s]) conBombo++;
+      }
+      const hayBombo = kick.some(Boolean);
+      return { vacio: !inicios, inicios, aire: vacias / (len * 16), alturas: alturas.size,
+        pegado: hayBombo && inicios >= 2 && conBombo / inicios >= 0.8, suelto: hayBombo && inicios >= 3 && conBombo / inicios < 0.2, unaNota: alturas.size === 1 && inicios >= 3 };
+    }
+    function oirTeclados() {
+      const prog = S.prog, tonica = S.key.mode === 'm' ? 'i' : 'I', grados = prog.map(c => degreeOf(c.pc, c.q));
+      return { vacio: !prog.length, n: prog.length, distintos: new Set(prog.map(c => c.pc + ':' + c.q)).size,
+        prestado: prog.some(c => !isDiatonic(c.pc, c.q)),
+        predecible: prog.length >= 3 && prog.every(c => isDiatonic(c.pc, c.q)) && grados[0] === tonica && grados[grados.length - 1] === tonica };
+    }
+    function oirGuitarra() {
+      const g = S.guitar, st = (g.strum || []).slice(0, 8), golpesR = st.filter(Boolean).length;
+      return { vacio: !g.prog.length, n: g.prog.length, parejo: golpesR === 8, huecos: golpesR > 0 && golpesR < 8, soloAbajo: golpesR > 0 && !st.includes('U') };
+    }
+    const OIR = { bateria: oirBateria, bajo: oirBajo, teclados: oirTeclados, guitarra: oirGuitarra };
+
+    function situacion(inst, a) {
+      if (inst === 'bateria') { if (a.vacio) return 'b_vacio'; if (a.lleno) return 'b_lleno'; if (a.soloBombo) return a.ksFuera ? 'b_bomboSuelto' : 'b_soloBombo';
+        if (a.sinCaja) return 'b_sinCaja'; if (a.cuadrado) return 'b_cuadrado'; if (a.igual) return 'b_igual'; if (a.raros) return 'b_raro'; return 'b_vivo'; }
+      if (inst === 'bajo') { if (a.vacio) return 'j_vacio'; if (a.unaNota) return 'j_unaNota'; if (a.aire < 0.15) return 'j_sinAire'; if (a.pegado) return 'j_pegado'; if (a.suelto) return 'j_suelto'; return 'j_vivo'; }
+      if (inst === 'teclados') { if (a.vacio) return 'k_vacio'; if (a.distintos === 1) return 'k_uno'; if (a.prestado) return 'k_incomoda'; if (a.predecible) return 'k_predecible'; return 'k_vivo'; }
+      if (inst === 'guitarra') { if (a.vacio) return 'g_vacio'; if (a.parejo) return 'g_parejo'; if (a.soloAbajo) return 'g_soloAbajo'; if (a.huecos) return 'g_huecos'; return 'g_vivo'; }
+      return null;
+    }
+    function mejoro(inst, p, a) {
+      if (inst === 'bateria') { if (p.lleno && !a.lleno && !a.vacio) return 'm_quitar'; if (!p.ksFuera && a.ksFuera && a.k && !a.soloBombo && !a.lleno) return 'm_sincopa'; if (p.soloBombo && a.sn + a.oh > 0) return 'm_contraste'; }
+      if (inst === 'bajo') { if (p.aire < 0.15 && a.aire >= 0.15 && !a.vacio) return 'm_aire'; if (p.pegado && !a.pegado && a.inicios >= 2) return 'm_soltarse'; }
+      if (inst === 'teclados' && !p.prestado && a.prestado) return 'k_incomoda';
+      if (inst === 'guitarra' && p.parejo && a.huecos) return 'm_hueco';
+      return null;
+    }
+
+    // ── Las etapas: el camino controlado de cada uno
+    const PULSO = [
+      { id:'pulso', t:'El pulso', modo:'beat', listo: () => oirBateria().k > 0 },
+      { id:'contraste', t:'El contraste', modo:'beat', listo: () => { const b = oirBateria(); return b.k > 0 && b.sn + b.oh > 0; } },
+      { id:'aire', t:'El aire', modo:'beat', listo: () => { const b = oirBateria(); return b.k > 0 && !b.lleno && (b.ksFuera > 0 || b.oh > 0); } },
+    ];
+    const SOLTAR = { id:'soltar', t:'Soltar', modo:null, listo: () => false };
+    const ETAPAS = {
+      rolando: [...PULSO,
+        { id:'bajo', t:'El bajo', modo:'bajod', listo: () => oirBajo().inicios >= 2 },
+        { id:'respira', t:'Que respire', modo:'bajod', listo: () => { const j = oirBajo(); return j.inicios >= 2 && j.aire >= 0.15 && !j.unaNota; } },
+        { id:'vuelta', t:'La vuelta', modo:'pad', listo: () => S._chord.pad.prog.length + S._chord.piano.prog.length >= 2 },
+        SOLTAR],
+      schair: [...PULSO,
+        { id:'vuelta', t:'La vuelta', modo:'guitarra', listo: () => S.guitar.prog.length >= 2 },
+        { id:'rasgueo', t:'El rasgueo', modo:'guitarra', listo: () => oirGuitarra().huecos },
+        SOLTAR],
+    }[S.quien];
+
+    // ── Estado: etapa, bitácora y qué variante se dijo de cada situación (en este navegador)
+    const CLAVE = 'denavilab.tutor.' + S.quien;
+    const est = { etapa: 0, bitacora: [], dichos: {} };
+    try { Object.assign(est, JSON.parse(localStorage.getItem(CLAVE) || 'null') || {}); } catch (e) {}
+    est.etapa = Math.max(0, Math.min(ETAPAS.length - 1, +est.etapa || 0));
+    const guardar = () => { try { est.bitacora = est.bitacora.slice(-60); localStorage.setItem(CLAVE, JSON.stringify(est)); } catch (e) {} };
+
+    // ── El panel
+    const boton = (txt, cls, fn) => el('button', { type:'button', class: cls, onclick: fn }, txt);
+    const oido = el('span', { class:'tu-oido', role:'status' }, el('i', {}), el('span', {}, 'escuchando'));
+    const panel = el('aside', { class:'tutor', id:'tutor', 'aria-label':'Tutor a la manera de Rick Rubin' });
+    const puntos = el('div', { class:'tu-etapas', 'aria-hidden':'true' }), etapaTxt = el('p', { class:'tu-etapa' });
+    const msg = el('p', { class:'tu-msg', 'aria-live':'polite' });
+    const porTxt = el('p', {}), deTxt = el('small', { class:'tu-de' }), por = el('details', { class:'tu-por' }, el('summary', {}, '¿Por qué funciona?'), porTxt, deTxt);
+    const lista = el('ol'), bita = el('details', { class:'tu-bita' }, el('summary', {}, 'Bitácora de la sesión'), lista);
+    const bSigo = boton('Sigo →', 'ghost', () => avanzar());
+    const cab = el('div', { class:'tu-cab' },
+      el('div', { class:'tu-titulo' }, el('span', { class:'tu-nombre' }, 'Tutor'), el('span', { class:'tu-sub' }, 'a la manera de Rick Rubin')),
+      oido, boton('—', 'tu-min', () => { panel.classList.toggle('min'); }), boton('⋯', 'tu-min', () => { panel.classList.toggle('completo'); })
+    );
+    const cuerpo = el('div', { class:'tu-cuerpo' }, puntos, etapaTxt, msg, por,
+      el('div', { class:'tu-btns' },
+        boton('▶ Escuchar', 'ghost', () => { const id = TOCAR[S.mode]; if (id && $(id)) $(id).click(); }),
+        boton('Otra idea', 'ghost', () => decir('ayuda:' + (INSTR[S.mode] || 'otro'), { forzar:true })),
+        bSigo),
+      bita,
+      el('p', { class:'tu-nota' }, 'Se inspira en ideas públicas de Rick Rubin, dichas con nuestras palabras; no habla por él. ',
+        boton('Salir del tutor', '', () => { const u = new URL(location.href); u.searchParams.delete('tutor'); u.searchParams.set('modo', S.mode); location.href = u; })));
+    panel.append(cab, cuerpo);
+    document.body.append(panel);
+
+    let etapaLista = false;
+    function pintarEtapa() {
+      const E = ETAPAS[est.etapa];
+      puntos.innerHTML = ''; ETAPAS.forEach((x, i) => puntos.append(el('i', { class:'tu-punto' + (i < est.etapa ? ' hecha' : i === est.etapa ? ' actual' : ''), title: x.t })));
+      etapaTxt.textContent = `Etapa ${est.etapa + 1} de ${ETAPAS.length} · ${E.t}` + (etapaLista && E.id !== 'soltar' ? ' · ✓ cuando quieras, sigue' : '');
+      bSigo.className = etapaLista || E.id === 'soltar' ? 'primary' : 'ghost';
+      bSigo.hidden = est.etapa >= ETAPAS.length - 1;
+    }
+    const hora = ts => new Date(ts).toLocaleTimeString('es-CL', { hour:'2-digit', minute:'2-digit' });
+    function pintar(m) {
+      msg.textContent = m.t; msg.classList.remove('nuevo'); void msg.offsetWidth; msg.classList.add('nuevo');
+      porTxt.textContent = m.por || ''; deTxt.textContent = m.de ? 'Idea de: ' + m.de : ''; por.hidden = !m.por; por.open = false;
+      lista.innerHTML = ''; est.bitacora.slice().reverse().forEach(x => lista.append(el('li', {}, el('time', {}, hora(x.ts)), x.t)));
+    }
+    function pintarOido(t, activo) { oido.lastChild.textContent = t; oido.classList.toggle('activo', !!activo); }
+
+    // ── Hablar: una frase a la vez, sin repetirse ni insistir
+    let ultimaSit = '', ultimoMensaje = 0;
+    function decir(sit, { forzar = false } = {}) {
+      const v = BANCO_TUTOR[sit + ':' + S.quien] || BANCO_TUTOR[sit]; if (!v || !v.length) return false;
+      const ahora = Date.now();
+      if (!forzar && sit === ultimaSit && ahora - ultimoMensaje < 45000) return false;
+      if (!forzar && ahora - ultimoMensaje < 3500 && !sit.startsWith('m_')) return false;
+      const i = ((est.dichos[sit] ?? -1) + 1) % v.length; est.dichos[sit] = i;
+      const m = { sit, t: v[i].t, por: v[i].por || '', de: v[i].de || '', ts: ahora };
+      ultimaSit = sit; ultimoMensaje = ahora; est.bitacora.push(m); guardar(); pintar(m);
+      return true;
+    }
+
+    let antes = {};
+    // primero responde a lo que acabas de hacer; si eso no dejó nada que decir y la etapa quedó lista, lo cuenta
+    function reaccionar() {
+      const inst = INSTR[S.mode]; if (!inst) return false;
+      const ahora = OIR[inst](), previo = antes[inst]; antes[inst] = ahora;
+      if (cambios.length >= 8) { cambios = []; if (decir('dudas')) return true; }
+      const mejora = previo && mejoro(inst, previo, ahora);
+      if (mejora && decir(mejora)) return true;
+      const sit = situacion(inst, ahora); return !!(sit && decir(sit));
+    }
+    let listoPorDecir = false;
+    function revisarEtapa() {
+      const E = ETAPAS[est.etapa], ok = !!E.listo();
+      if (ok !== etapaLista) { etapaLista = ok; listoPorDecir = ok; pintarEtapa(); }
+    }
+    function avanzar() {
+      if (est.etapa >= ETAPAS.length - 1) return;
+      est.etapa++; etapaLista = false; guardar();
+      const E = ETAPAS[est.etapa];
+      if (E.modo && S.mode !== E.modo) { if (isPlaying) stopAll(); setMode(E.modo); modoOido = S.mode; }
+      pintarEtapa(); decir('etapa:' + E.id, { forzar:true }); revisarEtapa();
+    }
+
+    // ── Escuchar: cualquier cambio del estado (clic, teclado, MPK) y cada vuelta que suena
+    const firma = () => JSON.stringify([S.drums.pat, S.drums.len, S.bassd.grid, S.bassd.len, S.bassd.golpe, S.bassd.acc,
+      S._chord.pad.prog.map(c => [c.pc, c.q, c.len]), S._chord.piano.prog.map(c => [c.pc, c.q, c.len]), S.guitar.prog.map(c => [c.pc, c.q]), S.guitar.strum]);
+    let ultimaFirma = null, ultimoCambio = Date.now(), pendiente = false, cambios = [], vueltasSinCambio = 0, quietoDicho = false, modoOido = S.mode;
+    const hayAlgo = () => hasDrums() || hasBassD() || S._chord.pad.prog.length || S._chord.piano.prog.length || S.guitar.prog.length;
+    function tick() {
+      const ahora = Date.now();
+      if (ultimaFirma === null) {   // la primera lectura es la línea base (ya con lo recuperado del autoguardado)
+        ultimaFirma = firma(); for (const k in OIR) antes[k] = OIR[k](); etapaLista = !!ETAPAS[est.etapa].listo(); pintarEtapa(); return;
+      }
+      const f = firma();
+      if (f !== ultimaFirma) {
+        ultimaFirma = f; ultimoCambio = ahora; pendiente = true; vueltasSinCambio = 0; quietoDicho = false;
+        cambios.push(ahora); cambios = cambios.filter(t => ahora - t < 20000); pintarOido('te escucho…', true);
+      }
+      if (S.mode !== modoOido) { modoOido = S.mode; pendiente = true; ultimoCambio = ahora - 1500; }
+      if (pendiente && !isPlaying && ahora - ultimoCambio > 2200) {
+        pendiente = false; pintarOido('escuchando'); revisarEtapa();
+        const dijo = reaccionar();
+        if (listoPorDecir) { listoPorDecir = false; if (!dijo) decir('listo:' + ETAPAS[est.etapa].id, { forzar:true }); }
+      }
+      if (!isPlaying && !pendiente && hayAlgo() && !quietoDicho && !document.hidden && ahora - ultimoCambio > 75000 && ahora - ultimoMensaje > 60000) { quietoDicho = true; decir('quieto'); }
+      revisarEtapa();
+    }
+    tutorOyente = {
+      vuelta() {
+        vueltasSinCambio++; pintarOido('oyendo la vuelta', true);
+        if (pendiente && Date.now() - ultimoCambio > 1200) { pendiente = false; reaccionar(); }
+        else if (vueltasSinCambio === 4) decir(ETAPAS[est.etapa].id === 'soltar' ? 'etapa:soltar' : 'vueltas');
+        setTimeout(() => { if (!isPlaying) pintarOido('escuchando'); }, 400);
+      },
+    };
+
+    // arranque: la etapa en que vas y su pregunta (sin repetirla si la acabas de leer)
+    const E0 = ETAPAS[est.etapa], ultimo = est.bitacora[est.bitacora.length - 1];
+    if (E0.modo && S.mode !== E0.modo && !INSTR[PAR.get('modo')]) setMode(E0.modo);
+    pintarEtapa();
+    if (ultimo && Date.now() - ultimo.ts < 30 * 60000) pintar(ultimo); else decir('etapa:' + E0.id, { forzar:true });
+    setTimeout(tick, 0);   // la línea base, apenas termina de cargar (después del autoguardado), para no perderse lo primero que marques
+    setInterval(tick, 500);
   })();
   // ───────── La guía dentro del taller ─────────
   // Si llegas desde el trabajo guiado (?guia=principiante|ruta&paso=N), arriba se ve el paso en que vas, si ya
