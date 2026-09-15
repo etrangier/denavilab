@@ -667,6 +667,41 @@
   body.modo-tutor #vueltasBeat, body.modo-tutor .panel:has(> #sugs), body.modo-tutor .guit-sugs-box, body.modo-tutor #guitRasgueoPresets,
   body.modo-tutor .field:has(> #leadGenChips), body.modo-tutor #tip { display: none !important; }
   body.modo-tutor .bp-tecla.guia { animation: none; border-color: var(--line); box-shadow: 0 3px 0 var(--line); }
+  /* taller sin moldes: fuera los presets, generadores, sugerencias y todo lo que viene de una banda de referencia; los ajustes (tempo, compases, cuantización, tonalidad…) se quedan */
+  body.modo-tutor #entradilla, body.modo-tutor .help, body.modo-tutor .saved, body.modo-tutor #adminPanel, body.modo-tutor .cerebro,
+  body.modo-tutor #ajustes .field:has(> #mode), body.modo-tutor #ajustes .field:has(> #genre), body.modo-tutor #ajustes .field:has(> #band), body.modo-tutor #bpmRange,
+  body.modo-tutor #ajustes .field[data-solo="rolando"], body.modo-tutor #campoExportar label[for="impMidiBiblio"],
+  body.modo-tutor .heat-legend, body.modo-tutor #tipBox, body.modo-tutor .panel[data-modes="piano"], body.modo-tutor #generar, body.modo-tutor .aviso-bar.primeros,
+  body.modo-tutor .bp-avanzado, body.modo-tutor .bp-ayuda, body.modo-tutor .bp-pie > .hint:not(#bpAviso),
+  body.modo-tutor .field:has(> #guitGenre), body.modo-tutor .field:has(> #guitBand),
+  body.tutor-rolando #modosTabs .mtab:not([data-m="beat"]):not([data-m="bajod"]):not([data-m="pad"]):not([data-m="piano"]),
+  body.tutor-schair #modosTabs .mtab:not([data-m="beat"]):not([data-m="guitarra"]) { display: none !important; }
+  body.modo-tutor .bp-tecla[data-id="igual"] { opacity: .3; pointer-events: none; }
+
+  /* la rueda del tutor: colores por relación (teoría), borde por ánimo, y tu camino */
+  :root { --tu-casa: hsla(150, 45%, 45%, .34); --tu-tension: hsla(8, 75%, 58%, .3); --tu-luz: hsla(45, 90%, 55%, .34); --tu-calma: hsla(205, 70%, 58%, .3);
+    --tu-espejo: rgba(126,110,196,.32); --tu-camino: rgba(126,110,196,.12); --tu-prestado: hsla(172, 50%, 45%, .26); --tu-lejos: rgba(140,140,150,.14); }
+  body.modo-tutor .slot.tu-casa path { fill: var(--tu-casa); stroke: hsla(150, 45%, 40%, .9); }
+  body.modo-tutor .slot.tu-tension path { fill: var(--tu-tension); stroke: hsla(8, 70%, 50%, .8); }
+  body.modo-tutor .slot.tu-luz path { fill: var(--tu-luz); stroke: hsla(45, 80%, 42%, .8); }
+  body.modo-tutor .slot.tu-calma path { fill: var(--tu-calma); stroke: hsla(205, 60%, 48%, .8); }
+  body.modo-tutor .slot.tu-espejo path { fill: var(--tu-espejo); stroke: var(--key-line); }
+  body.modo-tutor .slot.tu-camino path { fill: var(--tu-camino); }
+  body.modo-tutor .slot.tu-prestado path { fill: var(--tu-prestado); stroke: hsla(172, 50%, 38%, .85); stroke-dasharray: 5 4; }
+  body.modo-tutor .slot.tu-lejos path { fill: var(--tu-lejos); stroke-dasharray: 2 5; }
+  body.modo-tutor .slot.tu-resuena path { stroke: var(--accent); stroke-width: 3; }
+  body.modo-tutor .slot .sug-pct { fill: var(--text); font-family: var(--mono); font-size: 9.5px; opacity: .78; }
+  .tu-rueda { display: grid; gap: 8px; margin-top: 6px; font-size: 13px; }
+  .tu-rueda p { margin: 0; color: var(--muted); }
+  .tu-rueda b { color: var(--text); }
+  .tr-ley { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+  .tr-item { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 11px; color: var(--text); }
+  .tr-item i { width: 14px; height: 10px; border-radius: 3px; border: 1px solid var(--line); }
+  .tr-item.tu-casa i { background: var(--tu-casa); } .tr-item.tu-tension i { background: var(--tu-tension); } .tr-item.tu-luz i { background: var(--tu-luz); }
+  .tr-item.tu-calma i { background: var(--tu-calma); } .tr-item.tu-espejo i { background: var(--tu-espejo); } .tr-item.tu-camino i { background: var(--tu-camino); }
+  .tr-item.tu-prestado i { background: var(--tu-prestado); border-style: dashed; } .tr-item.tu-lejos i { background: var(--tu-lejos); border-style: dotted; }
+  .tr-animo { border-left: 3px solid var(--accent); padding-left: 10px; }
+  .tr-lectura { color: var(--text) !important; }
   .tutor { position: fixed; right: 16px; bottom: 16px; width: 350px; max-height: calc(100vh - 32px); overflow: auto; z-index: 60; display: grid; gap: 10px;
     background: var(--surface); color: var(--text); border: 1px solid var(--accent); border-left-width: 4px; border-radius: 14px; padding: 14px 16px; box-shadow: 0 16px 40px rgba(0,0,0,.35); }
   .tu-cab { display: flex; align-items: center; gap: 10px; }
@@ -697,6 +732,14 @@
   .tu-bita ol { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 6px; font-size: 12.5px; color: var(--muted); max-height: 180px; overflow: auto; }
   .tu-bita time { font-family: var(--mono); font-size: 10.5px; margin-right: 6px; }
   .tu-nota { margin: 0; font-size: 11px; color: var(--muted); }
+  .tu-fb { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .tu-fb button { padding: 3px 9px; font-size: 12px; }
+  .tu-fb.dado button { display: none; }
+  .tu-fb-txt { font-size: 12px; color: var(--ok); }
+  .tu-aprendido summary { cursor: pointer; font-size: 12.5px; color: var(--muted); }
+  .ta-cuerpo p { margin: 6px 0; font-size: 12.5px; color: var(--muted); }
+  .ta-cuerpo b { color: var(--text); }
+  .ta-cuerpo button { padding: 4px 10px; font-size: 12px; }
   .tu-nota button { font: inherit; background: none; border: none; color: var(--accent); cursor: pointer; padding: 0; text-decoration: underline; }
   @media (min-width: 1181px) { body.modo-tutor .app { margin-right: 380px; } }
   @media (max-width: 1180px) {
@@ -704,7 +747,7 @@
     body.modo-tutor { padding-bottom: 240px; }
     .tu-cuerpo { gap: 8px; } .tu-msg { font-size: 15px; line-height: 1.32; } .tu-sub { font-size: 11px; }
     /* en pantalla chica, lo esencial: la etapa, el mensaje y los botones; bitácora y nota con el panel abierto del todo */
-    .tutor:not(.completo) .tu-etapas, .tutor:not(.completo) .tu-bita, .tutor:not(.completo) .tu-nota { display: none; }
+    .tutor:not(.completo) .tu-etapas, .tutor:not(.completo) .tu-bita, .tutor:not(.completo) .tu-aprendido, .tutor:not(.completo) .tu-nota { display: none; }
   }
 </style>
 </head>
@@ -935,6 +978,7 @@
         </div>
         <svg id="wheel" viewBox="0 0 520 520" role="img" aria-label="Rueda concéntrica de acordes"></svg>
         <div class="heat-legend"><span>más probable para la banda</span><i></i><span>menos usado</span><b></b><span>en la tonalidad, libre</span><span>· sin color: improvisa</span></div>
+        <div class="tu-rueda" id="tuRueda" hidden></div>
         <div class="vueltas-beat" id="vueltasBeat">
           <div class="vb-cab"><span class="lbl">Vueltas que calzan con tu beat</span><span class="hint vb-lectura" id="vbLectura"></span></div>
           <div class="vb-opciones" id="vbOpciones"></div>
@@ -1611,6 +1655,7 @@
 
   // ───────── Estado ─────────
   const QUIEN = (() => { try { const q = localStorage.getItem('denavilab.sesion'); return (q === 'rolando' || q === 'schair' || q === 'invitado') ? q : 'rolando'; } catch (e) { return 'rolando'; } })();
+  const MODO_TUTOR = new URLSearchParams(location.search).has('tutor') && (QUIEN === 'rolando' || QUIEN === 'schair');   // tutor: taller mínimo, sin moldes ni sugerencias
   // Con qué abre el taller cada uno: su mundo, no el del otro.
   const POR_DEFECTO = {
     rolando: { genre:'Trip hop', band:'Portishead', bpm:72,  kit:'cr78',  notacion:'es' },
@@ -1911,6 +1956,73 @@
   const ROLE_M = { i:['la casa','todo se aquieta; es el acorde triste de base'], III:['la casa con la luz prendida','el mayor que comparte dos notas con la casa'], VI:['se aleja','aire, un suspiro; el más usado después de la casa'], iv:['se aleja, melancólico','sale a caminar sin drama'], VII:['tira de vuelta','empuja hacia la casa; nunca suena a final'], v:['tira de vuelta, suave','suspenso sin fuerza'], V:['tira de vuelta con fuerza','el mayor que pide volver ya (tensión pura)'], 'ii°':['tenso y raro','casi no se usa solo'], bII:['sombra','medio tono arriba de la casa: el truco de Portishead'], IV:['brillo dentro del menor','un mayor inesperado, sonido dórico'] };
   const ROLE_MAJ = { I:['la casa','todo se aquieta'], vi:['la casa triste','la misma casa con la luz apagada'], IV:['se aleja','aire, salir a caminar'], ii:['se aleja','prepara la vuelta'], V:['tira de vuelta','pide volver a casa'], iii:['nublado','entre la casa y el aire'], 'vii°':['tenso y raro','casi no se usa solo'], bVII:['prestado, nublado','Mac DeMarco y Bowie viven de él'], bVI:['prestado, oscuro','viene del menor'], iv:['prestado, melancólico','el IV que se pone triste'], bIII:['prestado','sorpresa luminosa'] };
   const roleOf = (pc, q) => { const d = degreeOf(pc, q); if (!d) return ['fuera de la tonalidad', 'no vive en esta casa: escúchalo antes de decidir']; return (S.key.mode==='m' ? ROLE_M : ROLE_MAJ)[d] || ['', '']; };
+
+  // ───────── La rueda del tutor: teoría, ánimo y lectura del camino (en vez de probabilidades de bandas) ─────────
+  // Cada acorde se pinta por su relación con la casa (la tonalidad) y con el acorde donde estás, medida en el círculo
+  // de quintas: un paso en el sentido del reloj va hacia la dominante (luz, tensión); al revés, hacia la calma.
+  const posQuinta = (pc, q) => FIFTHS.indexOf(q === 'm' ? (pc + 3) % 12 : q === 'd' ? (pc + 1) % 12 : pc);
+  const pasosQuinta = (a, b) => { let d = ((posQuinta(b.pc, b.q) - posQuinta(a.pc, a.q)) % 12 + 12) % 12; return d > 6 ? d - 12 : d; };
+  const TENSION_TUTOR = { M: ['V', 'vii°'], m: ['VII', 'v', 'ii°'] };
+  const REL_TUTOR = {
+    casa: ['casa', 'donde todo se aquieta'], tension: ['tensión', 'tira de vuelta a casa'], luz: ['↻ luz', 'un paso hacia la dominante: se abre'],
+    calma: ['↺ calma', 'un paso atrás: descansa'], espejo: ['espejo', 'casi las mismas notas, otra luz'], camino: ['camino', 'dentro de la casa: prepara'],
+    prestado: ['prestado', 'de la casa vecina: sorpresa cercana'], lejos: ['lejos', 'cruza la rueda: sorpresa grande'], aqui: ['aquí', 'te quedas'],
+  };
+  const ANIMO_TUTOR = {
+    'Luminoso': { rel: ['luz', 'tension', 'casa'], t: 'resuena lo que sube hacia la luz y vuelve con fuerza a casa' },
+    'Nostálgico': { rel: ['espejo', 'prestado', 'calma'], t: 'resuenan el espejo, lo prestado y los pasos que bajan' },
+    'Melancólico': { rel: ['calma', 'espejo', 'prestado'], t: 'resuena lo que baja hacia la calma, el espejo y lo prestado' },
+    'Soñador': { rel: ['calma', 'camino', 'espejo'], t: 'resuenan los pasos lentos hacia la calma y los caminos que no resuelven' },
+    'Oscuro': { rel: ['prestado', 'lejos', 'calma'], t: 'resuena lo prestado, lo lejano y lo que se hunde' },
+    'Tenso': { rel: ['tension', 'lejos', 'luz'], t: 'resuenan la tensión, los saltos y lo que empuja hacia arriba' },
+    'Enérgico': { rel: ['tension', 'luz', 'casa'], t: 'resuena la tensión que resuelve fuerte en casa' },
+    'Concentración': { rel: ['camino', 'calma', 'casa'], t: 'resuenan los caminos cortos y la calma: acompañar sin llamar la atención' },
+  };
+  function relacionTutor(c, desde) {
+    const casa = { pc: S.key.tonic, q: S.key.mode === 'm' ? 'm' : 'M' };
+    if (c.pc === casa.pc && c.q === casa.q) return 'casa';
+    if (!isDiatonic(c.pc, c.q)) return Math.abs(pasosQuinta(casa, c)) <= 2 ? 'prestado' : 'lejos';
+    if (desde && desde.pc === c.pc && desde.q === c.q) return 'aqui';
+    if (desde && c.q !== 'd' && desde.q !== 'd' && c.q !== desde.q && posQuinta(c.pc, c.q) === posQuinta(desde.pc, desde.q)) return 'espejo';
+    if (TENSION_TUTOR[S.key.mode].includes(degreeOf(c.pc, c.q))) return 'tension';
+    if (desde) { const d = pasosQuinta(desde, c); if (d === 1) return 'luz'; if (d === -1) return 'calma'; }
+    return 'camino';
+  }
+  function pintarRuedaTutor(cur) {
+    const resuena = new Set((ANIMO_TUTOR[S.animo] || {}).rel || []);
+    for (const [id, { g, p }] of Object.entries(slots)) {
+      [...g.classList].filter(k => k.startsWith('tu-')).forEach(k => g.classList.remove(k));
+      const c = { pc: +id.slice(0, -1), q: id.slice(-1) };
+      if (cur && c.pc === cur.pc && c.q === cur.q) continue;
+      const rel = relacionTutor(c, cur);
+      g.classList.add('tu-' + rel); if (resuena.has(rel)) g.classList.add('tu-resuena');
+      if (c.q !== 'd' && rel !== 'camino' && rel !== 'lejos') p.textContent = REL_TUTOR[rel][0];   // «lejos» se ve en el borde punteado
+    }
+    pintarCamino(); renderRuedaTutor();
+  }
+  function leerCamino() {
+    const prog = S.prog; if (prog.length < 2) return '';
+    const DICE = { casa: 'vuelve a casa', luz: 'sube hacia la luz', calma: 'baja hacia la calma', espejo: 'se mira en el espejo', tension: 'se tensa',
+      camino: 'camina dentro de la casa', prestado: 'toma algo prestado', lejos: 'salta lejos', aqui: 'se queda' };
+    const pasos = prog.slice(1).map((c, i) => relacionTutor(c, prog[i]));
+    let txt = (relacionTutor(prog[0], null) === 'casa' ? 'sale de casa, ' : 'empieza fuera de casa, ') + pasos.map(r => DICE[r]).join(', ');
+    txt += '; y al repetir, ' + DICE[relacionTutor(prog[0], prog[prog.length - 1])] + '.';
+    const dist = prog.slice(1).map((c, i) => Math.abs(pasosQuinta(prog[i], c)));
+    if (dist.filter(d => d >= 3).length >= 2) txt += ' Da varios saltos grandes: es una vuelta inquieta.';
+    else if (dist.every(d => d <= 1)) txt += ' Se mueve siempre a un paso: suena natural, casi inevitable.';
+    const fin = relacionTutor(prog[prog.length - 1], null);
+    return txt + (fin === 'casa' ? ' Termina en casa: el loop descansa.' : fin === 'tension' ? ' Termina en tensión: el loop se vuelve a encender solo.' : '');
+  }
+  function renderRuedaTutor() {
+    const box = $('tuRueda'); if (!box) return;
+    box.hidden = false; box.innerHTML = '';
+    const ley = el('div', { class: 'tr-ley' });
+    ['casa', 'luz', 'calma', 'espejo', 'tension', 'camino', 'prestado', 'lejos'].forEach(k => ley.append(el('span', { class: 'tr-item tu-' + k, title: REL_TUTOR[k][1] }, el('i', {}), REL_TUTOR[k][0])));
+    box.append(el('p', { class: 'tr-t' }, el('b', {}, 'La rueda del tutor. '), 'No dice qué acorde va: pinta la relación de cada uno con tu casa y con donde estás. En el sentido del reloj, más luz y tensión; al revés, más calma. Cerca suena suave; lejos, sorprende.'), ley);
+    const a = ANIMO_TUTOR[S.animo];
+    box.append(el('p', { class: 'tr-animo' }, a ? `Con ánimo «${S.animo}», ${a.t}: lo marca un borde.` : 'Elige un estado de ánimo y la rueda marcará con un borde los movimientos que resuenan con él.'));
+    const lectura = leerCamino(); if (lectura) box.append(el('p', { class: 'tr-lectura' }, el('b', {}, 'Tu camino: '), lectura));
+  }
   const heat = (t, line=false) => { const h = 55 + 85*t, sat = 70, l = line ? 55 : 45, a = line ? 0.5 + 0.5*t : 0.18 + 0.62*t; return `hsla(${h.toFixed(0)}, ${sat}%, ${l}%, ${a.toFixed(2)})`; };
   function resaltarRueda(c) {
     Object.values(slots).forEach(s=>s.g.classList.remove('sonando'));
@@ -1923,17 +2035,18 @@
     DIATONIC[S.key.mode].forEach(d=>{ const c=chordOfDegree(d); slots[c.pc+c.q]?.g.classList.add('inkey'); });
     // Mapa de calor: verde = lo más probable para esta banda, amarillo = menos, desvanecido = poco usado; lo demás queda libre para improvisar
     const maxPct = sug.length ? sug[0].pct : 1;
-    sug.forEach(s=>{ const sl=slots[s.pc+s.q]; if (sl && !(s.pc===cur.pc&&s.q===cur.q)) { sl.g.classList.add('sug'); sl.p.textContent=s.pct+'%'; const path=sl.g.querySelector('path'); path.style.fill=heat(s.pct/maxPct); path.style.stroke=heat(s.pct/maxPct, true); } });
+    if (MODO_TUTOR) pintarRuedaTutor(cur);
+    (MODO_TUTOR ? [] : sug).forEach(s=>{ const sl=slots[s.pc+s.q]; if (sl && !(s.pc===cur.pc&&s.q===cur.q)) { sl.g.classList.add('sug'); sl.p.textContent=s.pct+'%'; const path=sl.g.querySelector('path'); path.style.fill=heat(s.pct/maxPct); path.style.stroke=heat(s.pct/maxPct, true); } });
     slots[cur.pc+cur.q]?.g.classList.add('cur');
     const arrows = $('wheelArrows');
     if (arrows) { arrows.innerHTML=''; const from = slots[cur.pc+cur.q];
-      if (from && (S.prog.length || S.cand)) sug.slice(0, S.mode==='piano'?5:4).forEach(sg=>{ const to=slots[sg.pc+sg.q]; if (!to || (sg.pc===cur.pc&&sg.q===cur.q)) return;
+      if (from && !MODO_TUTOR && (S.prog.length || S.cand)) sug.slice(0, S.mode==='piano'?5:4).forEach(sg=>{ const to=slots[sg.pc+sg.q]; if (!to || (sg.pc===cur.pc&&sg.q===cur.q)) return;
         const x1=from.cx,y1=from.cy,x2=to.cx,y2=to.cy; const mx=(x1+x2)/2,my=(y1+y2)/2, dx=mx-260,dy=my-260;
         const cxp=mx+dx*0.28, cyp=my+dy*0.28; const w=sg.pct/maxPct;
         arrows.append(svgEl('path',{class:'flecha-sug', d:`M${x1},${y1} Q${cxp.toFixed(1)},${cyp.toFixed(1)} ${x2},${y2}`, 'marker-end':'url(#flechaSug)', 'stroke-width':(1+w*3.5).toFixed(2), opacity:(0.3+0.55*w).toFixed(2)}));
       }); }
     $('cKey').textContent = keyName(S.key);
-    $('cSub').textContent = `${S.band} · ${S.bpm} bpm`; { const sl = nextSlot(); const cs=$('cPhase'); if (cs) cs.textContent = sl.left>0 ? `compás ${fmtLen(sl.start+1)}/${S.bars} · ${sl.phase==='open'?'abrir':sl.phase==='close'?'cerrar':sl.phase==='penult'?'preparar cierre':'desarrollar'}` : 'completa'; } const db=$('drumBpm'); if (db) db.textContent = S.bpm;
+    $('cSub').textContent = `${MODO_TUTOR ? (ANIMOS[S.animo] ? S.animo : 'sin ánimo') : S.band} · ${S.bpm} bpm`; { const sl = nextSlot(); const cs=$('cPhase'); if (cs) cs.textContent = sl.left>0 ? `compás ${fmtLen(sl.start+1)}/${S.bars} · ${sl.phase==='open'?'abrir':sl.phase==='close'?'cerrar':sl.phase==='penult'?'preparar cierre':'desarrollar'}` : 'completa'; } const db=$('drumBpm'); if (db) db.textContent = S.bpm;
   }
 
   // Tooltip flotante con la miniatura del teclado
@@ -2061,7 +2174,7 @@
     const names = S.prog.map(c=>chordLabel(c.pc,c.q) + (c.len!==1 ? ` (${fmtLen(c.len)})` : '')).join(' – ');
     const degs = S.prog.map(c=>degreeOf(c.pc,c.q)||'?').join(' – ');
     const voic = S.prog.map(c=>notesText(c.pc,c.q)).join('  |  ');
-    $('summary').textContent = S.prog.length ? `${names}\n${degs}   (${keyName(S.key)})\n${voic}\n${S.band} · ${S.bpm} bpm · ${instLabel()} · ${S.bars} compases` : 'Todavía no hay acordes. Parte desde el acorde inicial o elige una sugerencia.';
+    $('summary').textContent = S.prog.length ? `${names}\n${degs}   (${keyName(S.key)})\n${voic}\n${MODO_TUTOR ? (ANIMOS[S.animo] ? S.animo : 'sin ánimo') : S.band} · ${S.bpm} bpm · ${instLabel()} · ${S.bars} compases` : (MODO_TUTOR ? 'Todavía no hay acordes. Toca uno en la rueda o en el teclado.' : 'Todavía no hay acordes. Parte desde el acorde inicial o elige una sugerencia.');
     $('undo').disabled = !S.prog.length && !S.cand; $('clear').disabled = !S.prog.length && !S.cand; $('play').disabled = !S.prog.length && !S.cand && !isPlaying;
   }
   function renderKeyChips() {
@@ -2907,6 +3020,7 @@
   // Al elegir estilo/banda a la izquierda, refleja esa banda en «Patrón base» (derecha) y
   // carga su beat, para no repetir la elección. El tempo/compases ya los pone el ánimo/banda.
   function sincronizarPatronBase() {
+    if (MODO_TUTOR) return;   // en el tutor, cambiar de estilo no carga el beat de la banda
     const sel = $('drumPreset'); if (!sel) return;
     const opt = [...sel.options].find(o => o.value !== 'Vacío' && !o.value.startsWith('Mi base') && o.value.split(' · ')[0] === S.band);
     if (!opt || sel.value === opt.value) return;   // banda sin beat propio, o ya elegido: no repisa la rejilla
@@ -3298,7 +3412,7 @@
     if (m==='bajod') renderBassSeq();
     $('midiAddWrap').hidden = (m==='bajod' || m==='beat') || !midiAccess;
     $('kbTitle').textContent = `Akai MPK mini ${S.kbKeys===37?'Plus · 37':'· 25'} teclas · do a do · OCT en 0` + (m==='bajod' ? ' · clic o MIDI = suena el bajo' : '');
-    if (m==='beat' && listoParaAutoBeat && !S.donner.on && !hasDrums() && !PAR.has('guia') && !PAR.has('tutor')) generarBeat(true);   // se genera solo al entrar si está vacío (desde la guía, no: se empieza en blanco)
+    if (m==='beat' && listoParaAutoBeat && !S.donner.on && !hasDrums() && !PAR.has('guia') && !MODO_TUTOR) generarBeat(true);   // se genera solo al entrar si está vacío (desde la guía, no: se empieza en blanco)
     renderAll();
   }
   $('mode').addEventListener('change', e=>setMode(e.target.value));
@@ -3567,6 +3681,7 @@
   }
   function bpAccion(id) {
     const t = BP_TECLAS.find(x => x.id === id); if (!t) return;
+    if (MODO_TUTOR && id === 'igual') { avisoBajo('Con el tutor, cada nota la escribes tú.'); return; }
     if (t.nota || ['borrar','silencio','mantener','acento','copiar','igual','deshacer'].includes(id)) lbPorMi = -1;   // lo que escribes tú
     const btn = $('bpTeclado') && $('bpTeclado').querySelector(`[data-id="${id}"]`); if (btn) { btn.classList.add('pulsada'); setTimeout(() => btn.classList.remove('pulsada'), 120); }
     if (t.nota) return bpNota(notasDelPad(BP.bar)[t.nota]);
@@ -4101,7 +4216,7 @@
   function pintarCamino() {
     const g = $('wheelCamino'), svg = $('wheel'); if (!g || !svg) return;
     g.innerHTML = '';
-    const v = (S.mode === 'pad' || S.mode === 'piano') ? vbVueltas[vbSel] : null;
+    const v = !(S.mode === 'pad' || S.mode === 'piano') ? null : MODO_TUTOR ? (S.prog.length >= 2 ? { acordes: S.prog } : null) : vbVueltas[vbSel];   // en el tutor, tu propia vuelta
     svg.classList.toggle('camino-on', !!v); if (!v) return;
     const pts = v.acordes.map(c => slots[c.pc + c.q]).filter(Boolean);
     pts.forEach((p, i) => {
@@ -5595,7 +5710,7 @@
   // Mensajes del tutor: frases propias, en el espíritu de ideas de Rick Rubin verificadas en su libro «El acto de crear»
   // (Planeta, 2023) y en entrevistas (60 Minutes 2023, Tim Ferriss, Conversations with Tyler, Rolling Stone 2016, NPR,
   // CBC Q, Tetragrammaton). No son citas: nunca dicen qué nota ni qué casilla. «de» nombra de dónde viene la idea.
-  const LIBRO = c => 'El acto de crear · ' + c;
+  const LIBRO = c => 'El acto de crear · ' + c, TEORIA = 'Teoría · el círculo de quintas';
   const BANCO_TUTOR = {
     // ── Etapas: la pregunta con que abre cada una
     'etapa:pulso': [
@@ -5728,6 +5843,50 @@
       { t:'La vuelta tiene carácter propio. Cántale encima cualquier cosa, sin palabras, y fíjate qué te pide.', por:'La voz encuentra la melodía antes que la cabeza, y te dice si la armonía sostiene algo.', de:'Rolling Stone 2016 (repetir con el beat en loop hasta que aparezca)' },
     ],
 
+
+    // ── La rueda: cada paso que das, en sensaciones, con la teoría detrás
+    m_paso_luz: [
+      { t:'Diste un paso hacia la luz: la vuelta se abre y empieza a pedir algo.', por:'En el círculo de quintas, avanzar en el sentido del reloj va hacia la dominante: el acorde nuevo trae una tensión que quiere resolverse.', de: TEORIA },
+      { t:'Subiste un escalón en la rueda. ¿Se siente como abrir una ventana o como apurarse?', por:'Moverse una quinta hacia arriba es el paso más natural de la armonía: comparte una nota con el acorde anterior y empuja hacia adelante.', de: TEORIA },
+    ],
+    m_paso_calma: [
+      { t:'Bajaste hacia la calma: algo se asentó.', por:'Retroceder una quinta es el movimiento que más descansa: es la cadencia plagal, la del «amén».', de: TEORIA },
+      { t:'Ese paso baja la guardia. ¿Quieres quedarte ahí o volver a empujar?', por:'Ir en contra del reloj en la rueda suaviza: el acorde nuevo no exige resolver, invita a flotar.', de: TEORIA },
+    ],
+    m_paso_casa: [
+      { t:'Volviste a casa. Escucha cómo se aquieta todo… ¿era eso lo que querías sentir justo ahí?', por:'Llegar a la tónica resuelve la tensión acumulada; si llega desde la dominante, el alivio se siente más fuerte.', de: TEORIA },
+      { t:'Llegar a casa cierra una frase. Si la vuelta termina aquí, el loop descansa; si no, deja una pregunta.', por:'Dónde cae la casa dentro de la vuelta decide si la repetición se siente como descanso o como impulso.', de: TEORIA },
+    ],
+    m_paso_tension: [
+      { t:'Ahí hay tensión: el acorde tira hacia casa. Deja que dure un poco antes de resolver.', por:'Los acordes de dominante tienen una nota a medio tono de la tónica; el oído quiere resolverla, y eso se siente como expectativa.', de: TEORIA + ' · ' + LIBRO('Armonía') },
+    ],
+    m_paso_espejo: [
+      { t:'Te miraste en el espejo: casi las mismas notas, otra luz. ¿Cambió el color del cuarto?', por:'Cada mayor tiene un menor relativo en la misma posición de la rueda: comparten dos notas, así que el cambio es de color más que de lugar.', de: TEORIA },
+    ],
+    m_paso_prestado: [
+      { t:'Tomaste algo prestado de la casa vecina. No lo quites todavía: ¿incomoda bien o incomoda mal?', por:'Un acorde prestado viene de la tonalidad paralela; cerca de casa en la rueda, sorprende sin perderse.', de: TEORIA + ' · ' + LIBRO('Punto de referencia') },
+    ],
+    m_paso_lejos: [
+      { t:'Ese salto cruzó media rueda. Es una sorpresa grande: ¿la canción la sostiene o se pierde?', por:'Cuanto más lejos están dos acordes en el círculo de quintas, menos notas comparten, y más fuerte se siente el cambio.', de: TEORIA },
+    ],
+    m_paso_camino: [
+      { t:'Seguiste caminando dentro de la casa, sin sobresaltos. ¿Hacia dónde quieres que vaya la frase?', por:'Los acordes de la tonalidad que no son casa ni tensión preparan el camino: alargan la frase antes de volver.', de: TEORIA },
+    ],
+    m_paso_aqui: [
+      { t:'Te quedaste en el mismo lugar. Quedarse también es una decisión: ¿cuánto aguanta antes de pedir movimiento?', por:'Repetir un acorde alarga la sensación; el oído espera un cambio, y esa espera crea tensión.', de: LIBRO('Nada es estático') },
+    ],
+    k_animo: [
+      { t:'Elegiste un ánimo, pero la vuelta camina hacia otro lado. ¿Es la sensación que buscas o descubriste otra?', por:'Cada estado de ánimo resuena con ciertos movimientos en la rueda; los ves marcados con un borde. Salirse de ahí no es un error si lo sientes.', de: TEORIA + ' · ' + LIBRO('Experimentación') },
+    ],
+
+    // ── Lo que el oído aprendió de tu costumbre
+    x_masQueTu: [
+      { t:'Esto tiene más cosas de lo que sueles hacer. ¿Lo estás buscando, o se te fue llenando sin darte cuenta?', por:'El tutor compara con tu propia costumbre, no con una regla: salir de ella puede ser un hallazgo o un reflejo.', de: LIBRO('Punto de vista') },
+    ],
+    x_menosQueTu: [
+      { t:'Hoy vas con menos de lo que acostumbras. Ese espacio, ¿es nuevo para ti? Escúchalo antes de rellenarlo.', por:'Cuando haces algo distinto a tu costumbre, el oído todavía no tiene contexto: dale unas vueltas antes de juzgar.', de: LIBRO('Punto de referencia') },
+    ],
+
     // ── Guitarra
     g_vacio: [
       { t:'Toma la guitarra antes de mirar la pantalla. ¿Qué vuelta te sale sin pensar?', por:'Tocando, ocupada en los acordes, la mano deja de actuar y sale lo tuyo.', de:'Tim Ferriss Show (2023) (Neil Diamond tocando mientras canta)' },
@@ -5790,7 +5949,9 @@
   // consejos, en etapas. Se inspira en ideas públicas de Rick Rubin, dichas con nuestras palabras; no habla por él.
   (() => {
     if (!PAR.has('tutor') || !['rolando', 'schair'].includes(S.quien)) return;
-    document.body.classList.add('modo-tutor');
+    document.body.classList.add('modo-tutor', 'tutor-' + S.quien);
+    const ir = document.querySelector('.ir-ajustes'); if (ir) ir.textContent = '⚙ Tempo, compases, guardar y exportar ↓';
+    const PESTANAS = { rolando: ['beat', 'bajod', 'pad', 'piano'], schair: ['beat', 'guitarra'] }[S.quien];
     const INSTR = { beat:'bateria', bajod:'bajo', pad:'teclados', piano:'teclados', guitarra:'guitarra' };
     const TOCAR = { beat:'playDrums', bajod:'playBass', pad:'play', piano:'play', guitarra:'playGuit' };
 
@@ -5819,18 +5980,21 @@
         inicios++; alturas.add(r); if (kick[(b % dl) * 16 + s]) conBombo++;
       }
       const hayBombo = kick.some(Boolean);
-      return { vacio: !inicios, inicios, aire: vacias / (len * 16), alturas: alturas.size,
+      return { vacio: !inicios, inicios, aire: vacias / (len * 16), alturas: alturas.size, bomboRatio: inicios ? conBombo / inicios : 0, densidad: inicios / (len * 8),
         pegado: hayBombo && inicios >= 2 && conBombo / inicios >= 0.8, suelto: hayBombo && inicios >= 3 && conBombo / inicios < 0.2, unaNota: alturas.size === 1 && inicios >= 3 };
     }
     function oirTeclados() {
       const prog = S.prog, tonica = S.key.mode === 'm' ? 'i' : 'I', grados = prog.map(c => degreeOf(c.pc, c.q));
+      const pasos = prog.slice(1).map((c, i) => relacionTutor(c, prog[i])), resuena = new Set((ANIMO_TUTOR[S.animo] || {}).rel || []);
       return { vacio: !prog.length, n: prog.length, distintos: new Set(prog.map(c => c.pc + ':' + c.q)).size,
+        reparto: pasos.reduce((o, r) => (o[r] = (o[r] || 0) + 1 / pasos.length, o), {}),
+        ultimoPaso: pasos[pasos.length - 1] || null, animoChoca: resuena.size > 0 && pasos.length >= 3 && !pasos.some(r => resuena.has(r)),
         prestado: prog.some(c => !isDiatonic(c.pc, c.q)),
         predecible: prog.length >= 3 && prog.every(c => isDiatonic(c.pc, c.q)) && grados[0] === tonica && grados[grados.length - 1] === tonica };
     }
     function oirGuitarra() {
       const g = S.guitar, st = (g.strum || []).slice(0, 8), golpesR = st.filter(Boolean).length;
-      return { vacio: !g.prog.length, n: g.prog.length, parejo: golpesR === 8, huecos: golpesR > 0 && golpesR < 8, soloAbajo: golpesR > 0 && !st.includes('U') };
+      return { vacio: !g.prog.length, n: g.prog.length, golpes: golpesR, parejo: golpesR === 8, huecos: golpesR > 0 && golpesR < 8, soloAbajo: golpesR > 0 && !st.includes('U') };
     }
     const OIR = { bateria: oirBateria, bajo: oirBajo, teclados: oirTeclados, guitarra: oirGuitarra };
 
@@ -5838,16 +6002,123 @@
       if (inst === 'bateria') { if (a.vacio) return 'b_vacio'; if (a.lleno) return 'b_lleno'; if (a.soloBombo) return a.ksFuera ? 'b_bomboSuelto' : 'b_soloBombo';
         if (a.sinCaja) return 'b_sinCaja'; if (a.cuadrado) return 'b_cuadrado'; if (a.igual) return 'b_igual'; if (a.raros) return 'b_raro'; return 'b_vivo'; }
       if (inst === 'bajo') { if (a.vacio) return 'j_vacio'; if (a.unaNota) return 'j_unaNota'; if (a.aire < 0.15) return 'j_sinAire'; if (a.pegado) return 'j_pegado'; if (a.suelto) return 'j_suelto'; return 'j_vivo'; }
-      if (inst === 'teclados') { if (a.vacio) return 'k_vacio'; if (a.distintos === 1) return 'k_uno'; if (a.prestado) return 'k_incomoda'; if (a.predecible) return 'k_predecible'; return 'k_vivo'; }
+      if (inst === 'teclados') { if (a.vacio) return 'k_vacio'; if (a.distintos === 1) return 'k_uno'; if (a.animoChoca) return 'k_animo'; if (a.prestado) return 'k_incomoda'; if (a.predecible) return 'k_predecible'; return 'k_vivo'; }
       if (inst === 'guitarra') { if (a.vacio) return 'g_vacio'; if (a.parejo) return 'g_parejo'; if (a.soloAbajo) return 'g_soloAbajo'; if (a.huecos) return 'g_huecos'; return 'g_vivo'; }
       return null;
     }
     function mejoro(inst, p, a) {
       if (inst === 'bateria') { if (p.lleno && !a.lleno && !a.vacio) return 'm_quitar'; if (!p.ksFuera && a.ksFuera && a.k && !a.soloBombo && !a.lleno) return 'm_sincopa'; if (p.soloBombo && a.sn + a.oh > 0) return 'm_contraste'; }
       if (inst === 'bajo') { if (p.aire < 0.15 && a.aire >= 0.15 && !a.vacio) return 'm_aire'; if (p.pegado && !a.pegado && a.inicios >= 2) return 'm_soltarse'; }
+      if (inst === 'teclados' && a.n > p.n && a.ultimoPaso) return 'm_paso_' + a.ultimoPaso;   // cada paso en la rueda, contado como sensación
       if (inst === 'teclados' && !p.prestado && a.prestado) return 'k_incomoda';
       if (inst === 'guitarra' && p.parejo && a.huecos) return 'm_hueco';
       return null;
+    }
+
+    // ── El oído que aprende: un modelo por persona, en este navegador ──
+    // Alimentación: la lectura de cada instrumento se vuelve un vector de rasgos (0 a 1) → gana la neurona más parecida
+    // (si ninguna se parece lo suficiente, crece una nueva: la red se forma donde tú trabajas) → sus pesos por consejo,
+    // más la regla musical, eligen qué decir. Retroalimentación: lo que haces después de cada consejo (mejorar lo
+    // señalado, cambiar algo, pedir otra idea, seguir, ignorarlo, o 👍/👎) ajusta el peso de ese consejo en esa neurona.
+    // Rolando y Schair tienen redes separadas y perfiles distintos: vigilancia (qué tan fino distingue lugares nuevos),
+    // ritmo de aprendizaje y énfasis por instrumento.
+    const PERFIL = {
+      rolando: { vigilancia: 0.30, aprende: 0.20, enfasis: { bateria: 1.2, bajo: 1.3, teclados: 1.15, guitarra: 0.6 } },
+      schair:  { vigilancia: 0.36, aprende: 0.24, enfasis: { bateria: 1.1, bajo: 0.6, teclados: 0.7, guitarra: 1.4 } },
+    }[S.quien];
+    const OIDO_CLAVE = 'denavilab.oido.' + S.quien, MAX_NEURONAS = 48;
+    let modelo = { v: 1, redes: {} };
+    try { const g = JSON.parse(localStorage.getItem(OIDO_CLAVE) || 'null'); if (g && g.v === 1 && g.redes) modelo = g; } catch (e) {}
+    const guardarOido = () => { try { localStorage.setItem(OIDO_CLAVE, JSON.stringify(modelo)); } catch (e) {} };
+    const tope = x => Math.max(0, Math.min(1, x));
+    const RASGOS = {
+      bateria: a => [tope(a.porCompas / 24), (a.k + a.sn) ? a.ksFuera / (a.k + a.sn) : 0, a.soloBombo ? 1 : 0, a.sinCaja ? 1 : 0, a.cuadrado ? 1 : 0, a.igual ? 1 : 0, a.raros ? 1 : 0, a.oh ? 1 : 0],
+      bajo: a => [tope(a.densidad || 0), a.aire, tope(a.alturas / 8), a.bomboRatio || 0, a.unaNota ? 1 : 0],
+      teclados: a => [tope(a.n / 8), a.n ? a.distintos / a.n : 0, a.prestado ? 1 : 0, a.predecible ? 1 : 0, ...['casa', 'tension', 'luz', 'calma', 'espejo', 'lejos'].map(k => (a.reparto || {})[k] || 0), a.animoChoca ? 1 : 0],
+      guitarra: a => [tope(a.n / 8), (a.golpes || 0) / 8, a.huecos ? 1 : 0, a.soloAbajo ? 1 : 0, a.parejo ? 1 : 0],
+    };
+    const red = inst => modelo.redes[inst] || (modelo.redes[inst] = { neuronas: [], media: null, varz: null, obs: 0 });
+    function percibir(inst, a) {
+      const x = RASGOS[inst](a), R = red(inst), dim = x.length;
+      if (!R.media || R.media.length !== dim) { R.media = x.slice(); R.varz = x.map(() => 0.02); R.neuronas = R.neuronas.filter(nu => nu.p.length === dim); }
+      const sd = Math.sqrt(R.varz[0]), z = R.obs >= 20 && sd > 0.03 ? (x[0] - R.media[0]) / sd : 0;   // qué tan distinto de tu costumbre (densidad)
+      R.obs++; const al = R.obs < 20 ? 1 / R.obs : 0.05;
+      x.forEach((v, i) => { const d = v - R.media[i]; R.media[i] += al * d; R.varz[i] = (1 - al) * (R.varz[i] + al * d * d); });
+      let j = -1, dist = Infinity;
+      R.neuronas.forEach((nu, i) => { const d = Math.sqrt(nu.p.reduce((s2, v, k) => s2 + (v - x[k]) ** 2, 0) / dim); if (d < dist) { dist = d; j = i; } });
+      if (j < 0 || dist > PERFIL.vigilancia) {   // crecimiento: nace una neurona donde no había nada parecido
+        R.neuronas.push({ p: x.slice(), w: {}, n: 1, t: Date.now() }); j = R.neuronas.length - 1; dist = 0;
+        if (R.neuronas.length > MAX_NEURONAS) {   // poda: se va la menos usada y más antigua
+          let peor = -1; R.neuronas.forEach((nu, i) => { if (i === j) return; if (peor < 0 || nu.n < R.neuronas[peor].n || (nu.n === R.neuronas[peor].n && nu.t < R.neuronas[peor].t)) peor = i; });
+          R.neuronas.splice(peor, 1); if (peor < j) j--;
+        }
+      } else {   // la ganadora se acerca a lo que oyó (aprendizaje competitivo)
+        const nu = R.neuronas[j], eta = PERFIL.aprende / (1 + nu.n * 0.05);
+        nu.p = nu.p.map((v, k) => v + eta * (x[k] - v)); nu.n++; nu.t = Date.now();
+      }
+      guardarOido();
+      return { j, act: Math.exp(-(dist * dist) / (2 * PERFIL.vigilancia * PERFIL.vigilancia)), z, obs: R.obs };
+    }
+    function candidatas(inst, a) {
+      const c = [];
+      if (inst === 'bateria') { if (a.vacio) return [['b_vacio', 1]];
+        if (a.lleno) c.push(['b_lleno', 0.9]); if (a.soloBombo) c.push([a.ksFuera ? 'b_bomboSuelto' : 'b_soloBombo', 0.8]); if (a.sinCaja) c.push(['b_sinCaja', 0.7]);
+        if (a.cuadrado) c.push(['b_cuadrado', 0.7]); if (a.igual) c.push(['b_igual', 0.5]); if (a.raros) c.push(['b_raro', 0.5]); c.push(['b_vivo', 0.25]); }
+      if (inst === 'bajo') { if (a.vacio) return [['j_vacio', 1]];
+        if (a.unaNota) c.push(['j_unaNota', 0.8]); if (a.aire < 0.15) c.push(['j_sinAire', 0.8]); if (a.pegado) c.push(['j_pegado', 0.7]); if (a.suelto) c.push(['j_suelto', 0.7]); c.push(['j_vivo', 0.25]); }
+      if (inst === 'teclados') { if (a.vacio) return [['k_vacio', 1]];
+        if (a.distintos === 1) c.push(['k_uno', 0.8]); if (a.animoChoca) c.push(['k_animo', 0.75]); if (a.prestado) c.push(['k_incomoda', 0.6]); if (a.predecible) c.push(['k_predecible', 0.6]); c.push(['k_vivo', 0.25]); }
+      if (inst === 'guitarra') { if (a.vacio) return [['g_vacio', 1]];
+        if (a.parejo) c.push(['g_parejo', 0.8]); if (a.soloAbajo) c.push(['g_soloAbajo', 0.7]); if (a.huecos) c.push(['g_huecos', 0.5]); c.push(['g_vivo', 0.25]); }
+      return c;
+    }
+    function elegir(inst, a, per) {
+      const nu = red(inst).neuronas[per.j], c = candidatas(inst, a);
+      if (per.obs > 20 && inst !== 'teclados') { if (per.z > 1.6) c.push(['x_masQueTu', 0.65]); else if (per.z < -1.6) c.push(['x_menosQueTu', 0.55]); }
+      let mejor = null, puntaje = -Infinity;
+      for (const [sit, prior] of c) {
+        const w = (nu && nu.w[sit]) || 0, repetida = sit === ultimaSit ? 0.5 : 1;
+        const sc = prior * repetida * (1 + 0.9 * per.act * w);   // la regla musical propone; lo aprendido de ti inclina
+        if (sc > puntaje) { puntaje = sc; mejor = sit; }
+      }
+      return mejor;
+    }
+    let espera = null, ultimoDicho = null, huboCambio = false, idConsejo = 0;
+    function ajustarPeso(ref, r, motivo, fuerza = 1) {
+      const nu = (red(ref.inst).neuronas || [])[ref.j]; if (!nu) return;
+      const lr = Math.min(1, PERFIL.aprende * (PERFIL.enfasis[ref.inst] || 1) * Math.max(0.3, ref.act) * fuerza);
+      const w = nu.w[ref.sit] || 0; nu.w[ref.sit] = Math.max(-1, Math.min(1, w + lr * (r - w)));
+      modelo.hist = (modelo.hist || []).concat({ sit: ref.sit, r, motivo, ts: Date.now() }).slice(-80);
+      guardarOido(); pintarAprendido();
+    }
+    function retro(r, motivo) { if (!espera) return; const ref = espera; espera = null; ajustarPeso(ref, r, motivo); }
+    function explicita(r) {
+      if (!ultimoDicho) return;
+      ajustarPeso(ultimoDicho, r, r > 0 ? 'te sirvió' : 'no te sirvió', 2.5);
+      if (espera && espera.id === ultimoDicho.id) espera = null;
+      const caja = document.querySelector('#tutor .tu-fb'); if (caja) { caja.classList.add('dado'); caja.lastChild.textContent = r > 0 ? 'Anotado: vuelvo a eso cuando se parezca.' : 'Anotado: aquí te hablaré de otra cosa.'; }
+    }
+    const NOMBRE_SIT = { b_vacio: 'la hoja en blanco', b_lleno: 'quitar lo que sobra', b_soloBombo: 'buscar quién conteste', b_bomboSuelto: 'el ancla del pulso', b_sinCaja: 'el golpe que responde',
+      b_cuadrado: 'salir de lo cuadrado', b_igual: 'variar la repetición', b_raro: 'escuchar el error', b_vivo: 'escuchar sin mirar', j_vacio: 'la hoja en blanco', j_unaNota: 'irse y volver',
+      j_sinAire: 'dejar respirar el bajo', j_pegado: 'soltar el bajo del bombo', j_suelto: 'tocar tierra', j_vivo: 'escuchar el bajo solo', k_vacio: 'la hoja en blanco', k_uno: 'dar el primer paso',
+      k_animo: 'volver al ánimo', k_incomoda: 'la tensión que incomoda', k_predecible: 'torcer el camino', k_vivo: 'cantarle encima', g_vacio: 'la hoja en blanco', g_parejo: 'huecos en el rasgueo',
+      g_soloAbajo: 'la mano que sube', g_huecos: 'cuidar los huecos', g_vivo: 'probar con la voz', x_masQueTu: 'notar que llenas más que de costumbre', x_menosQueTu: 'notar el espacio nuevo' };
+    const NOMBRE_INST = { bateria: 'Batería', bajo: 'Secuenciador', teclados: 'Teclados', guitarra: 'Guitarra' };
+    function pintarAprendido() {
+      const caja = document.querySelector('#tutor .ta-cuerpo'); if (!caja) return; caja.innerHTML = '';
+      const insts = Object.keys(modelo.redes).filter(k => modelo.redes[k].obs);
+      if (!insts.length) caja.append(el('p', {}, 'Todavía nada: el oído aprende mientras tocas, y de lo que haces después de cada consejo.'));
+      insts.forEach(k => {
+        const R = modelo.redes[k], tot = {};
+        R.neuronas.forEach(nu => Object.entries(nu.w).forEach(([sit, w]) => { const t = tot[sit] || (tot[sit] = { s: 0, n: 0 }); t.s += w * nu.n; t.n += nu.n; }));
+        const orden = Object.entries(tot).map(([sit, t]) => [sit, t.s / t.n]).sort((x, y) => y[1] - x[1]);
+        const sirve = orden.filter(x => x[1] > 0.12).slice(0, 3).map(x => NOMBRE_SIT[x[0]] || x[0]);
+        const menos = orden.filter(x => x[1] < -0.12).slice(-2).map(x => NOMBRE_SIT[x[0]] || x[0]);
+        const n = R.neuronas.length;
+        caja.append(el('p', {}, el('b', {}, NOMBRE_INST[k] + ': '), `${n} ${n === 1 ? 'lugar musical aprendido' : 'lugares musicales aprendidos'} en ${R.obs} escuchas.` +
+          (sirve.length ? ` Te suele servir: ${sirve.join(', ')}.` : '') + (menos.length ? ` Te sirve menos: ${menos.join(', ')}.` : '')));
+      });
+      if (insts.length) caja.append(boton('Olvidar lo aprendido', 'ghost', () => { if (!confirm('¿Olvidar lo que el oído aprendió de ti en este navegador?')) return; modelo = { v: 1, redes: {} }; espera = ultimoDicho = null; guardarOido(); pintarAprendido(); }));
     }
 
     // ── Las etapas: el camino controlado de cada uno
@@ -5884,21 +6155,24 @@
     const msg = el('p', { class:'tu-msg', 'aria-live':'polite' });
     const porTxt = el('p', {}), deTxt = el('small', { class:'tu-de' }), por = el('details', { class:'tu-por' }, el('summary', {}, '¿Por qué funciona?'), porTxt, deTxt);
     const lista = el('ol'), bita = el('details', { class:'tu-bita' }, el('summary', {}, 'Bitácora de la sesión'), lista);
+    const fb = el('div', { class:'tu-fb', hidden:'' }, boton('👍 me sirvió', 'ghost', () => explicita(1)), boton('👎 no me sirve', 'ghost', () => explicita(-1)), el('span', { class:'tu-fb-txt' }, ''));
+    const aprendido = el('details', { class:'tu-aprendido' }, el('summary', {}, 'Lo que el oído aprendió de ti'), el('div', { class:'ta-cuerpo' }));
     const bSigo = boton('Sigo →', 'ghost', () => avanzar());
     const cab = el('div', { class:'tu-cab' },
       el('div', { class:'tu-titulo' }, el('span', { class:'tu-nombre' }, 'Tutor'), el('span', { class:'tu-sub' }, 'a la manera de Rick Rubin')),
       oido, boton('—', 'tu-min', () => { panel.classList.toggle('min'); }), boton('⋯', 'tu-min', () => { panel.classList.toggle('completo'); })
     );
-    const cuerpo = el('div', { class:'tu-cuerpo' }, puntos, etapaTxt, msg, por,
+    const cuerpo = el('div', { class:'tu-cuerpo' }, puntos, etapaTxt, msg, por, fb,
       el('div', { class:'tu-btns' },
         boton('▶ Escuchar', 'ghost', () => { const id = TOCAR[S.mode]; if (id && $(id)) $(id).click(); }),
-        boton('Otra idea', 'ghost', () => decir('ayuda:' + (INSTR[S.mode] || 'otro'), { forzar:true })),
+        boton('Otra idea', 'ghost', () => { retro(-0.6, 'pidió otra idea'); decir('ayuda:' + (INSTR[S.mode] || 'otro'), { forzar:true }); }),
         bSigo),
-      bita,
+      bita, aprendido,
       el('p', { class:'tu-nota' }, 'Se inspira en ideas públicas de Rick Rubin, dichas con nuestras palabras; no habla por él. ',
         boton('Salir del tutor', '', () => { const u = new URL(location.href); u.searchParams.delete('tutor'); u.searchParams.set('modo', S.mode); location.href = u; })));
     panel.append(cab, cuerpo);
     document.body.append(panel);
+    pintarAprendido();
 
     let etapaLista = false;
     function pintarEtapa() {
@@ -5913,19 +6187,20 @@
       msg.textContent = m.t; msg.classList.remove('nuevo'); void msg.offsetWidth; msg.classList.add('nuevo');
       porTxt.textContent = m.por || ''; deTxt.textContent = m.de ? 'Idea de: ' + m.de : ''; por.hidden = !m.por; por.open = false;
       lista.innerHTML = ''; est.bitacora.slice().reverse().forEach(x => lista.append(el('li', {}, el('time', {}, hora(x.ts)), x.t)));
+      fb.hidden = !(ultimoDicho && ultimoDicho.ts === m.ts); fb.classList.remove('dado'); fb.lastChild.textContent = '';
     }
     function pintarOido(t, activo) { oido.lastChild.textContent = t; oido.classList.toggle('activo', !!activo); }
 
     // ── Hablar: una frase a la vez, sin repetirse ni insistir
-    let ultimaSit = '', ultimoMensaje = 0;
+    let ultimaSit = '', ultimoMensaje = 0, ultimoReactivo = 0;   // las preguntas de etapa no le quitan el turno a la primera reacción
     function decir(sit, { forzar = false } = {}) {
       const v = BANCO_TUTOR[sit + ':' + S.quien] || BANCO_TUTOR[sit]; if (!v || !v.length) return false;
       const ahora = Date.now();
       if (!forzar && sit === ultimaSit && ahora - ultimoMensaje < 45000) return false;
-      if (!forzar && ahora - ultimoMensaje < 3500 && !sit.startsWith('m_')) return false;
+      if (!forzar && ahora - ultimoReactivo < 3500 && !sit.startsWith('m_')) return false;
       const i = ((est.dichos[sit] ?? -1) + 1) % v.length; est.dichos[sit] = i;
       const m = { sit, t: v[i].t, por: v[i].por || '', de: v[i].de || '', ts: ahora };
-      ultimaSit = sit; ultimoMensaje = ahora; est.bitacora.push(m); guardar(); pintar(m);
+      ultimaSit = sit; ultimoMensaje = ahora; if (!forzar) ultimoReactivo = ahora; est.bitacora.push(m); guardar(); pintar(m);
       return true;
     }
 
@@ -5934,10 +6209,20 @@
     function reaccionar() {
       const inst = INSTR[S.mode]; if (!inst) return false;
       const ahora = OIR[inst](), previo = antes[inst]; antes[inst] = ahora;
-      if (cambios.length >= 8) { cambios = []; if (decir('dudas')) return true; }
+      const cambio = huboCambio; huboCambio = false;
       const mejora = previo && mejoro(inst, previo, ahora);
+      // retroalimentación: ¿qué hiciste después del último consejo?
+      if (espera && cambio && espera.inst === inst) retro(mejora && !mejora.startsWith('m_paso_') ? 1 : 0.3, mejora ? 'mejoró lo señalado' : 'cambió algo');
+      const per = percibir(inst, ahora);
+      if (cambios.length >= 8) { cambios = []; if (decir('dudas')) return true; }
       if (mejora && decir(mejora)) return true;
-      const sit = situacion(inst, ahora); return !!(sit && decir(sit));
+      const sit = elegir(inst, ahora, per);
+      if (sit && decir(sit)) {
+        espera = { id: ++idConsejo, inst, j: per.j, sit, act: per.act, ts: Date.now(), escucho: false };
+        ultimoDicho = { ...espera, ts: ultimoMensaje }; fb.hidden = false; fb.classList.remove('dado'); fb.lastChild.textContent = '';
+        return true;
+      }
+      return false;
     }
     let listoPorDecir = false;
     function revisarEtapa() {
@@ -5946,6 +6231,7 @@
     }
     function avanzar() {
       if (est.etapa >= ETAPAS.length - 1) return;
+      retro(0.5, 'siguió adelante');
       est.etapa++; etapaLista = false; guardar();
       const E = ETAPAS[est.etapa];
       if (E.modo && S.mode !== E.modo) { if (isPlaying) stopAll(); setMode(E.modo); modoOido = S.mode; }
@@ -5964,10 +6250,11 @@
       }
       const f = firma();
       if (f !== ultimaFirma) {
-        ultimaFirma = f; ultimoCambio = ahora; pendiente = true; vueltasSinCambio = 0; quietoDicho = false;
+        ultimaFirma = f; ultimoCambio = ahora; pendiente = true; vueltasSinCambio = 0; quietoDicho = false; huboCambio = true;
         cambios.push(ahora); cambios = cambios.filter(t => ahora - t < 20000); pintarOido('te escucho…', true);
       }
       if (S.mode !== modoOido) { modoOido = S.mode; pendiente = true; ultimoCambio = ahora - 1500; }
+      if (espera && ahora - espera.ts > 60000) retro(espera.escucho ? 0.1 : -0.2, espera.escucho ? 'escuchó sin cambiar' : 'sin respuesta');
       if (pendiente && !isPlaying && ahora - ultimoCambio > 2200) {
         pendiente = false; pintarOido('escuchando'); revisarEtapa();
         const dijo = reaccionar();
@@ -5978,7 +6265,7 @@
     }
     tutorOyente = {
       vuelta() {
-        vueltasSinCambio++; pintarOido('oyendo la vuelta', true);
+        vueltasSinCambio++; pintarOido('oyendo la vuelta', true); if (espera) espera.escucho = true;
         if (pendiente && Date.now() - ultimoCambio > 1200) { pendiente = false; reaccionar(); }
         else if (vueltasSinCambio === 4) decir(ETAPAS[est.etapa].id === 'soltar' ? 'etapa:soltar' : 'vueltas');
         setTimeout(() => { if (!isPlaying) pintarOido('escuchando'); }, 400);
@@ -5987,7 +6274,8 @@
 
     // arranque: la etapa en que vas y su pregunta (sin repetirla si la acabas de leer)
     const E0 = ETAPAS[est.etapa], ultimo = est.bitacora[est.bitacora.length - 1];
-    if (E0.modo && S.mode !== E0.modo && !INSTR[PAR.get('modo')]) setMode(E0.modo);
+    if (!PESTANAS.includes(S.mode)) setMode(E0.modo || 'beat');
+    else if (E0.modo && S.mode !== E0.modo && !INSTR[PAR.get('modo')]) setMode(E0.modo);
     pintarEtapa();
     if (ultimo && Date.now() - ultimo.ts < 30 * 60000) pintar(ultimo); else decir('etapa:' + E0.id, { forzar:true });
     setTimeout(tick, 0);   // la línea base, apenas termina de cargar (después del autoguardado), para no perderse lo primero que marques

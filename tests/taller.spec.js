@@ -179,6 +179,95 @@ test('tutor: esconde los moldes, escucha lo que marcas y responde sin decir dón
   expect(errores).toEqual([]);
 });
 
+test('tutor sin moldes: fuera presets y bandas, se quedan tempo, compases y cuantización', async ({ page }) => {
+  await comoBanda(page);
+  await page.goto('app.html?tutor=1&modo=beat');
+  for (const id of ['#genre', '#band', '#bpmRange', '#drumPreset', '#genBeat', '.saved']) await expect(page.locator(id).first()).toBeHidden();
+  for (const id of ['#animo', '#bpm', '#barChips', '#drumLenChips', '#drumQuantChips', '#drumKit']) await expect(page.locator(id)).toBeVisible();
+  const pestanas = await page.locator('#modosTabs .mtab:visible').evaluateAll(ts => ts.map(t => t.dataset.m));
+  expect(pestanas).toEqual(['beat', 'bajod', 'pad', 'piano']);
+
+  // la rueda sin porcentajes ni flechas de sugerencia
+  await page.click('#modosTabs [data-m=pad]');
+  await expect(page.locator('#generar')).toBeHidden();   // nada de «Generar vuelta»
+  await page.locator('#wheel g.inkey').first().click();   // un clic en la rueda agrega el acorde
+  await expect(page.locator('#bars')).toContainText(/\S/);
+  await expect(page.locator('.heat-legend')).toBeHidden();
+  expect(await page.locator('#wheel g.sug').count()).toBe(0);
+  expect(await page.locator('#wheelArrows path').count()).toBe(0);
+
+  // el secuenciador: el «=» no escribe por ti
+  await page.click('#modosTabs [data-m=bajod]');
+  await page.keyboard.press('=');
+  await expect(page.locator('#bpTira')).toHaveText(/^[\s·]*$/);
+  await expect(page.locator('.bp-avanzado')).toBeHidden();
+});
+
+test('la rueda del tutor: relaciones de teoría, ánimo y tu camino, sin probabilidades de banda', async ({ page }) => {
+  await comoBanda(page);
+  const errores = vigilarErrores(page);
+  await page.goto('app.html?tutor=1&modo=pad');
+  await page.selectOption('#animo', 'Melancólico');
+  // clic por evento: el panel del tutor puede tapar parte de la rueda en una ventana chica
+  const agregar = async nombre => { await page.locator(`#wheel g.slot:has(text:text-is("${nombre}"))`).dispatchEvent('click'); const b = page.locator('#candSave'); if (await b.isVisible()) await b.dispatchEvent('click'); await page.waitForTimeout(300); };
+  for (const n of ['Lam', 'Rem', 'Fa', 'Mim']) await agregar(n);
+  const rueda = page.locator('#tuRueda');
+  await expect(rueda).toBeVisible();
+  await expect(rueda).toContainText('La rueda del tutor');
+  await expect(rueda.locator('.tr-animo')).toContainText('Melancólico');
+  await expect(rueda.locator('.tr-lectura')).toContainText('Tu camino');
+  expect(await page.locator('#wheel g.tu-casa, #wheel g.tu-luz, #wheel g.tu-calma, #wheel g.tu-tension').count()).toBeGreaterThan(0);
+  expect(await page.locator('#wheel g.sug').count()).toBe(0);
+  expect(await page.locator('#wheelCamino .camino-linea').count()).toBeGreaterThan(0);
+  await expect(page.locator('#cSub')).toContainText('Melancólico');
+  // el tutor comenta el paso que diste, sin cifras
+  await expect.poll(async () => page.evaluate(() => (JSON.parse(localStorage.getItem('denavilab.tutor.rolando') || '{"bitacora":[]}').bitacora || []).some(m => m.sit.startsWith('m_paso_'))), { timeout: 8000 }).toBe(true);
+  expect(errores).toEqual([]);
+});
+
+test('el oído aprende: crece por persona y se retroalimenta con lo que haces', async ({ page }) => {
+  await comoBanda(page);
+  const errores = vigilarErrores(page);
+  await page.goto('app.html?tutor=1&modo=beat');
+  const tutor = page.locator('#tutor');
+  const modelo = quien => page.evaluate(q => JSON.parse(localStorage.getItem('denavilab.oido.' + q) || 'null'), quien);
+
+  // un bombo: el oído lo percibe, nace la primera neurona y el tutor habla
+  await page.click('#seq .st[data-r="kick"][data-s="0"]');
+  await expect(tutor.locator('.tu-fb')).toBeVisible({ timeout: 8000 });
+  let m = await modelo('rolando');
+  expect(m.redes.bateria.neuronas.length).toBeGreaterThan(0);
+
+  // 👍: el consejo dicho gana peso en esa neurona
+  await tutor.locator('.tu-fb button', { hasText: 'me sirvió' }).click();
+  m = await modelo('rolando');
+  const pesos = m.redes.bateria.neuronas.flatMap(nu => Object.values(nu.w));
+  expect(Math.max(...pesos)).toBeGreaterThan(0);
+
+  // algo muy distinto (lleno): la red crece con otra neurona
+  for (const s of [0, 2, 4, 6, 8, 10, 12, 14]) await page.click(`#seq .st[data-r="hh"][data-s="${s}"]`);
+  for (const s of [1, 3, 5, 7, 9, 11, 13, 15]) await page.click(`#seq .st[data-r="hh"][data-s="${s}"]`);
+  for (const s of [4, 12, 6, 14]) await page.click(`#seq .st[data-r="snare"][data-s="${s}"]`);
+  await expect.poll(async () => (await modelo('rolando')).redes.bateria.neuronas.length, { timeout: 8000 }).toBeGreaterThan(1);
+
+  await tutor.locator('.tu-aprendido summary').click();
+  await expect(tutor.locator('.ta-cuerpo')).toContainText('Batería');
+  expect(await modelo('schair')).toBeNull();   // cada uno tiene su propia red
+  expect(errores).toEqual([]);
+});
+
+test('tutor al mínimo para Schair: batería y guitarra', async ({ page }) => {
+  await comoBanda(page, 'schair');
+  await page.goto('app.html?tutor=1&modo=letra');
+  const pestanas = await page.locator('#modosTabs .mtab:visible').evaluateAll(ts => ts.map(t => t.dataset.m));
+  expect(pestanas).toEqual(['beat', 'guitarra']);
+  await expect(page.locator('#modosTabs [data-m=beat]')).toHaveAttribute('aria-current', 'true');
+  await page.click('#modosTabs [data-m=guitarra]');
+  for (const id of ['#guitGenre', '#guitBand', '#guitSugs', '#guitRasgueoPresets']) await expect(page.locator(id)).toBeHidden();
+  for (const id of ['#guitAnimo', '#guitBpm', '#guitCapo']) await expect(page.locator(id)).toBeVisible();
+  await expect(page.locator('#guitRasgueo')).toBeVisible();
+});
+
 test('taller en celular: el instrumento queda arriba y se ven todas las pestañas', async ({ browser }) => {
   const contexto = await browser.newContext({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
   const page = await contexto.newPage();
