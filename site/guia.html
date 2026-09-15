@@ -16,7 +16,7 @@
 })();
 </script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="estilo.css?v=20260915b">
+<link rel="stylesheet" href="estilo.css?v=20260915c">
 <script>
 (()=>{try{const K='denavilab.stats';const o=JSON.parse(localStorage.getItem(K)||'{}');const n=Date.now();o.visitas=(o.visitas||0)+1;o.primera=o.primera||n;o.ultima=n;o.paginas=o.paginas||{};const pg=(location.pathname.split('/').pop()||'index.html');o.paginas[pg]=(o.paginas[pg]||0)+1;let h='directo';const r=document.referrer||'';try{if(r){const u=new URL(r);h=u.hostname===location.hostname?'interno':u.hostname;}}catch(e){}o.procedencias=o.procedencias||{};o.procedencias[h]=(o.procedencias[h]||0)+1;localStorage.setItem(K,JSON.stringify(o));}catch(e){}})();
 </script>
@@ -28,7 +28,7 @@
     <button class="navlink" id="navAtras" type="button">&larr; Atrás</button>
     <a class="navlink" href="index.html">Portada</a>
     <a class="navlink" href="app.html">Taller</a>
-    <a class="navlink solo-banda" href="archivo.html">Biblioteca</a>
+    <a class="navlink solo-banda" href="archivo.html">Guardado</a>
     <span class="navsesion sesion" id="sesion"></span>
   </nav>
 
@@ -131,7 +131,7 @@
       <li class="prin-paso" data-paso="6">
         <div class="prin-cab"><span class="prin-num">6</span><span class="prin-t">Guarda tu avance</span></div>
         <div class="prin-cuerpo">
-          <p>En cada sección, abajo, hay un botón <b>Guardar</b>: le pones un nombre y queda en este navegador (aunque entres como invitado). Puedes tener varias versiones y volver a cualquiera. Nada se sube a internet.</p>
+          <p>Lo que tienes abierto se <b>autoguarda</b> en este navegador. Para tener versiones con nombre, cada sección tiene abajo su botón <b>Guardar</b> (también si entras como invitado); la banda tiene además, en el panel de la izquierda, <b>Guardar</b> para la maqueta entera y <b>Descargar .denavi</b> para llevarla a otro computador. Nada se sube a internet.</p>
           <p class="tip">Cuando ya tengas acordes + batería, prueba el botón <b>Reproducir todo</b> del taller: suena todo junto, y puedes silenciar o aislar cada instrumento.</p>
           <p class="prin-cita">Guarda la primera toma aunque suene «a maqueta»: una versión completa e imperfecta vale más que un trozo perfecto. Esa aspereza es parte del encanto.<span class="prin-quien">Idea de Rick Rubin y Mac DeMarco</span></p>
           <p class="prin-detecta" data-detecta="guardado"></p>
@@ -253,7 +253,7 @@
             <p>Y en <b>Instrumento → Letra y acordes</b> le pones la letra. Trabajas por <b>secciones</b>: intro, estrofa, pre-estribillo, estribillo, puente, solo y final. Las añades, las mueves de orden y las borras.</p>
             <p>Cada sección tiene dos cosas. Arriba, la <b>vuelta</b>: los acordes con <b>cuántos compases dura cada uno</b> —Am ×2, F ×2, C ×1, G ×1—, que es lo que necesitas para saber cuándo cambiar mientras rasgueas. Debajo, los <b>versos</b>: escribes la línea y pones su cifra al lado.</p>
             <p>El botón <b>«traer de la rueda»</b> copia a la sección la vuelta que guardaste en el paso 2, con sus compases ya puestos. Así no la escribes dos veces.</p>
-            <p>Si vienes a ponerle letra a algo de otro día —que es lo normal, la letra suele quedar para el final—, no hace falta rehacer nada: arriba tienes <b>«Partir de un proyecto guardado»</b>. Eliges la vuelta que guardaste entonces y te trae sus acordes y su tempo. Lo que hay guardado lo ves en la <a href="archivo.html">Biblioteca DenaviLAB</a>.</p>
+            <p>Si vienes a ponerle letra a algo de otro día —que es lo normal, la letra suele quedar para el final—, no hace falta rehacer nada: arriba tienes <b>«Partir de un proyecto guardado»</b>. Eliges la vuelta que guardaste entonces y te trae sus acordes y su tempo. Lo que hay guardado lo ves en <a href="archivo.html">Guardado</a>.</p>
             <p class="tip"><b>Guardar y borronear:</b> puedes guardar varias versiones de una misma letra con nombres distintos («cerro caracol v1», «v2 con puente») y volver a cualquiera. Quedan en este navegador.</p>
             <p class="aviso"><b>Ojo:</b> importar un <code>.mid</code> desde el modo Beat trae la batería y el tempo, pero <b>no los acordes</b>: eso no está construido. Para trabajar letra sobre algo viejo, el camino bueno es el proyecto guardado, no el MIDI.</p>
             <p class="tip"><b>Para el ensayo:</b> «PDF · sólo la letra con acordes» te da la hoja limpia, con los acordes en columna y los versos al lado. «Copiar como texto» te la deja lista para pegarla en el teléfono. Y la letra sale también en el PDF grande, junto a la ficha técnica.</p>
@@ -278,7 +278,7 @@
             <p>Cada parte muestra en qué compás y en qué minuto suena. Con <b>−</b> y <b>+</b> cambias cuántos compases dura; con <b>← →</b>, el orden; con el nombre puedes escribir «Coro final» o lo que quieras.</p>
             <p><b>La música de cada parte:</b> compón en Batería, Pad o Piano y, arriba de esa sección, en la barra del mapa, elige la parte y pulsa <b>«Guardar»</b> (o hazlo desde el mapa con «Guardar lo que suena»). Para oír la canción entera, <b>«▶ Escuchar la canción»</b> pasa sola de una parte a la siguiente (o <b>«▶ Desde aquí»</b> en cualquier parte); para retocar una, <b>«Abrir»</b> la trae al taller. El Coro 2 y el Verso 2 quedan <b>«igual que»</b> el primero: cambias uno y cambian todos. Al exportar sale la canción entera, cada parte con su música.</p>
             <p class="tip"><b>Consejo:</b> un verso o un coro de <b>8 compases</b> es lo más común. Si una parte dice <b>«muy apretado»</b>, la letra no cabe: dale más compases o pártela en dos.</p>
-            <p class="tip"><b>Para pasársela a Rolando:</b> guarda la maqueta (.denavi o la Biblioteca) y el mapa viaja dentro; él lo abre tal cual.</p>
+            <p class="tip"><b>Para pasársela a Rolando:</b> en <b>Guardar</b>, descarga la maqueta (.denavi) y mándasela; el mapa viaja dentro y él la abre con «Abrir un archivo .denavi».</p>
           </details>
         </div>
       </details>

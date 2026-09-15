@@ -2,7 +2,6 @@
 <html lang="es">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="rueda-standalone" content="1"><meta name="description" content="DenaviLAB: maquetea beats, bajo y acordes con el Akai MPK mini desde cualquier sitio.">
 <title>DenaviLab</title>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
 (() => {
   // Puerta del taller. Sólo se aplica cuando la página se sirve por web: el archivo
@@ -554,8 +553,9 @@
   .mix-btn.on-s { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
   .saved { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
   .saved input[type=file] { font-size: 12px; color: var(--muted); }
-  .campo-biblio { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; margin-top: 4px; }
-  #biblioConectar, #biblioGuardar { border-color: var(--accent); color: var(--accent); }
+  .boton-archivo { display: block; text-align: center; font: inherit; border-radius: 6px; padding: 8px 12px; border: 1px solid var(--line); cursor: pointer; color: var(--text); text-decoration: none; background: transparent; }
+  .boton-archivo:hover, .campo-guardar button.ghost:hover:not(:disabled) { border-color: var(--accent); }
+  .guardar-auto { color: var(--ok); }
   .bass-seq .rl { text-align: right; }
   .bass-seq .st { height: 16px; }
   .bass-seq .st.on { background: var(--ok); border-color: var(--ok); }
@@ -661,7 +661,7 @@
     <button class="navlink" id="navAtras" type="button">&larr; Atrás</button>
     <a class="navlink" href="index.html">Portada</a>
     <a class="navlink" href="guia.html">Trabajo guiado</a>
-    <a class="navlink solo-banda" href="archivo.html">Biblioteca</a>
+    <a class="navlink solo-banda" href="archivo.html">Guardado</a>
     <span class="navsesion" id="navSesion"></span>
   </nav>
   <div class="errbar" id="errbar" hidden></div>
@@ -830,30 +830,29 @@
       <div class="field" data-modes="pad piano" data-solo="rolando">
         <span class="lbl">Atajo</span>
       </div>
+      <div class="field campo-guardar" id="campoGuardar">
+        <span class="lbl">Guardar</span>
+        <div class="hint guardar-auto" id="autoInfo">✓ Lo que tienes abierto se guarda solo en este navegador.</div>
+        <div class="row"><input type="text" id="maquetaName" placeholder="nombre, ej. verso trip hop" aria-label="Nombre de la maqueta"><button class="primary" id="saveMaqueta" style="flex:0 0 auto">Guardar</button></div>
+        <button class="ghost" id="expProyecto">⤓ Descargar la maqueta (.denavi)</button>
+        <div class="hint">«Guardar» deja una versión con nombre en este navegador. El .denavi es un archivo: sirve para llevarla a otro computador o mandársela a la banda.</div>
+        <span class="lbl" style="margin-top:6px">Abrir</span>
+        <select id="savedMaquetas" aria-label="Maquetas guardadas" style="width:100%"></select>
+        <div class="row"><button class="ghost" id="abrirMaqueta" style="flex:1 1 auto">Abrir</button><button class="ghost danger" id="delMaqueta" style="flex:0 0 auto" title="borrar la maqueta elegida de este navegador">Borrar</button></div>
+        <label class="boton-archivo" for="impProyecto">Abrir un archivo .denavi</label>
+        <input type="file" id="impProyecto" accept=".denavi,.json" hidden>
+        <a class="boton-archivo" href="archivo.html">Ver todo lo guardado →</a>
+        <div class="hint" id="guardarInfo" aria-live="polite"></div>
+      </div>
       <div class="field" id="campoExportar">
-        <span class="lbl">Exportar</span>
-        <button class="ghost" id="expMidiOne">MIDI · sólo esta pista</button>
+        <span class="lbl">Exportar para el DAW</span>
         <button class="ghost" id="expMidiAll">MIDI · todas las pistas</button>
+        <button class="ghost" id="expMidiOne">MIDI · sólo esta pista</button>
         <button class="ghost" id="expPdf">PDF · notas y ficha técnica</button>
-        <label class="ghost" for="impMidiBiblio" style="display:block; text-align:center; border-radius:6px; padding:8px 12px; border:1px solid var(--line); cursor:pointer">Importar MIDI (a la Biblioteca)</label>
+        <label class="boton-archivo" for="impMidiBiblio">Importar un MIDI para escucharlo</label>
         <input type="file" id="impMidiBiblio" accept=".mid,.midi" multiple hidden>
         <button class="ghost" id="stopMidiPrev" type="button" hidden>⏸ Detener vista previa</button>
-        <span class="lbl" style="margin-top:6px">La maqueta entera, en un archivo</span>
-        <button class="ghost" id="expProyecto">Guardar la maqueta (.denavi)</button>
-        <label class="ghost" for="impProyecto" style="display:block; text-align:center; border-radius:6px; padding:8px 12px; border:1px solid var(--line); cursor:pointer">Abrir una maqueta guardada</label>
-        <input type="file" id="impProyecto" accept=".denavi,.json" hidden>
-        <span class="lbl" style="margin-top:6px">La maqueta entera, en este navegador</span>
-        <div class="hint">Lo que tienes abierto se guarda solo en este navegador mientras trabajas. «Guardar» le pone nombre para tener versiones; el .denavi sirve para llevarlo a otro computador.</div>
-        <div class="row"><input type="text" id="maquetaName" placeholder="nombre, ej. verso trip hop"><button class="ghost" id="saveMaqueta" style="flex:0 0 auto">Guardar</button></div>
-        <div class="row"><select id="savedMaquetas" aria-label="Maquetas guardadas"></select><button class="ghost" id="abrirMaqueta" style="flex:0 0 auto">Abrir</button><button class="ghost danger" id="delMaqueta" style="flex:0 0 auto">Borrar</button></div>
-        <div class="campo-biblio" id="bloqueBiblio" hidden>
-          <span class="lbl" style="margin-top:6px">Biblioteca compartida</span>
-          <button class="ghost" id="biblioConectar">Conectar la biblioteca</button>
-          <button class="ghost" id="biblioGuardar" hidden>Guardar en la biblioteca</button>
-          <div class="row" id="biblioAbrirFila" hidden><select id="biblioLista" aria-label="Maquetas de la biblioteca"></select><button class="ghost" id="biblioAbrir" style="flex:0 0 auto">Abrir</button></div>
-          <div class="hint" id="biblioInfo"></div>
-        </div>
-        <div class="hint" id="expInfo">El MIDI se abre en Logic (arrastra el archivo a la sesión). Dentro de claude.ai la descarga .mid puede estar bloqueada; en ese caso usa «Abrir en una pestaña aparte» o la página descargada.</div>
+        <div class="hint" id="expInfo" aria-live="polite">El MIDI se abre en Logic: arrastra el archivo a la sesión.</div>
       </div>
     </section>
 
@@ -1028,10 +1027,10 @@
         <details class="libreta-box">
           <summary>Libreta · notas, ideas y borradores</summary>
           <div class="tec-body">
-            <textarea id="letraLibreta" rows="6" placeholder="Todo lo que no es la letra todavía: ideas, versos sueltos, un título, algo que leíste, una imagen. Se guarda con el proyecto y viaja en la biblioteca." style="width:100%; background:var(--surface-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:9px 11px; font:inherit; line-height:1.5; resize:vertical"></textarea>
+            <textarea id="letraLibreta" rows="6" placeholder="Todo lo que no es la letra todavía: ideas, versos sueltos, un título, algo que leíste, una imagen. Se guarda con la maqueta y viaja dentro del .denavi." style="width:100%; background:var(--surface-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:9px 11px; font:inherit; line-height:1.5; resize:vertical"></textarea>
             <div class="actions">
               <button class="ghost" id="expLibretaPdf">PDF · la libreta</button>
-              <span class="hint">La libreta viaja dentro del proyecto: al «Guardar en la biblioteca» la ven los dos en el Archivo.</span>
+              <span class="hint">La libreta viaja dentro de la maqueta: al descargar el .denavi, va con ella.</span>
             </div>
           </div>
         </details>
@@ -4543,10 +4542,10 @@
   function aplicarRestriccionesInvitado() {
     if (S.quien !== 'invitado') return;
     document.body.classList.add('invitado');
-    const ce = $('campoExportar'); if (ce) { ce.hidden = true;
+    const ce = $('campoExportar'); if ($('campoGuardar')) $('campoGuardar').hidden = true; if (ce) { ce.hidden = true;
       const nota = el('div', {class:'field invitado-aviso'}); nota.append(el('span',{class:'lbl'},'Modo invitado'),
-        el('div',{class:'hint'},'Exportar, importar y la biblioteca compartida están desactivados. Pero sí puedes guardar tus patrones en este mismo navegador —beats, bajos, progresiones y letras— con los botones «Guardar» de cada sección.'));
-      ce.parentNode.insertBefore(nota, ce);
+        el('div',{class:'hint'},'Guardar la maqueta entera, exportar e importar están desactivados. Pero sí puedes guardar tus patrones en este mismo navegador —beats, bajos, progresiones y letras— con los botones «Guardar» de cada sección.'));
+      const antes = $('campoGuardar') || ce; antes.parentNode.insertBefore(nota, antes);
     }
     ['expLetraPdf','expLibretaPdf'].forEach(id=>{ const b=$(id); if (b) b.hidden = true; });
   }
@@ -4631,7 +4630,7 @@
   }
   // ───────── La maqueta entera en un archivo ─────────
   // Un .denavi es JSON: lleva el proyecto completo, no sólo una pista. Sirve para
-  // pasárselo al otro por donde sea y para tener biblioteca fuera del navegador.
+  // pasárselo al otro por donde sea y para llevarlo a otro computador.
   const FORMATO = 1;
   function proyectoActual() {
     return { formato:FORMATO, app:'DenaviLAB', guardado:new Date().toISOString(), por:S.quien,
@@ -4645,7 +4644,7 @@
     const nombre = (S.letra.titulo || 'maqueta').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'maqueta';
     deliver(`${nombre}-${stamp()}.denavi`, JSON.stringify(proyectoActual(), null, 1), 'application/json');
   });
-  // Aplica un .denavi ya leído (de archivo o de la biblioteca). Devuelve un texto de estado.
+  // Aplica un .denavi ya leído (de un archivo o de lo guardado en el navegador). Devuelve un texto de estado.
   function aplicarProyecto(d, nombre) {
     if (!d || d.app !== 'DenaviLAB' || !d.musica) throw new Error('no parece una maqueta de DenaviLAB');
     if (d.formato > FORMATO) throw new Error('viene de una versión más nueva de la app');
@@ -4674,28 +4673,38 @@
     buildKeyboard(); buildWheel(); renderAll(); renderSeq(); renderBassSeq(); llenarProgsDeLetra(); renderLetra(); renderGuitarra(); renderEstructura();
     return `Abierta «${nombre}»` + (d.por ? ` · la guardó ${d.por}` : '') + (d.guardado ? ` el ${new Date(d.guardado).toLocaleDateString('es-CL')}` : '') + '.';
   }
+  const avisoGuardar = t => { const box = $('guardarInfo') || $('expInfo'); if (box) box.textContent = t; };
   $('impProyecto').addEventListener('change', async e => {
     const f = e.target.files && e.target.files[0]; if (!f) return;
-    try { $('expInfo').textContent = aplicarProyecto(JSON.parse(await f.text()), f.name); }
-    catch (err) { $('expInfo').textContent = 'No pude abrir ese archivo: ' + (err.message || err); }
+    try { avisoGuardar(aplicarProyecto(JSON.parse(await f.text()), f.name.replace(/\.(denavi|json)$/i, '')) + ' Para tenerla también aquí, pulsa «Guardar».'); }
+    catch (err) { avisoGuardar('No pude abrir ese archivo: ' + (err.message || err)); }
     e.target.value = '';
   });
   // Maqueta entera guardada en el navegador (proyecto completo, como el .denavi pero sin archivo)
+  function revisarBotonesMaqueta() { const nada = !$('savedMaquetas') || $('savedMaquetas').value === ''; ['abrirMaqueta','delMaqueta'].forEach(id => { if ($(id)) $(id).disabled = nada; }); }
   function renderSavedMaquetas() {
     const sel = $('savedMaquetas'); if (!sel) return; sel.innerHTML='';
-    sel.append(el('option',{value:''},'— maquetas guardadas —'));
-    store.get('rueda.maquetas').map((it,i)=>({it,i})).sort((a,b)=>(b.it.ts||0)-(a.it.ts||0)||b.i-a.i)
-      .forEach(({it,i})=>sel.append(el('option',{value:String(i)}, (it.name||'(sin nombre)') + (it.ts?'  ·  '+new Date(it.ts).toLocaleDateString('es-CL'):''))));
+    const items = store.get('rueda.maquetas').map((it,i)=>({it,i})).sort((a,b)=>(b.it.ts||0)-(a.it.ts||0)||b.i-a.i);
+    sel.append(el('option',{value:''}, items.length ? '— elige una maqueta —' : '— todavía no hay maquetas guardadas —'));
+    items.forEach(({it,i})=>sel.append(el('option',{value:String(i)}, (it.name||'(sin nombre)') + (it.ts?'  ·  '+new Date(it.ts).toLocaleDateString('es-CL'):''))));
+    sel.disabled = !items.length; revisarBotonesMaqueta();
   }
+  if ($('savedMaquetas')) $('savedMaquetas').addEventListener('change', revisarBotonesMaqueta);
   if ($('saveMaqueta')) $('saveMaqueta').addEventListener('click', ()=>{
     stBump('usos','guardar maqueta');
-    const name = $('maquetaName').value.trim() || (S.letra.titulo || ('maqueta '+new Date().toLocaleDateString()));
-    const list = store.get('rueda.maquetas'); list.push({ name, ts:Date.now(), proyecto: proyectoActual() }); store.set('rueda.maquetas', list);
-    $('maquetaName').value=''; renderSavedMaquetas(); $('savedMaquetas').value=String(list.length-1);
-    if ($('expInfo')) $('expInfo').textContent = `Maqueta «${name}» guardada en este navegador.`;
+    const name = $('maquetaName').value.trim() || S.letra.titulo || ('maqueta ' + new Date().toLocaleString('es-CL', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }));
+    const list = store.get('rueda.maquetas'); list.push({ name, ts:Date.now(), proyecto: proyectoActual() });
+    try { store.set('rueda.maquetas', list); } catch (e) { avisoGuardar('No cupo en el almacenamiento del navegador: descarga el .denavi para no perderla.'); return; }
+    $('maquetaName').value=''; renderSavedMaquetas(); $('savedMaquetas').value=String(list.length-1); revisarBotonesMaqueta();
+    avisoGuardar(`✓ «${name}» guardada en este navegador. Para llevarla a otro computador, descarga el .denavi.`);
   });
-  if ($('abrirMaqueta')) $('abrirMaqueta').addEventListener('click', ()=>{ const v=$('savedMaquetas').value; if(v==='')return; const it=store.get('rueda.maquetas')[+v]; if(!it)return; try{ const info=aplicarProyecto(it.proyecto, it.name); if($('expInfo'))$('expInfo').textContent=info; }catch(e){ if($('expInfo'))$('expInfo').textContent='No pude abrir la maqueta.'; } });
-  if ($('delMaqueta')) $('delMaqueta').addEventListener('click', ()=>{ const v=$('savedMaquetas').value; if(v==='')return; const list=store.get('rueda.maquetas'); list.splice(+v,1); store.set('rueda.maquetas',list); renderSavedMaquetas(); });
+  if ($('abrirMaqueta')) $('abrirMaqueta').addEventListener('click', ()=>{ const v=$('savedMaquetas').value; if(v==='')return; const it=store.get('rueda.maquetas')[+v]; if(!it)return; try{ avisoGuardar(aplicarProyecto(it.proyecto, it.name)); }catch(e){ avisoGuardar('No pude abrir la maqueta.'); } });
+  if ($('delMaqueta')) $('delMaqueta').addEventListener('click', ()=>{
+    const v=$('savedMaquetas').value; if(v==='')return; const list=store.get('rueda.maquetas'); const it=list[+v]; if(!it) return;
+    const nom = it.name || '(sin nombre)';
+    if (!confirm(`¿Borrar «${nom}» de este navegador? No se puede deshacer.`)) return;
+    list.splice(+v,1); store.set('rueda.maquetas',list); renderSavedMaquetas(); avisoGuardar(`Borrada «${nom}».`);
+  });
   renderSavedMaquetas();
 
   $('expPdf').addEventListener('click', ()=>deliver(`rueda-ficha-${stamp()}.pdf`, makePdf(projectLines()), 'application/pdf'));
@@ -4827,7 +4836,7 @@
   })();
   if ($('stopMidiPrev')) $('stopMidiPrev').addEventListener('click', () => previewMidi.stop());
 
-  // Importar un .mid a la Biblioteca (mismo almacén que la página Biblioteca) y sonarlo al instante
+  // Importar un .mid a lo guardado en el navegador (el mismo almacén que la página Guardado) y sonarlo al instante
   if ($('impMidiBiblio')) $('impMidiBiblio').addEventListener('change', async e=>{
     const files = [...e.target.files]; e.target.value=''; if (!files.length) return;
     const KEY = 'rueda.midis'; let list; try { list = JSON.parse(localStorage.getItem(KEY)||'[]'); } catch(_) { list = []; }
@@ -4843,7 +4852,7 @@
     try { localStorage.setItem(KEY, JSON.stringify(list)); }
     catch(_) { guardado = false; $('expInfo').textContent = 'No cupo en el almacenamiento del navegador (¿archivo muy grande?).'; }
     const sonando = ultimoBuf ? previewMidi.play(ultimoBuf) : false;
-    if (guardado) $('expInfo').textContent = `${ok} MIDI guardado(s) en la Biblioteca${sonando ? ' · sonando la vista previa' : ''}. Ábrela para escucharlo o descargarlo.`;
+    if (guardado) $('expInfo').textContent = `${ok} MIDI guardado(s) en este navegador${sonando ? ' · sonando la vista previa' : ''}. En «Guardado» puedes volver a escucharlo o descargarlo.`;
   });
 
 
@@ -5133,125 +5142,9 @@
   $('subtitulo').textContent = S.quien === 'invitado' ? '· vista de invitado' : S.quien === 'schair' ? '· el taller de maquetas' : '· rueda de acordes para el MPK mini';
   $('entradilla').textContent = S.quien === 'schair'
     ? 'Arma la base para tus canciones —batería, bajo y acordes— sin tocar ninguno de esos instrumentos: se dibuja con el mouse. Los sonidos de aquí son mínimos a propósito; sirven para no perder la idea y para cantar y tocar encima.'
-    : S.quien === 'invitado' ? 'Estás mirando como invitado: puedes recorrer, tocar, armar ideas y guardarlas en este navegador. Exportar, importar y la biblioteca compartida quedan para la banda.'
+    : S.quien === 'invitado' ? 'Estás mirando como invitado: puedes recorrer, tocar, armar ideas y guardarlas en este navegador. Exportar, importar y guardar la maqueta entera quedan para la banda.'
     : 'Maqueta en MIDI con el MPK mini (25 o 37 teclas): beat, bajo digital y acordes en pad o piano. Sonidos mínimos a propósito; los definitivos van en Logic. Con el MPK conectado, teclas, pads, knobs, rueda de pitch y pedal hacen lo suyo.';
   aplicarRestriccionesInvitado();
-
-  // ───────── Biblioteca en Google Drive ─────────
-  // Guardar y abrir maquetas (.denavi) directo en la carpeta compartida, sin abrir Drive.
-  // Sólo con la página servida por web (no en el archivo descargado). La primera vez, Google
-  // pide permiso en una ventanita; el token dura ~1 h y se recuerda en la pestaña.
-  const DRIVE = {
-    clientId: '595426995400-h5d763tbd2t1uqkqg30f57c7l41h5l78.apps.googleusercontent.com',
-    scope: 'https://www.googleapis.com/auth/drive',
-    carpeta: '1DmCkXY_96C5axdI4FUbPdU3sRmfZLpII',
-    token: null, exp: 0, tokenClient: null,
-  };
-  const biblioHabilitada = () => /^https?:$/.test(location.protocol);
-
-  function driveGuardaToken(tok, segundos) {
-    DRIVE.token = tok; DRIVE.exp = Date.now() + (segundos - 60) * 1000;
-    try { sessionStorage.setItem('denavilab.drive', JSON.stringify({ t: tok, e: DRIVE.exp })); } catch (e) {}
-  }
-  function driveTokenVivo() {
-    if (DRIVE.token && Date.now() < DRIVE.exp) return DRIVE.token;
-    try { const g = JSON.parse(sessionStorage.getItem('denavilab.drive') || 'null'); if (g && Date.now() < g.e) { DRIVE.token = g.t; DRIVE.exp = g.e; return g.t; } } catch (e) {}
-    return null;
-  }
-
-  // Pide (o renueva) el token. Devuelve una promesa con el token, o rechaza si el usuario cancela.
-  function drivePideToken(forzar) {
-    return new Promise((ok, mal) => {
-      const vivo = driveTokenVivo();
-      if (vivo && !forzar) return ok(vivo);
-      if (!(window.google && google.accounts && google.accounts.oauth2)) return mal(new Error('Google aún no cargó; espera un segundo y reintenta.'));
-      if (!DRIVE.tokenClient) DRIVE.tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: DRIVE.clientId, scope: DRIVE.scope,
-        callback: r => { if (r && r.access_token) { driveGuardaToken(r.access_token, +r.expires_in || 3600); ok(r.access_token); } else mal(new Error('sin token')); },
-        error_callback: err => mal(new Error(err && err.type === 'popup_closed' ? 'cerraste la ventana de permiso' : 'no se pudo autorizar')),
-      });
-      DRIVE.tokenClient.callback = r => { if (r && r.access_token) { driveGuardaToken(r.access_token, +r.expires_in || 3600); ok(r.access_token); } else mal(new Error('sin token')); };
-      DRIVE.tokenClient.requestAccessToken({ prompt: vivo ? '' : 'consent' });
-    });
-  }
-
-  async function driveFetch(url, opts = {}) {
-    const tok = driveTokenVivo() || await drivePideToken(false);
-    const r = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + tok } });
-    if (r.status === 401) { const t2 = await drivePideToken(true); return fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + t2 } }); }
-    return r;
-  }
-
-  async function driveListar() {
-    const q = encodeURIComponent(`'${DRIVE.carpeta}' in parents and trashed=false and name contains '.denavi'`);
-    const r = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=modifiedTime desc&fields=files(id,name,modifiedTime)&pageSize=100`);
-    if (!r.ok) throw new Error('no pude leer la biblioteca (' + r.status + ')');
-    return (await r.json()).files || [];
-  }
-
-  async function driveSubir(nombre, texto) {
-    // 1) Crear el archivo (metadata) en el endpoint estándar — el mismo dominio/ruta que la
-    //    lista, que ya funciona, así que si esto pasa, el permiso y la red están bien.
-    const rMeta = await driveFetch('https://www.googleapis.com/drive/v3/files?fields=id,name', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: nombre, parents: [DRIVE.carpeta] }) });
-    if (!rMeta.ok) throw new Error('no se pudo crear el archivo (' + rMeta.status + ')');
-    const info = await rMeta.json();
-    // 2) Subir el contenido a ese archivo ya creado.
-    const rMedia = await driveFetch(`https://www.googleapis.com/upload/drive/v3/files/${info.id}?uploadType=media`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: texto });
-    if (!rMedia.ok) { try { await driveFetch('https://www.googleapis.com/drive/v3/files/' + info.id, { method:'DELETE' }); } catch (e) {} throw new Error('no se pudo subir el contenido (' + rMedia.status + ')'); }
-    return info;
-  }
-
-  async function driveBajar(id) {
-    const r = await driveFetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`);
-    if (!r.ok) throw new Error('no se pudo abrir (' + r.status + ')');
-    return r.json();
-  }
-
-  async function biblioRefrescar() {
-    const sel = $('biblioLista'); sel.innerHTML = '';
-    try {
-      const files = await driveListar();
-      if (!files.length) { sel.append(el('option', {value:''}, '— la biblioteca está vacía —')); $('biblioAbrirFila').hidden = false; return; }
-      sel.append(el('option', {value:''}, `— elegir (${files.length}) —`));
-      files.forEach(f => sel.append(el('option', {value:f.id}, f.name.replace(/\.denavi$/,'') + '  ·  ' + new Date(f.modifiedTime).toLocaleDateString('es-CL'))));
-      $('biblioAbrirFila').hidden = false;
-    } catch (e) { $('biblioInfo').textContent = e.message; }
-  }
-
-  async function biblioConectar() {
-    $('biblioInfo').textContent = 'Pidiendo permiso a Google…';
-    try {
-      await drivePideToken(false);
-      $('biblioConectar').textContent = 'Actualizar lista';
-      $('biblioGuardar').hidden = false;
-      await biblioRefrescar();
-      $('biblioInfo').textContent = 'Conectada. Guarda o abre maquetas sin salir del taller.';
-    } catch (e) { $('biblioInfo').textContent = 'No se conectó: ' + e.message; }
-  }
-
-  if (biblioHabilitada()) {
-    $('bloqueBiblio').hidden = false;
-    $('biblioConectar').addEventListener('click', biblioConectar);
-    $('biblioGuardar').addEventListener('click', async () => {
-      const base = (S.letra.titulo || 'maqueta').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'maqueta';
-      $('biblioInfo').textContent = 'Guardando…';
-      try { const f = await driveSubir(`${base}-${stamp()}.denavi`, JSON.stringify(proyectoActual(), null, 1)); $('biblioInfo').textContent = `Guardada «${f.name}» en la biblioteca.`; await biblioRefrescar(); }
-      catch (e) { $('biblioInfo').textContent = /fetch/i.test(e.message) ? 'No se pudo guardar: la petición no llegó a Google. Suele ser una extensión del navegador (un bloqueador) tapando googleapis.com — prueba en una ventana de incógnito, o reintenta.' : 'No se pudo guardar: ' + e.message; }
-    });
-    $('biblioAbrir').addEventListener('click', async () => {
-      const id = $('biblioLista').value; if (!id) return;
-      const nombre = $('biblioLista').selectedOptions[0].textContent.split('  ·  ')[0];
-      $('biblioInfo').textContent = 'Abriendo…';
-      try { $('biblioInfo').textContent = aplicarProyecto(await driveBajar(id), nombre); }
-      catch (e) { $('biblioInfo').textContent = 'No se pudo abrir: ' + e.message; }
-    });
-    // Si ya hay token vivo de antes en la pestaña, conéctate solo sin popup
-    if (driveTokenVivo()) biblioConectar();
-  }
-
 
   // ───────── Guitarra · progresión de acordes ─────────
   // Afinación estándar, MIDI de cada cuerda al aire (mi la re sol si mi):
@@ -5605,7 +5498,7 @@
   setMode(irMapa && !['letra','mezcla'].includes(pedido) ? 'letra' : MODOS.includes(pedido) ? pedido : 'beat');
   if (irMapa && $('estructura')) setTimeout(()=>{ const m = $('estructura'); m.scrollIntoView({ behavior:'smooth', block:'start' }); m.classList.add('destacado'); setTimeout(()=>m.classList.remove('destacado'), 2400); }, 150);
   listoParaAutoBeat = true;
-  // Deep-link desde la Biblioteca: abrir un ítem guardado y, si se pide, exportar su MIDI
+  // Deep-link desde Guardado: abrir un ítem guardado y, si se pide, exportar su MIDI
   (() => {
     const abrir = PAR.get('abrir'); if (!abrir) return;
     const [col, idxs] = abrir.split(':'); const idx = +idxs; if (isNaN(idx)) return;
@@ -5615,7 +5508,7 @@
     if (selId && $(selId)) { $(selId).value=String(idx); $(selId).dispatchEvent(new Event('change')); }
     if (PAR.get('midi')==='1') setTimeout(()=>{
       const which = col==='progs' ? (it.mode==='piano'?'piano':'pad') : col==='beats' ? 'beat' : col==='leads' ? 'lead' : 'all';
-      const d = buildMidi(which); if (d) deliver(`biblioteca-${col}-${idx}-${stamp()}.mid`, d, 'audio/midi');
+      const d = buildMidi(which); if (d) deliver(`guardado-${col}-${idx}-${stamp()}.mid`, d, 'audio/midi');
       else if ($('expInfo')) $('expInfo').textContent = 'Ese ítem no tiene notas para exportar.';
     }, 350);
     if (PAR.get('play')==='1') setTimeout(()=>{ try { play('all'); } catch(e){} }, 500);
@@ -5628,15 +5521,15 @@
     let obj; try { obj = JSON.parse(raw); } catch(e){ return; }
     const b64ToBuf = d => { const b64 = d.includes(',') ? d.split(',')[1] : d; const bin = atob(b64); const u8 = new Uint8Array(bin.length); for (let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i); return u8.buffer; };
     try {
-      stBump('usos','importar'); if (obj.tipo==='denavi') { const info = aplicarProyecto(JSON.parse(obj.data), obj.nombre||'proyecto'); if ($('expInfo')) $('expInfo').textContent = info; }
+      stBump('usos','importar'); if (obj.tipo==='denavi') { avisoGuardar(aplicarProyecto(JSON.parse(obj.data), obj.nombre||'proyecto')); }
       else if (obj.tipo==='midi') { setMode('beat'); const info = importarBeatMidi(b64ToBuf(obj.data), obj.nombre||'beat'); if ($('midiFileInfo')) $('midiFileInfo').textContent = info; }
-    } catch(err){ if ($('expInfo')) $('expInfo').textContent = 'No pude importar el proyecto: ' + (err.message||err); }
+    } catch(err){ avisoGuardar('No pude importar el proyecto: ' + (err.message||err)); }
   })();
-  // Abrir una maqueta guardada en el navegador (deep-link desde WorkShop/Biblioteca)
+  // Abrir una maqueta guardada en el navegador (deep-link desde la portada o Guardado)
   (() => {
     const mq = PAR.get('maqueta'); if (mq==null || mq==='') return;
     const it = store.get('rueda.maquetas')[+mq]; if (!it || !it.proyecto) return;
-    try { const info = aplicarProyecto(it.proyecto, it.name||'maqueta'); if ($('expInfo')) $('expInfo').textContent = info; } catch(e){}
+    try { avisoGuardar(aplicarProyecto(it.proyecto, it.name||'maqueta')); } catch(e){ avisoGuardar('No pude abrir la maqueta: ' + (e.message||e)); }
     if (PAR.get('play')==='1') setTimeout(()=>{ try { play('all'); } catch(e){} }, 550);
   })();
   // ───────── La guía dentro del taller ─────────
@@ -5723,7 +5616,7 @@
     const cuando = ts => new Date(ts).toLocaleString('es-CL', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
     let previo = null; try { previo = JSON.parse(localStorage.getItem(CLAVE) || 'null'); } catch (e) {}
     if (previo && !(previo.proyecto && tieneAlgo(previo.proyecto))) previo = null;
-    // Si se pidió abrir o preparar otra cosa (Biblioteca, portada, guía), no se pisa: se ofrece recuperarlo.
+    // Si se pidió abrir o preparar otra cosa (Guardado, portada, guía), no se pisa: se ofrece recuperarlo.
     const otraEntrada = ['abrir','maqueta','importar','genero','autor','animo','bpm','compases','nuevo'].some(k => PAR.has(k));
     if (PAR.has('nuevo')) { const u = new URL(location.href); u.searchParams.delete('nuevo'); history.replaceState(null, '', u); }
     const barra = (partes, botones) => {
@@ -5742,6 +5635,8 @@
       barra([el('b', {}, 'Tienes trabajo sin guardar'), ` del ${cuando(previo.ts)}`],
             [['Recuperarlo', () => { try { aplicarProyecto(previo.proyecto, 'tu trabajo'); } catch (e) {} }], ['no, gracias', () => {}]]);
     }
+    const marcarAuto = ts => { const ai = $('autoInfo'); if (ai) { ai.textContent = '✓ Autoguardado en este navegador · ' + new Date(ts).toLocaleTimeString('es-CL', { hour:'2-digit', minute:'2-digit' }); ai.classList.add('guardar-auto'); } };
+    if (previo && !otraEntrada) marcarAuto(previo.ts);
     // Sólo se escribe cuando tocaste algo y el proyecto cambió: abrir la página no pisa lo anterior.
     let base = firmaP(proyectoActual()), activo = false;
     ['pointerdown','keydown'].forEach(t => document.addEventListener(t, () => { activo = true; }, { capture:true, once:true }));
@@ -5749,7 +5644,8 @@
       if (!activo || cancionRep || vbEscuchando || lbEscuchando) return;   // mientras suena la canción del mapa, el taller va cargando las partes
       let p; try { p = proyectoActual(); } catch (e) { return; }
       const f = firmaP(p); if (f === base || !tieneAlgo(p)) return;
-      try { localStorage.setItem(CLAVE, JSON.stringify({ ts: Date.now(), proyecto: p })); base = f; } catch (e) {}
+      try { const ts = Date.now(); localStorage.setItem(CLAVE, JSON.stringify({ ts, proyecto: p })); base = f; marcarAuto(ts); }
+      catch (e) { const ai = $('autoInfo'); if (ai) { ai.textContent = '⚠ El navegador no dejó autoguardar (almacenamiento lleno): descarga el .denavi.'; ai.classList.remove('guardar-auto'); } }
     }
     setInterval(autoguardar, 4000);
     document.addEventListener('visibilitychange', () => { if (document.hidden) autoguardar(); });

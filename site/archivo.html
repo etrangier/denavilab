@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DenaviLab · biblioteca</title>
+<title>DenaviLab · guardado</title>
 <script>
 (() => {
   const VALIDOS = ['rolando', 'schair'];
@@ -14,7 +14,7 @@
 })();
 </script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="estilo.css?v=20260915b">
+<link rel="stylesheet" href="estilo.css?v=20260915c">
 <style>
   .biblio-items { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
   .biblio-fila { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
@@ -22,6 +22,10 @@
   .biblio-acc { display: flex; gap: 5px; flex: 0 0 auto; }
   .btn.mini { padding: 3px 8px; font-size: 11.5px; }
   .biblio-midi { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .biblio-acc { flex-wrap: wrap; justify-content: flex-end; }
+  .guardado-abrir { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 16px; }
+  .guardado-abrir .btn { margin: 0; }
+  @media (max-width: 560px) { .biblio-fila { flex-wrap: wrap; } .biblio-nom { flex: 1 1 100%; } }
 </style>
 <script>
 (()=>{try{const K='denavilab.stats';const o=JSON.parse(localStorage.getItem(K)||'{}');const n=Date.now();o.visitas=(o.visitas||0)+1;o.primera=o.primera||n;o.ultima=n;o.paginas=o.paginas||{};const pg=(location.pathname.split('/').pop()||'index.html');o.paginas[pg]=(o.paginas[pg]||0)+1;let h='directo';const r=document.referrer||'';try{if(r){const u=new URL(r);h=u.hostname===location.hostname?'interno':u.hostname;}}catch(e){}o.procedencias=o.procedencias||{};o.procedencias[h]=(o.procedencias[h]||0)+1;localStorage.setItem(K,JSON.stringify(o));}catch(e){}})();
@@ -39,52 +43,36 @@
   </nav>
 
   <section>
-    <h2>Biblioteca DenaviLAB</h2>
-    <p class="intro">Lo que hay guardado, en dos sitios: lo de este computador y la biblioteca que compartimos los dos. No es lo mismo, y conviene saber cuál es cuál.</p>
-    <p class="aviso solo-invitado">Estás como <b>invitado</b>: la biblioteca compartida está reservada para la banda. Puedes ver lo que hayas armado en este navegador.</p>
-  </section>
-
-  <section class="solo-banda">
-    <h2>Biblioteca compartida</h2>
-    <p class="intro">Las maquetas (<code>.denavi</code>) y los documentos (PDF) que guardamos los dos. La abren sólo Rolando y Schair.</p>
-    <a class="drive-btn" href="https://drive.google.com/drive/folders/1DmCkXY_96C5axdI4FUbPdU3sRmfZLpII" target="_blank" rel="noopener noreferrer">Abrir la biblioteca &#8599;</a>
-    <div class="needs">
-      <ul>
-        <li><b>Para guardar una maqueta:</b> en el taller, <b>Exportar → Guardar la maqueta (.denavi)</b>, y súbela a la biblioteca.</li>
-        <li><b>Para retomarla</b> (tú u otro día, en otra máquina): bájala de la biblioteca y ábrela con <b>Exportar → Abrir una maqueta guardada</b>.</li>
-        <li><b>Los documentos</b> —los PDF de letra y de ficha— van igual: se exportan del taller y se suben ahí.</li>
-      </ul>
+    <h2>Guardado</h2>
+    <p class="intro">Todo lo que guardaste en este navegador: maquetas enteras, patrones sueltos y MIDI importados. Nada se sube a internet.</p>
+    <div class="guardado-abrir">
+      <label class="btn">Abrir un archivo .denavi<input type="file" id="abrirDenavi" accept=".denavi,.json" hidden></label>
+      <span class="hint" id="abrirDenaviInfo">Lo guarda aquí y lo abre en el taller.</span>
     </div>
-  </section>
-
-  <section>
-    <h2>Guardado en este navegador</h2>
-    <p class="intro">Tus pads, pianos, beats y demás pistas guardadas en esta máquina. «Abrir» las lleva al taller; «MIDI» las abre y descarga su archivo <code>.mid</code>.</p>
     <div id="local"></div>
     <div class="biblio-midi">
       <span class="lbl">Importar un MIDI externo</span>
       <div class="row"><input type="file" id="midiImport" accept=".mid,.midi" multiple aria-label="Importar MIDI"></div>
-      <span class="hint" id="midiImportInfo">Guarda archivos <code>.mid</code> en esta biblioteca (en este navegador) para tenerlos a mano, escucharlos aquí y volver a descargarlos. No se abren en el taller.</span>
+      <span class="hint" id="midiImportInfo">Guarda archivos <code>.mid</code> en este navegador para escucharlos aquí y volver a descargarlos. No se abren en el taller.</span>
       <div id="midis" class="biblio-items"></div>
     </div>
-    <p class="aviso"><b>Sólo viven aquí.</b> No viajan a la otra máquina ni a otro navegador, y se pierden si borras los datos del sitio. Para que algo llegue al otro, exporta el archivo y súbelo a la biblioteca compartida.</p>
+    <p class="aviso"><b>Sólo viven en este navegador.</b> No pasan solos a otro computador y se pierden si borras los datos del sitio. Para llevar una maqueta a otro lado o pasársela a la banda, descarga su <code>.denavi</code> (botón «⤓ .denavi» en cada maqueta) y ábrela allá.</p>
   </section>
 
   <section class="solo-banda">
     <h2>La maqueta en un archivo</h2>
-    <p class="intro">En el taller, bajo <b>Exportar</b>, hay dos botones: <b>Guardar la maqueta (.denavi)</b> y <b>Abrir una maqueta guardada</b>. Un <code>.denavi</code> lleva el proyecto <b>entero</b> —batería, bajo, acordes, melodía, letra, tempo, tonalidad y banda de referencia—, no una pista suelta.</p>
+    <p class="intro">Un <code>.denavi</code> lleva el proyecto <b>entero</b> —batería, bajo, acordes, melodía, letra, mapa de la canción, tempo, tonalidad y banda de referencia—, no una pista suelta. En el taller, en <b>Guardar</b>: «Descargar la maqueta (.denavi)» y «Abrir un archivo .denavi».</p>
     <div class="needs">
       <ul>
-        <li><b>Es la forma de pasarnos trabajo.</b> Mándalo por donde sea; al abrirlo, el taller queda exactamente como estaba, con quién lo guardó y cuándo.</li>
+        <li><b>Es la forma de pasarnos trabajo.</b> Mándalo por WhatsApp, correo o pendrive; al abrirlo, el taller queda exactamente como estaba, con quién lo guardó y cuándo.</li>
         <li><b>Es mejor que el MIDI para seguir trabajando.</b> Un <code>.mid</code> lleva las notas, pero pierde la letra, la banda de referencia y los ajustes. El <code>.denavi</code> no pierde nada. El MIDI es para llevar al DAW, no para volver aquí.</li>
-        <li><b>Es lo que va a la biblioteca compartida:</b> guardas el <code>.denavi</code> ahí y los dos tienen la misma biblioteca, sin depender de este sitio ni de este navegador.</li>
       </ul>
     </div>
   </section>
 
   <section class="solo-banda">
     <h2>Publicado en el sitio</h2>
-    <p class="intro">Aparte de la biblioteca, se pueden dejar <code>.mid</code> y <code>.pdf</code> incrustados en el propio sitio, para lo definitivo. Requiere subirlos por el repositorio (ver <code>site/archivo/LEEME.md</code>); para el día a día, usa la biblioteca.</p>
+    <p class="intro">Para lo definitivo, se pueden dejar <code>.mid</code> y <code>.pdf</code> incrustados en el propio sitio. Requiere subirlos por el repositorio (ver <code>site/archivo/LEEME.md</code>).</p>
     <div id="compartido"><p class="hint">Cargando…</p></div>
   </section>
 
@@ -110,6 +98,23 @@
 
   const leer = clave => { try { return JSON.parse(localStorage.getItem(clave) || '[]'); } catch (e) { return []; } };
   const guardar = (clave, arr) => localStorage.setItem(clave, JSON.stringify(arr));
+  const slug = t => (t || 'maqueta').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'maqueta';
+  // La maqueta guardada, como archivo .denavi para llevarla a otro computador o mandarla
+  function descargarDenavi(it) {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(it.proyecto, null, 1)], { type: 'application/json' }));
+    const a = el('a', { href: url, download: slug(it.name) + '.denavi' }); document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+  // Abrir un .denavi: queda guardado aquí y se abre en el taller
+  async function abrirDenavi(f) {
+    const info = $('abrirDenaviInfo');
+    try {
+      const d = JSON.parse(await f.text());
+      if (!d || d.app !== 'DenaviLAB' || !d.musica) throw new Error('no parece una maqueta de DenaviLAB');
+      const l = leer('rueda.maquetas'); l.push({ name: f.name.replace(/\.(denavi|json)$/i, ''), ts: Date.now(), proyecto: d }); guardar('rueda.maquetas', l);
+      location.href = `app.html?maqueta=${l.length - 1}`;
+    } catch (e) { info.textContent = 'No pude abrir ese archivo: ' + (e.message || e); }
+  }
 
   function pintarLocal() {
     const cont = $('local'); cont.innerHTML = '';
@@ -132,6 +137,11 @@
           const acc = el('span', {class:'biblio-acc'});
           acc.append(el('a', {class:'btn ghost mini', href:`app.html?maqueta=${i}&play=1`, title:'abrir y reproducir todo'}, '▶ Reproducir'));
           acc.append(el('a', {class:'btn ghost mini', href:`app.html?maqueta=${i}`}, 'Abrir'));
+          const bajar = el('button', {class:'btn ghost mini', type:'button', title:'descargar el archivo .denavi para llevarla a otro lado'}, '⤓ .denavi');
+          bajar.addEventListener('click', () => descargarDenavi(it));
+          const borrar = el('button', {class:'btn ghost mini', type:'button'}, 'Borrar');
+          borrar.addEventListener('click', () => { if (!confirm(`¿Borrar «${it.name || '(sin nombre)'}» de este navegador? No se puede deshacer.`)) return; const l = leer('rueda.maquetas'); l.splice(i, 1); guardar('rueda.maquetas', l); pintarLocal(); });
+          acc.append(bajar, borrar);
           fila.append(acc); lista.append(fila);
         });
         caja.append(lista);
@@ -345,6 +355,8 @@
   renderMidis();
   const imp = $('midiImport');
   if (imp) imp.addEventListener('change', e => { const fs = [...e.target.files]; if (fs.length) importarMidis(fs); e.target.value=''; });
+  const ad = $('abrirDenavi');
+  if (ad) ad.addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) abrirDenavi(f); });
   pintarCompartido();
 })();
 </script>
