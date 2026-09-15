@@ -422,3 +422,20 @@ section.solo-cab { margin-bottom: 0; }
   .guia-cab.compacta .antes { margin-left: 0; }
   .st-badge { margin-left: 6px; }
 }
+
+/* ── Trabajo guiado: elegir la forma (guiado o tutor) al entrar ── */
+.forma-elige { margin: 6px 0 30px; }
+.forma-opciones { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-top: 16px; }
+.forma-opcion { font: inherit; text-align: left; cursor: pointer; display: grid; gap: 6px; align-content: start; min-height: 190px;
+  background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 14px; padding: 22px; box-shadow: var(--shadow); transition: border-color .15s, transform .15s; }
+.forma-opcion:hover, .forma-opcion:focus-visible { border-color: var(--accent); transform: translateY(-2px); }
+.forma-opcion:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.forma-opcion b { font-family: var(--display); font-size: 23px; line-height: 1.15; }
+.forma-opcion .fo-d { color: var(--muted); font-size: 14px; }
+.fo-eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.fo-ir { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; margin-top: auto; padding-top: 10px; }
+.forma-opcion.tutor { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.forma-opcion.tutor .fo-eyebrow, .forma-opcion.tutor .fo-d { color: var(--accent-ink); opacity: .85; }
+.guia-cambiar { font: inherit; font-size: 13px; background: none; border: none; color: var(--muted); cursor: pointer; padding: 0; text-decoration: underline; text-underline-offset: 3px; }
+.guia-cambiar:hover, .guia-cambiar:focus-visible { color: var(--accent); }
+.guia-cab:not(.compacta) .guia-cambiar { display: inline-block; margin: 0 0 10px; }

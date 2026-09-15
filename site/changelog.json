@@ -3,6 +3,7 @@
   {
    "fecha": "2026-09-15",
    "items": [
+    "Trabajo guiado ahora pregunta al entrar cómo quieres trabajar: «Trabajo guiado» (Primera vez o tu ruta) o «Tutor a la manera de Rick Rubin». Desde dentro, «← Elegir otra forma» vuelve a esa pregunta.",
     "Nuevo: Tutor a la manera de Rick Rubin (Trabajo guiado → tercera opción). Sin patrones base, «generar» ni ejemplos: el tutor escucha lo que marcas —con clic, teclado o MPK— y cada vuelta que suena, y responde con sensaciones, preguntas y consejos, nunca con notas ni casillas. Etapas para Rolando (batería, secuenciador de bajo y teclados) y para Schair (batería y guitarra), con «¿Por qué funciona?», «Otra idea», bitácora y la fuente de cada idea (su libro «El acto de crear» y entrevistas).",
     "Taller en el celular: primero el instrumento y debajo los ajustes, guardar y exportar (con el atajo «⚙ Tempo, estilo, guardar y exportar ↓»); las ocho pestañas se ven todas. Textos al día en la portada y el README, y pruebas automáticas que corren antes de cada publicación; GitHub Pages ahora sólo redirige a Neocities.",
     "MIDI sin pistas vacías: «MIDI · todas las pistas» y la canción del mapa ya no agregan «Piano lead · mano izquierda/derecha» cuando no escribiste melodía (antes salían con raíces automáticas y una pista vacía). El Piano lead entra sólo si tiene melodía o arpegio/acordes en la derecha, y ninguna mano sin notas se exporta.",

@@ -132,6 +132,28 @@ test('guía: la ruta muestra el siguiente paso y avanza al marcarlo', async ({ p
   await expect(page.locator('section[data-para~="rolando"] .leccion').first()).toBeVisible();
 });
 
+test('guía: al entrar se elige entre trabajo guiado y el tutor', async ({ page }) => {
+  await comoBanda(page);
+  await page.goto('guia.html');
+  const elige = page.locator('#formaElige');
+  await expect(elige).toBeVisible();
+  await expect(page.locator('.guia-cab')).toBeHidden();
+
+  await elige.locator('[data-forma="tutor"]').click();
+  await expect(page.locator('section.tutor-intro')).toBeVisible();
+  await expect(page.locator('a', { hasText: 'Empezar con el tutor' })).toHaveAttribute('href', /tutor=1/);
+  await expect(page.locator('#guiaElige')).toBeHidden();
+
+  await page.click('#guiaCambiar');
+  await expect(elige).toBeVisible();
+  await elige.locator('[data-forma="guiado"]').click();
+  await expect(page.locator('#guiaElige')).toBeVisible();
+  await expect(page.locator('section.tutor-intro')).toBeHidden();
+
+  await page.reload();   // se vuelve a preguntar cada vez que entras
+  await expect(elige).toBeVisible();
+});
+
 test('tutor: esconde los moldes, escucha lo que marcas y responde sin decir dónde', async ({ page }) => {
   await comoBanda(page);
   const errores = vigilarErrores(page);

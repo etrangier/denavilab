@@ -16,7 +16,7 @@
 })();
 </script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="estilo.css?v=20260915c">
+<link rel="stylesheet" href="estilo.css?v=20260915e">
 <script>
 (()=>{try{const K='denavilab.stats';const o=JSON.parse(localStorage.getItem(K)||'{}');const n=Date.now();o.visitas=(o.visitas||0)+1;o.primera=o.primera||n;o.ultima=n;o.paginas=o.paginas||{};const pg=(location.pathname.split('/').pop()||'index.html');o.paginas[pg]=(o.paginas[pg]||0)+1;let h='directo';const r=document.referrer||'';try{if(r){const u=new URL(r);h=u.hostname===location.hostname?'interno':u.hostname;}}catch(e){}o.procedencias=o.procedencias||{};o.procedencias[h]=(o.procedencias[h]||0)+1;localStorage.setItem(K,JSON.stringify(o));}catch(e){}})();
 </script>
@@ -33,8 +33,28 @@
   </nav>
 
   <!-- ═══════════ Cómo empezar ═══════════ -->
+  <section class="forma-elige" id="formaElige" hidden aria-labelledby="formaTitulo">
+    <p class="quien">Trabajo guiado</p>
+    <h1 class="guia-h" id="formaTitulo">¿Cómo quieres trabajar hoy?</h1>
+    <div class="forma-opciones">
+      <button type="button" class="forma-opcion" data-forma="guiado">
+        <span class="fo-eyebrow">Paso a paso</span>
+        <b>Trabajo guiado</b>
+        <span class="fo-d">Primera vez o tu ruta: pasos cortos, ejemplos que suenan y lecciones.</span>
+        <span class="fo-ir">Elegir &rarr;</span>
+      </button>
+      <button type="button" class="forma-opcion tutor" data-forma="tutor">
+        <span class="fo-eyebrow">Sin moldes</span>
+        <b>Tutor a la manera de Rick Rubin</b>
+        <span class="fo-d">Hoja en blanco: tú haces, el tutor escucha y te devuelve sensaciones, nunca notas ni casillas.</span>
+        <span class="fo-ir">Elegir &rarr;</span>
+      </button>
+    </div>
+  </section>
+
   <header class="guia-cab">
     <p class="quien">Trabajo guiado</p>
+    <button type="button" class="guia-cambiar" id="guiaCambiar" hidden>&larr; Elegir otra forma</button>
     <h1 class="guia-h" id="guiaTitulo">¿Cómo quieres empezar?</h1>
     <p class="guia-safari" id="guiaSafari" hidden><b>Este navegador no tiene Web MIDI.</b> Aquí no funcionan el MPK ni la descarga del .mid: abre DenaviLab en Chrome, Opera o Edge, en un computador.</p>
     <div class="guia-elige" id="guiaElige">
@@ -46,10 +66,6 @@
         <b>Ya sé lo básico</b>
         <span data-para="rolando">Tu ruta con el MPK, paso a paso, y siete lecciones para el teclado.</span>
         <span data-para="schair">Tu ruta sin teclado, paso a paso, y siete lecciones para guitarra y letra.</span>
-      </button>
-      <button type="button" class="guia-opcion" data-vista="tutor" data-para="rolando schair" data-corto="Tutor" aria-pressed="false">
-        <b>Tutor a la manera de Rick Rubin</b>
-        <span>Sin moldes ni patrones hechos: haces, el tutor escucha y te devuelve sensaciones.</span>
       </button>
     </div>
     <details class="needs antes" id="guiaAntes" open>
@@ -781,37 +797,47 @@ const DETECTA_TXT = { bateria:'un beat', acordes:'una vuelta de acordes', bajo:'
 })();
 </script>
 <script>
-/* Cómo empezar: una sola ruta a la vista. Se recuerda la elección; ?vista=… la fija al volver del taller.
-   La primera vez se ven dos tarjetas grandes y «Antes de empezar» abierto; ya elegido, la cabecera se encoge a un conmutador. */
+/* Cómo empezar. Al entrar se elige la forma de trabajar: trabajo guiado (Primera vez o tu ruta) o el Tutor a la manera
+   de Rick Rubin. Se pregunta cada vez; ?vista=… (al volver del taller) la salta. Dentro del guiado se recuerda Primera vez / Mi ruta. */
 (() => {
+  const $ = id => document.getElementById(id);
   const quien = document.documentElement.dataset.quien;
   const tieneRuta = quien === 'rolando' || quien === 'schair';
   const CLAVE = 'denavilab.guiaVista';
-  const par = new URLSearchParams(location.search);
-  let vista = par.get('vista') || (() => { try { return localStorage.getItem(CLAVE); } catch (e) { return null; } })();
+  const par = new URLSearchParams(location.search), pv = par.get('vista');
+  let vista = pv || (() => { try { return localStorage.getItem(CLAVE); } catch (e) { return null; } })();
   if (!tieneRuta) vista = 'principiante';
-  if (!['principiante', 'ruta', 'tutor'].includes(vista)) vista = null;
-  if (par.get('vista')) { try { localStorage.setItem(CLAVE, vista); } catch (e) {} }
-  const cab = document.querySelector('.guia-cab'), antes = document.getElementById('guiaAntes');
+  if (!['principiante', 'ruta'].includes(vista)) vista = null;
+  if (pv && vista) { try { localStorage.setItem(CLAVE, vista); } catch (e) {} }
+  let forma = !tieneRuta ? 'guiado' : pv === 'tutor' ? 'tutor' : pv ? 'guiado' : null;
+  const cab = document.querySelector('.guia-cab'), antes = $('guiaAntes'), elige = $('formaElige'), cambiar = $('guiaCambiar'), guiaElige = $('guiaElige');
   const opciones = [...document.querySelectorAll('.guia-opcion')];
   const secciones = [...document.querySelectorAll('[data-vista]')].filter(n => !n.classList.contains('guia-opcion'));
-  if (antes) antes.open = !vista;
-  if (!navigator.requestMIDIAccess) document.getElementById('guiaSafari').hidden = false;   // Safari, iPhone/iPad: sin Web MIDI
+  if (!navigator.requestMIDIAccess) $('guiaSafari').hidden = false;   // Safari, iPhone/iPad: sin Web MIDI
   function aplicar() {
-    secciones.forEach(n => { n.hidden = n.dataset.vista !== vista; });
+    const activa = forma === 'tutor' ? 'tutor' : forma ? vista : null;
+    elige.hidden = !!forma; cab.hidden = !forma;
+    secciones.forEach(n => { n.hidden = n.dataset.vista !== activa; });
     opciones.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.vista === vista)));
-    cab.classList.toggle('compacta', !!vista);
+    guiaElige.hidden = !tieneRuta || forma === 'tutor';
+    cab.classList.toggle('compacta', forma === 'tutor' || !!vista);
+    cambiar.hidden = !tieneRuta;
+    if (antes) antes.open = forma === 'guiado' && !vista;
   }
+  elige.querySelectorAll('[data-forma]').forEach(b => b.addEventListener('click', () => { forma = b.dataset.forma; aplicar(); window.scrollTo({ top: 0 }); }));
+  cambiar.addEventListener('click', () => {
+    forma = null; const u = new URL(location.href); u.searchParams.delete('vista'); u.searchParams.delete('paso'); history.replaceState(null, '', u);
+    aplicar(); window.scrollTo({ top: 0 }); const f = elige.querySelector('[data-forma]'); if (f) f.focus();
+  });
   opciones.forEach(b => b.addEventListener('click', () => {
     const primera = !vista;
     vista = b.dataset.vista; try { localStorage.setItem(CLAVE, vista); } catch (e) {}
-    if (primera && antes) antes.open = false;
     aplicar();
     const s = secciones.find(n => !n.hidden && getComputedStyle(n).display !== 'none'); if (s && primera) s.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }));
-  if (!tieneRuta) { document.getElementById('guiaElige').hidden = true; document.getElementById('guiaTitulo').textContent = 'Paso a paso'; }
+  if (!tieneRuta) $('guiaTitulo').textContent = 'Paso a paso';
   aplicar();
-  if (vista === 'principiante' && par.get('vista')) {
+  if (vista === 'principiante' && pv) {
     const act = document.querySelector('.prin-paso.activo'); if (act) setTimeout(() => act.scrollIntoView({ block: 'center' }), 60);
   }
 })();
