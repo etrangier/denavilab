@@ -1,6 +1,14 @@
 {
  "changelog": [
   {
+   "fecha": "2026-09-15",
+   "items": [
+    "Bajo con pads: vuelve la pestaña «Bajo», ahora como una MPC con teclas de calculadora. Los pads cambian con el acorde de cada compás (raíz, quinta, octava, tercera y notas de paso); tocas y avanza al paso siguiente. «=» pone la raíz en el 1, MANTENER alarga la nota, y funciona con el mouse, el teclado numérico o los pads del MPK. La rejilla detallada queda plegada.",
+    "Rueda: «Vueltas que calzan con tu beat» lee la batería (tempo, densidad, bombo corrido o en los cuatro tiempos) y propone tres vueltas completas —segura, melancólica y con sorpresa— con su porqué; al elegir una se dibuja como camino numerado en la rueda, y se puede escuchar con el beat o usar.",
+    "Trabajo guiado: primero «¿Cómo quieres empezar?» y una sola ruta a la vista; «Antes de empezar» arriba con el aviso de Safari; barra de la guía dentro del taller con el paso en que vas y si ya está hecho; avance guardado en las rutas; 36 ejemplos que suenan; pasos en corto con «Más detalles»; siete lecciones de teclado para Rolando; las citas marcadas como ideas parafraseadas."
+   ]
+  },
+  {
    "fecha": "2026-09-14",
    "items": [
     "Autoguardado: lo que tienes abierto en el taller se guarda solo en este navegador y al volver se recupera (con «Empezar en blanco»); si entras desde la guía o la Biblioteca, te ofrece recuperarlo en vez de pisarlo.",

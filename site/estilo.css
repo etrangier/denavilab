@@ -278,3 +278,64 @@ html[data-quien="invitado"] .solo-invitado { display: block; }
 .prin-paso.hecho.abierto .prin-cab::after { content: 'ocultar \2212'; }
 .prin-paso.hecho .prin-num { background: var(--ok); color: #06110c; }
 .prin-seguir { margin-top: 14px; }
+
+/* ───────── Trabajo guiado: cómo empezar, rutas con avance, ejemplos que suenan ───────── */
+.guia-cab { margin: 6px 0 24px; }
+.guia-h { font-family: var(--display); font-size: clamp(26px, 5vw, 36px); line-height: 1.1; margin: 0 0 14px; }
+.guia-elige { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin: 0 0 14px; }
+.guia-opcion { font: inherit; text-align: left; cursor: pointer; display: grid; gap: 4px; align-content: start; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.guia-opcion b { font-family: var(--display); font-size: 18px; }
+.guia-opcion span { color: var(--muted); font-size: 13.5px; }
+.guia-opcion:hover { border-color: var(--accent); }
+.guia-opcion:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.guia-opcion[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--surface-2); }
+.guia-opcion[aria-pressed="true"] b::after { content: "  ✓"; color: var(--accent); }
+html[data-quien="rolando"] .guia-opcion[data-para~="rolando"], html[data-quien="schair"] .guia-opcion[data-para~="schair"] { display: grid; }
+.antes { padding: 12px 18px; }
+.antes-t { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+.antes li { font-size: 13.5px; }
+.antes .ojo b { color: var(--accent); }
+.prin-nota { font-size: 12px; color: var(--muted); font-style: italic; margin: 14px 0 0; }
+.prin-detecta { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+.prin-detecta.ok { color: var(--ok); font-weight: 600; }
+.prin-detecta:empty { display: none; }
+.ruta-progreso { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; }
+.ruta-progreso-txt { font-family: var(--mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); flex: 0 0 auto; }
+.ruta-barra { flex: 1 1 auto; height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.ruta-barra i { display: block; height: 100%; width: 0; background: var(--ok); transition: width .3s ease; }
+.step.hecho .num { background: var(--ok); }
+.step.hecho .ti::after { content: "  ✓ hecho"; font-family: var(--mono); font-size: 10.5px; letter-spacing: .05em; color: var(--ok); vertical-align: middle; }
+.step .body .en-corto { margin: 0; padding-left: 18px; display: grid; gap: 5px; max-width: 64ch; }
+.step .body .en-corto li { font-size: 14.5px; }
+.paso-pie { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.paso-hecho { font-size: 13px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.step .body .paso-estado { font-size: 13px; color: var(--ok); }
+.step .body .paso-estado:empty { display: none; }
+.mas { border-top: 1px dashed var(--line); padding-top: 8px; }
+.mas > summary { cursor: pointer; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); list-style: none; }
+.mas > summary::-webkit-details-marker { display: none; }
+.mas > summary::before { content: "+ "; }
+.mas[open] > summary { color: var(--accent); margin-bottom: 8px; }
+.mas[open] > summary::before { content: "− "; }
+.step .body .mas > p { margin: 0 0 10px; }
+.ejemplos { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.ejemplo { flex: 1 1 260px; max-width: 520px; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: center; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
+.ejemplos .ejemplo { margin: 0; }
+.ej-play { font: inherit; width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--accent); color: var(--accent-ink); font-size: 14px; cursor: pointer; display: grid; place-items: center; }
+.ej-play:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ejemplo.sonando { border-color: var(--accent); }
+.ejemplo.sonando .ej-play { background: var(--text); color: var(--bg); }
+.ej-info { display: grid; min-width: 0; }
+.ej-info b { font-size: 14px; }
+.ej-info span { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.ej-vista { grid-column: 1 / -1; display: grid; gap: 3px; }
+.ej-fila { display: grid; grid-template-columns: 50px repeat(16, minmax(0, 1fr)); gap: 2px; align-items: center; }
+.ej-fila.ocho { grid-template-columns: 50px repeat(8, minmax(0, 1fr)); }
+.ej-fila > span { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.ej-c { display: block; height: 13px; border-radius: 3px; background: var(--line); opacity: .5; }
+.ej-c.tiempo { opacity: .85; }
+.ej-c.on { background: var(--accent); opacity: 1; }
+.ej-c.ahora { box-shadow: 0 0 0 2px var(--text); }
+.ej-acordes { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
+.ej-ac { font-family: var(--mono); font-size: 12px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); }
+.ej-ac.ahora { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }

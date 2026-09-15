@@ -32,8 +32,35 @@
     <span class="navsesion sesion" id="sesion"></span>
   </nav>
 
+  <!-- ═══════════ Cómo empezar ═══════════ -->
+  <header class="guia-cab">
+    <p class="quien">Trabajo guiado</p>
+    <h1 class="guia-h" id="guiaTitulo">¿Cómo quieres empezar?</h1>
+    <div class="guia-elige" id="guiaElige">
+      <button type="button" class="guia-opcion" data-vista="principiante" aria-pressed="false">
+        <b>Es mi primera vez</b>
+        <span>Siete pasos cortos, de un pulso vacío a una canción en MIDI. No hace falta saber música.</span>
+      </button>
+      <button type="button" class="guia-opcion" data-vista="ruta" data-para="rolando schair" aria-pressed="false">
+        <b>Ya sé lo básico</b>
+        <span data-para="rolando">Tu ruta con el MPK, paso a paso, y siete lecciones para el teclado.</span>
+        <span data-para="schair">Tu ruta sin teclado, paso a paso, y siete lecciones para guitarra y letra.</span>
+      </button>
+    </div>
+    <div class="needs antes">
+      <p class="antes-t">Antes de empezar</p>
+      <ul>
+        <li class="ojo"><b>Usa Chrome, Opera o Edge.</b> Safari no tiene Web MIDI: ni el MPK ni la descarga del .mid funcionan ahí.</li>
+        <li data-para="rolando"><b>El teclado.</b> Un Akai MPK mini de 25 o 37 teclas por USB: las teclas tocan notas y los pads la batería. Sin teclado también funciona, con el mouse.</li>
+        <li data-para="schair"><b>No necesitas teclado.</b> La batería y el bajo se dibujan a clic, y los acordes se eligen en la rueda.</li>
+        <li><b>Se guarda en este navegador.</b> Lo que tienes abierto se autoguarda; «Guardar» le pone nombre, y el .denavi lo lleva a otro computador.</li>
+        <li><b>Los ejemplos suenan aquí mismo.</b> Pulsa ▶ en cualquiera: no tocan tu taller ni lo que guardaste.</li>
+      </ul>
+    </div>
+  </header>
+
   <!-- ═══════════ Principiante (para todos) ═══════════ -->
-  <section class="principiante" id="principiante">
+  <section class="principiante" id="principiante" data-vista="principiante">
     <p class="quien">Para empezar de cero</p>
     <h2>Modo principiante</h2>
     <p class="intro">Nunca hiciste una maqueta: no importa. Aquí no hay que saber nada de música. Vamos de a un paso: haces lo puntual de cada uno y, cuando estés, el siguiente se abre solo. Los que ya pasaste quedan plegados (clic para volver a mirarlos).</p>
@@ -47,8 +74,10 @@
         <div class="prin-cuerpo">
           <p>Todo nace del ritmo. Abre la batería y ponte a jugar: marca golpes a clic, <b>copia</b> un patrón base de los que trae, <b>combínalo</b> con otro, quítale la mitad, súbele el tempo, empieza de nuevo. No hay orden correcto ni forma «buena» de hacerlo.</p>
           <p class="tip">La primera versión no tiene que ser buena — tiene que existir. Sigue lo que te llame la atención, no lo que «debería» ir. Encima de la rejilla aparece un consejo que cambia solo: tómalo como una idea, no como una regla. Puedes cambiar cualquier cosa en cualquier momento.</p>
-          <a class="btn" id="prinAbrirBeat" href="app.html?modo=beat&guia=principiante" target="_self">Abrir la batería &rarr;</a>
-          <p class="prin-cita">Menos golpes, más groove. En el bedroom pop la batería acompaña, no tapa: patrón simple, tempo tranquilo y algún golpe a contratiempo para que respire.<span class="prin-quien">Cómo se hacen los beats de bedroom pop</span></p>
+          <div class="ejemplo" data-ej="pocos-golpes"></div>
+          <a class="btn" id="prinAbrirBeat" href="app.html?modo=beat&guia=principiante&paso=1" target="_self">Abrir la batería &rarr;</a>
+          <p class="prin-cita">Menos golpes, más groove. En el bedroom pop la batería acompaña, no tapa: patrón simple, tempo tranquilo y algún golpe a contratiempo para que respire.<span class="prin-quien">Idea de «How To Make Bedroom Pop Beats» (KVASS Lab)</span></p>
+          <p class="prin-detecta" data-detecta="bateria"></p>
           <button type="button" class="btn prin-seguir" data-siguiente="2">Ya tengo un pulso · seguir &rarr;</button>
         </div>
       </li>
@@ -59,7 +88,7 @@
           <p>Cuando el pulso te guste, elige un ánimo. Con eso el taller te propone un estilo, una velocidad (bpm) y cuántos compases dura la vuelta. Nada de esto te encierra: todo se cambia después.</p>
           <div class="prin-chips" id="prinAnimos"></div>
           <p class="prin-eco" id="prinAnimoEco"></p>
-          <p class="prin-cita">Elige con la «mente de principiante»: sin ideas de cómo <i>debería</i> sonar. La primera corazonada suele ser la buena — no la pienses de más.<span class="prin-quien">Rick Rubin · Damon Albarn</span></p>
+          <p class="prin-cita">Elige con la «mente de principiante»: sin ideas de cómo <i>debería</i> sonar. La primera corazonada suele ser la buena — no la pienses de más.<span class="prin-quien">Idea de Rick Rubin y Damon Albarn</span></p>
         </div>
       </li>
 
@@ -68,7 +97,7 @@
         <div class="prin-cuerpo">
           <p>Un mismo ánimo suena distinto según la banda de referencia. Elige la que más te guste; guía a la rueda de acordes sin encerrarte en nada.</p>
           <div class="prin-chips" id="prinGeneros"></div>
-          <p class="prin-cita">No hace falta estudio ni banda: Martin Gore compone casi todo en casa, solo y con lo mínimo. Elige una referencia y déjate llevar.<span class="prin-quien">Martin Lee Gore · Depeche Mode</span></p>
+          <p class="prin-cita">No hace falta estudio ni banda: Martin Gore compone casi todo en casa, solo y con lo mínimo. Elige una referencia y déjate llevar.<span class="prin-quien">Idea de Martin Lee Gore (Depeche Mode)</span></p>
         </div>
       </li>
 
@@ -76,9 +105,12 @@
         <div class="prin-cab"><span class="prin-num">4</span><span class="prin-t">Arma tu vuelta de acordes</span></div>
         <div class="prin-cuerpo">
           <p>Abro la rueda ya preparada con tu ánimo y tu estilo. Ahí, cada acorde que tocas te dice si es «casa», «tensión» o «sorpresa», y la rueda te propone a dónde ir. Elige los que te gusten y pulsa <b>Guardar</b>. No hay manera de equivocarse: escucha y quédate con lo que te suene bien.</p>
-          <a class="btn" id="prinAbrirRueda" href="app.html?modo=pad&guia=principiante" target="_self">Abrir la rueda preparada &rarr;</a>
+          <div class="ejemplo" data-ej="vuelta-menor"></div>
+          <a class="btn" id="prinAbrirRueda" href="app.html?modo=pad&guia=principiante&paso=4" target="_self">Abrir la rueda preparada &rarr;</a>
           <p class="tip">Consejo: parte por el primer acorde que te propone (el más «seguro») y ve sumando. Con dos acordes ya hay canción.</p>
-          <p class="prin-cita">Con tres o cuatro acordes sobra. Truco de Mac DeMarco: al final de la vuelta mete un acorde que no sea de la tonalidad — da un giro con un poco de misterio.<span class="prin-quien">Mac DeMarco</span></p>
+          <p class="tip">¿Ya tienes beat? Debajo de la rueda, <b>Vueltas que calzan con tu beat</b> te propone tres vueltas completas que suenan bien con él: elige una, escúchala y úsala si te gusta.</p>
+          <p class="prin-cita">Con tres o cuatro acordes sobra. Truco de Mac DeMarco: al final de la vuelta mete un acorde que no sea de la tonalidad — da un giro con un poco de misterio.<span class="prin-quien">Idea de Mac DeMarco</span></p>
+          <p class="prin-detecta" data-detecta="acordes"></p>
           <button type="button" class="btn prin-seguir" data-siguiente="5">Ya tengo mi vuelta · seguir &rarr;</button>
         </div>
       </li>
@@ -88,8 +120,9 @@
         <div class="prin-cuerpo">
           <p>Una canción es tu vuelta repetida en <b>partes</b>: intro, verso, coro… En el <b>Mapa de la canción</b> pulsas <b>«Canción típica»</b> y el orden queda armado de un clic. Después lo ajustas a tu gusto: con <b>−</b> y <b>+</b> eliges cuántos compases dura cada parte, y con las flechas <b>← →</b> la cambias de lugar.</p>
           <p>Después <b>llena cada parte</b>: cuando tengas un beat o una vuelta que te guste, pulsa <b>«Guardar lo que suena»</b> en la parte donde va —por ejemplo, la Intro— y esa parte se queda con su música. Sigue componiendo lo del Verso y guárdalo en el Verso. La letra, si ya la tienes, se escribe ahí mismo; si no, déjala para después.</p>
-          <a class="btn" id="prinAbrirMapa" href="app.html?modo=letra&ir=mapa&guia=principiante" target="_self">Abrir el mapa de la canción &rarr;</a>
+          <a class="btn" id="prinAbrirMapa" href="app.html?modo=letra&ir=mapa&guia=principiante&paso=5" target="_self">Abrir el mapa de la canción &rarr;</a>
           <p class="tip">Consejo: un verso o un coro de <b>8 compases</b> es lo más común. Si una parte dice «muy apretado», la letra no cabe: dale más compases. Cada parte te muestra en qué minuto suena.</p>
+          <p class="prin-detecta" data-detecta="mapa"></p>
           <button type="button" class="btn prin-seguir" data-siguiente="6">Ya tengo el mapa · seguir &rarr;</button>
         </div>
       </li>
@@ -99,7 +132,8 @@
         <div class="prin-cuerpo">
           <p>En cada sección, abajo, hay un botón <b>Guardar</b>: le pones un nombre y queda en este navegador (aunque entres como invitado). Puedes tener varias versiones y volver a cualquiera. Nada se sube a internet.</p>
           <p class="tip">Cuando ya tengas acordes + batería, prueba el botón <b>Reproducir todo</b> del taller: suena todo junto, y puedes silenciar o aislar cada instrumento.</p>
-          <p class="prin-cita">Guarda la primera toma aunque suene «a maqueta»: una versión completa e imperfecta vale más que un trozo perfecto. Esa aspereza es parte del encanto.<span class="prin-quien">Rick Rubin · Mac DeMarco</span></p>
+          <p class="prin-cita">Guarda la primera toma aunque suene «a maqueta»: una versión completa e imperfecta vale más que un trozo perfecto. Esa aspereza es parte del encanto.<span class="prin-quien">Idea de Rick Rubin y Mac DeMarco</span></p>
+          <p class="prin-detecta" data-detecta="guardado"></p>
           <button type="button" class="btn prin-seguir" data-siguiente="7">Listo · ver qué más hay &rarr;</button>
         </div>
       </li>
@@ -107,31 +141,33 @@
       <li class="prin-paso" data-paso="7">
         <div class="prin-cab"><span class="prin-num">7</span><span class="prin-t">Cuando quieras más</span></div>
         <div class="prin-cuerpo">
-          <p>Ya sabes lo esencial. A tu ritmo, el taller tiene más: un <b>bajo</b> que se genera solo desde tus acordes, <b>guitarra</b> con el mástil y el rasgueo, <b>piano/teclados</b> con maneras de tocar, un <b>piano lead</b> para la melodía, y una <b>libreta de letras</b>. Entra por «Trabajo directo» y prueba de a una.</p>
+          <p>Ya sabes lo esencial. A tu ritmo, el taller tiene más: un <b>bajo con pads</b> que cambian con cada acorde, <b>guitarra</b> con el mástil y el rasgueo, <b>piano/teclados</b> con maneras de tocar, un <b>piano lead</b> para la melodía, y una <b>libreta de letras</b>. Entra por «Trabajo directo» y prueba de a una.</p>
           <div class="prin-mas">
-            <a class="btn ghost" href="app.html?modo=guitarra&guia=principiante" target="_self">La guitarra</a>
-            <a class="btn ghost" href="app.html?modo=piano&guia=principiante" target="_self">El piano</a>
-            <a class="btn ghost" href="app.html?modo=lead&guia=principiante" target="_self">El lead</a>
-            <a class="btn ghost" href="app.html?modo=letra&guia=principiante" target="_self">La letra</a>
+            <a class="btn ghost" href="app.html?modo=bajod&guia=principiante&paso=7" target="_self">El bajo con pads</a>
+            <a class="btn ghost" href="app.html?modo=guitarra&guia=principiante&paso=7" target="_self">La guitarra</a>
+            <a class="btn ghost" href="app.html?modo=piano&guia=principiante&paso=7" target="_self">El piano</a>
+            <a class="btn ghost" href="app.html?modo=lead&guia=principiante&paso=7" target="_self">El lead</a>
+            <a class="btn ghost" href="app.html?modo=letra&guia=principiante&paso=7" target="_self">La letra</a>
           </div>
-          <p class="prin-cita">Trátalo como un oficio: aparece a menudo, aunque sean diez minutos. Termina cosas para poder empezar otras — la constancia hace más que la inspiración.<span class="prin-quien">Damon Albarn · Rick Rubin</span></p>
+          <p class="prin-cita">Trátalo como un oficio: aparece a menudo, aunque sean diez minutos. Termina cosas para poder empezar otras — la constancia hace más que la inspiración.<span class="prin-quien">Idea de Damon Albarn y Rick Rubin</span></p>
         </div>
       </li>
 
     </ol>
+    <p class="prin-nota">Las ideas destacadas resumen con nuestras palabras lo que cada artista cuenta en entrevistas y libros; no son citas textuales.</p>
     <p class="prin-reset"><button type="button" id="prinReset">Empezar de nuevo</button></p>
   </section>
 
   <!-- ═══════════ Ruta de Schair ═══════════ -->
-  <section data-para="schair">
+  <section data-para="schair" data-vista="ruta">
     <p class="quien">Ruta de Schair</p>
-    <h2>Trabajo guiado</h2>
-    <p class="intro">Tú tienes la guitarra y la voz. Lo que le falta a una idea para sonar a canción —la batería, el bajo, los teclados— se arma aquí, sin tocar ninguno de esos instrumentos: se dibuja con el mouse, casilla por casilla.</p>
-    <p class="intro">Esto es el paso a paso para hacerlo. Al terminar te llevas la base armada, lista para cantar y tocar encima, y para pasársela a Rolando y que siga desde ahí.</p>
+    <h2>Tu ruta</h2>
+    <p class="intro">Tú tienes la guitarra y la voz; la batería, el bajo y los teclados se arman aquí con el mouse. Cada paso te dice lo esencial en tres líneas, y se marca solo cuando tu taller ya lo tiene.</p>
+    <div class="ruta-progreso"><span class="ruta-progreso-txt"></span><span class="ruta-barra"><i></i></span></div>
 
     <div class="steps">
 
-      <details class="step">
+      <details class="step" data-detecta="bateria">
         <summary>
           <span class="num"></span>
           <span class="ti">El pulso</span>
@@ -139,18 +175,23 @@
           <span class="why">Una batería recta, de las de siempre. Es la cuadrícula sobre la que cae todo lo demás.</span>
         </summary>
         <div class="body">
-          <p>Un <b>compás</b> son cuatro tiempos: cuentas «uno-dos-tres-cuatro» y empieza otro. Cada tiempo se parte en cuatro casillas. Haz clic en una casilla para poner o quitar un golpe. No hace falta teclado para nada de esto.</p>
-          <p>En <b>Sonido</b> tienes cuatro cajas de ritmo. Para lo tuyo empieza por la <b>Analógica</b>: es la más cruda y sobria de las cuatro, sin adornos, que es justo lo que se busca en una maqueta. La LinnDrum también sirve si quieres algo más seco y con pegada.</p>
-          <p><b>El beat arranca en blanco</b>, a propósito: la gracia está en ponerlo tú. Sobre la rejilla hay un consejo que va cambiando según lo que llevas puesto —te dice lo siguiente que suele tocar hacer— y se actualiza en cuanto marcas o quitas un golpe.</p>
-          <p>Si prefieres partir de algo, en <b>Patrón base</b> hay <b>varios por banda</b> —dos o tres cada una— de lo que escuchas: Green Day, Rock clásico, La Ley, Anime, Balada de anime, y para lo tranquilo Mac DeMarco, boy pablo y Talk Talk. Cada uno tiene su carácter (directo, rápido, medio tiempo, más suelto…); cargas el que te pida el día y lo mueves a gusto.</p>
-          <p>Armándolo de cero, el de rock de toda la vida es: <b>bombo</b> en el 1 y el 3, <b>caja</b> en el 2 y el 4, <b>hi-hat</b> en cada corchea.</p>
-          <p class="tip"><b>Consejo:</b> pon primero sólo el bombo y déjalo dando vueltas hasta que te aburra. Recién ahí mete la caja. Cambia una cosa a la vez.</p>
-          <p class="tip"><b>El tempo llega hasta 190,</b> así que los temas rápidos entran sin problema. Green Day arranca solo en 172 cuando eliges esa banda.</p>
-          <a class="btn" href="app.html?modo=beat">Ir a la batería</a>
+          <ul class="en-corto"><li>Abre la batería: desde la guía arranca en blanco, a propósito.</li><li>Bombo en el 1 y el 3, caja en el 2 y el 4 —o carga un <b>Patrón base</b> de tus bandas.</li><li>Déjalo sonar y cambia una sola cosa a la vez.</li></ul>
+          <div class="ejemplos"><div class="ejemplo" data-ej="rock"></div><div class="ejemplo" data-ej="solo-bombo"></div></div>
+          <div class="paso-pie"><a class="btn" href="app.html?modo=beat&guia=ruta&paso=1">Ir a la batería</a><label class="paso-hecho"><input type="checkbox"> Lo hice</label></div>
+          <p class="paso-estado"></p>
+          <details class="mas"><summary>Más detalles</summary>
+            <p>Un <b>compás</b> son cuatro tiempos: cuentas «uno-dos-tres-cuatro» y empieza otro. Cada tiempo se parte en cuatro casillas. Haz clic en una casilla para poner o quitar un golpe. No hace falta teclado para nada de esto.</p>
+            <p>En <b>Sonido</b> tienes cuatro cajas de ritmo. Para lo tuyo empieza por la <b>Analógica</b>: es la más cruda y sobria de las cuatro, sin adornos, que es justo lo que se busca en una maqueta. La LinnDrum también sirve si quieres algo más seco y con pegada.</p>
+            <p><b>Desde la guía, el beat arranca en blanco</b>, a propósito: la gracia está en ponerlo tú. Sobre la rejilla hay un consejo que va cambiando según lo que llevas puesto —te dice lo siguiente que suele tocar hacer— y se actualiza en cuanto marcas o quitas un golpe.</p>
+            <p>Si prefieres partir de algo, en <b>Patrón base</b> hay <b>varios por banda</b> —dos o tres cada una— de lo que escuchas: Green Day, Rock clásico, La Ley, Anime, Balada de anime, y para lo tranquilo Mac DeMarco, boy pablo y Talk Talk. Cada uno tiene su carácter (directo, rápido, medio tiempo, más suelto…); cargas el que te pida el día y lo mueves a gusto.</p>
+            <p>Armándolo de cero, el de rock de toda la vida es: <b>bombo</b> en el 1 y el 3, <b>caja</b> en el 2 y el 4, <b>hi-hat</b> en cada corchea.</p>
+            <p class="tip"><b>Consejo:</b> pon primero sólo el bombo y déjalo dando vueltas hasta que te aburra. Recién ahí mete la caja. Cambia una cosa a la vez.</p>
+            <p class="tip"><b>El tempo llega hasta 190,</b> así que los temas rápidos entran sin problema. Green Day arranca solo en 172 cuando eliges esa banda.</p>
+          </details>
         </div>
       </details>
 
-      <details class="step">
+      <details class="step" data-detecta="acordes">
         <summary>
           <span class="num"></span>
           <span class="ti">Los acordes</span>
@@ -158,17 +199,22 @@
           <span class="why">Cuatro acordes dando vueltas. De aquí sale lo que después cantas y tocas en la guitarra.</span>
         </summary>
         <div class="body">
-          <p>La rueda te propone a dónde ir. Haz clic en un acorde para escucharlo y <b>Guardar</b> cuando te guste; con cuatro ya tienes una vuelta. La cuña violeta son los acordes que viven en la misma tonalidad: entre ellos siempre suenan bien.</p>
-          <p class="tip"><b>Primero, ponlo en tu idioma:</b> en <b>Cómo se escriben las notas</b> elige <b>C D E</b>. La rueda entera, el teclado y los acordes pasan al cifrado de las partituras —C, F, G, Am, Bb—, en vez de do, fa, sol. Se queda puesto para la próxima vez.</p>
-          <p>Abre puesto en <b>boy pablo</b>, que es indie de guitarra y sirve para casi todo. La guitarra que tengas en la mano ayuda a decidir: la eléctrica pide lo rápido, la acústica lo tranquilo.</p>
-          <p>Si quieres otro color, cámbialo en <b>Género</b>: en <b>Rock</b> están <b>Green Day</b> (I–V–vi–IV a toda velocidad), <b>Rock clásico</b> y <b>La Ley</b>; en <b>Anime</b>, el <b>J-pop</b> y la <b>balada</b>; y en <b>Bedroom pop</b>, además de boy pablo, <b>Mac DeMarco</b> y <b>Talk Talk</b> para lo perezoso. La rueda se pinta según la que elijas.</p>
-          <p>Ejemplo con boy pablo: partes en <b>C</b> y te propone <b>F</b> (30%), <b>G</b> (25%), <b>Am</b> (25%) y <b>Dm</b> (20%). Esos cuatro te los sabes en la guitarra, y con ellos hay canción de sobra.</p>
-          <p class="tip"><b>Consejo:</b> pasa el cursor por cualquier acorde de la rueda y verás sus teclas en miniatura antes de tocarlo.</p>
-          <a class="btn" href="app.html?modo=pad">Ir a la rueda</a>
+          <ul class="en-corto"><li>En <b>Cómo se escriben las notas</b> elige <b>C D E</b>.</li><li>Haz clic en un acorde de la rueda para oírlo, y <b>Guardar</b> si te gusta.</li><li>Debajo de la rueda, <b>Vueltas que calzan con tu beat</b> te propone tres vueltas completas.</li></ul>
+          <div class="ejemplos"><div class="ejemplo" data-ej="vuelta-c"></div></div>
+          <div class="paso-pie"><a class="btn" href="app.html?modo=pad&guia=ruta&paso=2">Ir a la rueda</a><label class="paso-hecho"><input type="checkbox"> Lo hice</label></div>
+          <p class="paso-estado"></p>
+          <details class="mas"><summary>Más detalles</summary>
+            <p>La rueda te propone a dónde ir. Haz clic en un acorde para escucharlo y <b>Guardar</b> cuando te guste; con cuatro ya tienes una vuelta. La cuña violeta son los acordes que viven en la misma tonalidad: entre ellos siempre suenan bien.</p>
+            <p class="tip"><b>Primero, ponlo en tu idioma:</b> en <b>Cómo se escriben las notas</b> elige <b>C D E</b>. La rueda entera, el teclado y los acordes pasan al cifrado de las partituras —C, F, G, Am, Bb—, en vez de do, fa, sol. Se queda puesto para la próxima vez.</p>
+            <p>Abre puesto en <b>boy pablo</b>, que es indie de guitarra y sirve para casi todo. La guitarra que tengas en la mano ayuda a decidir: la eléctrica pide lo rápido, la acústica lo tranquilo.</p>
+            <p>Si quieres otro color, cámbialo en <b>Género</b>: en <b>Rock</b> están <b>Green Day</b> (I–V–vi–IV a toda velocidad), <b>Rock clásico</b> y <b>La Ley</b>; en <b>Anime</b>, el <b>J-pop</b> y la <b>balada</b>; y en <b>Bedroom pop</b>, además de boy pablo, <b>Mac DeMarco</b> y <b>Talk Talk</b> para lo perezoso. La rueda se pinta según la que elijas.</p>
+            <p>Ejemplo con boy pablo: partes en <b>C</b> y te propone <b>F</b> (30%), <b>G</b> (25%), <b>Am</b> (25%) y <b>Dm</b> (20%). Esos cuatro te los sabes en la guitarra, y con ellos hay canción de sobra.</p>
+            <p class="tip"><b>Consejo:</b> pasa el cursor por cualquier acorde de la rueda y verás sus teclas en miniatura antes de tocarlo.</p>
+          </details>
         </div>
       </details>
 
-      <details class="step">
+      <details class="step" data-detecta="bajo">
         <summary>
           <span class="num"></span>
           <span class="ti">El bajo</span>
@@ -176,16 +222,21 @@
           <span class="why">Una nota por acorde, pegada al bombo. Con eso la base ya camina sola.</span>
         </summary>
         <div class="body">
-          <p>Para maquetar, el bajo es <b>una nota por acorde</b>: la que le da el nombre. Para Lam, <i>la</i>; para Fa, <i>fa</i>. Va en el tiempo 1, junto con el bombo.</p>
-          <p>No lo escribas a mano: pulsa <b>«Generar desde los acordes»</b> y lo saca solo de la vuelta que guardaste en el paso anterior. Por eso este paso va después y no antes. Luego muévelo, ponle acentos, o alarga notas juntando casillas iguales.</p>
-          <p class="tip"><b>No lo escribas a ciegas:</b> encima de la rejilla hay <b>sugerencias</b> que se aplican de un clic y cambian según lo que llevas puesto. Al principio te ofrecen por dónde empezar —la raíz en el 1, en el 1 y el 3, corcheas, raíz y quinta—; con notas escritas pasan a octavas, acentos, largo de las notas y ligados.</p>
-          <p class="tip"><b>Guárdalo:</b> abajo del todo, en <b>Líneas de bajo guardadas</b>, le pones nombre y queda. Puedes tener varias versiones del mismo bajo y volver a cualquiera.</p>
-          <p class="tip"><b>Consejo:</b> cuando ya suene, prueba tocarlo en el 1 y el 3 en vez de sólo en el 1. Es lo que hace que un bajo de rock empuje en vez de acompañar.</p>
-          <a class="btn" href="app.html?modo=bajod">Ir al bajo</a>
+          <ul class="en-corto"><li>En la pestaña <b>Bajo</b>, los pads cambian con el acorde de cada compás: toca <b>RAÍZ</b> y avanza al paso siguiente, como en una calculadora.</li><li>La tecla <b>«=»</b> pone la raíz en el 1 de cada compás; desde ahí ajustas.</li><li>Cuando suene, prueba <b>RAÍZ</b> en el 1 y <b>QUINTA</b> en el 3 para que empuje.</li></ul>
+          <div class="ejemplos"><div class="ejemplo" data-ej="bajo-1"></div><div class="ejemplo" data-ej="bajo-1-3"></div></div>
+          <div class="paso-pie"><a class="btn" href="app.html?modo=bajod&guia=ruta&paso=3">Ir al bajo</a><label class="paso-hecho"><input type="checkbox"> Lo hice</label></div>
+          <p class="paso-estado"></p>
+          <details class="mas"><summary>Más detalles</summary>
+            <p>Para maquetar, el bajo es <b>una nota por acorde</b>: la que le da el nombre. Para Lam, <i>la</i>; para Fa, <i>fa</i>. Va en el tiempo 1, junto con el bombo.</p>
+            <p>No lo escribas a mano: pulsa <b>«Generar desde los acordes»</b> y lo saca solo de la vuelta que guardaste en el paso anterior. Por eso este paso va después y no antes. Luego muévelo, ponle acentos, o alarga notas juntando casillas iguales.</p>
+            <p class="tip"><b>No lo escribas a ciegas:</b> encima de la rejilla hay <b>sugerencias</b> que se aplican de un clic y cambian según lo que llevas puesto. Al principio te ofrecen por dónde empezar —la raíz en el 1, en el 1 y el 3, corcheas, raíz y quinta—; con notas escritas pasan a octavas, acentos, largo de las notas y ligados.</p>
+            <p class="tip"><b>Guárdalo:</b> abajo del todo, en <b>Líneas de bajo guardadas</b>, le pones nombre y queda. Puedes tener varias versiones del mismo bajo y volver a cualquiera.</p>
+            <p class="tip"><b>Consejo:</b> cuando ya suene, prueba tocarlo en el 1 y el 3 en vez de sólo en el 1. Es lo que hace que un bajo de rock empuje en vez de acompañar.</p>
+          </details>
         </div>
       </details>
 
-      <details class="step">
+      <details class="step" data-detecta="guitarraLetra">
         <summary>
           <span class="num"></span>
           <span class="ti">La guitarra y la letra</span>
@@ -193,20 +244,23 @@
           <span class="why">Escribir la letra por secciones y anotar al lado los acordes, como en un cancionero.</span>
         </summary>
         <div class="body">
-          <p>Dos herramientas que se complementan. En <b>Instrumento → Guitarra (acordes)</b> armas la vuelta pensando en el mástil: escribes cada acorde (Am, C, G, Bb) y aparece su forma en las cuerdas, o mueves los dedos tú tocando los trastes; le pones los compases que dura, y las sugerencias te dicen a dónde suele ir la progresión según la banda. Sale en el MIDI como guitarra.</p>
-          <p>Y en <b>Instrumento → Letra y acordes</b> le pones la letra. Trabajas por <b>secciones</b>: intro, estrofa, pre-estribillo, estribillo, puente, solo y final. Las añades, las mueves de orden y las borras.</p>
-          <p>Cada sección tiene dos cosas. Arriba, la <b>vuelta</b>: los acordes con <b>cuántos compases dura cada uno</b> —Am ×2, F ×2, C ×1, G ×1—, que es lo que necesitas para saber cuándo cambiar mientras rasgueas. Debajo, los <b>versos</b>: escribes la línea y pones su cifra al lado.</p>
-          <p>El botón <b>«traer de la rueda»</b> copia a la sección la vuelta que guardaste en el paso 2, con sus compases ya puestos. Así no la escribes dos veces.</p>
-          <p>Si vienes a ponerle letra a algo de otro día —que es lo normal, la letra suele quedar para el final—, no hace falta rehacer nada: arriba tienes <b>«Partir de un proyecto guardado»</b>. Eliges la vuelta que guardaste entonces y te trae sus acordes y su tempo. Lo que hay guardado lo ves en la <a href="archivo.html">Biblioteca DenaviLAB</a>.</p>
-          <p class="tip"><b>Guardar y borronear:</b> puedes guardar varias versiones de una misma letra con nombres distintos («cerro caracol v1», «v2 con puente») y volver a cualquiera. Quedan en este navegador.</p>
-          <p class="aviso"><b>Ojo:</b> importar un <code>.mid</code> desde el modo Beat trae la batería y el tempo, pero <b>no los acordes</b>: eso no está construido. Para trabajar letra sobre algo viejo, el camino bueno es el proyecto guardado, no el MIDI.</p>
-          <p class="tip"><b>Para el ensayo:</b> «PDF · sólo la letra con acordes» te da la hoja limpia, con los acordes en columna y los versos al lado. «Copiar como texto» te la deja lista para pegarla en el teléfono. Y la letra sale también en el PDF grande, junto a la ficha técnica.</p>
-          <a class="btn" href="app.html?modo=guitarra">Ir a guitarra</a>
-          <a class="btn ghost" href="app.html?modo=letra">Ir a letra y acordes</a>
+          <ul class="en-corto"><li>En <b>Guitarra</b> armas la vuelta en el mástil, con los compases de cada acorde.</li><li>En <b>Letra y acordes</b> escribes por secciones, con la cifra al lado de cada verso.</li><li><b>«Traer de la rueda»</b> copia la vuelta que ya guardaste.</li></ul>
+          <div class="paso-pie"><a class="btn" href="app.html?modo=guitarra&guia=ruta&paso=4">Ir a guitarra</a> <a class="btn ghost" href="app.html?modo=letra&guia=ruta&paso=4">Ir a letra y acordes</a><label class="paso-hecho"><input type="checkbox"> Lo hice</label></div>
+          <p class="paso-estado"></p>
+          <details class="mas"><summary>Más detalles</summary>
+            <p>Dos herramientas que se complementan. En <b>Instrumento → Guitarra (acordes)</b> armas la vuelta pensando en el mástil: escribes cada acorde (Am, C, G, Bb) y aparece su forma en las cuerdas, o mueves los dedos tú tocando los trastes; le pones los compases que dura, y las sugerencias te dicen a dónde suele ir la progresión según la banda. Sale en el MIDI como guitarra.</p>
+            <p>Y en <b>Instrumento → Letra y acordes</b> le pones la letra. Trabajas por <b>secciones</b>: intro, estrofa, pre-estribillo, estribillo, puente, solo y final. Las añades, las mueves de orden y las borras.</p>
+            <p>Cada sección tiene dos cosas. Arriba, la <b>vuelta</b>: los acordes con <b>cuántos compases dura cada uno</b> —Am ×2, F ×2, C ×1, G ×1—, que es lo que necesitas para saber cuándo cambiar mientras rasgueas. Debajo, los <b>versos</b>: escribes la línea y pones su cifra al lado.</p>
+            <p>El botón <b>«traer de la rueda»</b> copia a la sección la vuelta que guardaste en el paso 2, con sus compases ya puestos. Así no la escribes dos veces.</p>
+            <p>Si vienes a ponerle letra a algo de otro día —que es lo normal, la letra suele quedar para el final—, no hace falta rehacer nada: arriba tienes <b>«Partir de un proyecto guardado»</b>. Eliges la vuelta que guardaste entonces y te trae sus acordes y su tempo. Lo que hay guardado lo ves en la <a href="archivo.html">Biblioteca DenaviLAB</a>.</p>
+            <p class="tip"><b>Guardar y borronear:</b> puedes guardar varias versiones de una misma letra con nombres distintos («cerro caracol v1», «v2 con puente») y volver a cualquiera. Quedan en este navegador.</p>
+            <p class="aviso"><b>Ojo:</b> importar un <code>.mid</code> desde el modo Beat trae la batería y el tempo, pero <b>no los acordes</b>: eso no está construido. Para trabajar letra sobre algo viejo, el camino bueno es el proyecto guardado, no el MIDI.</p>
+            <p class="tip"><b>Para el ensayo:</b> «PDF · sólo la letra con acordes» te da la hoja limpia, con los acordes en columna y los versos al lado. «Copiar como texto» te la deja lista para pegarla en el teléfono. Y la letra sale también en el PDF grande, junto a la ficha técnica.</p>
+          </details>
         </div>
       </details>
 
-      <details class="step">
+      <details class="step" data-detecta="mapa">
         <summary>
           <span class="num"></span>
           <span class="ti">El mapa de la canción</span>
@@ -214,13 +268,17 @@
           <span class="why">El orden de las partes —intro, verso, coro— con la letra adentro. Así la base deja de ser una vuelta y pasa a ser una canción.</span>
         </summary>
         <div class="body">
-          <p>Arriba de <b>Letra</b> está el <b>Mapa de la canción</b>, en tres pasos: <b>1</b> armas las partes, <b>2</b> escribes la letra dentro de cada una, <b>3</b> exportas.</p>
-          <p>Si ya escribiste la letra por secciones, pulsa <b>«↧ desde mi letra»</b> y el mapa se arma solo, con tus secciones, sus compases y sus versos. Si partes de cero, <b>«Canción típica»</b> te deja intro, verso, coro, verso, coro, puente, coro y final; <b>«Corta»</b>, verso y coro dos veces.</p>
-          <p>Cada parte muestra en qué compás y en qué minuto suena. Con <b>−</b> y <b>+</b> cambias cuántos compases dura; con <b>← →</b>, el orden; con el nombre puedes escribir «Coro final» o lo que quieras.</p>
-          <p><b>La música de cada parte:</b> compón en Batería, Pad o Piano y, arriba de esa sección, en la barra del mapa, elige la parte y pulsa <b>«Guardar»</b> (o hazlo desde el mapa con «Guardar lo que suena»). Para oír la canción entera, <b>«▶ Escuchar la canción»</b> pasa sola de una parte a la siguiente (o <b>«▶ Desde aquí»</b> en cualquier parte); para retocar una, <b>«Abrir»</b> la trae al taller. El Coro 2 y el Verso 2 quedan <b>«igual que»</b> el primero: cambias uno y cambian todos. Al exportar sale la canción entera, cada parte con su música.</p>
-          <p class="tip"><b>Consejo:</b> un verso o un coro de <b>8 compases</b> es lo más común. Si una parte dice <b>«muy apretado»</b>, la letra no cabe: dale más compases o pártela en dos.</p>
-          <p class="tip"><b>Para pasársela a Rolando:</b> guarda la maqueta (.denavi o la Biblioteca) y el mapa viaja dentro; él lo abre tal cual.</p>
-          <a class="btn" href="app.html?modo=letra&ir=mapa">Ir al mapa de la canción</a>
+          <ul class="en-corto"><li>En <b>Letra</b>, arriba: elige «Canción típica» o arma tus partes.</li><li>Compón y pulsa <b>«Guardar lo que suena»</b> en la parte donde va.</li><li><b>«▶ Escuchar la canción»</b> la toca entera, de una parte a la siguiente.</li></ul>
+          <div class="paso-pie"><a class="btn" href="app.html?modo=letra&ir=mapa&guia=ruta&paso=5">Ir al mapa de la canción</a><label class="paso-hecho"><input type="checkbox"> Lo hice</label></div>
+          <p class="paso-estado"></p>
+          <details class="mas"><summary>Más detalles</summary>
+            <p>Arriba de <b>Letra</b> está el <b>Mapa de la canción</b>, en tres pasos: <b>1</b> armas las partes, <b>2</b> escribes la letra dentro de cada una, <b>3</b> exportas.</p>
+            <p>Si ya escribiste la letra por secciones, pulsa <b>«↧ desde mi letra»</b> y el mapa se arma solo, con tus secciones, sus compases y sus versos. Si partes de cero, <b>«Canción típica»</b> te deja intro, verso, coro, verso, coro, puente, coro y final; <b>«Corta»</b>, verso y coro dos veces.</p>
+            <p>Cada parte muestra en qué compás y en qué minuto suena. Con <b>−</b> y <b>+</b> cambias cuántos compases dura; con <b>← →</b>, el orden; con el nombre puedes escribir «Coro final» o lo que quieras.</p>
+            <p><b>La música de cada parte:</b> compón en Batería, Pad o Piano y, arriba de esa sección, en la barra del mapa, elige la parte y pulsa <b>«Guardar»</b> (o hazlo desde el mapa con «Guardar lo que suena»). Para oír la canción entera, <b>«▶ Escuchar la canción»</b> pasa sola de una parte a la siguiente (o <b>«▶ Desde aquí»</b> en cualquier parte); para retocar una, <b>«Abrir»</b> la trae al taller. El Coro 2 y el Verso 2 quedan <b>«igual que»</b> el primero: cambias uno y cambian todos. Al exportar sale la canción entera, cada parte con su música.</p>
+            <p class="tip"><b>Consejo:</b> un verso o un coro de <b>8 compases</b> es lo más común. Si una parte dice <b>«muy apretado»</b>, la letra no cabe: dale más compases o pártela en dos.</p>
+            <p class="tip"><b>Para pasársela a Rolando:</b> guarda la maqueta (.denavi o la Biblioteca) y el mapa viaja dentro; él lo abre tal cual.</p>
+          </details>
         </div>
       </details>
 
@@ -232,26 +290,31 @@
           <span class="why">La sacas en MIDI y en PDF: eso es lo que se lleva a grabar de verdad.</span>
         </summary>
         <div class="body">
-          <p>En el panel de la izquierda, <b>Exportar</b>. «MIDI · todas las pistas» te da un archivo con batería, bajo y acordes por separado, listo para abrir en cualquier programa de grabación.</p>
-          <p>Si armaste el <b>Mapa de la canción</b>, el MIDI sale como la canción entera: cada parte con su música y su nombre, y la letra en una pista aparte. Puedes exportarlo desde ahí mismo, con su botón <b>«Exportar .mid»</b>.</p>
-          <p>Lo de aquí es una maqueta: sirve para no perder la idea y para tener una base sobre la cual cantar y probar la guitarra. Los sonidos definitivos vienen después, al producir.</p>
-          <p class="tip"><b>Consejo:</b> saca también el <b>PDF</b>. Trae los acordes, el tempo y las notas de cada pista, y es lo más rápido para pasarle la idea a alguien.</p>
-          <a class="btn" href="app.html">Abrir el taller</a>
+          <ul class="en-corto"><li>Exporta <b>«MIDI · todas las pistas»</b>, o «Exportar .mid» desde el mapa.</li><li>Saca también el <b>PDF</b> con los acordes y la letra para ensayar.</li><li>Guarda el <b>.denavi</b> para pasárselo a Rolando.</li></ul>
+          <div class="paso-pie"><a class="btn" href="app.html?guia=ruta&paso=6">Abrir el taller</a><label class="paso-hecho"><input type="checkbox"> Lo hice</label></div>
+          <p class="paso-estado"></p>
+          <details class="mas"><summary>Más detalles</summary>
+            <p>En el panel de la izquierda, <b>Exportar</b>. «MIDI · todas las pistas» te da un archivo con batería, bajo y acordes por separado, listo para abrir en cualquier programa de grabación.</p>
+            <p>Si armaste el <b>Mapa de la canción</b>, el MIDI sale como la canción entera: cada parte con su música y su nombre, y la letra en una pista aparte. Puedes exportarlo desde ahí mismo, con su botón <b>«Exportar .mid»</b>.</p>
+            <p>Lo de aquí es una maqueta: sirve para no perder la idea y para tener una base sobre la cual cantar y probar la guitarra. Los sonidos definitivos vienen después, al producir.</p>
+            <p class="tip"><b>Consejo:</b> saca también el <b>PDF</b>. Trae los acordes, el tempo y las notas de cada pista, y es lo más rápido para pasarle la idea a alguien.</p>
+          </details>
         </div>
       </details>
 
     </div>
   </section>
 
-  <section data-para="schair">
+  <section data-para="schair" data-vista="ruta">
     <h2>Material de estudio</h2>
-    <p class="fuente">Siete lecciones adaptadas de la Guía 2 del proyecto («El ritmo y las progresiones»), pasadas del teclado a la guitarra y a la escritura de letras. Misma estructura que allá: qué es, qué haces, cómo sabes que ya lo tienes, y en qué se equivoca todo el mundo la primera vez.</p>
+    <p class="fuente">Siete lecciones adaptadas de la Guía 2 del proyecto («El ritmo y las progresiones»), pasadas del teclado a la guitarra y a la escritura de letras. Misma estructura que allá: qué es, qué haces, cómo sabes que ya lo tienes, y en qué se equivoca todo el mundo la primera vez. Cada ejemplo suena aquí mismo.</p>
     <div class="lecciones">
       <details class="leccion">
         <summary><span class="lec">L1</span><span class="ti">Contar en voz alta</span><span class="de">Antes de programar nada: poder decir el tiempo en vez de perseguirlo.</span></summary>
         <div class="cuerpo">
           <p class="parte">Lo nuevo</p><p>Un <b>compás</b> son cuatro tiempos. Los dices en voz alta: «uno-dos-tres-cuatro», y vuelves a empezar. Entre tiempo y tiempo caben cuatro casillas, que es la rejilla del taller. Si además dices «uno-e-y-a, dos-e-y-a», ya estás nombrando las dieciséis casillas de un compás.</p>
           <p class="parte">El ejercicio</p><p>Pon el patrón <b>Rock clásico · el de siempre</b> a 120 y cuenta en voz alta encima, cuatro vueltas seguidas sin parar. Después cuenta las dieciséis: «uno-e-y-a, dos-e-y-a…». El bombo cae en el «uno» y en el «tres»; la caja, en el «dos» y el «cuatro».</p>
+          <div class="ejemplos"><div class="ejemplo" data-ej="rock"></div></div>
           <p class="chk"><b>El chequeo:</b> puedes contar y rasguear al mismo tiempo sin que se te desarme ninguna de las dos cosas.</p>
           <p class="err"><b>El error típico:</b> contar en la cabeza. No sirve. Tiene que salir por la boca hasta que te aburra, y recién ahí se vuelve automático.</p>
         </div>
@@ -261,6 +324,7 @@
         <div class="cuerpo">
           <p class="parte">Lo nuevo</p><p>Cada compás son <b>dieciséis casillas</b>: cuatro tiempos de cuatro. Las marcadas más claras son los pulsos 1, 2, 3 y 4. Un golpe en una casilla marcada suena firme; uno en las de en medio suena adelantado, y eso es lo que da groove.</p>
           <p class="parte">El ejercicio</p><p>Carga <b>Green Day · punk directo</b> y mira dónde cae el bombo: hay dos golpes en casillas marcadas y dos en casillas de en medio. Quita esos dos de en medio y escucha cómo se vuelve rígido. Vuelve a ponerlos.</p>
+          <div class="ejemplos"><div class="ejemplo" data-ej="punk"></div><div class="ejemplo" data-ej="punk-rigido"></div></div>
           <p class="chk"><b>El chequeo:</b> sabes decir, mirando el patrón, cuáles golpes están «en el pulso» y cuáles «entre medio».</p>
           <p class="err"><b>El error típico:</b> llenar todas las casillas. Un patrón con menos golpes casi siempre suena mejor que uno lleno.</p>
         </div>
@@ -270,6 +334,7 @@
         <div class="cuerpo">
           <p class="parte">Lo nuevo</p><p>La mano derecha baja y sube sin parar, ocho veces por compás: abajo-arriba, abajo-arriba… El acorde no cambia; lo que empuja es el movimiento. Si dejas de tocar en algún golpe pero <b>la mano sigue moviéndose en el aire</b>, aparece la síncopa sin que tengas que pensarla.</p>
           <p class="parte">El ejercicio</p><p>Con Am ×2 y F ×2 en el editor de letra, rasguea las ocho corcheas parejas durante cuatro vueltas. Después deja de sonar en el tercer golpe de cada compás, pero sin parar la mano. Es otra canción, y no cambiaste ni un acorde.</p>
+          <div class="ejemplos"><div class="ejemplo" data-ej="rasgueo-parejo"></div><div class="ejemplo" data-ej="rasgueo-hueco"></div></div>
           <p class="chk"><b>El chequeo:</b> puedes dejar de tocar un golpe sin que se te frene la mano ni se te caiga el tempo.</p>
           <p class="err"><b>El error típico:</b> parar la mano cuando no suena. Ahí se pierde el pulso. La mano no se detiene nunca.</p>
         </div>
@@ -279,6 +344,7 @@
         <div class="cuerpo">
           <p class="parte">Lo nuevo</p><p>En cualquier tonalidad, cada acorde hace una de tres cosas: <b>es la casa</b> (todo se aquieta), <b>se aleja</b> (aire, salir a caminar) o <b>tira de vuelta</b> (ganas de volver). En C mayor: C es la casa, F y Am se alejan, G tira de vuelta. Toda canción de tres o cuatro acordes es esas tres cosas en algún orden.</p>
           <p class="parte">El ejercicio</p><p>Toca C – F – C – G y para en G. Fíjate en las ganas que dan de volver a C: eso es la tensión. Ahora toca C – F – Am – G. El Am también se aleja, pero por el lado triste. Son cuatro acordes y ya tienes verso y estribillo.</p>
+          <div class="ejemplos"><div class="ejemplo" data-ej="tension"></div><div class="ejemplo" data-ej="camino"></div></div>
           <p class="chk"><b>El chequeo:</b> puedes escuchar un acorde y decir si es casa, camino o tensión, sin contar nada.</p>
           <p class="err"><b>El error típico:</b> buscar acordes raros. Con C, F, G y Am hay más canciones de las que vas a escribir en tu vida.</p>
         </div>
@@ -288,6 +354,7 @@
         <div class="cuerpo">
           <p class="parte">Lo nuevo</p><p>No hace falta que cada sección tenga acordes distintos. Lo que cambia una sección de otra es casi siempre otra cosa: <b>dónde empieza la vuelta</b>, cuánto dura cada acorde, o la densidad. Un truco que funciona siempre: el verso empieza en el acorde menor y el estribillo empieza en el mayor, con los mismos cuatro.</p>
           <p class="parte">El ejercicio</p><p>En el editor, haz dos secciones. En la estrofa pon <b>Am ×2, F ×2, C ×2, G ×2</b>. En el estribillo, los mismos rotados: <b>C ×2, G ×2, Am ×2, F ×2</b>. Cántalos seguidos. El estribillo se abre solo, sin que hayas cambiado un acorde.</p>
+          <div class="ejemplos"><div class="ejemplo" data-ej="estrofa"></div><div class="ejemplo" data-ej="estribillo"></div></div>
           <p class="chk"><b>El chequeo:</b> tienes dos secciones que suenan distinto usando el mismo material.</p>
           <p class="err"><b>El error típico:</b> inventar acordes nuevos para el estribillo. Casi siempre basta con rotarlos o con alargar el primero.</p>
         </div>
@@ -305,8 +372,9 @@
         <summary><span class="lec">L7</span><span class="ti">Mac DeMarco: la nota de más y la toma que se deja</span><span class="de">La rutina para cuando el día pide algo tranquilo en vez de rápido.</span></summary>
         <div class="cuerpo">
           <p class="parte">Lo nuevo</p><p>Dos cosas. La primera: al acorde le agregas una nota que no le toca y no la resuelves; en guitarra suele salir sola dejando una cuerda al aire mientras cambias de forma. La segunda: <b>la toma con el error se queda</b>. Un dedo que roza, una entrada tarde, una afinación floja — eso es lo que hace que suene a alguien tocando y no a una máquina.</p>
-          <p class="parte">El ejercicio</p><p>Cambia el género a <b>Bedroom pop · Mac DeMarco</b>, baja el tempo a 90 y deja la batería en el kit <b>Analógica</b>. Toca la misma vuelta del ejercicio anterior, pero con la acústica y sin apretar. Graba la primera toma y no la repitas.</p>
-          <p class="chk"><b>El chequeo:</b> la vuelta que hiciste para punk suena a otra canción sólo cambiando tempo, kit y actitud.</p>
+          <p class="parte">El ejercicio</p><p>Cambia el género a <b>Bedroom pop · Mac DeMarco</b>, baja el tempo a 90 y deja la batería en el kit <b>Analógica</b>. Toca la vuelta de la lección 5 (Am, F, C, G), pero con la acústica y sin apretar. Graba la primera toma y no la repitas.</p>
+          <div class="ejemplos"><div class="ejemplo" data-ej="mac"></div></div>
+          <p class="chk"><b>El chequeo:</b> la vuelta de la lección 5 suena a otra canción sólo cambiando tempo, kit y actitud.</p>
           <p class="err"><b>El error típico:</b> repetir la toma hasta que quede perfecta. En este mundo la versión perfecta suele ser la peor de las cinco.</p>
         </div>
       </details>
@@ -314,14 +382,15 @@
   </section>
 
   <!-- ═══════════ Ruta de Rolando ═══════════ -->
-  <section data-para="rolando">
+  <section data-para="rolando" data-vista="ruta">
     <p class="quien">Ruta de Rolando</p>
-    <h2>Trabajo guiado</h2>
-    <p class="intro">El orden en que suele armarse una maqueta. Abre cada paso para ver qué hacer; el botón te deja en el instrumento correcto. Puedes saltarte los que quieras.</p>
+    <h2>Tu ruta</h2>
+    <p class="intro">El orden en que suele armarse una maqueta. Cada paso te dice lo esencial en tres líneas; el botón te deja en el instrumento, y el paso se marca solo cuando tu taller ya lo tiene. Puedes saltarte los que quieras.</p>
+    <div class="ruta-progreso"><span class="ruta-progreso-txt"></span><span class="ruta-barra"><i></i></span></div>
 
     <div class="steps">
 
-      <details class="step">
+      <details class="step" data-detecta="bateria">
         <summary>
           <span class="num"></span>
           <span class="ti">El pulso</span>
@@ -329,16 +398,21 @@
           <span class="why">La batería primero: es la cuadrícula sobre la que cae todo lo demás.</span>
         </summary>
         <div class="body">
-          <p>Un <b>compás</b> son cuatro tiempos: cuentas «uno-dos-tres-cuatro» y empieza otro. Cada tiempo se parte en cuatro casillas. Haz clic en una casilla para poner o quitar un golpe.</p>
-          <p><b>El beat arranca en blanco</b>, ya no con la base del 26 ag cargada. Sobre la rejilla hay un consejo que cambia según lo que llevas puesto y se actualiza en cuanto marcas o quitas un golpe.</p>
-          <p>En <b>Patrón base</b> siguen los tuyos: tu base <b>«26 ag impro»</b>, más <b>Portishead</b>, <b>Massive Attack</b>, <b>Pet Shop Boys</b>, <b>Depeche Mode</b>, <b>New Order</b>, <b>Mac DeMarco</b> y <b>Talk Talk</b>.</p>
-          <p>El patrón más usado de la historia, por si quieres empezar por lo neutro: <b>bombo</b> en el 1 y el 3, <b>caja</b> en el 2 y el 4, <b>hi-hat</b> en cada corchea. Elige un kit —el CR-78 es el más minimalista, la Analógica la más cruda— y ajusta el tempo.</p>
-          <p class="tip"><b>Consejo:</b> graba una cosa a la vez. Primero el bombo, escúchalo dando vueltas, y recién entonces la caja. En trip hop, además, el bombo casi nunca cae donde lo esperas: prueba dos golpes juntos y uno tarde.</p>
-          <a class="btn" href="app.html?modo=beat">Ir a la batería</a>
+          <ul class="en-corto"><li>Abre la batería: desde la guía arranca en blanco, a propósito.</li><li>Toca los pads con <b>● Grabar pads del MPK</b> o dibuja a clic; tus bases están en <b>Patrón base</b>.</li><li>En trip hop el bombo casi nunca cae donde lo esperas.</li></ul>
+          <div class="ejemplos"><div class="ejemplo" data-ej="trip-hop"></div><div class="ejemplo" data-ej="break"></div></div>
+          <div class="paso-pie"><a class="btn" href="app.html?modo=beat&guia=ruta&paso=1">Ir a la batería</a><label class="paso-hecho"><input type="checkbox"> Lo hice</label></div>
+          <p class="paso-estado"></p>
+          <details class="mas"><summary>Más detalles</summary>
+            <p>Un <b>compás</b> son cuatro tiempos: cuentas «uno-dos-tres-cuatro» y empieza otro. Cada tiempo se parte en cuatro casillas. Haz clic en una casilla para poner o quitar un golpe.</p>
+            <p><b>Desde la guía, el beat arranca en blanco</b>, a propósito. Sobre la rejilla hay un consejo que cambia según lo que llevas puesto y se actualiza en cuanto marcas o quitas un golpe.</p>
+            <p>En <b>Patrón base</b> están tus bases —<b>«26 ag impro»</b>— y las de <b>Portishead</b>, <b>Massive Attack</b>, <b>Pet Shop Boys</b>, <b>Depeche Mode</b>, <b>New Order</b>, <b>Mac DeMarco</b> y <b>Talk Talk</b>.</p>
+            <p>El patrón más usado de la historia, por si quieres empezar por lo neutro: <b>bombo</b> en el 1 y el 3, <b>caja</b> en el 2 y el 4, <b>hi-hat</b> en cada corchea. Elige un kit —el CR-78 es el más minimalista, la Analógica la más cruda— y ajusta el tempo.</p>
+            <p class="tip"><b>Consejo:</b> graba una cosa a la vez. Primero el bombo, escúchalo dando vueltas, y recién entonces la caja. En trip hop, además, el bombo casi nunca cae donde lo esperas: prueba dos golpes juntos y uno tarde.</p>
+          </details>
         </div>
       </details>
 
-      <details class="step">
+      <details class="step" data-detecta="acordes">
         <summary>
           <span class="num"></span>
           <span class="ti">La vuelta de acordes</span>
@@ -346,14 +420,19 @@
           <span class="why">Cuatro acordes que dan vueltas: de ahí sale el color de la canción.</span>
         </summary>
         <div class="body">
-          <p>Elige una <b>banda de referencia</b> —Portishead, Massive Attack, Mac DeMarco…— y la rueda se pinta: verde es a dónde suele ir esa banda desde donde estás, y el porcentaje es cuán seguido. Sin color no está prohibido; es terreno para improvisar.</p>
-          <p>Haz clic en un acorde para probarlo, y <b>Guardar</b> cuando te guste. Con cuatro ya tienes una vuelta. La cuña violeta son los acordes que viven en tu tonalidad y siempre suenan bien juntos.</p>
-          <p class="tip"><b>Consejo:</b> pasa el cursor por cualquier acorde de la rueda y verás sus teclas en miniatura, antes de tocarlo.</p>
-          <a class="btn" href="app.html?modo=pad">Ir a la rueda</a>
+          <ul class="en-corto"><li>Elige la <b>banda de referencia</b>: la rueda se pinta con a dónde suele ir.</li><li>Toca en el MPK o haz clic, y <b>Guardar</b> cada acorde.</li><li>Debajo, <b>Vueltas que calzan con tu beat</b> propone tres vueltas según tu batería.</li></ul>
+          <div class="ejemplos"><div class="ejemplo" data-ej="vuelta-menor"></div></div>
+          <div class="paso-pie"><a class="btn" href="app.html?modo=pad&guia=ruta&paso=2">Ir a la rueda</a><label class="paso-hecho"><input type="checkbox"> Lo hice</label></div>
+          <p class="paso-estado"></p>
+          <details class="mas"><summary>Más detalles</summary>
+            <p>Elige una <b>banda de referencia</b> —Portishead, Massive Attack, Mac DeMarco…— y la rueda se pinta: verde es a dónde suele ir esa banda desde donde estás, y el porcentaje es cuán seguido. Sin color no está prohibido; es terreno para improvisar.</p>
+            <p>Haz clic en un acorde para probarlo, y <b>Guardar</b> cuando te guste. Con cuatro ya tienes una vuelta. La cuña violeta son los acordes que viven en tu tonalidad y siempre suenan bien juntos.</p>
+            <p class="tip"><b>Consejo:</b> pasa el cursor por cualquier acorde de la rueda y verás sus teclas en miniatura, antes de tocarlo.</p>
+          </details>
         </div>
       </details>
 
-      <details class="step">
+      <details class="step" data-detecta="bajo">
         <summary>
           <span class="num"></span>
           <span class="ti">El bajo</span>
@@ -361,16 +440,21 @@
           <span class="why">Una nota por acorde, en el 1, junto con el bombo. Con eso ya camina.</span>
         </summary>
         <div class="body">
-          <p>Para maquetar, el bajo es <b>una tecla por acorde</b>: la que le da el nombre. Para Lam, <i>la</i>; para Fa, <i>fa</i>. Va en el tiempo 1, pegada al bombo.</p>
-          <p>No hace falta escribirlo a mano: <b>«Generar desde los acordes»</b> lo saca solo de la vuelta que guardaste en el paso anterior. Después muévelo, ponle acentos o alarga notas juntando casillas iguales.</p>
-          <p class="tip"><b>No lo escribas a ciegas:</b> encima de la rejilla hay <b>sugerencias</b> que se aplican de un clic y cambian según lo que llevas puesto. Al principio te ofrecen por dónde empezar —la raíz en el 1, en el 1 y el 3, corcheas, raíz y quinta—; con notas escritas pasan a octavas, acentos, largo de las notas y ligados.</p>
-          <p class="tip"><b>Guárdalo:</b> abajo del todo, en <b>Líneas de bajo guardadas</b>, le pones nombre y queda. Puedes tener varias versiones del mismo bajo y volver a cualquiera.</p>
-          <p class="tip"><b>Consejo:</b> cuando te salga, prueba tocarlo en el 1 y el 3, o subir una octava en el último compás. Es el truco más barato para que una vuelta no aburra.</p>
-          <a class="btn" href="app.html?modo=bajod">Ir al bajo</a>
+          <ul class="en-corto"><li>En la pestaña <b>Bajo</b>, los pads del MPK —o el teclado numérico, 7 8 9…— escriben raíz, quinta y octava del acorde de cada compás.</li><li>La tecla <b>«=»</b> pone la raíz en el 1; <b>MANTENER</b> alarga la nota.</li><li>Para que no aburra: <b>OCTAVA</b> en el último compás, o raíz y quinta.</li></ul>
+          <div class="ejemplos"><div class="ejemplo" data-ej="bajo-1"></div><div class="ejemplo" data-ej="bajo-1-3"></div></div>
+          <div class="paso-pie"><a class="btn" href="app.html?modo=bajod&guia=ruta&paso=3">Ir al bajo</a><label class="paso-hecho"><input type="checkbox"> Lo hice</label></div>
+          <p class="paso-estado"></p>
+          <details class="mas"><summary>Más detalles</summary>
+            <p>Para maquetar, el bajo es <b>una tecla por acorde</b>: la que le da el nombre. Para Lam, <i>la</i>; para Fa, <i>fa</i>. Va en el tiempo 1, pegada al bombo.</p>
+            <p>No hace falta escribirlo a mano: <b>«Generar desde los acordes»</b> lo saca solo de la vuelta que guardaste en el paso anterior. Después muévelo, ponle acentos o alarga notas juntando casillas iguales.</p>
+            <p class="tip"><b>No lo escribas a ciegas:</b> encima de la rejilla hay <b>sugerencias</b> que se aplican de un clic y cambian según lo que llevas puesto. Al principio te ofrecen por dónde empezar —la raíz en el 1, en el 1 y el 3, corcheas, raíz y quinta—; con notas escritas pasan a octavas, acentos, largo de las notas y ligados.</p>
+            <p class="tip"><b>Guárdalo:</b> abajo del todo, en <b>Líneas de bajo guardadas</b>, le pones nombre y queda. Puedes tener varias versiones del mismo bajo y volver a cualquiera.</p>
+            <p class="tip"><b>Consejo:</b> cuando te salga, prueba tocarlo en el 1 y el 3, o subir una octava en el último compás. Es el truco más barato para que una vuelta no aburra.</p>
+          </details>
         </div>
       </details>
 
-      <details class="step">
+      <details class="step" data-detecta="melodia">
         <summary>
           <span class="num"></span>
           <span class="ti">La melodía</span>
@@ -378,14 +462,19 @@
           <span class="why">Opcional. Dos manos sobre la vuelta, y una línea que se te quede pegada.</span>
         </summary>
         <div class="body">
-          <p>En <b>Piano lead</b> el teclado se parte en dos: la mano izquierda hace el acorde en la zona grave, la derecha busca la melodía arriba. Cada casilla es una corchea.</p>
-          <p>Los colores te dicen dónde pisar: <b>verde</b> son notas del acorde de ese compás (suenan seguro), <b>amarillo</b> notas de la escala (suenan bien), gris es fuera de la tonalidad.</p>
-          <p class="tip"><b>Consejo:</b> en el MPK, <code>SHIFT + SCALES</code> hace que sólo suenen las teclas de la escala. Buscar la melodía se vuelve mucho más fácil.</p>
-          <a class="btn" href="app.html?modo=lead">Ir al piano lead</a>
+          <ul class="en-corto"><li>En <b>Piano lead</b>, la izquierda hace el acorde y la derecha busca la melodía.</li><li>Verde es nota del acorde, amarillo de la escala, gris fuera de la tonalidad.</li><li>En el MPK, <code>SHIFT + SCALES</code> deja sonar sólo la escala.</li></ul>
+          <div class="ejemplos"><div class="ejemplo" data-ej="melodia"></div></div>
+          <div class="paso-pie"><a class="btn" href="app.html?modo=lead&guia=ruta&paso=4">Ir al piano lead</a><label class="paso-hecho"><input type="checkbox"> Lo hice</label></div>
+          <p class="paso-estado"></p>
+          <details class="mas"><summary>Más detalles</summary>
+            <p>En <b>Piano lead</b> el teclado se parte en dos: la mano izquierda hace el acorde en la zona grave, la derecha busca la melodía arriba. Cada casilla es una corchea.</p>
+            <p>Los colores te dicen dónde pisar: <b>verde</b> son notas del acorde de ese compás (suenan seguro), <b>amarillo</b> notas de la escala (suenan bien), gris es fuera de la tonalidad.</p>
+            <p class="tip"><b>Consejo:</b> en el MPK, <code>SHIFT + SCALES</code> hace que sólo suenen las teclas de la escala. Buscar la melodía se vuelve mucho más fácil.</p>
+          </details>
         </div>
       </details>
 
-      <details class="step">
+      <details class="step" data-detecta="guitarraLetra">
         <summary>
           <span class="num"></span>
           <span class="ti">La guitarra y la letra</span>
@@ -393,15 +482,18 @@
           <span class="why">Opcional. Los acordes en el mástil y la letra por secciones, con métrica y rima en vivo.</span>
         </summary>
         <div class="body">
-          <p>Aunque tú vengas del teclado, tienes las dos herramientas: en <b>Instrumento → Guitarra (acordes)</b> armas una vuelta pensando en el mástil (escribes el acorde o mueves los trastes), con sugerencias por banda; y en <b>Instrumento → Letra y acordes</b> escribes la letra por secciones.</p>
-          <p>El editor de letra analiza a medida que escribes: cuenta las <b>sílabas</b> de cada verso, detecta la <b>rima</b> (consonante o asonante) y da consejos de escritura por estilo, más una <b>libreta</b> para ideas sueltas que viaja con el proyecto.</p>
-          <p class="tip"><b>Consejo:</b> pon a sonar la batería o el pad y escribe encima; el analizador te dice si las sílabas caen con el compás.</p>
-          <a class="btn" href="app.html?modo=guitarra">Ir a guitarra</a>
-          <a class="btn ghost" href="app.html?modo=letra">Ir a letra y acordes</a>
+          <ul class="en-corto"><li>Opcional: la vuelta pensada en el mástil y la letra por secciones.</li><li>El editor cuenta las sílabas y detecta las rimas mientras escribes.</li><li>Escribe con la base sonando para sentir dónde caen las sílabas.</li></ul>
+          <div class="paso-pie"><a class="btn" href="app.html?modo=guitarra&guia=ruta&paso=5">Ir a guitarra</a> <a class="btn ghost" href="app.html?modo=letra&guia=ruta&paso=5">Ir a letra y acordes</a><label class="paso-hecho"><input type="checkbox"> Lo hice</label></div>
+          <p class="paso-estado"></p>
+          <details class="mas"><summary>Más detalles</summary>
+            <p>Aunque tú vengas del teclado, tienes las dos herramientas: en <b>Instrumento → Guitarra (acordes)</b> armas una vuelta pensando en el mástil (escribes el acorde o mueves los trastes), con sugerencias por banda; y en <b>Instrumento → Letra y acordes</b> escribes la letra por secciones.</p>
+            <p>El editor de letra analiza a medida que escribes: cuenta las <b>sílabas</b> de cada verso, detecta la <b>rima</b> (consonante o asonante) y da consejos de escritura por estilo, más una <b>libreta</b> para ideas sueltas que viaja con el proyecto.</p>
+            <p class="tip"><b>Consejo:</b> pon a sonar la batería o el pad y escribe encima; el analizador te dice si las sílabas caen con el compás.</p>
+          </details>
         </div>
       </details>
 
-      <details class="step">
+      <details class="step" data-detecta="mapa">
         <summary>
           <span class="num"></span>
           <span class="ti">El mapa de la canción</span>
@@ -409,13 +501,17 @@
           <span class="why">Opcional. El orden de las partes con la letra adentro; en Logic llegan como marcadores.</span>
         </summary>
         <div class="body">
-          <p>Arriba de <b>Letra</b> está el <b>Mapa de la canción</b>, en tres pasos: <b>1</b> armas las partes, <b>2</b> escribes la letra dentro de cada una, <b>3</b> exportas.</p>
-          <p>Si ya escribiste la letra por secciones, pulsa <b>«↧ desde mi letra»</b> y el mapa se arma solo, con tus secciones, sus compases y sus versos. Si partes de cero, <b>«Canción típica»</b> te deja intro, verso, coro, verso, coro, puente, coro y final; <b>«Corta»</b>, verso y coro dos veces.</p>
-          <p>Cada parte muestra en qué compás y en qué minuto suena. Con <b>−</b> y <b>+</b> cambias cuántos compases dura; con <b>← →</b>, el orden; con el nombre puedes escribir «Coro final» o lo que quieras.</p>
-          <p><b>La música de cada parte:</b> compón en Batería, Pad o Piano y, arriba de esa sección, en la barra del mapa, elige la parte y pulsa <b>«Guardar»</b> (o hazlo desde el mapa con «Guardar lo que suena»). Para oír la canción entera, <b>«▶ Escuchar la canción»</b> pasa sola de una parte a la siguiente (o <b>«▶ Desde aquí»</b> en cualquier parte); para retocar una, <b>«Abrir»</b> la trae al taller. El Coro 2 y el Verso 2 quedan <b>«igual que»</b> el primero: cambias uno y cambian todos. Al exportar sale la canción entera, cada parte con su música.</p>
-          <p class="tip"><b>Consejo:</b> un verso o un coro de <b>8 compases</b> es lo más común. Si una parte dice <b>«muy apretado»</b>, la letra no cabe: dale más compases o pártela en dos.</p>
-          <p class="tip"><b>En Logic:</b> cada parte llega como <b>marcador</b> en el compás donde empieza, y la letra en una pista «Letra». Ubicas el coro de un vistazo.</p>
-          <a class="btn" href="app.html?modo=letra&ir=mapa">Ir al mapa de la canción</a>
+          <ul class="en-corto"><li>En <b>Letra</b>, arriba: elige «Canción típica» o arma tus partes.</li><li>Compón y pulsa <b>«Guardar lo que suena»</b> en la parte donde va.</li><li><b>«▶ Escuchar la canción»</b> la toca entera, de una parte a la siguiente.</li></ul>
+          <div class="paso-pie"><a class="btn" href="app.html?modo=letra&ir=mapa&guia=ruta&paso=6">Ir al mapa de la canción</a><label class="paso-hecho"><input type="checkbox"> Lo hice</label></div>
+          <p class="paso-estado"></p>
+          <details class="mas"><summary>Más detalles</summary>
+            <p>Arriba de <b>Letra</b> está el <b>Mapa de la canción</b>, en tres pasos: <b>1</b> armas las partes, <b>2</b> escribes la letra dentro de cada una, <b>3</b> exportas.</p>
+            <p>Si ya escribiste la letra por secciones, pulsa <b>«↧ desde mi letra»</b> y el mapa se arma solo, con tus secciones, sus compases y sus versos. Si partes de cero, <b>«Canción típica»</b> te deja intro, verso, coro, verso, coro, puente, coro y final; <b>«Corta»</b>, verso y coro dos veces.</p>
+            <p>Cada parte muestra en qué compás y en qué minuto suena. Con <b>−</b> y <b>+</b> cambias cuántos compases dura; con <b>← →</b>, el orden; con el nombre puedes escribir «Coro final» o lo que quieras.</p>
+            <p><b>La música de cada parte:</b> compón en Batería, Pad o Piano y, arriba de esa sección, en la barra del mapa, elige la parte y pulsa <b>«Guardar»</b> (o hazlo desde el mapa con «Guardar lo que suena»). Para oír la canción entera, <b>«▶ Escuchar la canción»</b> pasa sola de una parte a la siguiente (o <b>«▶ Desde aquí»</b> en cualquier parte); para retocar una, <b>«Abrir»</b> la trae al taller. El Coro 2 y el Verso 2 quedan <b>«igual que»</b> el primero: cambias uno y cambian todos. Al exportar sale la canción entera, cada parte con su música.</p>
+            <p class="tip"><b>Consejo:</b> un verso o un coro de <b>8 compases</b> es lo más común. Si una parte dice <b>«muy apretado»</b>, la letra no cabe: dale más compases o pártela en dos.</p>
+            <p class="tip"><b>En Logic:</b> cada parte llega como <b>marcador</b> en el compás donde empieza, y la letra en una pista «Letra». Ubicas el coro de un vistazo.</p>
+          </details>
         </div>
       </details>
 
@@ -427,31 +523,96 @@
           <span class="why">Exportas el MIDI, lo arrastras a la sesión y ahí empieza el trabajo de verdad.</span>
         </summary>
         <div class="body">
-          <p>En el panel de la izquierda, <b>Exportar</b>. «MIDI · todas las pistas» te da un archivo con batería, bajo y acordes separados. Arrástralo a la sesión de Logic y asigna los instrumentos buenos.</p>
-          <p>Si armaste el <b>Mapa de la canción</b>, el archivo trae la canción entera —cada parte con su música—, las partes como marcadores y la letra en su pista; también se exporta desde el botón del mapa.</p>
-          <p>También puedes sacar un <b>PDF</b> con la ficha técnica: los acordes, el tempo y las notas de cada pista, para tenerlo en papel o mandárselo a alguien.</p>
-          <p class="tip"><b>Ojo:</b> la descarga <code>.mid</code> necesita Opera, Chrome o Edge. Si algo se bloquea, usa «Abrir en una pestaña aparte» y exporta desde ahí.</p>
-          <a class="btn" href="app.html">Abrir el taller</a>
+          <ul class="en-corto"><li>Exporta <b>«MIDI · todas las pistas»</b>, o «Exportar .mid» desde el mapa.</li><li>Arrástralo a la sesión: cada instrumento en su pista, y las partes como marcadores.</li><li>Asigna ahí los sonidos definitivos.</li></ul>
+          <div class="paso-pie"><a class="btn" href="app.html?guia=ruta&paso=7">Abrir el taller</a><label class="paso-hecho"><input type="checkbox"> Lo hice</label></div>
+          <p class="paso-estado"></p>
+          <details class="mas"><summary>Más detalles</summary>
+            <p>En el panel de la izquierda, <b>Exportar</b>. «MIDI · todas las pistas» te da un archivo con batería, bajo y acordes separados. Arrástralo a la sesión de Logic y asigna los instrumentos buenos.</p>
+            <p>Si armaste el <b>Mapa de la canción</b>, el archivo trae la canción entera —cada parte con su música—, las partes como marcadores y la letra en su pista; también se exporta desde el botón del mapa.</p>
+            <p>También puedes sacar un <b>PDF</b> con la ficha técnica: los acordes, el tempo y las notas de cada pista, para tenerlo en papel o mandárselo a alguien.</p>
+            <p class="tip"><b>Ojo:</b> la descarga <code>.mid</code> necesita Opera, Chrome o Edge. Si algo se bloquea, usa «Abrir en una pestaña aparte» y exporta desde ahí.</p>
+          </details>
         </div>
       </details>
 
     </div>
   </section>
 
-  <!-- ═══════════ Común a los dos ═══════════ -->
-  <section>
-    <h2>Antes de empezar</h2>
-    <div class="needs">
-      <ul>
-        <li data-para="rolando"><b>El teclado.</b> Un Akai MPK mini de 25 o 37 teclas, por USB. Las teclas tocan notas, los pads hacen la batería, los knobs y la rueda de pitch se pueden asignar. Sin teclado también funciona: se toca con el mouse.</li>
-        <li data-para="schair"><b>No necesitas teclado.</b> Todo se puede hacer con el mouse: las casillas de la batería y del bajo se pintan a clic, y los acordes se eligen en la rueda.</li>
-        <li><b>El navegador.</b> Para que el MIDI y las descargas funcionen, ábrelo en <b>Opera, Chrome o Edge</b>. Safari no soporta Web MIDI.</li>
-        <li><b>Dónde se guarda.</b> Beats, líneas de bajo, progresiones y melodías quedan en este navegador, en este computador. No hay cuenta ni nube: si cambias de máquina, no viajan.</li>
-        <li><b>La notación.</b> Las notas van en español y en minúscula —<i>do re mi</i>—, y el asterisco es una tecla negra: <code>fa*</code> es la negra a la derecha de fa.</li>
-      </ul>
-    </div>
-    <div class="continuar">
-      <a class="btn" href="app.html?modo=beat">Continuar al taller &rarr;</a>
+
+  <section data-para="rolando" data-vista="ruta">
+    <h2>Material de estudio</h2>
+    <p class="fuente">Siete lecciones para el teclado y el MPK, con la misma estructura que las de Schair: qué es, qué haces, cómo sabes que ya lo tienes, y en qué se equivoca todo el mundo la primera vez. Cada ejemplo suena aquí mismo.</p>
+    <div class="lecciones">
+      <details class="leccion">
+        <summary><span class="lec">L1</span><span class="ti">Grabar con los pads, sin miedo</span><span class="de">Tocar la batería en vez de dibujarla, y dejar que la rejilla ordene.</span></summary>
+        <div class="cuerpo">
+          <p class="parte">Lo nuevo</p><p>Con <b>● Grabar pads del MPK</b>, cada golpe que das en los pads cae en su casilla. Antes de tocar fija la <b>cuantización</b> (1/4, 1/8 o 1/16): es la rejilla a la que se «imantan» los golpes. Si algo queda corrido, <b>«Cuantizar lo que hay»</b> lo ordena después.</p>
+          <p class="parte">El ejercicio</p><p>Tempo en 80 y cuantización en 1/16. Graba <b>sólo el bombo</b> en el 1 y el 3 durante cuatro vueltas, sin mirar la pantalla. Después, en otra toma, sólo la caja en el 2 y el 4.</p>
+          <div class="ejemplos"><div class="ejemplo" data-ej="solo-bombo"></div><div class="ejemplo" data-ej="rock"></div></div>
+          <p class="chk"><b>El chequeo:</b> al escucharlo, los golpes caen parejos y no tuviste que dibujar ninguno.</p>
+          <p class="err"><b>El error típico:</b> grabar todo en una sola toma. Una capa por toma: bombo, después caja, después hi-hat.</p>
+        </div>
+      </details>
+      <details class="leccion">
+        <summary><span class="lec">L2</span><span class="ti">El bombo que llega tarde</span><span class="de">Por qué el trip hop suena pesado aunque vaya lento.</span></summary>
+        <div class="cuerpo">
+          <p class="parte">Lo nuevo</p><p>En el rock de siempre el bombo cae en el 1 y el 3. En trip hop <b>se corre a casillas de en medio</b> mientras la caja se queda firme en el 2 y el 4. La caja es el ancla; el bombo, el que arrastra.</p>
+          <p class="parte">El ejercicio</p><p>Carga <b>«Rock clásico · el de siempre»</b> y después <b>«Portishead · lento y con aire»</b>. Luego, en el de rock, mueve el segundo bombo una casilla más tarde y escucha cómo se vuelve pesado.</p>
+          <div class="ejemplos"><div class="ejemplo" data-ej="rock"></div><div class="ejemplo" data-ej="trip-hop"></div></div>
+          <p class="chk"><b>El chequeo:</b> sabes decir qué golpe de bombo está fuera del pulso y por qué suena arrastrado.</p>
+          <p class="err"><b>El error típico:</b> mover también la caja. Si la caja se corre, se pierde el ancla y ya no suena a groove sino a error.</p>
+        </div>
+      </details>
+      <details class="leccion">
+        <summary><span class="lec">L3</span><span class="ti">Las corcheas son el motor</span><span class="de">La misma vuelta, dos caracteres: cambia la manera, no los acordes.</span></summary>
+        <div class="cuerpo">
+          <p class="parte">Lo nuevo</p><p>En <b>Piano</b>, la <b>manera</b> reparte el acorde dentro del compás. <b>«Bloque sostenido»</b> es un colchón que respira; <b>«Corcheas · el pulso»</b> es un motor que empuja. Con los mismos cuatro acordes tienes una intro y un coro.</p>
+          <p class="parte">El ejercicio</p><p>Guarda Am – F – C – G en Piano. Tócala con «Bloque sostenido» y después con «Corcheas · el pulso». Toca las corcheas suaves y parejas, sin acentuar.</p>
+          <div class="ejemplos"><div class="ejemplo" data-ej="bloque"></div><div class="ejemplo" data-ej="corcheas"></div></div>
+          <p class="chk"><b>El chequeo:</b> sabes qué manera usar para una intro (colchón) y cuál para un coro (motor).</p>
+          <p class="err"><b>El error típico:</b> buscar acordes nuevos cuando lo que falta es cambiar de manera.</p>
+        </div>
+      </details>
+      <details class="leccion">
+        <summary><span class="lec">L4</span><span class="ti">Casa, camino y tensión en la rueda</span><span class="de">Los tres trabajos que puede hacer un acorde. Con esto ya compones.</span></summary>
+        <div class="cuerpo">
+          <p class="parte">Lo nuevo</p><p>El centro de la rueda es la <b>casa</b>: la tonalidad. La cuña violeta son los acordes que viven en ella. Cada uno <b>es la casa</b> (todo se aquieta), <b>se aleja</b> (sale a caminar) o <b>tira de vuelta</b> (ganas de volver). En C: C es la casa, F y Am se alejan, G tira de vuelta.</p>
+          <p class="parte">El ejercicio</p><p>Toca en el MPK C – F – C – G y quédate en G: siente las ganas de volver. Después C – F – Am – G: el Am también se aleja, pero por el lado triste.</p>
+          <div class="ejemplos"><div class="ejemplo" data-ej="tension"></div><div class="ejemplo" data-ej="camino"></div></div>
+          <p class="chk"><b>El chequeo:</b> escuchas un acorde y dices si es casa, camino o tensión, sin contar nada.</p>
+          <p class="err"><b>El error típico:</b> terminar la vuelta en la casa. Si el último acorde tira de vuelta, el loop se vuelve a encender solo.</p>
+        </div>
+      </details>
+      <details class="leccion">
+        <summary><span class="lec">L5</span><span class="ti">Mover el mínimo de dedos</span><span class="de">Inversiones: que la mano casi no se desplace entre acordes.</span></summary>
+        <div class="cuerpo">
+          <p class="parte">Lo nuevo</p><p>Tocar cada acorde desde su raíz obliga a saltar con toda la mano, y suena a golpe. Con <b>inversiones</b>, las notas que dos acordes comparten se quedan quietas y las demás se mueven un paso. En Piano, <b>«inversiones automáticas (mover el mínimo de dedos)»</b> lo hace por ti.</p>
+          <p class="parte">El ejercicio</p><p>Guarda C – Am – F – G. Escúchala con las inversiones automáticas apagadas y después encendidas. Luego tócala en el MPK siguiendo las teclas que marca la versión cercana.</p>
+          <div class="ejemplos"><div class="ejemplo" data-ej="raiz"></div><div class="ejemplo" data-ej="cerca"></div></div>
+          <p class="chk"><b>El chequeo:</b> puedes tocar la vuelta entera sin levantar la mano del teclado.</p>
+          <p class="err"><b>El error típico:</b> tocar siempre en posición de raíz porque «así se aprendió». Suena correcto, pero cada cambio se nota a golpes.</p>
+        </div>
+      </details>
+      <details class="leccion">
+        <summary><span class="lec">L6</span><span class="ti">La melodía: verde en el 1</span><span class="de">Una regla simple para que la línea suene segura sin sonar plana.</span></summary>
+        <div class="cuerpo">
+          <p class="parte">Lo nuevo</p><p>En <b>Piano lead</b> los colores dicen dónde pisar: <b>verde</b> es nota del acorde de ese compás, <b>amarillo</b> nota de la escala, gris fuera de la tonalidad. Una melodía que <b>pisa verde en el tiempo 1</b> y usa amarillo entre medio suena firme y con movimiento.</p>
+          <p class="parte">El ejercicio</p><p>Activa <code>SHIFT + SCALES</code> en el MPK para que sólo suene la escala. Graba cuatro compases poniendo una nota verde al inicio de cada uno y dejando al menos dos casillas en silencio por compás.</p>
+          <div class="ejemplos"><div class="ejemplo" data-ej="melodia"></div></div>
+          <p class="chk"><b>El chequeo:</b> cada compás de tu melodía empieza en verde, y hay aire entre las frases.</p>
+          <p class="err"><b>El error típico:</b> llenar las ocho corcheas. La melodía que se recuerda es la que respira.</p>
+        </div>
+      </details>
+      <details class="leccion">
+        <summary><span class="lec">L7</span><span class="ti">El acorde prestado</span><span class="de">Un solo acorde de fuera de la tonalidad cambia el color de toda la vuelta.</span></summary>
+        <div class="cuerpo">
+          <p class="parte">Lo nuevo</p><p>Mac DeMarco suele usar pocos acordes y meter <b>uno que no es de la tonalidad</b>, como el <b>♭VII</b> (en C, B♭). No crea tensión: da nostalgia. La rueda lo marca como <b>prestado</b>; Depeche Mode hace lo mismo con el ♭II, más oscuro.</p>
+          <p class="parte">El ejercicio</p><p>Toca C – G – F – C. Después cambia el G por B♭: C – B♭ – F – C. Escucha las dos seguidas, con el mismo pad y el mismo tempo.</p>
+          <div class="ejemplos"><div class="ejemplo" data-ej="grado-v"></div><div class="ejemplo" data-ej="bvii"></div></div>
+          <p class="chk"><b>El chequeo:</b> reconoces el cambio de color sin mirar qué acorde es.</p>
+          <p class="err"><b>El error típico:</b> meter prestados en todos los compases. Uno por vuelta basta; más, y ya no hay casa de la que salir.</p>
+        </div>
+      </details>
     </div>
   </section>
 
@@ -461,6 +622,20 @@
 
 </div>
 
+<script>
+/* Qué hay en el taller, según su autoguardado: sirve para marcar pasos hechos sin preguntar. */
+const leerProyecto = () => { try { return (JSON.parse(localStorage.getItem('denavilab.autoguardado') || 'null') || {}).proyecto || null; } catch (e) { return null; } };
+const DETECTA = {
+  bateria: p => !!(p && p.drums && Object.values(p.drums.pat || {}).some(v => v.some(Boolean))),
+  acordes: p => !!(p && ((p.chord && ['pad','piano'].some(k => p.chord[k] && (p.chord[k].prog || []).length >= 2)) || (p.prog || []).length >= 2)),
+  bajo: p => !!(p && p.bassd && p.bassd.grid.some(r => r >= 0)),
+  melodia: p => !!(p && p.lead && p.lead.mel.some(r => r >= 0)),
+  guitarraLetra: p => !!(p && ((p.guitar && p.guitar.prog.length) || (p.letra && p.letra.secciones.some(x => x.lineas.some(l => (l.t || '').trim()))))),
+  mapa: p => !!(p && p.estructura && p.estructura.bloques.some(b => b.musica)),
+  guardado: () => ['rueda.maquetas','rueda.beats','rueda.progs','rueda.bass','rueda.letras'].some(k => { try { return JSON.parse(localStorage.getItem(k) || '[]').length > 0; } catch (e) { return false; } }),
+};
+const DETECTA_TXT = { bateria:'un beat', acordes:'una vuelta de acordes', bajo:'una línea de bajo', melodia:'una melodía', guitarraLetra:'guitarra o letra', mapa:'música en el mapa', guardado:'algo guardado con nombre' };
+</script>
 <script>
 /* Modo principiante: elección de ánimo y estilo con revelado progresivo. */
 (() => {
@@ -525,9 +700,9 @@
   };
   const fijarLinks = () => {
     const qs = linkBase();
-    const set = (id, modo) => { const a = $(id); if (a) a.href = `app.html?modo=${modo}&${qs}`; };
-    set('prinAbrirRueda','pad'); set('prinAbrirBeat','beat'); set('prinAbrirMapa','letra&ir=mapa');
-    sec.querySelectorAll('.prin-mas a').forEach(a => { const modo = new URL(a.href, location).searchParams.get('modo'); a.href = `app.html?modo=${modo}&${qs}`; });
+    const set = (id, modo, paso) => { const a = $(id); if (a) a.href = `app.html?modo=${modo}&${qs}&paso=${paso}`; };
+    set('prinAbrirRueda','pad',4); set('prinAbrirBeat','beat',1); set('prinAbrirMapa','letra&ir=mapa',5);
+    sec.querySelectorAll('.prin-mas a').forEach(a => { const modo = new URL(a.href, location).searchParams.get('modo'); a.href = `app.html?modo=${modo}&${qs}&paso=7`; });
   };
 
   // Paso 1: ánimos
@@ -563,9 +738,12 @@
   if (estado.animo && ANIMOS[estado.animo]) {
     $('prinAnimoEco').textContent = ANIMOS[estado.animo].eco;
     pintarGeneros(estado.animo);
-    fijarLinks();
   }
+  fijarLinks();
   pintar();
+  // Lo que el taller ya tiene (según su autoguardado): se avisa junto al «seguir», sin obligar a nada
+  const proyecto = leerProyecto();
+  sec.querySelectorAll('.prin-detecta').forEach(p => { const k = p.dataset.detecta, ok = !!(DETECTA[k] && DETECTA[k](proyecto)); p.classList.toggle('ok', ok); p.textContent = ok ? '✓ En tu taller ya está: ' + DETECTA_TXT[k] + '.' : ''; });
 
   $('prinReset').addEventListener('click', () => {
     try { localStorage.removeItem(CLAVE); } catch (e) {}
@@ -575,6 +753,218 @@
     $('prinGeneros').innerHTML = '';
     abiertosManual.clear(); pintar();
   });
+})();
+</script>
+<script>
+/* Cómo empezar: una sola ruta a la vista. Se recuerda la elección; ?vista=… la fija al volver del taller. */
+(() => {
+  const quien = document.documentElement.dataset.quien;
+  const tieneRuta = quien === 'rolando' || quien === 'schair';
+  const CLAVE = 'denavilab.guiaVista';
+  const par = new URLSearchParams(location.search);
+  let vista = par.get('vista') || (() => { try { return localStorage.getItem(CLAVE); } catch (e) { return null; } })();
+  if (!tieneRuta) vista = 'principiante';
+  if (vista !== 'principiante' && vista !== 'ruta') vista = null;
+  if (par.get('vista')) { try { localStorage.setItem(CLAVE, vista); } catch (e) {} }
+  const opciones = [...document.querySelectorAll('.guia-opcion')];
+  const secciones = [...document.querySelectorAll('[data-vista]')].filter(n => !n.classList.contains('guia-opcion'));
+  function aplicar() {
+    secciones.forEach(n => { n.hidden = n.dataset.vista !== vista; });
+    opciones.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.vista === vista)));
+  }
+  opciones.forEach(b => b.addEventListener('click', () => {
+    vista = b.dataset.vista; try { localStorage.setItem(CLAVE, vista); } catch (e) {}
+    aplicar();
+    const s = secciones.find(n => !n.hidden && getComputedStyle(n).display !== 'none'); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+  if (!tieneRuta) { document.getElementById('guiaElige').hidden = true; document.getElementById('guiaTitulo').textContent = 'Paso a paso'; }
+  aplicar();
+  const n = +par.get('paso');
+  if (vista === 'ruta' && n) {
+    const sec = document.querySelector(`section[data-para~="${quien}"][data-vista="ruta"]`);
+    const st = sec && sec.querySelectorAll('.step')[n - 1];
+    if (st) { st.open = true; setTimeout(() => st.scrollIntoView({ block: 'start' }), 60); }
+  } else if (vista === 'principiante' && par.get('vista')) {
+    const act = document.querySelector('.prin-paso.activo'); if (act) setTimeout(() => act.scrollIntoView({ block: 'center' }), 60);
+  }
+})();
+</script>
+<script>
+/* Rutas: cada paso se marca hecho a mano, o solo cuando el taller ya lo tiene. El avance queda en este navegador. */
+(() => {
+  const quien = document.documentElement.dataset.quien; if (quien !== 'rolando' && quien !== 'schair') return;
+  const sec = document.querySelector(`section[data-para~="${quien}"][data-vista="ruta"]`); if (!sec) return;
+  const CLAVE = 'denavilab.ruta.' + quien;
+  let estado = { hechos: [] }; try { estado = JSON.parse(localStorage.getItem(CLAVE) || 'null') || estado; } catch (e) {}
+  const proyecto = leerProyecto();
+  const pasos = [...sec.querySelectorAll('.steps > .step')];
+  function pintar() {
+    let hechos = 0;
+    pasos.forEach((st, i) => {
+      const det = st.dataset.detecta, visto = !!(det && DETECTA[det] && DETECTA[det](proyecto));
+      const hecho = visto || estado.hechos.includes(i + 1); if (hecho) hechos++;
+      st.classList.toggle('hecho', hecho);
+      const est = st.querySelector('.paso-estado'); if (est) est.textContent = visto ? `✓ En tu taller ya está: ${DETECTA_TXT[det]}.` : '';
+      const chk = st.querySelector('.paso-hecho input'); if (chk) { chk.checked = hecho; chk.disabled = visto; }
+    });
+    sec.querySelector('.ruta-progreso-txt').textContent = `${hechos} de ${pasos.length} pasos hechos`;
+    sec.querySelector('.ruta-barra i').style.width = Math.round(hechos / pasos.length * 100) + '%';
+  }
+  pasos.forEach((st, i) => {
+    const chk = st.querySelector('.paso-hecho input'); if (!chk) return;
+    chk.addEventListener('change', () => {
+      estado.hechos = estado.hechos.filter(x => x !== i + 1); if (chk.checked) estado.hechos.push(i + 1);
+      try { localStorage.setItem(CLAVE, JSON.stringify(estado)); } catch (e) {}
+      pintar();
+    });
+  });
+  pintar();
+})();
+</script>
+<script>
+/* Ejemplos que suenan aquí mismo: batería, acordes, rasgueo, bajo y melodía con un sintetizador mínimo.
+   No tocan el taller ni lo guardado. Los patrones de batería son los mismos del «Patrón base» del taller. */
+(() => {
+  const PAR8 = [0,2,4,6,8,10,12,14], TODAS = [...Array(16).keys()];
+  const EJ = {
+    'rock':           { t:'Rock clásico · el de siempre', bpm:120, bateria:{ kick:[0,8], snare:[4,12], hh:PAR8 } },
+    'solo-bombo':     { t:'Sólo el bombo, dando vueltas', bpm:110, bateria:{ kick:[0,8] } },
+    'pocos-golpes':   { t:'Pocos golpes y un hi-hat abierto al final', bpm:88, bateria:{ kick:[0,10], snare:[4,12], hh:[0,4,8,12], oh:[14] } },
+    'punk':           { t:'Green Day · punk directo', bpm:160, bateria:{ kick:[0,6,8,14], snare:[4,12], hh:PAR8 } },
+    'punk-rigido':    { t:'El mismo, sin los dos golpes de en medio', bpm:160, bateria:{ kick:[0,8], snare:[4,12], hh:PAR8 } },
+    'trip-hop':       { t:'Portishead · lento y con aire', bpm:80, bateria:{ kick:[0,7,10], snare:[4,12], hh:PAR8, oh:[14] } },
+    'break':          { t:'Massive Attack · break pesado', bpm:84, bateria:{ kick:[0,3,6,10], snare:[4,12,15], hh:TODAS } },
+    'vuelta-menor':   { t:'Am – F – C – G', bpm:90, acordes:['Am','F','C','G'], pad:true, voz:'cerca' },
+    'vuelta-c':       { t:'C – F – Am – G', bpm:100, acordes:['C','F','Am','G'], pad:true, voz:'cerca' },
+    'bajo-1':         { t:'Bajo en el 1, junto al bombo', bpm:100, acordes:['Am','F','C','G'], pad:true, suave:true, voz:'cerca', bajo:[0], bateria:{ kick:[0,8], snare:[4,12], hh:PAR8 } },
+    'bajo-1-3':       { t:'Bajo en el 1 y el 3: empuja', bpm:100, acordes:['Am','F','C','G'], pad:true, suave:true, voz:'cerca', bajo:[0,8], bateria:{ kick:[0,8], snare:[4,12], hh:PAR8 } },
+    'tension':        { t:'C – F – C – G (y se queda en G)', bpm:76, acordes:['C','F','C','G'], pad:true, voz:'cerca', vueltas:1 },
+    'camino':         { t:'C – F – Am – G', bpm:76, acordes:['C','F','Am','G'], pad:true, voz:'cerca', vueltas:1 },
+    'estrofa':        { t:'Estrofa · Am, F, C, G (2 compases cada uno)', bpm:100, acordes:['Am','F','C','G'], cada:2, pad:true, voz:'cerca', vueltas:1 },
+    'estribillo':     { t:'Estribillo · C, G, Am, F (los mismos, rotados)', bpm:100, acordes:['C','G','Am','F'], cada:2, pad:true, voz:'cerca', vueltas:1 },
+    'rasgueo-parejo': { t:'Ocho corcheas parejas', bpm:90, acordes:['Am','F'], cada:2, rasgueo:[1,1,1,1,1,1,1,1] },
+    'rasgueo-hueco':  { t:'Sin el tercer golpe (la mano sigue)', bpm:90, acordes:['Am','F'], cada:2, rasgueo:[1,1,0,1,1,1,1,1] },
+    'mac':            { t:'Cmaj7 – Fmaj7, lento y sin apretar', bpm:90, acordes:['Cmaj7','Fmaj7'], cada:2, rasgueo:[1,0,1,1,0,1,1,1], bateria:{ kick:[0,10], snare:[8], hh:[0,4,8,12] } },
+    'bloque':         { t:'Manera «Bloque sostenido»', bpm:90, acordes:['Am','F','C','G'], piano:'bloque', voz:'cerca' },
+    'corcheas':       { t:'Manera «Corcheas · el pulso»', bpm:90, acordes:['Am','F','C','G'], piano:'corcheas', voz:'cerca' },
+    'raiz':           { t:'Siempre desde la raíz: la mano salta', bpm:80, acordes:['C','Am','F','G'], piano:'bloque', voz:'raiz' },
+    'cerca':          { t:'Con inversiones: se mueve lo mínimo', bpm:80, acordes:['C','Am','F','G'], piano:'bloque', voz:'cerca' },
+    'melodia':        { t:'Melodía que pisa una nota del acorde en el 1', bpm:90, acordes:['Am','F','C','G'], pad:true, suave:true, voz:'cerca',
+                        melodia:[[69,null,72,null,76,74,72,null],[69,null,72,null,77,76,72,null],[67,null,72,null,76,null,72,74],[71,null,74,null,79,77,74,null]] },
+    'grado-v':        { t:'C – G – F – C', bpm:88, acordes:['C','G','F','C'], pad:true, voz:'cerca' },
+    'bvii':           { t:'C – B♭ – F – C (con el ♭VII prestado)', bpm:88, acordes:['C','Bb','F','C'], pad:true, voz:'cerca' },
+  };
+  const PC = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
+  const IV = { '':[0,4,7], m:[0,3,7], maj7:[0,4,7,11], '7':[0,4,7,10], m7:[0,3,7,10] };
+  const acorde = nom => { const m = /^([A-G])([#b]?)(maj7|m7|m|7)?$/.exec(nom); return { pc: (PC[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + 12) % 12, iv: IV[m[3] || ''] }; };
+  const bonito = nom => nom.replace(/^([A-G])b/, '$1♭').replace(/^([A-G])#/, '$1♯');
+  // Notas de cada acorde; «cerca» elige la inversión que menos se mueve respecto del anterior.
+  function voces(lista, modo) {
+    let prev = null;
+    return lista.map(nom => {
+      const { pc, iv } = acorde(nom), raiz = 55 + ((pc - 7 + 12) % 12);
+      let notas = iv.map(i => raiz + i);
+      if (modo === 'cerca' && prev) {
+        let mejor = notas, dist = Infinity;
+        for (let inv = 0; inv < iv.length; inv++) for (const oct of [-12, 0, 12]) {
+          const cand = iv.map((x, k) => raiz + x + oct + (k < inv ? 12 : 0)).sort((p, q) => p - q);
+          if (cand[0] < 50 || cand[cand.length - 1] > 79) continue;
+          const d = cand.reduce((s, m, k) => s + Math.abs(m - prev[Math.min(k, prev.length - 1)]), 0);
+          if (d < dist) { dist = d; mejor = cand; }
+        }
+        notas = mejor;
+      }
+      prev = notas; return notas;
+    });
+  }
+  let ctx = null, master = null, ruido = null, activo = null;
+  const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+  function iniciar() {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
+    if (!ctx) ctx = new AC();
+    if (ctx.state === 'suspended') ctx.resume();
+    if (!ruido) { ruido = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.4), ctx.sampleRate); const d = ruido.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+    master = ctx.createGain(); master.gain.value = 0.6; master.connect(ctx.destination);
+    return true;
+  }
+  const env = (g, t, vol, ataque, fin) => { g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + ataque); g.gain.exponentialRampToValueAtTime(0.0005, t + fin); };
+  function golpe(tipo, t) {
+    if (tipo === 'kick') { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.16); env(g, t, 0.9, 0.003, 0.32); o.connect(g).connect(master); o.start(t); o.stop(t + 0.36); return; }
+    const n = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain(); n.buffer = ruido;
+    if (tipo === 'snare') {
+      f.type = 'bandpass'; f.frequency.value = 1900; f.Q.value = 0.7; env(g, t, 0.5, 0.002, 0.17);
+      const o = ctx.createOscillator(), go = ctx.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(200, t); env(go, t, 0.3, 0.002, 0.09); o.connect(go).connect(master); o.start(t); o.stop(t + 0.12);
+    } else { f.type = 'highpass'; f.frequency.value = 7200; env(g, t, tipo === 'oh' ? 0.2 : 0.15, 0.001, tipo === 'oh' ? 0.3 : 0.05); }
+    n.connect(f).connect(g).connect(master); n.start(t); n.stop(t + 0.36);
+  }
+  function tono(m, t, dur, clase, vol) {
+    const o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    o.type = clase === 'pluck' || clase === 'mel' ? 'sawtooth' : 'triangle';
+    o.frequency.value = hz(m); f.type = 'lowpass'; f.frequency.value = { pluck:2600, bajo:700, mel:2800, piano:2400, pad:1500 }[clase] || 1500;
+    const ataque = clase === 'pad' ? 0.05 : 0.004, fin = clase === 'pluck' ? Math.min(dur, 0.45) : dur;
+    env(g, t, vol, ataque, Math.max(fin, ataque + 0.03));
+    o.connect(f).connect(g).connect(master); o.start(t); o.stop(t + fin + 0.06);
+  }
+  function parar() { if (activo) { const a = activo; activo = null; a.parar(); } }
+  function tocar(caja) {
+    parar(); if (!iniciar()) return;
+    const ej = EJ[caja.dataset.ej], semi = 60 / ej.bpm / 4, cada = ej.cada || 1, acordes = ej.acordes || [];
+    const compases = acordes.length ? acordes.length * cada : 1;
+    const vueltas = ej.vueltas || (compases >= 4 ? 2 : 4);
+    const vozs = acordes.length ? voces(acordes, ej.voz || 'raiz') : [];
+    const t0 = ctx.currentTime + 0.08, total = compases * 16 * vueltas, destino = master;
+    for (let v = 0; v < vueltas; v++) for (let c = 0; c < compases; c++) {
+      const base = t0 + (v * compases + c) * 16 * semi;
+      if (ej.bateria) for (const [tipo, pasos] of Object.entries(ej.bateria)) pasos.forEach(s => golpe(tipo, base + s * semi));
+      if (!acordes.length) continue;
+      const ai = Math.floor(c / cada), notas = vozs[ai], { pc } = acorde(acordes[ai]), vol = ej.suave ? 0.045 : 0.075;
+      if (ej.pad && c % cada === 0) notas.forEach(m => tono(m, base, cada * 16 * semi * 0.96, 'pad', vol));
+      if (ej.piano === 'bloque' && c % cada === 0) notas.forEach(m => tono(m, base, cada * 16 * semi * 0.9, 'piano', 0.08));
+      if (ej.piano === 'corcheas') for (let e = 0; e < 8; e++) notas.forEach(m => tono(m, base + e * 2 * semi, 2 * semi * 0.8, 'piano', 0.05));
+      if (ej.rasgueo) ej.rasgueo.forEach((on, e) => { if (!on) return; const abajo = e % 2 === 0; (abajo ? notas : [...notas].reverse()).forEach((m, k) => tono(m - 12, base + e * 2 * semi + k * 0.014, 2 * semi * 0.95, 'pluck', abajo ? 0.06 : 0.045)); });
+      if (ej.bajo) ej.bajo.forEach(s => tono(33 + ((pc + 3) % 12), base + s * semi, 3.5 * semi, 'bajo', 0.25));
+      if (ej.melodia) (ej.melodia[c % ej.melodia.length] || []).forEach((m, e) => { if (m != null) tono(m, base + e * 2 * semi, 2 * semi * 0.9, 'mel', 0.06); });
+    }
+    const btn = caja.querySelector('.ej-play'), celdas = [...caja.querySelectorAll('.ej-c')], chips = [...caja.querySelectorAll('.ej-ac')];
+    caja.classList.add('sonando'); btn.textContent = '■'; btn.setAttribute('aria-label', 'Detener el ejemplo');
+    let raf = 0;
+    const mirar = () => {
+      const k = Math.floor((ctx.currentTime - t0) / semi);
+      if (k >= total) { parar(); return; }
+      if (k >= 0) {
+        const enVuelta = k % (compases * 16), s = enVuelta % 16, c = Math.floor(enVuelta / 16);
+        celdas.forEach(x => x.classList.toggle('ahora', +x.dataset.s === (x.dataset.ocho ? Math.floor(s / 2) : s)));
+        chips.forEach((x, i) => x.classList.toggle('ahora', i === Math.floor(c / cada)));
+      }
+      raf = requestAnimationFrame(mirar);
+    };
+    raf = requestAnimationFrame(mirar);
+    activo = { caja, parar: () => {
+      cancelAnimationFrame(raf);
+      destino.gain.setTargetAtTime(0, ctx.currentTime, 0.02); setTimeout(() => destino.disconnect(), 300);
+      caja.classList.remove('sonando'); btn.textContent = '▶'; btn.setAttribute('aria-label', 'Escuchar el ejemplo');
+      celdas.forEach(x => x.classList.remove('ahora')); chips.forEach(x => x.classList.remove('ahora'));
+    } };
+  }
+  const FILAS = [['kick','Bombo'],['snare','Caja'],['hh','Hi-hat'],['oh','Abierto']];
+  document.querySelectorAll('.ejemplo[data-ej]').forEach(caja => {
+    const ej = EJ[caja.dataset.ej]; if (!ej) { caja.remove(); return; }
+    const partes = [ej.bateria && 'batería', (ej.pad || ej.piano) && (ej.piano ? 'piano' : 'acordes'), ej.rasgueo && 'rasgueo', ej.bajo && 'bajo', ej.melodia && 'melodía'].filter(Boolean);
+    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'ej-play'; btn.textContent = '▶'; btn.setAttribute('aria-label', 'Escuchar el ejemplo');
+    const info = document.createElement('div'); info.className = 'ej-info';
+    const tt = document.createElement('b'); tt.textContent = ej.t; const sub = document.createElement('span'); sub.textContent = `${ej.bpm} bpm · ${partes.join(' + ')}`; info.append(tt, sub);
+    const vista = document.createElement('div'); vista.className = 'ej-vista'; vista.setAttribute('aria-hidden', 'true');
+    if (ej.bateria) FILAS.forEach(([k, nom]) => { if (!ej.bateria[k]) return; const f = document.createElement('div'); f.className = 'ej-fila';
+      f.innerHTML = `<span>${nom}</span>` + TODAS.map(s => `<i class="ej-c${s % 4 === 0 ? ' tiempo' : ''}${ej.bateria[k].includes(s) ? ' on' : ''}" data-s="${s}"></i>`).join(''); vista.append(f); });
+    if (ej.rasgueo) { const f = document.createElement('div'); f.className = 'ej-fila ocho';
+      f.innerHTML = '<span>Rasgueo</span>' + ej.rasgueo.map((on, e) => `<i class="ej-c${on ? ' on' : ''}" data-s="${e}" data-ocho="1" title="${on ? (e % 2 ? 'arriba' : 'abajo') : 'la mano sigue, sin sonar'}"></i>`).join(''); vista.append(f); }
+    if (acordesDe(ej)) { const f = document.createElement('div'); f.className = 'ej-acordes';
+      f.innerHTML = ej.acordes.map(x => `<span class="ej-ac">${bonito(x)}${(ej.cada || 1) > 1 ? ' ×' + ej.cada : ''}</span>`).join(''); vista.append(f); }
+    btn.addEventListener('click', () => { if (activo && activo.caja === caja) parar(); else tocar(caja); });
+    caja.append(btn, info, vista);
+  });
+  function acordesDe(ej) { return !!(ej.acordes && ej.acordes.length); }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) parar(); });
 })();
 </script>
 <script src="acceso.js" defer></script>
