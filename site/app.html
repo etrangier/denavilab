@@ -105,6 +105,30 @@
   .bp-tecla.guia { border-color: var(--ok); box-shadow: 0 3px 0 var(--ok), 0 0 0 2px color-mix(in srgb, var(--ok) 35%, transparent); }
   @media (prefers-reduced-motion: no-preference) { .bp-tecla.guia { animation: bpLatido 1.6s ease-in-out infinite; } }
   @keyframes bpLatido { 50% { box-shadow: 0 3px 0 var(--ok), 0 0 0 5px color-mix(in srgb, var(--ok) 18%, transparent); } }
+  .bp-modo-ayuda { align-items: center; }
+  .bp-leccion { display: grid; gap: 8px; padding: 12px; border-radius: 10px; border: 1px solid var(--line); border-left: 3px solid var(--accent); background: var(--surface); }
+  .bl-cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .bl-puntos { display: flex; gap: 6px; }
+  .bl-punto { width: 14px; height: 14px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: var(--surface-2); cursor: pointer; }
+  .bl-punto.lograda { background: var(--ok); border-color: var(--ok); }
+  .bl-punto.actual { box-shadow: 0 0 0 2px var(--accent); }
+  .bl-punto:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .bp-leccion h3 { margin: 0; font-family: var(--display); font-size: 17px; }
+  .bl-meta { margin: 0; font-size: 14px; }
+  .bl-por { margin: 0; font-size: 12.5px; color: var(--muted); }
+  .bl-meta-tira { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 3px; }
+  .bl-celda { display: grid; place-items: center; min-height: 42px; min-width: 0; border-radius: 6px; border: 1px solid var(--line); background: var(--surface-2); font-family: var(--mono); overflow: hidden; }
+  .bl-celda b { font-size: 14px; line-height: 1.1; }
+  .bl-celda small { font-size: 9.5px; color: var(--muted); white-space: nowrap; }
+  .bl-celda.tiempo { border-color: color-mix(in srgb, var(--muted) 55%, var(--line)); }
+  .bl-celda.ok { background: color-mix(in srgb, var(--ok) 20%, var(--surface-2)); border-color: var(--ok); }
+  .bl-celda.mal { background: color-mix(in srgb, #c4572f 16%, var(--surface-2)); border-color: #c4572f; }
+  .bl-celda.cursor { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .bl-estado { margin: 0; font-size: 13.5px; font-weight: 600; }
+  .bl-estado.ok { color: var(--ok); }
+  .bl-estado.mal { color: #c4572f; }
+  .bl-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+  .bl-btns .primary { padding: 6px 12px; }
   .bp-ejemplos { display: grid; gap: 8px; }
   .bp-ej-lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
   .bp-ej { display: grid; gap: 4px; align-content: start; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
@@ -719,7 +743,7 @@
         <span class="lbl">Instrumento</span>
         <select id="mode">
           <option value="beat">Beat · batería</option>
-          <option value="bajod">Bajo · pads</option>
+          <option value="bajod">Secuenciador · bajo</option>
           <option value="pad">Teclado · Pad</option>
           <option value="piano">Teclado · Piano (acordes)</option>
           <option value="lead">Teclado · Piano lead (dos manos y melodía)</option>
@@ -1084,7 +1108,7 @@
       <!-- Bajo digital: secuenciador de notas -->
       <div class="panel" data-modes="bajod">
         <div class="kb-head">
-          <span class="lbl">Bajo · pads · <span id="bassBpm">72</span> bpm · <span id="bassBarsLbl">4</span> compases</span>
+          <span class="lbl">Secuenciador de bajo · <span id="bassBpm">72</span> bpm · <span id="bassBarsLbl">4</span> compases</span>
           <label class="hint"><input type="checkbox" id="bassDrums" checked> sonar con la batería del beat</label>
         </div>
         <div class="bajo-pads" id="bajoPads">
@@ -1093,6 +1117,8 @@
             <div class="bp-tira" id="bpTira" role="group" aria-label="Pasos del compás"></div>
             <div class="bp-tira bp-bombo" id="bpBombo" title="el bombo de la batería, de guía" aria-hidden="true"></div>
           </div>
+          <div class="chips bp-modo-ayuda" id="bpModoAyuda" role="group" aria-label="Tipo de ayuda"></div>
+          <div class="bp-leccion" id="bpLeccion" hidden></div>
           <div class="bp-consejo" id="bpConsejo"></div>
           <div class="bp-teclado" id="bpTeclado" role="group" aria-label="Pads del bajo"></div>
           <div class="bp-pie">
@@ -2693,7 +2719,7 @@
   }
 
   // ───────── Controles ─────────
-  const MODOS_TABS = [['beat','Batería'],['bajod','Bajo'],['pad','Pad'],['piano','Piano'],['lead','Piano lead'],['guitarra','Guitarra'],['letra','Letra'],['mezcla','▶ Mezcla']];
+  const MODOS_TABS = [['beat','Batería'],['bajod','Secuenciador'],['pad','Pad'],['piano','Piano'],['lead','Piano lead'],['guitarra','Guitarra'],['letra','Letra'],['mezcla','▶ Mezcla']];
   function navTabsKey(e) {
     const tabs = [...$('modosTabs').querySelectorAll('.mtab')];
     const i = tabs.indexOf(document.activeElement); if (i<0) return;
@@ -3176,7 +3202,7 @@
   $('delLead').addEventListener('click', ()=>{ if ($('savedLeads').value==='') return; const list=store.get('rueda.leads'); list.splice(+$('savedLeads').value,1); store.set('rueda.leads',list); renderSaved('savedLeads','rueda.leads'); });
 
   // ───────── Modos ─────────
-  const MODE_HINT = { guitarra:'Progresión de acordes para guitarra: escríbelos o fíjalos en el mástil, con sus compases; sale en MIDI.', letra:'Escribe la letra por secciones y anota al lado los acordes de guitarra, con sus compases.', beat:'Programa o carga el beat; este tempo y estos compases quedan para el resto.', bajod:'Bajo con pads: los pads cambian con el acorde de cada compás; tocas y avanza al paso siguiente, como en una calculadora.', pad:'Rueda, teclado, MIDI y progresión completa.', piano:'La rueda sugiere pensando en piano: pocos dedos que se mueven, inversiones y las maneras de la Guía 2.', lead:'Dos manos: la izquierda hace el bajo o el acorde, la derecha la melodía; se programa o se graba desde el MPK.', mezcla:'Reproduce todas las pistas que has programado, juntas o por separado (silenciar/aislar cada una).' };
+  const MODE_HINT = { guitarra:'Progresión de acordes para guitarra: escríbelos o fíjalos en el mástil, con sus compases; sale en MIDI.', letra:'Escribe la letra por secciones y anota al lado los acordes de guitarra, con sus compases.', beat:'Programa o carga el beat; este tempo y estos compases quedan para el resto.', bajod:'Secuenciador de bajo: los pads cambian con el acorde de cada compás. Sigue las lecciones para armar una línea que cante, o escribe libre.', pad:'Rueda, teclado, MIDI y progresión completa.', piano:'La rueda sugiere pensando en piano: pocos dedos que se mueven, inversiones y las maneras de la Guía 2.', lead:'Dos manos: la izquierda hace el bajo o el acorde, la derecha la melodía; se programa o se graba desde el MPK.', mezcla:'Reproduce todas las pistas que has programado, juntas o por separado (silenciar/aislar cada una).' };
   function setMode(m) {
     if (typeof rec !== 'undefined' && rec) stopRec();
     stBump('secciones', m);
@@ -3432,15 +3458,18 @@
     if (S.bassd.grid[i] < 0) { avisoBajo('El acento va sobre una nota: toca un pad primero.'); return; }
     snapBass(); S.bassd.acc[i] = S.bassd.acc[i] ? 0 : 1; renderBassSeq();
   }
+  // COPIAR lleva la forma del compás (raíz, quinta, octava…) al siguiente, con las notas de su acorde.
+  // Si el compás usa detalle de semicorcheas, se copia tal cual.
+  function bpUsa16(b) { const g = golpes(); for (let s = 1; s < 16; s += 2) { const i = b * 16 + s; if (S.bassd.grid[i] !== S.bassd.grid[i - 1] || g[i] || S.bassd.acc[i]) return true; } return false; }
+  function bpCopiarLiteral(x, y) { const g = golpes(); for (let j = 0; j < 16; j++) { const f = x * 16 + j, t = y * 16 + j; S.bassd.grid[t] = S.bassd.grid[f]; S.bassd.acc[t] = S.bassd.acc[f]; S.bassd.slide[t] = S.bassd.slide[f]; g[t] = g[f]; } }
+  function bpCopiarCompas(x, y) { if (bpUsa16(x)) bpCopiarLiteral(x, y); else escribirRoles(y, rolesDeCompas(x)); }
   function bpCopiar() {
-    const desde = BP.bar, hacia = BP.bar + 1, g = golpes(); snapBass();
-    if (hacia >= S.bassd.len) {
-      if (S.bassd.len >= 4) { avisoBajo('El patrón ya tiene 4 compases: no hay dónde copiar.'); return; }
-      const old = S.bassd.len * 16, nuevo = S.bassd.len * 2;
-      for (let s = old; s < nuevo * 16; s++) { S.bassd.grid[s] = S.bassd.grid[s % old]; S.bassd.acc[s] = S.bassd.acc[s % old]; S.bassd.slide[s] = S.bassd.slide[s % old]; g[s] = g[s % old]; }
-      S.bassd.len = nuevo;
-    } else for (let j = 0; j < 16; j++) { const x = desde * 16 + j, y = hacia * 16 + j; S.bassd.grid[y] = S.bassd.grid[x]; S.bassd.acc[y] = S.bassd.acc[x]; S.bassd.slide[y] = S.bassd.slide[x]; g[y] = g[x]; }
-    BP.bar = hacia; BP.paso = 0; renderBassSeq(); avisoBajo(`Compás ${desde + 1} copiado al ${hacia + 1}.`);
+    const desde = BP.bar, hacia = BP.bar + 1;
+    if (hacia >= S.bassd.len && S.bassd.len >= 4) { avisoBajo('El patrón ya tiene 4 compases: no hay dónde copiar.'); return; }
+    snapBass();
+    if (hacia >= S.bassd.len) { const viejo = S.bassd.len; S.bassd.len = viejo * 2; for (let b = viejo; b < S.bassd.len; b++) bpCopiarCompas(b - viejo, b); }
+    bpCopiarCompas(desde, hacia);
+    BP.bar = hacia; BP.paso = 0; renderBassSeq(); avisoBajo(`Compás ${desde + 1} copiado al ${hacia + 1}, con las notas de su acorde.`);
   }
   function bpGenerar() {
     const vuelta = vueltaDelBajo();
@@ -3453,6 +3482,7 @@
   }
   function bpAccion(id) {
     const t = BP_TECLAS.find(x => x.id === id); if (!t) return;
+    if (t.nota || ['borrar','silencio','mantener','acento','copiar','igual','deshacer'].includes(id)) lbPorMi = -1;   // lo que escribes tú
     const btn = $('bpTeclado') && $('bpTeclado').querySelector(`[data-id="${id}"]`); if (btn) { btn.classList.add('pulsada'); setTimeout(() => btn.classList.remove('pulsada'), 120); }
     if (t.nota) return bpNota(notasDelPad(BP.bar)[t.nota]);
     ({ borrar: () => { bpAvanzar(-1); snapBass(); bpEscribir(-1, false); renderBassSeq(); },
@@ -3554,12 +3584,138 @@
     return { t:'Tu bajo ya camina', p:'Tiene raíz en el 1, movimiento y acento. Prueba otro estilo de los ejemplos de abajo, o escúchalo con todo en la Mezcla.', teclas:[], botones:[['Escuchar en la Mezcla →', () => setMode('mezcla'), false]] };
   }
   function probarBajo(fn, texto) { fn(); if (!isPlaying) $('playBass').click(); avisoBajo(texto || 'Así suena. DESHACER (.) vuelve a lo que tenías.'); }
+  // ───────── Lecciones guiadas: componer una línea de bajo que cante ─────────
+  // Cada lección tiene una tira objetivo de 8 pasos por rol (raíz, tercera, quinta…). Se revisa en vivo lo que llevas,
+  // brilla el pad que toca, y al lograrla en todos los compases se desbloquea la siguiente.
+  const LECCIONES_BAJO = [
+    { t:'El ancla', meta:'La RAÍZ en el paso 1, y que dure todo el compás.', por:'La raíz dice qué acorde suena. Con ella sola ya hay bajo, y todo lo demás se construye encima.', pasos:['raiz','—','—','—','—','—','—','—'] },
+    { t:'Junto al bombo', meta:'La RAÍZ en el tiempo 1 y otra vez en el 3.', por:'El bajo y el bombo son un equipo: si caen juntos, la base suena firme.', pasos:['raiz','—','—','—','raiz','—','—','—'] },
+    { t:'El arpegio', meta:'Sube por el acorde: raíz, tercera, quinta y octava.', por:'Son las cuatro notas del acorde, de abajo hacia arriba. Es la forma más simple de que el bajo cante sin salirse de la armonía.', pasos:['raiz','—','tercera','—','quinta','—','octava','—'] },
+    { t:'Sube y vuelve', meta:'Una línea con forma de arco: raíz, quinta, octava y de vuelta a la quinta.', por:'Las melodías que se recuerdan tienen dirección: suben, llegan arriba y vuelven. El oído lo siente como una frase.', pasos:['raiz','—','quinta','—','octava','—','quinta','—'] },
+    { t:'Notas de paso', meta:'De la raíz a la tercera caminando por la escala, y luego a la quinta.', por:'PASO ↑ es una nota de la escala que queda entre medio: el bajo camina en vez de saltar, y suena más melódico.', pasos:['raiz','—','sube','—','tercera','—','quinta','—'] },
+    { t:'Aire y síncopa', meta:'Un silencio, una RAÍZ que se adelanta y una QUINTA que responde.', por:'Un hueco justo antes de una nota la hace saltar hacia adelante: el bajo respira y gana groove.', pasos:['raiz','—',null,'raiz',null,'quinta','—',null] },
+    { t:'Pregunta y respuesta', meta:'El arpegio en todos los compases menos el último, que cambia el final.', por:'Repetir crea la pregunta; cambiar el final la responde. Así la vuelta tiene principio y cierre.', pasos:['raiz','—','tercera','—','quinta','—','octava','—'], respuesta:['raiz','—','quinta','—','sube','—','abajo','—'] },
+  ];
+  const ROL_TECLA = { raiz:'raiz', quinta:'quinta', octava:'octava', tercera:'tercera', abajo:'abajo', sube:'sube', '—':'mantener' };
+  const ROL_CORTO = { raiz:'RAÍZ', quinta:'5ª', octava:'8ª', tercera:'3ª', abajo:'↓', sube:'↑', '—':'—' };
+  const ROL_NOMBRE = { raiz:'RAÍZ (7)', quinta:'QUINTA (8)', octava:'OCTAVA (9)', tercera:'TERCERA (4)', abajo:'PASO ↓ (5)', sube:'PASO ↑ (6)', '—':'MANTENER (−)' };
+  const LB_CLAVE = 'denavilab.leccionesBajo';
+  let lbEstado = { actual: 0, logradas: [], modo: 'lecciones' }, lbEscuchando = false, lbPorMi = -1;   // lbPorMi: lección que escribió el taller (no cuenta hasta que la toques tú)
+  try { lbEstado = Object.assign(lbEstado, JSON.parse(localStorage.getItem(LB_CLAVE) || '{}')); } catch (e) {}
+  const lbGuardar = () => { try { localStorage.setItem(LB_CLAVE, JSON.stringify(lbEstado)); } catch (e) {} };
+  // Qué rol tiene cada uno de los 8 pasos de un compás (según su acorde): raíz, quinta… o «—» si sigue sonando la anterior.
+  function rolesDeCompas(b) {
+    const n = notasDelPad(b), g = golpes(), out = [], orden = ['raiz','octava','quinta','tercera','abajo','sube'];
+    for (let p = 0; p < 8; p++) {
+      const i = b * 16 + p * 2, r = S.bassd.grid[i];
+      if (r < 0) { out.push({ rol: null, row: -1, acc: 0 }); continue; }
+      if (!(p === 0 || g[i] || S.bassd.acc[i] || S.bassd.grid[i - 1] !== r)) { out.push({ rol: '—', row: r, acc: 0 }); continue; }
+      out.push({ rol: orden.find(k => n[k] === r) || orden.find(k => n[k] % 12 === r % 12) || 'otra', row: r, acc: S.bassd.acc[i] });
+    }
+    return out;
+  }
+  function escribirRoles(b, roles) {
+    const n = notasDelPad(b), sig = notasDelPad(b + 1), g = golpes(); let ultima = -1;
+    roles.forEach((x, p) => {
+      const rol = x && typeof x === 'object' ? x.rol : x, i = b * 16 + p * 2;
+      let row = -1, golpe = true;
+      if (rol === '—') { row = ultima; golpe = false; }
+      else if (rol === 'hacia') { row = sig.raiz === n.raiz ? n.quinta : sig.raiz > n.raiz ? sig.raiz - 1 : sig.raiz + 1; if (row < 0) row += 12; }
+      else if (rol === 'otra') row = x.row;
+      else if (rol) row = n[rol];
+      for (let j = 0; j < 2; j++) { S.bassd.grid[i + j] = row; S.bassd.acc[i + j] = 0; S.bassd.slide[i + j] = 0; g[i + j] = 0; }
+      if (row >= 0) { if (golpe) g[i] = 1; if (x && typeof x === 'object' && x.acc) S.bassd.acc[i] = 1; }
+      ultima = row;
+    });
+  }
+  const metaDelCompas = (L, b) => (L.respuesta && S.bassd.len > 1 && b === S.bassd.len - 1) ? null : L.pasos;
+  function evaluarLeccion(L) {
+    const compases = [];
+    for (let b = 0; b < S.bassd.len; b++) {
+      const roles = rolesDeCompas(b).map(x => x.rol), meta = metaDelCompas(L, b);
+      compases.push(meta ? { roles, ok: meta.map((m, p) => m === roles[p]), bien: meta.every((m, p) => m === roles[p]) }
+                         : { roles, ok: null, bien: roles[0] === 'raiz' && roles.join() !== L.pasos.join() });
+    }
+    return { compases, logrado: hasBassD() && (!L.respuesta || S.bassd.len > 1) && compases.every(c => c.bien) };
+  }
+  function escribirEjemplo(L) {
+    S.bassd.len = 1; bpAjustarLargo(); if (L.respuesta && S.bassd.len < 2) S.bassd.len = 2;
+    S.bassd.grid.fill(-1); S.bassd.acc.fill(0); S.bassd.slide.fill(0); golpes().fill(0);
+    for (let b = 0; b < S.bassd.len; b++) escribirRoles(b, metaDelCompas(L, b) || L.respuesta);
+    BP.res = 8; BP.bar = 0; BP.paso = 0; BP.ultimo = -1;
+  }
+  async function escucharLeccion(L) {
+    if (isPlaying) { stopAll(); return; }
+    const orig = clonar(S.bassd), hist = HIST.bass.length, pos = { ...BP };
+    escribirEjemplo(L); lbEscuchando = true; renderBassSeq(); avisoBajo('Sonando el ejemplo. Lo tuyo vuelve al detenerlo.');
+    try { await play('bass'); }
+    finally { S.bassd = orig; HIST.bass.length = hist; Object.assign(BP, pos); lbEscuchando = false; renderBassSeq(); }
+  }
+  function irALeccion(i) { lbEstado.actual = Math.max(0, Math.min(LECCIONES_BAJO.length - 1, i)); lbGuardar(); BP.res = 8; BP.bar = 0; BP.paso = 0; renderBajoPads(); }
+  function renderModoAyuda() {
+    const box = $('bpModoAyuda'); if (!box) return; box.innerHTML = '';
+    [['lecciones', 'Lecciones guiadas'], ['libre', 'Consejos libres']].forEach(([v, t]) => box.append(el('button', {class:'chip', type:'button', 'aria-pressed': String((lbEstado.modo === 'libre' ? 'libre' : 'lecciones') === v),
+      onclick: () => { lbEstado.modo = v; lbGuardar(); if (v === 'lecciones') BP.res = 8; renderBajoPads(); }}, t)));
+  }
+  function renderLeccionBajo() {
+    const box = $('bpLeccion'), i = Math.min(lbEstado.actual || 0, LECCIONES_BAJO.length - 1), L = LECCIONES_BAJO[i];
+    const ev = evaluarLeccion(L), bar = Math.min(BP.bar, S.bassd.len - 1), meta = metaDelCompas(L, bar) || L.respuesta, cur = ev.compases[bar];
+    const propia = ev.logrado && !lbEscuchando && lbPorMi !== i;   // escuchar o «Escribirlo por mí» no la dan por lograda
+    if (propia && !lbEstado.logradas.includes(i)) { lbEstado.logradas.push(i); lbGuardar(); }
+    box.innerHTML = '';
+    const puntos = el('div', {class:'bl-puntos'});
+    LECCIONES_BAJO.forEach((x, k) => puntos.append(el('button', {class:'bl-punto' + (lbEstado.logradas.includes(k) ? ' lograda' : '') + (k === i ? ' actual' : ''), type:'button', title:`Lección ${k + 1}: ${x.t}`, 'aria-label':`Lección ${k + 1}: ${x.t}`, onclick: () => irALeccion(k)})));
+    box.append(el('div', {class:'bl-cab'}, el('span', {class:'lbl'}, `Lección ${i + 1} de ${LECCIONES_BAJO.length}` + (lbEstado.logradas.includes(i) ? ' · ✓ lograda' : '')), puntos));
+    box.append(el('h3', {}, L.t), el('p', {class:'bl-meta'}, L.meta), el('p', {class:'bl-por'}, L.por));
+    if (BP.res !== 8) { box.append(el('p', {class:'bl-estado'}, 'Las lecciones usan 8 pasos por compás.'), el('div', {class:'bl-btns'}, el('button', {class:'chip', type:'button', onclick: () => { BP.res = 8; BP.paso = 0; renderBajoPads(); }}, 'Cambiar a 8 pasos'))); return []; }
+    const tira = el('div', {class:'bl-meta-tira', 'aria-label': `Lo que va en el compás ${bar + 1}`});
+    meta.forEach((m, p) => {
+      const tuyo = cur.roles[p], estado = !cur.ok ? '' : cur.ok[p] ? ' ok' : (tuyo !== null ? ' mal' : '');
+      tira.append(el('div', {class:'bl-celda' + (p % 2 === 0 ? ' tiempo' : '') + estado + (p === BP.paso ? ' cursor' : ''), title: m === null ? 'SILENCIO (2)' : ROL_NOMBRE[m]},
+        el('b', {}, m === null ? '2' : BP_TECLA_DE[m] || '·'), el('small', {}, m === null ? 'silencio' : ROL_CORTO[m])));
+    });
+    box.append(tira);
+    const esperado = meta[BP.paso], sinVuelta = !vueltaDelBajo().length, primeroBien = ev.compases[0] && ev.compases[0].bien, btns = el('div', {class:'bl-btns'});
+    let estado, clase = '', guia = null;
+    const errorEn = cur.ok ? cur.ok.findIndex((bien, p) => !bien && cur.roles[p] !== null) : -1;
+    const compasVacio = cur.roles.every(r => r === null);
+    if (lbEscuchando) estado = 'Sonando el ejemplo: escucha hacia dónde va la línea. Lo tuyo vuelve al detenerlo.';
+    else if (ev.logrado && lbPorMi === i) { estado = 'Así queda escrita. Ahora hazla tú: pulsa DESHACER (.) y sigue los pads que brillan.'; guia = 'deshacer'; }
+    else if (ev.logrado) { estado = i < LECCIONES_BAJO.length - 1 ? '¡Lograda! Tu bajo sigue la lección en todos los compases.' : '¡Terminaste las lecciones! Ya sabes armar una línea de bajo que cante.'; clase = ' ok'; }
+    else if (!cur.ok) estado = `Compás ${bar + 1}, la respuesta: empieza con RAÍZ y cambia el final. Puedes usar la sugerencia de arriba o inventar la tuya.`;
+    else if (errorEn >= 0) { estado = `El paso ${errorEn + 1} no va así: ahí va ${meta[errorEn] === null ? 'SILENCIO (2)' : ROL_NOMBRE[meta[errorEn]]}. Vuelve con BORRAR (⌫) o ← y tócalo de nuevo.`; clase = ' mal'; guia = errorEn === BP.paso - 1 ? 'borrar' : 'izq'; }
+    else if (cur.bien && S.bassd.len > 1) estado = `Compás ${bar + 1} listo ✓. Llévalo a los demás: «Copiar a todos los compases», o COPIAR (×) compás a compás.`;
+    else if (compasVacio && bar > 0 && primeroBien) estado = 'Compás 1 listo ✓. Llévalo a los demás con «Copiar a todos los compases», o escríbelo tú compás a compás.';
+    else estado = `Toca ${esperado === null ? 'SILENCIO (2)' : ROL_NOMBRE[esperado]} en el paso ${BP.paso + 1}: es el pad que brilla.`;
+    box.append(el('p', {class:'bl-estado' + clase, role:'status'}, estado));
+    if (sinVuelta) box.append(el('p', {class:'bl-por'}, 'Sin vuelta de acordes, las lecciones usan la tónica. Con cuatro acordes en Pad, cada compás tendrá sus propias notas.'));
+    btns.append(el('button', {class:'chip', type:'button', onclick: () => escucharLeccion(L)}, lbEscuchando ? '■ Detener el ejemplo' : '▶ Escuchar el ejemplo'));
+    btns.append(el('button', {class:'chip', type:'button', onclick: () => { snapBass(); escribirEjemplo(L); lbPorMi = i; renderBassSeq(); if (!isPlaying) $('playBass').click(); avisoBajo('Así queda. Para aprenderlo, pulsa DESHACER (.) y escríbelo tú siguiendo los pads que brillan.'); }}, 'Escribirlo por mí'));
+    if (primeroBien && !ev.logrado && S.bassd.len > 1) btns.append(el('button', {class:'chip', type:'button', onclick: () => {
+      lbPorMi = -1; snapBass(); const roles = rolesDeCompas(0), ultimo = L.respuesta ? S.bassd.len - 1 : S.bassd.len;
+      for (let b = 1; b < ultimo; b++) escribirRoles(b, roles);
+      BP.bar = L.respuesta ? S.bassd.len - 1 : 0; BP.paso = 0; renderBassSeq();
+      avisoBajo(L.respuesta ? `Copiado. Ahora el compás ${S.bassd.len}: cambia el final para responder.` : 'Copiado a todos los compases, con las notas de cada acorde.');
+    }}, 'Copiar a todos los compases'));
+    if (sinVuelta) btns.append(el('button', {class:'chip', type:'button', onclick: () => setMode('pad')}, 'Armar una vuelta en Pad →'));
+    if (i > 0) btns.append(el('button', {class:'chip', type:'button', onclick: () => irALeccion(i - 1)}, '← Anterior'));
+    if (i < LECCIONES_BAJO.length - 1) btns.append(el('button', {class: ev.logrado ? 'primary' : 'chip', type:'button', onclick: () => irALeccion(i + 1)}, ev.logrado ? 'Siguiente lección →' : 'Saltar →'));
+    box.append(btns);
+    if (guia) return [guia];
+    return ev.logrado || lbEscuchando || !cur.ok || (compasVacio && bar > 0 && primeroBien) ? [] : [esperado === null ? 'silencio' : ROL_TECLA[esperado]];
+  }
   function renderAyudaBajo() {
     const box = $('bpConsejo'); if (!box) return;
-    const c = consejoPads(); box.innerHTML = '';
-    box.append(el('span', {class:'lbl'}, 'Consejo'), el('b', {}, c.t), el('p', {}, c.p));
-    if (c.botones.length) { const fila = el('div', {class:'bp-consejo-btns'}); c.botones.forEach(([t, fn, suena]) => fila.append(el('button', {class:'chip', type:'button', onclick: () => suena ? probarBajo(fn) : fn()}, t))); box.append(fila); }
-    $('bpTeclado').querySelectorAll('.bp-tecla').forEach(b => b.classList.toggle('guia', c.teclas.includes(b.dataset.id)));
+    const modoLeccion = lbEstado.modo !== 'libre';
+    renderModoAyuda(); box.hidden = modoLeccion; $('bpLeccion').hidden = !modoLeccion;
+    let teclasGuia = [];
+    if (modoLeccion) teclasGuia = renderLeccionBajo();
+    else {
+      const c = consejoPads(); box.innerHTML = ''; teclasGuia = c.teclas;
+      box.append(el('span', {class:'lbl'}, 'Consejo'), el('b', {}, c.t), el('p', {}, c.p));
+      if (c.botones.length) { const fila = el('div', {class:'bp-consejo-btns'}); c.botones.forEach(([t, fn, suena]) => fila.append(el('button', {class:'chip', type:'button', onclick: () => suena ? probarBajo(fn) : fn()}, t))); box.append(fila); }
+    }
+    $('bpTeclado').querySelectorAll('.bp-tecla').forEach(b => b.classList.toggle('guia', teclasGuia.includes(b.dataset.id)));
     const reco = BP_ESTILO[S.genre] || 'uno-tres', lista = $('bpEjemplos'), clave = S.genre + '|' + reco;
     if (lista.dataset.clave === clave) return;
     lista.dataset.clave = clave; lista.innerHTML = '';
@@ -5469,7 +5625,7 @@
     const guardado = () => ['rueda.maquetas','rueda.beats','rueda.progs','rueda.bass','rueda.letras'].some(k => store.get(k).length > 0);
     const P = (t, meta, ok, si, no) => ({ t, meta, ok, si, no });
     const pulso = meta => P('El pulso', meta, hasDrums, 'Ya tienes un beat', 'Todavía no hay golpes en la batería');
-    const bajo = P('El bajo', 'En la pestaña Bajo: toca RAÍZ en cada compás, o pulsa «=».', hasBassD, 'Ya hay bajo', 'Todavía no hay bajo');
+    const bajo = P('El bajo', 'En el Secuenciador: sigue las lecciones guiadas, o toca RAÍZ en cada compás y pulsa «=».', hasBassD, 'Ya hay bajo', 'Todavía no hay bajo');
     const mapaP = P('El mapa de la canción', 'Elige una forma y pulsa «Guardar lo que suena» en una parte.', mapa, 'Ya hay música en el mapa', 'Guarda lo que suena en alguna parte');
     const PASOS = {
       principiante: [
@@ -5563,7 +5719,7 @@
     let base = firmaP(proyectoActual()), activo = false;
     ['pointerdown','keydown'].forEach(t => document.addEventListener(t, () => { activo = true; }, { capture:true, once:true }));
     function autoguardar() {
-      if (!activo || cancionRep || vbEscuchando) return;   // mientras suena la canción del mapa, el taller va cargando las partes
+      if (!activo || cancionRep || vbEscuchando || lbEscuchando) return;   // mientras suena la canción del mapa, el taller va cargando las partes
       let p; try { p = proyectoActual(); } catch (e) { return; }
       const f = firmaP(p); if (f === base || !tieneAlgo(p)) return;
       try { localStorage.setItem(CLAVE, JSON.stringify({ ts: Date.now(), proyecto: p })); base = f; } catch (e) {}
