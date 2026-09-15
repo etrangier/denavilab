@@ -1,0 +1,11 @@
+{
+  "name": "denavilab",
+  "private": true,
+  "description": "Pruebas del sitio DenaviLAB (el sitio en sí vive en site/ y no usa dependencias)",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
+}

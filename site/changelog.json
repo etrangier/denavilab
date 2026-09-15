@@ -3,6 +3,7 @@
   {
    "fecha": "2026-09-15",
    "items": [
+    "Taller en el celular: primero el instrumento y debajo los ajustes, guardar y exportar (con el atajo «⚙ Tempo, estilo, guardar y exportar ↓»); las ocho pestañas se ven todas. Textos al día en la portada y el README, y pruebas automáticas que corren antes de cada publicación; GitHub Pages ahora sólo redirige a Neocities.",
     "MIDI sin pistas vacías: «MIDI · todas las pistas» y la canción del mapa ya no agregan «Piano lead · mano izquierda/derecha» cuando no escribiste melodía (antes salían con raíces automáticas y una pista vacía). El Piano lead entra sólo si tiene melodía o arpegio/acordes en la derecha, y ninguna mano sin notas se exporta.",
     "Guardar, más simple: se quitó la Biblioteca conectada a Google Drive, que no lograba conectarse. En el taller, el panel se divide en «Guardar» —autoguardado con la hora, «Guardar» con nombre en este navegador, «⤓ Descargar la maqueta (.denavi)», abrir o borrar lo guardado y «Abrir un archivo .denavi»— y «Exportar para el DAW» (MIDI y PDF). La página «Biblioteca» pasa a llamarse «Guardado»: cada maqueta se abre, se reproduce, se descarga como .denavi o se borra, y un .denavi recibido se abre de un clic.",
     "Trabajo guiado renovado para Rolando y Schair: una tarjeta «Siguiente paso» con el botón para ir directo y los pasos como puntos; pestañas Pasos · Lecciones; un paso abierto a la vez, con etiquetas siguiente/hecho/opcional/saltado y «Saltar por ahora»; las lecciones se marcan al pasar el chequeo. Ya elegido el camino, la cabecera se encoge a «Mi ruta · Primera vez» y «Antes de empezar» se pliega. Texto sin justificar, aviso si el navegador no tiene Web MIDI, y la hoja de estilos ya no queda vieja en caché.",
@@ -111,8 +112,8 @@
    "txt": "Mezcla (pestaña ▶ Mezcla): reproducir todo junto + silenciar/aislar — confirmar el audio en vivo."
   },
   {
-   "estado": "prueba",
-   "txt": "Sincronía entre pistas al reproducir todo — confirmar en vivo."
+   "estado": "resuelto",
+   "txt": "Sincronía entre pistas: el Secuenciador programa bajo y batería en el mismo compás (15-sep), con prueba automática."
   },
   {
    "estado": "resuelto",
@@ -131,8 +132,8 @@
    "txt": "Metrónomo con opción de sonar con o sin grabación."
   },
   {
-   "estado": "abierto",
-   "txt": "Presets de beat y de bajo ya hechos + cuantización."
+   "estado": "resuelto",
+   "txt": "Presets de beat y de bajo + cuantización (Patrón base, sugerencias del bajo y «Cuantizar lo que hay»)."
   },
   {
    "estado": "resuelto",

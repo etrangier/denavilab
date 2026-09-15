@@ -37,7 +37,7 @@
       });
       sesionEl.append(salir);
     } else {
-      sesionEl.innerHTML = '<span class="candado">&#128274;</span> La portada es libre; el resto pide nombre y clave.';
+      sesionEl.innerHTML = '<span class="candado">&#128274;</span> La portada es libre; para la guía y el taller, entra con tu nombre y clave o como invitado.';
     }
   }
 

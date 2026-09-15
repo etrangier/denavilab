@@ -490,10 +490,11 @@
     .grid { gap: 12px; }
     /* Evita el zoom automático de iOS al enfocar un campo (necesita 16px) */
     select, input[type=text], input[type=number] { font-size: 16px; }
-    /* Pestañas de sección en una fila deslizable */
-    .modos-tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
-    .modos-tabs::-webkit-scrollbar { height: 0; }
-    .mtab { flex: 0 0 auto; padding: 8px 13px; }
+    /* Pestañas de sección: todas a la vista, en dos o tres filas */
+    .modos-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+    .mtab { flex: 1 1 auto; padding: 8px 10px; font-size: 13px; }
+    /* La entradilla, en dos líneas: el instrumento sube */
+    header p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .navbar { gap: 5px; padding-bottom: 3px; }
     .navlink { padding: 6px 9px; }
     .chip { padding: 7px 12px; font-size: 12.5px; }
@@ -650,7 +651,15 @@
     .bar-box.next { animation: pulse 1.6s ease-in-out infinite; }
     @keyframes pulse { 50% { box-shadow: 0 0 0 3px var(--accent-soft); } }
   }
-  @media (max-width: 980px) { .grid, .grid.two { grid-template-columns: 1fr; } }
+  .ir-ajustes { display: none; }
+  @media (max-width: 980px) {
+    .grid, .grid.two { grid-template-columns: 1fr; }
+    /* En pantalla angosta, primero el instrumento; tempo, estilo, guardar y exportar van debajo, con un atajo arriba */
+    .grid > .center { order: -2; } .grid > .right { order: -1; }
+    .ir-ajustes { display: inline-flex; justify-self: start; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; background: var(--surface); }
+    .ir-ajustes:hover, .ir-ajustes:focus-visible { color: var(--accent); border-color: var(--accent); }
+    #ajustes { scroll-margin-top: 12px; }
+  }
 </style>
 </head>
 <body>
@@ -672,6 +681,7 @@
   </header>
 
   <nav class="modos-tabs" id="modosTabs" aria-label="Secciones del taller"></nav>
+  <a class="ir-ajustes" href="#ajustes">⚙ Tempo, estilo, guardar y exportar ↓</a>
   <div class="guia-barra" id="guiaBarra" hidden></div>
   <div class="avisos" id="avisos"></div>
 
@@ -739,7 +749,7 @@
 
   <div class="grid">
     <!-- ───────── Configuración ───────── -->
-    <section class="panel" aria-label="Configuración">
+    <section class="panel panel-ajustes" id="ajustes" aria-label="Configuración">
       <div class="field">
         <span class="lbl">Instrumento</span>
         <select id="mode">
@@ -5142,7 +5152,7 @@
     const cambiar = el('button', {type:'button', onclick:()=>{ try { localStorage.removeItem('denavilab.sesion'); } catch (e) {} location.href = 'index.html'; }}, 'cambiar sesión');
     $('navSesion').append(cambiar);
   }
-  $('subtitulo').textContent = S.quien === 'invitado' ? '· vista de invitado' : S.quien === 'schair' ? '· el taller de maquetas' : '· rueda de acordes para el MPK mini';
+  $('subtitulo').textContent = S.quien === 'invitado' ? '· vista de invitado' : S.quien === 'schair' ? '· el taller de maquetas' : '· el taller de maquetas';
   $('entradilla').textContent = S.quien === 'schair'
     ? 'Arma la base para tus canciones —batería, bajo y acordes— sin tocar ninguno de esos instrumentos: se dibuja con el mouse. Los sonidos de aquí son mínimos a propósito; sirven para no perder la idea y para cantar y tocar encima.'
     : S.quien === 'invitado' ? 'Estás mirando como invitado: puedes recorrer, tocar, armar ideas y guardarlas en este navegador. Exportar, importar y guardar la maqueta entera quedan para la banda.'

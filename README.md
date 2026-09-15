@@ -1,46 +1,46 @@
 # DenaviLAB
 
-Maqueta beats, bajo digital y acordes (pad / piano / piano lead) con el Akai MPK mini de 25 o 37 teclas, desde el navegador, y expórtalo a MIDI para terminarlo en Logic.
+Taller de maquetas de la banda Denavi, en el navegador: batería, secuenciador de bajo, acordes (pad / piano), piano lead, guitarra y letra, con un mapa de la canción por partes. Todo sale en MIDI para terminarlo en Logic.
 Sitio: https://denavilab.neocities.org
 
 ## Qué hay en `site/`
-- `index.html` — la portada: DenaviLAB, quiénes son Denavi, y las dos puertas. Acceso libre.
-- `guia.html` — el trabajo guiado. Pide sesión, y muestra una ruta distinta según quién
-  entró: la de Schair (sin teclado, termina en guitarra y letra) o la de Rolando (con MPK).
-  Se elige con `data-para` en el marcado y `data-quien` en `<html>`, que fija el guardián.
-- `app.html` — el taller entero, en un único archivo autónomo. Pide sesión.
-  Modos: `beat`, `bajod`, `pad`, `piano`, `lead` y `letra` (letra y acordes de guitarra,
-  por secciones, con los compases que dura cada acorde; sale en PDF y en texto).
-- `archivo.html` — el archivo. Pide sesión. Lista los proyectos guardados en ese
-  navegador (localStorage) y los `.mid` / `.pdf` publicados en `site/archivo/`.
-- `archivo/` — el archivo compartido: los ficheros y su `manifest.json`. Ver
-  `site/archivo/LEEME.md` para cómo se sube uno.
-- `estilo.css`, `acceso.js` — compartidos por la portada, la guía y el archivo. `app.html` no los usa:
-  lleva todo dentro para que la función de descargar la página siga funcionando.
+- `index.html` — la portada: quiénes son Denavi, las dos puertas (trabajo guiado y directo) y la entrada como invitado. Acceso libre.
+- `guia.html` — el trabajo guiado. Pide sesión. «Primera vez» (siete pasos, para cualquiera) o la ruta de cada uno —la de Schair, sin teclado; la de Rolando, con MPK—, con «Siguiente paso», pestañas Pasos · Lecciones y ejemplos que suenan ahí mismo. Se elige con `data-para` en el marcado y `data-quien` en `<html>`.
+- `app.html` — el taller entero, en un único archivo autónomo. Pide sesión. Pestañas: Batería (`beat`), Secuenciador de bajo (`bajod`), Pad (`pad`), Piano (`piano`), Piano lead (`lead`), Guitarra (`guitarra`), Letra con el Mapa de la canción (`letra`) y Mezcla (`mezcla`).
+- `archivo.html` — «Guardado»: lo guardado en ese navegador (maquetas, patrones, MIDI importados) y lo publicado en `site/archivo/`.
+- `archivo/` — archivos publicados (`.mid`, `.pdf`) y su `manifest.json`; ver `site/archivo/LEEME.md`.
+- `estadisticas.html` — sólo Rolando: uso del sitio.
+- `changelog.json` — novedades y bugs; lo leen la portada y el panel de administración del taller.
+- `estilo.css`, `acceso.js` — compartidos por la portada, la guía, Guardado y estadísticas. `app.html` no los usa: lleva todo dentro.
 
-La guía enlaza a la app con `?modo=beat|bajod|pad|piano|lead` para entrar directo a un
-instrumento. Si el parámetro falta o no es válido, arranca en `beat`.
+La guía enlaza al taller con `?modo=…` (y `&guia=…&paso=N` para la barra de la guía). Sin parámetro válido, arranca en `beat`.
 
-## Cómo se actualiza
+## Guardar
+- **Autoguardado:** lo que está abierto se guarda solo en el navegador (`denavilab.autoguardado`) y se recupera al volver.
+- **Guardar con nombre:** panel «Guardar» del taller; queda en `rueda.maquetas` y se ve en Guardado.
+- **`.denavi`:** «⤓ Descargar la maqueta (.denavi)» y «Abrir un archivo .denavi». Es JSON con el proyecto entero (acordes de Pad y Piano, batería, bajo, melodía, guitarra, letra, mapa de la canción, tempo, tonalidad y banda). Lleva `formato` para versionarlo; uno más nuevo se rechaza. Al abrir, primero se aplican género y banda (`applyBand()` vacía la progresión y fija el tempo de la banda) y después lo guardado.
+
+Lo del navegador no viaja solo a otro computador: para pasarse trabajo, se manda el `.denavi`.
+
+## Pruebas
+```
+npm install
+npx playwright install chromium
+npm test
+```
+Sirven `site/` en el puerto 4173 y prueban en Chromium (`tests/taller.spec.js`): que las páginas carguen sin errores, las pistas del MIDI, guardar y abrir un `.denavi`, que el Secuenciador suene junto con la batería, la ruta de la guía y el taller en celular.
+
+## Cómo se publica
 1. Edita lo que toque en `site/`.
 2. Commit y push a `main`.
-3. La acción de GitHub (`.github/workflows/deploy.yml`) sube la carpeta `site/` a Neocities con la clave guardada en el secreto `NEOCITIES_API_TOKEN`.
+3. `.github/workflows/publicar.yml` corre las pruebas. Si pasan, sube `site/` a Neocities (secreto `NEOCITIES_API_TOKEN`) y deja en GitHub Pages sólo una redirección a Neocities (`tools/pages-redirect/`), que antes ofrece descargar las maquetas guardadas en esa dirección.
 
-Sólo los push a `main` publican: puedes trabajar en ramas sin tocar el sitio.
-Ojo: el workflow usa `cleanup: false`, así que un archivo borrado de `site/` sigue vivo en Neocities y hay que quitarlo a mano allá.
+En un pull request sólo corren las pruebas; publicar, sólo desde `main`.
+- Neocities va con `cleanup: false`: un archivo borrado de `site/` sigue vivo allá y hay que quitarlo a mano.
+- **Caché:** las páginas piden `estilo.css?v=…` y `acceso.js?v=…`. Si cambias alguno, sube la versión en `index.html`, `guia.html`, `archivo.html` y `estadisticas.html`.
 
 ## Abrir en local
-Doble clic en `site/app.html` con Opera, Chrome o Edge (MIDI y descargas funcionan directo). Safari no soporta Web MIDI.
-
-## El formato .denavi
-
-`Exportar → Guardar la maqueta` baja un `.denavi`: JSON con el proyecto entero (progresión,
-batería, bajo, melodía, letra, tempo, tonalidad, banda). `Abrir una maqueta guardada` lo
-restaura. Lleva `formato` para poder versionarlo; abrir uno más nuevo se rechaza.
-
-Al importar, el orden importa: primero se aplican género y banda (porque `applyBand()`
-vacía la progresión y fija el tempo de la banda) y sólo después se escribe encima lo
-guardado.
+Sirve la carpeta por http —`python3 -m http.server 8000 --directory site`— y abre `http://127.0.0.1:8000` en Chrome, Opera o Edge. También vale doble clic en `site/app.html` (por `file://` no pide sesión). Safari no tiene Web MIDI.
 
 ## La puerta del taller
 

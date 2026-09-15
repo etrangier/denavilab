@@ -1,0 +1,74 @@
+name: Probar y publicar
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      - name: Guardar el informe si algo falló
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: informe-pruebas
+          path: test-results
+          retention-days: 7
+
+  neocities:
+    needs: pruebas
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Actualizar visitas de Neocities
+        run: |
+          curl -s "https://neocities.org/api/info?sitename=denavilab" -o /tmp/neo.json || echo '{}' > /tmp/neo.json
+          jq '(.info // {}) + {"_actualizado": (now | todate)}' /tmp/neo.json > site/neocities-stats.json || echo '{}' > site/neocities-stats.json
+      - name: Subir a Neocities
+        uses: bcomnes/deploy-to-neocities@v3
+        with:
+          api_key: ${{ secrets.NEOCITIES_API_TOKEN }}
+          cleanup: false
+          dist_dir: site
+
+  # GitHub Pages ya no publica el sitio: sólo redirige a Neocities, para que haya una sola dirección
+  # (y un solo lugar donde queda lo guardado en el navegador).
+  github-pages:
+    needs: pruebas
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Armar la redirección
+        run: |
+          mkdir -p _pages
+          cp tools/pages-redirect/index.html _pages/index.html
+          cp tools/pages-redirect/index.html _pages/404.html
+          touch _pages/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _pages
+      - id: deployment
+        uses: actions/deploy-pages@v4

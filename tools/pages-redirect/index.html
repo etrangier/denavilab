@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>DenaviLab se mudó</title>
+<link rel="canonical" href="https://denavilab.neocities.org/">
+<style>
+  :root { color-scheme: light dark; --bg: #f3f1ed; --surface: #fff; --line: #dcd8d0; --text: #1e1b28; --muted: #6d6879; --accent: #b8731a; --accent-ink: #fff; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #14131b; --surface: #1d1b26; --line: #322e3f; --text: #ede9f3; --muted: #9b95ab; --accent: #e8a94a; --accent-ink: #1a1207; } }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 560px; margin: 0 auto; padding: 48px 20px; }
+  h1 { font-size: 26px; margin: 0 0 8px; }
+  p { color: var(--muted); margin: 0 0 14px; }
+  a { color: var(--accent); }
+  .btn { display: inline-block; font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; background: var(--accent); color: var(--accent-ink); border: 1px solid var(--accent); border-radius: 8px; padding: 10px 16px; }
+  .btn.ghost { background: transparent; color: var(--text); border-color: var(--line); font-weight: 400; padding: 6px 12px; }
+  ul { list-style: none; padding: 0; margin: 0 0 20px; display: grid; gap: 8px; }
+  li { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+</style>
+</head>
+<body>
+<main>
+  <h1>DenaviLab se mudó</h1>
+  <p id="msg">Ahora vive sólo en <a href="https://denavilab.neocities.org/">denavilab.neocities.org</a>. Te llevamos allá…</p>
+  <noscript><p><a class="btn" href="https://denavilab.neocities.org/">Ir a DenaviLab →</a></p></noscript>
+  <section id="rescate" hidden>
+    <p><b>Guardaste maquetas en esta dirección.</b> Lo guardado en el navegador no pasa solo a la nueva: descarga cada una como <b>.denavi</b> y ábrela allá con «Abrir un archivo .denavi» (en Guardado o en el taller).</p>
+    <ul id="lista"></ul>
+    <a class="btn" id="ir" href="https://denavilab.neocities.org/">Ir a DenaviLab →</a>
+  </section>
+</main>
+<script>
+(() => {
+  const DESTINO = 'https://denavilab.neocities.org';
+  const ruta = location.pathname.replace(/^\/denavilab(?=\/|$)/, '') || '/';
+  const url = DESTINO + ruta + location.search + location.hash;
+  document.getElementById('ir').href = url;
+
+  // Si en esta dirección quedaron maquetas guardadas, se ofrecen para descargar antes de irse
+  const leer = k => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } };
+  const maquetas = (leer('rueda.maquetas') || []).filter(m => m && m.proyecto).map(m => ({ nombre: m.name || 'maqueta', proyecto: m.proyecto }));
+  const auto = leer('denavilab.autoguardado');
+  if (auto && auto.proyecto) maquetas.unshift({ nombre: 'lo que tenías abierto', proyecto: auto.proyecto });
+  if (!maquetas.length) { location.replace(url); return; }
+
+  const slug = t => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'maqueta';
+  const lista = document.getElementById('lista');
+  maquetas.forEach(m => {
+    const li = document.createElement('li'), nombre = document.createElement('span'), boton = document.createElement('button');
+    nombre.textContent = m.nombre;
+    boton.className = 'btn ghost'; boton.type = 'button'; boton.textContent = '⤓ .denavi';
+    boton.addEventListener('click', () => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(m.proyecto, null, 1)], { type: 'application/json' }));
+      a.download = slug(m.nombre) + '.denavi';
+      document.body.append(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+    });
+    li.append(nombre, boton); lista.append(li);
+  });
+  document.getElementById('msg').textContent = 'Ahora vive sólo en denavilab.neocities.org.';
+  document.getElementById('rescate').hidden = false;
+})();
+</script>
+</body>
+</html>
