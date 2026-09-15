@@ -284,6 +284,31 @@ test('tutor: cada entrada empieza en blanco sin tocar el trabajo del taller norm
   await expect.poll(golpesMarcados, { timeout: 4000 }).toBe(1);
 });
 
+test('tutor escucha de verdad: dice dónde cae lo que marcaste y cuenta lo que cambiaste', async ({ page }) => {
+  await comoBanda(page);
+  const errores = vigilarErrores(page);
+  await page.goto('app.html?tutor=1&modo=beat');
+  const msg = page.locator('#tutor .tu-msg');
+  await page.waitForTimeout(600);
+  await page.click('#seq .st[data-r="kick"][data-s="0"]');
+  await page.click('#seq .st[data-r="kick"][data-s="7"]');
+  await expect(msg).toContainText('justo antes del tres', { timeout: 8000 });
+  await expect(msg).toContainText('bombo');
+
+  await page.waitForTimeout(3700);
+  await page.click('#seq .st[data-r="kick"][data-s="7"]');
+  await expect(msg).toContainText('Quitaste el bombo justo antes del tres', { timeout: 8000 });
+
+  await page.click('#modosTabs [data-m=bajod]');
+  await page.waitForTimeout(3700);
+  await page.click('#bpTeclado [data-id="raiz"]');
+  await expect(msg).toContainText('nota', { timeout: 8000 });
+
+  const frases = await page.evaluate(() => JSON.parse(localStorage.getItem('denavilab.tutor.rolando')).bitacora.map(m => m.t));
+  for (const t of frases) expect(t, t).not.toMatch(/\d/);   // sin cifras: describe con palabras
+  expect(errores).toEqual([]);
+});
+
 test('tutor al mínimo para Schair: batería y guitarra', async ({ page }) => {
   await comoBanda(page, 'schair');
   await page.goto('app.html?tutor=1&modo=letra');

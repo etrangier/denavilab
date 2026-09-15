@@ -2832,7 +2832,7 @@
     $('play').textContent = '■ Detener'; $('playDrums').textContent = '■ Detener'; $('playBass').textContent = '■ Detener'; $('playLead').textContent = '■ Detener'; $('playGuit').textContent = '■ Detener'; if ($('playGuitAll')) $('playGuitAll').textContent = '■ Detener'; $('candPlay').textContent = '■ Detener'; if ($('playMezcla')) $('playMezcla').textContent = '■ Detener';
     do {   // una pasada; con «loop» se repite hasta Detener
       if (cancionRep && !cancionRep.siguiente()) break;   // canción del mapa: carga la parte que toca; sin más partes, termina
-      beat = 60/(mode==='bass' ? bassBpm() : S.bpm); barDur = beat*4;   // relee el tempo cada vuelta (bajo con tempo propio, o bpm cambiado)
+      beat = 60/(mode==='bass' ? bassBpm() : S.bpm); barDur = beat*4; if (tutorOyente && tutorOyente.pasada) tutorOyente.pasada(t0, beat);   // relee el tempo cada vuelta (bajo con tempo propio, o bpm cambiado)
       // Se relee el estado en cada vuelta: agregar/cambiar/quitar un acorde entra en la siguiente pasada
       const _pad = S._chord.pad, _pia = S._chord.piano;
       const _padB = _pad.prog.reduce((a,c)=>a+c.len,0), _piaB = _pia.prog.reduce((a,c)=>a+c.len,0);
@@ -3179,6 +3179,7 @@
   }
   function onMidi(e) {
     const [st, note, vel] = e.data; const cmd = st & 0xf0, chan = st & 0x0f;
+    if (tutorOyente && tutorOyente.midi && cmd === 0x90 && vel > 0) tutorOyente.midi(vel);   // el tutor escucha cómo tocas
     if (cmd === 0xb0) { onCC(note, vel); return; }
     if (cmd === 0xe0) { bendSemis = ((vel<<7 | note) - 8192)/8192 * 2; liveNotes.forEach(v=>v.bend(bendSemis)); return; }
     if (cmd === 0xc0) { if (S.pcMode) { const M=['beat','bajod','pad','piano','lead','guitarra','letra']; setMode(M[note % M.length]); } return; }
@@ -5999,6 +6000,246 @@
     }
     const OIR = { bateria: oirBateria, bajo: oirBajo, teclados: oirTeclados, guitarra: oirGuitarra };
 
+    // ── Escuchar de verdad: lectura detallada de lo que hay, de lo que cambió y de cómo tocas ──
+    // Describe lo que hiciste con palabras de conteo («justo antes del tres», «en la «y» del dos») y cómo se relacionan
+    // las partes; de ahí sale la sensación y una pregunta. Describe, no prescribe: nunca dice qué poner.
+    const NUMS = ['uno', 'dos', 'tres', 'cuatro'];
+    const lugar = s => { const t = Math.floor(s / 4) % 4, r = s % 4; return r === 0 ? `en el ${NUMS[t]}` : r === 2 ? `en la «y» del ${NUMS[t]}` : r === 1 ? `justo después del ${NUMS[t]}` : `justo antes del ${NUMS[(t + 1) % 4]}`; };
+    const enLista = xs => xs.length < 2 ? (xs[0] || '') : xs.slice(0, -1).join(', ') + ' y ' + xs[xs.length - 1];
+    const lugares = (xs, max = 3) => xs.length > max ? 'en varios lugares del compás' : enLista(xs.map(lugar));
+    const PALABRA_N = ['ningún', 'un', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho'];
+    const cuantas = n => PALABRA_N[n] || 'muchos';
+    const mayus = t => t ? t[0].toUpperCase() + t.slice(1) : t;
+    const VOZ1 = { kick: 'bombo', snare: 'golpe de caja', hh: 'hi-hat', oh: 'hi-hat abierto' };
+    const VOZN = { kick: 'bombos', snare: 'golpes de caja', hh: 'hi-hats', oh: 'hi-hats abiertos' };
+    const B = BANCO_TUTOR, ref = (sit, i = 0) => (B[sit] && B[sit][i]) || {};
+    const hallazgo = (sit, peso, obs, sens, preg, r) => ({ sit, peso, obs, sens, preg, por: r && r.por || '', de: r && r.de || '' });
+
+    // Batería
+    function leerBateria() {
+      const p = S.drums.pat, len = Math.max(1, S.drums.len);
+      const pos = id => { const o = []; for (let s = 0; s < 16; s++) if (p[id][s]) o.push(s); return o; };   // el primer compás del patrón
+      const k = pos('kick'), sn = pos('snare'), hh = pos('hh'), oh = pos('oh'), total = k.length + sn.length + hh.length + oh.length;
+      const hhTipo = !hh.length ? 'nada' : hh.length >= 14 ? 'semicorcheas' : hh.length >= 7 && hh.every(s => s % 2 === 0) ? 'corcheas'
+        : hh.length <= 4 && hh.every(s => s % 4 === 0) ? 'negras' : hh.every(s => s % 4 === 2) ? 'contratiempo' : 'irregular';
+      const kTipo = !k.length ? 'nada' : k.length === 4 && [0, 4, 8, 12].every(s => k.includes(s)) ? 'cuatro' : k.length === 2 && k.includes(0) && k.includes(8) ? 'unoTres'
+        : k.length === 1 && k[0] === 0 ? 'uno' : 'otro';
+      const backbeat = sn.includes(4) && sn.includes(12);
+      const suena = s => p.kick[s] || p.snare[s] || p.hh[s] || p.oh[s];
+      let hueco = 0, huecoDesde = 0, run = 0, ini = 0;
+      for (let i = 0; i < 32; i++) { const s = i % 16; if (suena(s)) run = 0; else { if (!run) ini = s; run++; if (run > hueco) { hueco = run; huecoDesde = ini; } } }
+      const difiere = []; for (let b = 1; b < len; b++) if (['kick', 'snare', 'hh', 'oh'].some(id => { for (let s = 0; s < 16; s++) if (!!p[id][s] !== !!p[id][b * 16 + s]) return true; return false; })) difiere.push(b);
+      return { k, sn, hh, oh, total, hhTipo, kTipo, backbeat, hueco: Math.min(hueco, 16), huecoDesde, anticipa: k.filter(s => s % 4 === 3 || s % 4 === 2),
+        juntos: k.filter(s => sn.includes(s)).length, len, difiere, bpm: S.bpm };
+    }
+    function hallazgosBateria(L) {
+      if (!L.total) return [];
+      const H = [];
+      const kObs = L.kTipo === 'cuatro' ? 'el bombo marca los cuatro tiempos, parejo' : L.kTipo === 'unoTres' ? 'el bombo cae en el uno y en el tres'
+        : L.k.length ? `el bombo suena ${lugares(L.k, 4)}` : 'no hay bombo';
+      const snObs = L.backbeat && L.sn.length === 2 ? 'la caja responde en el dos y el cuatro' : L.sn.length ? `la caja suena ${lugares(L.sn)}` : 'no hay caja';
+      const hhObs = { nada: '', semicorcheas: 'el hi-hat corre en semicorcheas, sin parar', corcheas: 'el hi-hat marca las corcheas', negras: 'el hi-hat va espaciado, en los tiempos',
+        contratiempo: 'el hi-hat va a contratiempo', irregular: `el hi-hat suena ${lugares(L.hh)}` }[L.hhTipo];
+      if (L.total >= 20) H.push(hallazgo('b_lleno', 0.9, `${hhObs || kObs}, y casi no quedan huecos en el compás`, 'Cuando todo suena, ningún golpe pesa: el oído no sabe hacia dónde mirar.', '¿Cuál de todos esos golpes es el que de verdad no puede faltar?', ref('b_lleno')));
+      if (L.k.length && !L.sn.length && !L.hh.length && !L.oh.length) H.push(hallazgo('b_soloBombo', 0.8, `${kObs}, y nada más`,
+        L.kTipo === 'cuatro' ? 'Es un corazón tranquilo, casi una marcha.' : L.anticipa.length ? 'Ese bombo corrido ya trae un balanceo propio.' : 'Es un suelo, todavía sin nadie encima.',
+        '¿Qué te pide que aparezca a su lado?', ref('b_soloBombo')));
+      if (L.anticipa.length && (L.sn.length || L.hh.length)) H.push(hallazgo('b_anticipa', 0.75, `hay un bombo ${lugar(L.anticipa[0])}`, 'Ese golpe fuera del tiempo tira del compás, como alguien que se apura a hablar.', '¿Se siente como impulso o como tropiezo?', ref('m_sincopa')));
+      if (['cuatro', 'unoTres'].includes(L.kTipo) && L.backbeat && !L.anticipa.length) H.push(hallazgo('b_cuadrado', 0.7, `${kObs} y ${snObs}`, 'El cuerpo reconoce este dibujo al instante: seguro, sin sorpresa.', '¿Tu cuerpo se mueve, o sólo lo reconoce?', ref('b_cuadrado')));
+      if (L.sn.length && !L.backbeat) H.push(hallazgo('b_cajaFuera', 0.65, snObs, 'La caja no está donde el oído la espera: el pulso se vuelve ambiguo, y eso puede ser intriga o confusión.', '¿Dónde sientes tú el golpe fuerte del compás?', ref('b_raro')));
+      if (L.k.length && !L.sn.length && (L.hh.length || L.oh.length)) H.push(hallazgo('b_sinCaja', 0.7, `${kObs} y ${hhObs || 'el hi-hat abierto brilla'}, pero no hay caja`, 'Hay peso abajo y brillo arriba, y en el medio nadie contesta.', '¿Qué le respondería al bombo?', ref('b_sinCaja')));
+      if (L.k.length === 1 && (L.sn.length || L.hh.length)) H.push(hallazgo('b_unBombo', 0.5, `hay un solo bombo, ${lugar(L.k[0])}`, 'El compás se apoya una vez y después flota: todo lo demás queda más liviano.', '¿Ese vuelo te lleva, o te deja sin piso?', ref('b_soloBombo', 2)));
+      if (L.hueco >= 6 && L.total >= 2) H.push(hallazgo('b_hueco', 0.55, `hay un silencio largo que empieza ${lugar(L.huecoDesde)}`, 'Ese espacio hace que lo que viene después se escuche más grande.', '¿Ese silencio lo elegiste, o quedó?', ref('m_aire')));
+      if (L.juntos) H.push(hallazgo('b_juntos', 0.45, `bombo y caja golpean a la vez ${lugares(L.k.filter(s => L.sn.includes(s)))}`, 'Ese golpe doble suena a acento, a puerta que se cierra.', '¿Es ahí donde quieres que caiga el peso de la frase?', ref('b_raro', 1)));
+      if (L.len > 1 && !L.difiere.length) H.push(hallazgo('b_igual', 0.5, 'los compases del patrón son idénticos', 'Es hipnótico, pero todavía no dice dónde termina la frase.', '¿La vuelta necesita un final, o su gracia es no tenerlo?', ref('b_igual')));
+      if (L.difiere.includes(L.len - 1)) H.push(hallazgo('b_final', 0.45, 'el último compás del patrón cambia', 'La vuelta respira al final: se siente como frase, no como máquina.', '¿Ese cambio te devuelve al principio con ganas?', ref('b_igual', 1)));
+      if (L.bpm < 88 && L.total <= 10) H.push(hallazgo('b_lento', 0.4, 'va lento y con pocos golpes', 'Pesado y con aire: deja lugar para que el bajo y la voz vivan.', '¿Qué quieres que viva en ese espacio?', ref('b_vivo')));
+      if (L.bpm > 135 && L.total >= 14) H.push(hallazgo('b_rapido', 0.4, 'va rápido y lleno', 'Hay urgencia: todo empuja.', '¿Es urgencia lo que buscas, o ansiedad?', ref('b_vivo', 1)));
+      H.push(hallazgo('b_vivo', 0.3, [kObs, snObs, hhObs].filter(Boolean).join(', '), 'Tiene carácter propio.', '¿Te inclinas hacia adelante cuando suena, o te dan ganas de apagarlo?', ref('b_vivo')));
+      return H;
+    }
+    function cambiosBateria(a, b) {
+      const f = [];
+      const muchos = (id, xs, quedan, sumar) => {   // cuando cambian muchos golpes, se nombra el dibujo y no cada posición
+        const v = VOZ1[id];
+        if (!sumar && !quedan.length) return `quitaste todo el ${v}`;
+        if (xs.every(x => x % 2 === 1)) return sumar ? `llenaste de semicorcheas el ${v}` : `sacaste las semicorcheas del ${v}`;
+        if (xs.every(x => x % 2 === 0) && xs.length >= 4) return sumar ? `pusiste el ${v} en las corcheas` : `sacaste el ${v} de las corcheas`;
+        return sumar ? `sumaste varios ${VOZN[id]}` : `quitaste varios ${VOZN[id]}`;
+      };
+      [['kick', 'k'], ['snare', 'sn'], ['hh', 'hh'], ['oh', 'oh']].forEach(([id, c]) => {
+        const mas = b[c].filter(x => !a[c].includes(x)), menos = a[c].filter(x => !b[c].includes(x));
+        if (mas.length) f.push(mas.length > 3 ? muchos(id, mas, b[c], true) : `sumaste ${mas.length === 1 ? 'un ' + VOZ1[id] : cuantas(mas.length) + ' ' + VOZN[id]} ${enLista(mas.map(lugar))}`);
+        if (menos.length) f.push(menos.length > 3 ? muchos(id, menos, b[c], false) : `quitaste ${menos.length === 1 ? 'el ' + VOZ1[id] : 'los ' + VOZN[id]} ${enLista(menos.map(lugar))}`);
+      });
+      if (!f.length) return '';
+      const dijo = f.join(' ');
+      const efecto = b.hueco >= a.hueco + 3 ? ', y se abrió un espacio en el compás'
+        : b.total >= a.total + 4 && !/llenaste|pusiste/.test(dijo) ? ', y el compás se llenó'
+        : b.anticipa.length > a.anticipa.length ? ', y ahora algo se sale del tiempo'
+        : !a.backbeat && b.backbeat && !/en el dos y en el cuatro/.test(dijo) ? ', y apareció la respuesta en el dos y el cuatro'
+        : a.backbeat && !b.backbeat ? ', y la caja dejó de responder donde el oído la espera' : '';
+      return mayus(enLista(f.slice(0, 3))) + efecto + '.';
+    }
+
+    // Secuenciador de bajo
+    function leerBajo() {
+      const len = Math.max(1, S.bassd.len), grid = S.bassd.grid, g = golpes(), acc = S.bassd.acc, kick = S.drums.pat.kick, dl = Math.max(1, S.drums.len);
+      const notas = []; let vacias = 0;
+      for (let b = 0; b < len; b++) { const pad = notasDelPad(b);
+        for (let s = 0; s < 16; s++) { const i = b * 16 + s, r = grid[i];
+          if (r < 0) { vacias++; continue; }
+          if (s > 0 && grid[i - 1] === r && !g[i] && !acc[i]) { if (notas.length) notas[notas.length - 1].dur++; continue; }
+          const pc = r % 12;
+          notas.push({ b, s, r, dur: 1, bombo: !!kick[(b % dl) * 16 + s],
+            rol: pc === pad.raiz % 12 ? 'raiz' : pc === pad.quinta % 12 ? 'quinta' : pc === pad.tercera % 12 ? 'tercera' : 'paso' });
+        } }
+      const d = notas.slice(1).map((n, i) => n.r - notas[i].r);
+      const alt = notas.map(n => n.r), roles = notas.reduce((o, n) => (o[n.rol] = (o[n.rol] || 0) + 1, o), {});
+      return { notas, len, n: notas.length, porCompas: notas.length / len, aire: vacias / (len * 16), rango: notas.length ? Math.max(...alt) - Math.min(...alt) : 0, roles,
+        grandes: d.filter(x => Math.abs(x) >= 5).length, cortos: d.filter(x => x && Math.abs(x) <= 2).length, sube: d.filter(x => x > 0).length, baja: d.filter(x => x < 0).length,
+        conBombo: kick.some(Boolean) && notas.length ? notas.filter(x => x.bombo).length / notas.length : null,
+        antes: notas.filter(x => x.s % 4 === 3).length, largas: notas.filter(x => x.dur >= 4).length };
+    }
+    const notasPalabra = n => n === 1 ? 'una nota' : `${cuantas(n)} notas`;
+    function hallazgosBajo(L) {
+      if (!L.n) return [];
+      const H = [], raiz = (L.roles.raiz || 0) / L.n;
+      if (L.aire < 0.15) H.push(hallazgo('j_sinAire', 0.8, 'el bajo no deja silencios', 'Sin respirar, todas las notas pesan lo mismo.', '¿Qué pasaría si callara justo antes de lo importante?', ref('j_sinAire')));
+      if (L.conBombo !== null && L.conBombo >= 0.8 && L.n >= 2) H.push(hallazgo('j_pegado', 0.7, 'casi todas las notas del bajo caen junto al bombo', 'Bajo y bombo suenan como un solo instrumento: firmeza, cuerpo.', '¿Alguna vez uno debería soltarse y contestarle al otro?', ref('j_pegado')));
+      if (L.conBombo !== null && L.conBombo <= 0.2 && L.n >= 3) H.push(hallazgo('j_suelto', 0.7, 'el bajo casi nunca coincide con el bombo', 'Flota lejos del suelo: libre, pero sin dónde apoyarse.', '¿Dónde quieres que toque tierra?', ref('j_suelto')));
+      if (L.rango <= 2 && L.n >= 3) H.push(hallazgo('j_unaNota', 0.65, raiz >= 0.8 ? 'el bajo repite la raíz del acorde, casi sin moverse' : 'el bajo casi no se mueve de lugar', 'Insistente, hipnótico: puede ser trance o encierro.', '¿Se vuelve más fuerte si en algún momento se va y regresa?', ref('j_unaNota')));
+      else if (raiz >= 0.8 && L.n >= 2) H.push(hallazgo('j_raiz', 0.6, 'el bajo toca casi siempre la raíz del acorde', 'Es un ancla: la armonía queda clarísima, y la línea todavía no canta.', '¿Quieres que el bajo sostenga, o que también cuente algo?', ref('j_vacio', 1)));
+      if (L.grandes >= 2) H.push(hallazgo('j_saltos', 0.55, `el bajo da ${cuantas(L.grandes)} saltos grandes`, 'Los saltos le dan energía, como una voz que sube la voz.', '¿Esos saltos cuentan algo, o se sienten como ir y venir?', ref('j_sinAire', 1)));
+      else if (L.cortos >= 2) H.push(hallazgo('j_camina', 0.55, 'el bajo camina con pasos cortos, de nota vecina en nota vecina', 'Es una línea que canta: une un acorde con el siguiente como quien camina.', '¿Hacia dónde camina: llega, o se queda dando vueltas?', ref('j_vivo')));
+      if (L.sube > L.baja + 1) H.push(hallazgo('j_sube', 0.45, 'la línea tiende a subir', 'Subir abre, pregunta, levanta la energía.', '¿Esa subida encuentra dónde descansar?', ref('j_vivo', 1)));
+      else if (L.baja > L.sube + 1) H.push(hallazgo('j_baja', 0.45, 'la línea tiende a bajar', 'Bajar asienta, oscurece, cierra.', '¿Es un cierre lo que quieres, o un hundimiento?', ref('j_vivo', 1)));
+      if (L.rango >= 12) H.push(hallazgo('j_amplio', 0.45, 'la línea cruza más de una octava', 'Abre mucho espacio: se oye grave y agudo a la vez.', '¿El bajo sigue sonando a bajo, o empieza a ser melodía?', ref('j_vivo')));
+      if (L.antes) H.push(hallazgo('j_antes', 0.55, `hay ${L.antes === 1 ? 'una nota que entra' : cuantas(L.antes) + ' notas que entran'} justo antes del tiempo`, 'Anticipar empuja: la base se inclina hacia adelante.', '¿Empuja con gracia, o apura?', ref('m_sincopa')));
+      if (L.largas && L.porCompas <= 3) H.push(hallazgo('j_largas', 0.4, 'las notas del bajo son pocas y largas', 'Sostiene como un colchón: calma, peso.', '¿Qué haría la batería con todo ese espacio encima?', ref('m_aire')));
+      if (L.roles.tercera) H.push(hallazgo('j_tercera', 0.4, 'el bajo toca la tercera del acorde en algún momento', 'La tercera colorea el acorde desde abajo: dice si es luminoso o triste.', '¿Qué cambió en el acorde cuando el bajo la tocó?', ref('k_vivo')));
+      H.push(hallazgo('j_vivo', 0.3, `el bajo toca ${notasPalabra(Math.max(1, Math.round(L.porCompas)))} por compás`, 'Ya camina.', 'Escúchalo sin la batería: ¿se reconoce la canción?', ref('j_vivo')));
+      return H;
+    }
+    function cambiosBajo(a, b) {
+      const clave = n => n.b + ':' + n.s, A = new Map(a.notas.map(n => [clave(n), n])), N = new Map(b.notas.map(n => [clave(n), n])), f = [];
+      const nuevas = b.notas.filter(n => !A.has(clave(n))), idas = a.notas.filter(n => !N.has(clave(n)));
+      const movidas = b.notas.filter(n => A.has(clave(n)) && A.get(clave(n)).r !== n.r);
+      if (nuevas.length) f.push(nuevas.length > 3 ? 'escribiste varias notas nuevas' : `sumaste ${nuevas.length === 1 ? 'una nota' : cuantas(nuevas.length) + ' notas'} ${enLista(nuevas.map(n => lugar(n.s)))}`);
+      if (idas.length) f.push(idas.length > 3 ? 'borraste varias notas' : `quitaste ${idas.length === 1 ? 'la nota' : 'las notas'} ${enLista(idas.map(n => lugar(n.s)))}`);
+      if (movidas.length) { const m = movidas[0], antes = A.get(clave(m)); f.push(`${m.r > antes.r ? 'subiste' : 'bajaste'} la nota ${lugar(m.s)}`); }
+      if (!f.length) return '';
+      const efecto = b.aire >= a.aire + 0.12 ? ', y la línea respira más' : b.conBombo !== null && a.conBombo !== null && b.conBombo <= a.conBombo - 0.3 ? ', y el bajo se despegó del bombo'
+        : b.conBombo !== null && a.conBombo !== null && b.conBombo >= a.conBombo + 0.3 ? ', y ahora el bajo camina con el bombo' : '';
+      return mayus(enLista(f.slice(0, 3))) + efecto + '.';
+    }
+
+    // Teclados (la vuelta en la rueda)
+    const DICE_PASO = { casa: 'vuelve a casa', luz: 'sube hacia la luz', calma: 'baja hacia la calma', espejo: 'se mira en el espejo', tension: 'se tensa',
+      camino: 'camina dentro de la casa', prestado: 'toma algo prestado', lejos: 'salta lejos', aqui: 'se queda en el mismo lugar' };
+    const SENS_PASO = { casa: 'Todo se aquieta.', luz: 'La vuelta se abre y empieza a pedir algo.', calma: 'Algo se asentó.', espejo: 'Casi las mismas notas, otra luz.',
+      tension: 'Queda algo tirando hacia casa.', camino: 'La frase sigue, sin sobresaltos.', prestado: 'Entró un color de afuera.', lejos: 'Es una sorpresa grande.', aqui: 'Quedarse también es una decisión.' };
+    function leerTeclados() {
+      const prog = S.prog.slice(), pasos = prog.slice(1).map((c, i) => relacionTutor(c, prog[i]));
+      const resuena = new Set((ANIMO_TUTOR[S.animo] || {}).rel || []);
+      return { prog, n: prog.length, pasos, lens: prog.map(c => c.len), fin: prog.length ? relacionTutor(prog[prog.length - 1], null) : null,
+        prestados: prog.filter(c => !isDiatonic(c.pc, c.q)).length, resuenan: pasos.filter(r => resuena.has(r)).length, conAnimo: resuena.size > 0,
+        distancia: prog.slice(1).map((c, i) => Math.abs(pasosQuinta(prog[i], c))) };
+    }
+    function hallazgosTeclados(L) {
+      if (!L.n) return [];
+      const H = [], narr = L.pasos.length ? `la vuelta ${L.pasos.map(r => DICE_PASO[r]).join(', ')}` : 'hay un solo acorde, y la rueda espera tu primer paso';
+      if (L.n === 1) H.push(hallazgo('k_uno', 0.8, narr, 'Quedarse en un acorde deja sentir su color entero.', '¿Hacia dónde irías: más luz o más calma?', ref('k_uno')));
+      if (L.conAnimo && L.pasos.length >= 3 && !L.resuenan) H.push(hallazgo('k_animo', 0.75, narr, `Elegiste «${S.animo}», y lo que resuena con ese ánimo casi no aparece.`, '¿Es la sensación que buscas, o descubriste otra?', ref('k_animo')));
+      else if (L.conAnimo && L.resuenan >= 2) H.push(hallazgo('k_resuena', 0.5, narr, `Con «${S.animo}» esto resuena: ${ANIMO_TUTOR[S.animo].t}.`, '¿Lo sientes así al escucharlo, o sólo lo dice la rueda?', ref('k_vivo')));
+      if (L.prestados) H.push(hallazgo('k_incomoda', 0.6, `la vuelta toma ${L.prestados === 1 ? 'un acorde prestado' : cuantas(L.prestados) + ' acordes prestados'} de la casa vecina`, 'Ese color de afuera cambia el ánimo de toda la vuelta.', '¿Incomoda bien, o incomoda mal?', ref('k_incomoda')));
+      if (L.n >= 3 && L.fin === 'tension') H.push(hallazgo('k_finTension', 0.5, `${narr}, y termina en tensión`, 'El loop no descansa: se vuelve a encender solo.', '¿Quieres que la vuelta respire en algún momento?', ref('m_paso_tension')));
+      else if (L.n >= 3 && L.fin === 'casa') H.push(hallazgo('k_finCasa', 0.45, `${narr}, y termina en casa`, 'La vuelta cierra: cada repetición descansa antes de empezar.', '¿Ese descanso ayuda a la canción, o la detiene?', ref('m_paso_casa', 1)));
+      if (L.n >= 3 && L.distancia.every(x => x <= 1)) H.push(hallazgo('k_predecible', 0.55, `${narr}, siempre a un paso en la rueda`, 'Suena natural, casi inevitable.', '¿Te sorprende en algún momento, o ya sabes lo que viene?', ref('k_predecible')));
+      if (L.distancia.filter(x => x >= 3).length >= 2) H.push(hallazgo('k_saltos', 0.55, `${narr}, con varios saltos grandes`, 'Es una vuelta inquieta: cada cambio abre una puerta distinta.', '¿Hay algo que la sostenga mientras salta?', ref('m_paso_lejos')));
+      if (L.n >= 2 && L.lens.every(x => x >= 2)) H.push(hallazgo('k_largos', 0.4, 'los acordes duran varios compases cada uno', 'Respiran: dejan tiempo para cantar encima.', '¿Qué pasa en tu voz mientras un acorde se queda?', ref('k_vivo')));
+      else if (L.n >= 3 && L.lens.some(x => x < 1)) H.push(hallazgo('k_rapidos', 0.4, 'hay acordes que cambian a mitad de compás', 'Esos cambios rápidos apuran la armonía.', '¿Esa prisa es parte de la canción?', ref('k_vivo')));
+      H.push(hallazgo('k_vivo', 0.3, narr, 'La vuelta tiene carácter propio.', 'Cántale encima cualquier cosa, sin palabras: ¿qué te pide?', ref('k_vivo')));
+      return H;
+    }
+    function cambiosTeclados(a, b) {
+      if (b.n > a.n) { const r = b.pasos[b.pasos.length - 1]; return r ? `Agregaste un acorde que ${DICE_PASO[r]}. ${SENS_PASO[r]}` : 'Tocaste el primer acorde.'; }
+      if (b.n < a.n) return 'Quitaste un acorde de la vuelta.';
+      const i = b.lens.findIndex((x, k) => x !== a.lens[k]); if (i >= 0) return b.lens[i] > a.lens[i] ? 'Alargaste un acorde: la vuelta se detiene más en él.' : 'Acortaste un acorde: la vuelta pasa más rápido por ahí.';
+      return '';
+    }
+
+    // Guitarra
+    function leerGuitarra() {
+      const g = S.guitar, st = (g.strum || []).slice(0, 8), donde = t => st.map((x, e) => (x || '') === t ? e * 2 : -1).filter(e => e >= 0);
+      return { st, n: g.prog.length, abajo: donde('D'), arriba: donde('U'), silencio: donde(''), golpes: st.filter(Boolean).length, bars: g.prog.map(c => c.bars || 1) };
+    }
+    function hallazgosGuitarra(L) {
+      if (!L.n && !L.golpes) return [];
+      const H = [];
+      if (L.n && !L.golpes) H.push(hallazgo('g_mudo', 0.8, 'la vuelta tiene acordes, pero el rasgueo está vacío', 'Por ahora la guitarra calla: la mano todavía no decide.', '¿Cómo se movería tu mano si tuvieras la guitarra ahora mismo?', ref('g_vacio')));
+      if (L.golpes === 8) H.push(hallazgo('g_parejo', 0.8, 'la mano derecha suena en las ocho corcheas', 'Es un motor constante: empuja, pero también tapa.', '¿Dónde podría la mano seguir moviéndose sin sonar?', ref('g_parejo')));
+      if (L.golpes && !L.arriba.length) H.push(hallazgo('g_soloAbajo', 0.7, `todos los golpes van hacia abajo, ${lugares(L.abajo)}`, 'Pesado, como un martillo, sin el balanceo del golpe que sube.', '¿Dónde podría la mano subir más liviana?', ref('g_soloAbajo')));
+      if (L.golpes && L.golpes < 8) H.push(hallazgo('g_huecos', 0.6, `el rasgueo calla ${lugares(L.silencio)}`, 'Esos huecos le dan dibujo al ritmo y dejan lugar a la voz.', '¿La voz quiere vivir en alguno de esos huecos?', ref('g_huecos')));
+      if (L.arriba.length && L.abajo.length) H.push(hallazgo('g_vaiven', 0.45, `los golpes hacia arriba caen ${lugares(L.arriba)}`, 'Ese vaivén entre abajo y arriba es lo que hace bailar a la guitarra.', '¿Se siente como balanceo, o como prisa?', ref('g_soloAbajo')));
+      if (L.n >= 2 && L.bars.every(x => x >= 2)) H.push(hallazgo('g_largos', 0.4, 'cada acorde dura varios compases', 'Respiran: dan tiempo para cantar encima.', '¿Qué hace tu voz mientras el acorde se queda?', ref('g_vivo')));
+      else if (L.n >= 3 && L.bars.every(x => x === 1)) H.push(hallazgo('g_cambia', 0.4, 'cambias de acorde en cada compás', 'Movimiento constante: la armonía no se queda quieta.', '¿Algún acorde merece quedarse más?', ref('g_vivo')));
+      H.push(hallazgo('g_vivo', 0.3, L.golpes ? `rasgueas ${lugares(L.abajo.concat(L.arriba).sort((x, y) => x - y), 4)}` : 'hay acordes esperando', 'La vuelta ya se puede cantar.', 'Pruébala con la voz antes de seguir en la pantalla: ¿qué te pide?', ref('g_vivo')));
+      return H;
+    }
+    function cambiosGuitarra(a, b) {
+      const f = [];
+      if (b.n > a.n) f.push('agregaste un acorde'); else if (b.n < a.n) f.push('quitaste un acorde');
+      const NOMBRE = { D: 'abajo', U: 'arriba', '': 'silencio' };
+      const cambios = b.st.map((x, e) => (x || '') !== (a.st[e] || '') ? e : -1).filter(e => e >= 0);
+      if (cambios.length && cambios.length <= 2) cambios.forEach(e => f.push(`cambiaste el golpe ${lugar(e * 2)} a ${NOMBRE[b.st[e] || '']}`));
+      else if (cambios.length > 2) f.push('cambiaste el dibujo del rasgueo');
+      if (!f.length) return '';
+      const efecto = b.golpes < a.golpes ? ', y entró aire' : b.golpes > a.golpes ? ', y la mano suena más' : '';
+      return mayus(enLista(f.slice(0, 3))) + efecto + '.';
+    }
+
+    // Cuando lo que cambió mejora algo: una sensación corta y una pregunta que siga ese cambio
+    const MEJORA_SENS = { m_quitar: 'Lo que quedó se oye más grande.', m_sincopa: 'Algo tropezó y el ritmo ganó impulso.', m_contraste: 'Ahora hay alguien que contesta.',
+      m_aire: 'Lo que suena después del silencio pesa más.', m_soltarse: 'La base empezó a balancearse.', m_hueco: 'El silencio empezó a empujar.' };
+    const MEJORA_PREG = { m_quitar: '¿Qué más podría irse sin que lo extrañes?', m_sincopa: '¿Se siente como impulso, o como tropiezo?', m_contraste: '¿Cómo se responden?',
+      m_aire: '¿Dónde más haría falta aire?', m_soltarse: '¿Ese diálogo se entiende?', m_hueco: '¿La voz quiere entrar ahí?' };
+    const PREGUNTAS_RUBIN = ['¿Qué sientes en el cuerpo cuando vuelve a empezar?', '¿Lo dejarías así si nadie lo fuera a escuchar?', '¿Qué parte de esto es la que de verdad importa?',
+      '¿Te dan ganas de moverte, o sólo de mirarlo?', '¿Cómo suena con los ojos cerrados?', '¿Esto te sorprende, o ya lo conocías?'];
+    let ultimaPregunta = '';
+    const LEER = { bateria: leerBateria, bajo: leerBajo, teclados: leerTeclados, guitarra: leerGuitarra };
+    const HALLAZGOS = { bateria: hallazgosBateria, bajo: hallazgosBajo, teclados: hallazgosTeclados, guitarra: hallazgosGuitarra };
+    const CAMBIOS = { bateria: cambiosBateria, bajo: cambiosBajo, teclados: cambiosTeclados, guitarra: cambiosGuitarra };
+
+    // El conjunto: lo que se oye al terminar una vuelta con varias partes sonando
+    function hallazgosConjunto() {
+      const D = leerBateria(), J = leerBajo(), T = leerTeclados(), H = [];
+      if (D.total && J.n && J.conBombo !== null) {
+        if (J.conBombo >= 0.7) H.push(hallazgo('c_juntos', 0.6, 'el bajo y el bombo caen juntos casi siempre', 'Se escuchan como un solo cuerpo.', '¿Qué pasaría si uno de los dos se guardara un golpe?', ref('j_pegado')));
+        else if (J.conBombo <= 0.3) H.push(hallazgo('c_dialogo', 0.6, 'el bajo y el bombo casi nunca coinciden', 'Conversan: cada uno ocupa el espacio que deja el otro.', '¿Ese diálogo se entiende, o se pisan?', ref('j_suelto')));
+        if (D.total >= 14 && J.porCompas <= 3) H.push(hallazgo('c_reparto', 0.55, 'la batería llena el compás y el bajo deja aire', 'Se reparten el espacio: eso suele sonar grande.', '¿Dónde entraría la voz en todo esto?', ref('m_aire')));
+        else if (D.total >= 14 && J.porCompas >= 6) H.push(hallazgo('c_compiten', 0.6, 'la batería y el bajo están llenos a la vez', 'Compiten por el mismo lugar.', '¿Quién debería ceder?', ref('b_lleno')));
+      }
+      if (T.n >= 2 && J.n) { const raiz = (J.roles.raiz || 0) / J.n;
+        if (raiz >= 0.7) H.push(hallazgo('c_raices', 0.45, 'el bajo toca la raíz de cada acorde de la vuelta', 'La armonía se oye clara, sin dudas.', '¿Quieres esa claridad, o un poco de misterio?', ref('j_vivo')));
+        else if (raiz <= 0.3) H.push(hallazgo('c_ambiguo', 0.5, 'el bajo casi no toca la raíz de los acordes', 'La armonía queda ambigua: los acordes cambian de color desde abajo.', '¿Esa ambigüedad es misterio, o confusión?', ref('k_incomoda')));
+      }
+      return H;
+    }
+
+    // Cómo tocas en vivo con el MPK: adelante o detrás del pulso, y la fuerza de tus golpes
+    const toque = { t0: 0, beat: 0.5, golpes: [] };
+    function hallazgoToque() {
+      const G = toque.golpes; if (G.length < 8) return null;
+      toque.golpes = [];
+      const m = G.reduce((s2, x) => s2 + x.dev, 0) / G.length, sd = Math.sqrt(G.reduce((s2, x) => s2 + (x.dev - m) ** 2, 0) / G.length);
+      const vm = G.reduce((s2, x) => s2 + x.vel, 0) / G.length, vsd = Math.sqrt(G.reduce((s2, x) => s2 + (x.vel - vm) ** 2, 0) / G.length);
+      const obs = m < -18 ? 'al tocar en vivo vas un poquito adelante del pulso' : m > 18 ? 'al tocar en vivo vas un poquito detrás del pulso' : 'al tocar en vivo caes justo sobre el pulso';
+      const sens = (m < -18 ? 'Tocar adelante empuja: urgencia, energía.' : m > 18 ? 'Tocar detrás arrastra con peso: es el groove perezoso de mucho trip hop y soul.'
+        : sd < 12 ? 'Tan justo que casi suena a máquina.' : 'Justo, pero humano: se nota la mano.') + (vsd < 8 ? ' Y todos tus golpes tienen la misma fuerza.' : ' Y la fuerza de tus golpes cambia: hay dinámica.');
+      return hallazgo('t_toque', 0.9, obs, sens, '¿Eso es lo que sientes al escucharlo, o tu mano va por su cuenta?', ref('b_vivo', 1));
+    }
+
     function situacion(inst, a) {
       if (inst === 'bateria') { if (a.vacio) return 'b_vacio'; if (a.lleno) return 'b_lleno'; if (a.soloBombo) return a.ksFuera ? 'b_bomboSuelto' : 'b_soloBombo';
         if (a.sinCaja) return 'b_sinCaja'; if (a.cuadrado) return 'b_cuadrado'; if (a.igual) return 'b_igual'; if (a.raros) return 'b_raro'; return 'b_vivo'; }
@@ -6103,7 +6344,14 @@
       b_cuadrado: 'salir de lo cuadrado', b_igual: 'variar la repetición', b_raro: 'escuchar el error', b_vivo: 'escuchar sin mirar', j_vacio: 'la hoja en blanco', j_unaNota: 'irse y volver',
       j_sinAire: 'dejar respirar el bajo', j_pegado: 'soltar el bajo del bombo', j_suelto: 'tocar tierra', j_vivo: 'escuchar el bajo solo', k_vacio: 'la hoja en blanco', k_uno: 'dar el primer paso',
       k_animo: 'volver al ánimo', k_incomoda: 'la tensión que incomoda', k_predecible: 'torcer el camino', k_vivo: 'cantarle encima', g_vacio: 'la hoja en blanco', g_parejo: 'huecos en el rasgueo',
-      g_soloAbajo: 'la mano que sube', g_huecos: 'cuidar los huecos', g_vivo: 'probar con la voz', x_masQueTu: 'notar que llenas más que de costumbre', x_menosQueTu: 'notar el espacio nuevo' };
+      g_soloAbajo: 'la mano que sube', g_huecos: 'cuidar los huecos', g_vivo: 'probar con la voz', x_masQueTu: 'notar que llenas más que de costumbre', x_menosQueTu: 'notar el espacio nuevo',
+      b_anticipa: 'el golpe que se sale del tiempo', b_unBombo: 'el compás que flota', b_cajaFuera: 'la caja fuera de lugar', b_hueco: 'los silencios largos', b_juntos: 'el golpe doble', b_final: 'el final de la vuelta',
+      b_lento: 'el peso de lo lento', b_rapido: 'la urgencia', j_raiz: 'el ancla de la raíz', j_saltos: 'los saltos del bajo', j_camina: 'la línea que camina', j_sube: 'la línea que sube',
+      j_baja: 'la línea que baja', j_amplio: 'la línea que se abre', j_antes: 'la nota que se adelanta', j_largas: 'las notas largas', j_tercera: 'la tercera en el bajo',
+      k_resuena: 'lo que resuena con el ánimo', k_finTension: 'terminar en tensión', k_finCasa: 'volver a casa', k_saltos: 'los saltos en la rueda', k_largos: 'los acordes que respiran',
+      k_rapidos: 'los cambios rápidos', g_mudo: 'la mano que todavía no decide', g_vaiven: 'el vaivén del rasgueo', g_largos: 'los acordes largos', g_cambia: 'los cambios de acorde',
+      c_juntos: 'bajo y bombo juntos', c_dialogo: 'el diálogo entre bajo y bombo', c_reparto: 'repartir el espacio', c_compiten: 'lo que compite', c_raices: 'la claridad de las raíces',
+      c_ambiguo: 'la ambigüedad del bajo', t_toque: 'cómo tocas en vivo' };
     const NOMBRE_INST = { bateria: 'Batería', bajo: 'Secuenciador', teclados: 'Teclados', guitarra: 'Guitarra' };
     function pintarAprendido() {
       const caja = document.querySelector('#tutor .ta-cuerpo'); if (!caja) return; caja.innerHTML = '';
@@ -6206,21 +6454,60 @@
       ultimaSit = sit; ultimoMensaje = ahora; if (!forzar) ultimoReactivo = ahora; est.bitacora.push(m); guardar(); pintar(m);
       return true;
     }
+    // Una frase armada con lo que realmente oyó (no sale del banco); no repite tal cual lo que acaba de decir
+    function decirTexto(m, { urgente = false } = {}) {
+      const ahora = Date.now();
+      if (!urgente && ahora - ultimoReactivo < 3500) return false;
+      if (est.bitacora.slice(-6).some(x => x.t === m.t)) return false;
+      const dicho = { sit: m.sit, t: m.t, por: m.por || '', de: m.de || '', ts: ahora };
+      ultimaSit = m.sit; ultimoMensaje = ahora; ultimoReactivo = ahora; est.bitacora.push(dicho); guardar(); pintar(dicho);
+      return true;
+    }
+    let clavesRecientes = [];
+    function elegirHallazgo(inst, H, per) {   // la saliencia de lo que oyó, inclinada por lo aprendido de ti y sin repetir el mismo foco
+      const nu = red(inst).neuronas[per.j]; let mejor = null, puntaje = -Infinity;
+      for (const h of H) { const w = (nu && nu.w[h.sit]) || 0, sc = h.peso * (clavesRecientes.includes(h.sit) ? 0.45 : 1) * (1 + 0.9 * per.act * w); if (sc > puntaje) { puntaje = sc; mejor = h; } }
+      if (mejor) clavesRecientes = [mejor.sit, ...clavesRecientes].slice(0, 3);
+      return mejor;
+    }
+    function elegirConjunto() {
+      const H = hallazgosConjunto().filter(h => !clavesRecientes.includes(h.sit)).sort((x, y) => y.peso - x.peso);
+      if (H[0]) clavesRecientes = [H[0].sit, ...clavesRecientes].slice(0, 3);
+      return H[0] || null;
+    }
 
-    let antes = {};
+    let antes = {}, antesLect = {};
     // primero responde a lo que acabas de hacer; si eso no dejó nada que decir y la etapa quedó lista, lo cuenta
     function reaccionar() {
       const inst = INSTR[S.mode]; if (!inst) return false;
       const ahora = OIR[inst](), previo = antes[inst]; antes[inst] = ahora;
+      const lect = LEER[inst](), lectPrevia = antesLect[inst]; antesLect[inst] = lect;
       const cambio = huboCambio; huboCambio = false;
       const mejora = previo && mejoro(inst, previo, ahora);
       // retroalimentación: ¿qué hiciste después del último consejo?
       if (espera && cambio && espera.inst === inst) retro(mejora && !mejora.startsWith('m_paso_') ? 1 : 0.3, mejora ? 'mejoró lo señalado' : 'cambió algo');
       const per = percibir(inst, ahora);
       if (cambios.length >= 8) { cambios = []; if (decir('dudas')) return true; }
-      if (mejora && decir(mejora)) return true;
-      const sit = elegir(inst, ahora, per);
-      if (sit && decir(sit)) {
+      // lo que cambió, contado con precisión; lo que más se oye ahora; la sensación y una pregunta
+      const narr = cambio && lectPrevia ? CAMBIOS[inst](lectPrevia, lect) : '';
+      const H = HALLAZGOS[inst](lect);
+      if (per.obs > 20 && inst !== 'teclados') {
+        if (per.z > 1.6) H.push(hallazgo('x_masQueTu', 0.65, 'esto tiene más cosas de lo que sueles hacer', 'Salir de tu costumbre puede ser un hallazgo o un reflejo.', '¿Lo estás buscando, o se te fue llenando sin darte cuenta?', ref('x_masQueTu')));
+        else if (per.z < -1.6) H.push(hallazgo('x_menosQueTu', 0.55, 'hoy vas con menos de lo que acostumbras', 'Ese espacio todavía no tiene contexto para tu oído.', '¿Es nuevo para ti? Escúchalo antes de rellenarlo.', ref('x_menosQueTu')));
+      }
+      if (!H.length) { const sitVacia = situacion(inst, ahora); return !!(sitVacia && decir(sitVacia)); }   // hoja en blanco: la pregunta de siempre
+      const h = elegirHallazgo(inst, H, per);
+      const refMejora = mejora && B[mejora] ? B[mejora][0] : null;
+      const esMejora = !!(mejora && MEJORA_SENS[mejora]);
+      const sensTxt = esMejora ? MEJORA_SENS[mejora]
+        : narr && inst === 'teclados' && !['k_animo', 'k_resuena', 'k_incomoda'].includes(h.sit) ? ''
+        : narr && h.peso <= 0.3 ? `Ahora ${h.obs}.` : h.sens;   // si lo que más se oye es poco saliente, describe cómo quedó
+      let preg = esMejora ? MEJORA_PREG[mejora] : h.preg;
+      if (preg === ultimaPregunta || est.bitacora.slice(-3).some(x => x.t.includes(preg))) preg = PREGUNTAS_RUBIN.find(q => !est.bitacora.slice(-6).some(x => x.t.includes(q))) || preg;
+      ultimaPregunta = preg;
+      const texto = [narr || mayus(h.obs) + '.', sensTxt, preg].filter(Boolean).join(' ');
+      const fuente = refMejora || h, sit = mejora || h.sit;
+      if (decirTexto({ sit, t: texto, por: fuente.por, de: fuente.de }, { urgente: !!narr })) {
         espera = { id: ++idConsejo, inst, j: per.j, sit, act: per.act, ts: Date.now(), escucho: false };
         ultimoDicho = { ...espera, ts: ultimoMensaje }; fb.hidden = false; fb.classList.remove('dado'); fb.lastChild.textContent = '';
         return true;
@@ -6249,7 +6536,7 @@
     function tick() {
       const ahora = Date.now();
       if (ultimaFirma === null) {   // la primera lectura es la línea base (ya con lo recuperado del autoguardado)
-        ultimaFirma = firma(); for (const k in OIR) antes[k] = OIR[k](); etapaLista = !!ETAPAS[est.etapa].listo(); pintarEtapa(); return;
+        ultimaFirma = firma(); for (const k in OIR) { antes[k] = OIR[k](); antesLect[k] = LEER[k](); } etapaLista = !!ETAPAS[est.etapa].listo(); pintarEtapa(); return;
       }
       const f = firma();
       if (f !== ultimaFirma) {
@@ -6271,7 +6558,18 @@
         vueltasSinCambio++; pintarOido('oyendo la vuelta', true); if (espera) espera.escucho = true;
         if (pendiente && Date.now() - ultimoCambio > 1200) { pendiente = false; reaccionar(); }
         else if (vueltasSinCambio === 4) decir(ETAPAS[est.etapa].id === 'soltar' ? 'etapa:soltar' : 'vueltas');
+        else {   // después de oír la vuelta: cómo tocas en vivo, o lo que se oye del conjunto
+          const lejos = Date.now() - ultimoMensaje;
+          const h = toque.golpes.length >= 8 && lejos > 8000 ? hallazgoToque() : vueltasSinCambio >= 2 && lejos > 10000 ? elegirConjunto() : null;
+          if (h) decirTexto({ sit: h.sit, t: `Escuché la vuelta: ${h.obs}. ${h.sens} ${h.preg}`, por: h.por, de: h.de });
+        }
         setTimeout(() => { if (!isPlaying) pintarOido('escuchando'); }, 400);
+      },
+      pasada(t0, beat) { toque.t0 = t0; toque.beat = beat; },
+      midi(vel) {   // cada golpe en vivo: cuánto se adelanta o se atrasa respecto de la semicorchea más cercana, y con qué fuerza
+        if (!isPlaying || typeof ctx === 'undefined' || !ctx) return;
+        const six = toque.beat / 4, pos = (ctx.currentTime - toque.t0) / six; if (pos < 0) return;
+        toque.golpes.push({ dev: (pos - Math.round(pos)) * six * 1000, vel }); if (toque.golpes.length > 32) toque.golpes.shift();
       },
     };
 
