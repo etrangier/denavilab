@@ -750,6 +750,10 @@
     .tu-cuerpo { gap: 8px; } .tu-msg { font-size: 15px; line-height: 1.32; } .tu-sub { font-size: 11px; }
     /* en pantalla chica, lo esencial: la etapa, el mensaje y los botones; bitácora y nota con el panel abierto del todo */
     .tutor:not(.completo) .tu-etapas, .tutor:not(.completo) .tu-bita, .tutor:not(.completo) .tu-aprendido, .tutor:not(.completo) .tu-nota { display: none; }
+    .tutor.plegado { cursor: pointer; gap: 4px; }
+    .tutor.plegado .tu-cuerpo > :not(.tu-msg), .tutor.plegado .tu-sub { display: none !important; }
+    .tutor.plegado .tu-msg { font-size: 14px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    body.modo-tutor:has(.tutor.plegado) { padding-bottom: 130px; }
   }
 </style>
 </head>
@@ -2342,7 +2346,7 @@
     'Bedroom pop':'chorus', 'Alternativo':'prophet', 'Lo-fi hip hop':'dxep',
     'IDM':'prophet', 'Lofi house':'juno', 'Personal':'juno',
   };
-  const timbreKey = () => TIMBRE_BANDA[S.band] || TIMBRE_GENERO[S.genre] || 'juno';
+  const timbreKey = () => MODO_TUTOR ? 'juno' : (TIMBRE_BANDA[S.band] || TIMBRE_GENERO[S.genre] || 'juno');   // en el tutor el Pad no toma el timbre de una banda
   const timbreActual = () => TIMBRES[timbreKey()] || TIMBRES.juno;
 
   function voice(m, t, dur, kind, gainV=0.25, opts=null) {
@@ -2872,6 +2876,7 @@
           const falta = (tb + bd - 0.08 - ctx.currentTime)*1000;
           if (falta > 0) await wait(falta);
           tb += bd;
+          if (tutorOyente && !stopFlag && (b + 1) % Math.max(1, S.bassd.len) === 0 && b + 1 < totalBars) tutorOyente.vuelta(mode);   // el tutor oye cada repetición del patrón
         }
         t0 = tb - totalBars*barDur;   // el t0 += totalBars*barDur de abajo lo deja en el tiempo real acumulado
       }
@@ -2883,6 +2888,7 @@
         for (let b=0; b<totalBars && !stopFlag; b++) {
           (S.donner.on ? scheduleDonner : scheduleDrums)(t0 + b*barDur, 1, beat, drumPhase + b);
           const falta = (t0 + (b+1)*barDur - 0.08 - ctx.currentTime)*1000; if (falta > 0) await wait(falta);
+          if (tutorOyente && !stopFlag && (b + 1) % Math.max(1, S.donner.on ? S.donner.len : S.drums.len) === 0 && b + 1 < totalBars) tutorOyente.vuelta(mode);   // cada repetición del patrón, no sólo la pasada entera
         }
       }
       if (withChords) {
@@ -4742,8 +4748,9 @@
     }
   }
   const stamp = () => new Date().toISOString().slice(0,10);
-  $('expMidiOne').addEventListener('click', ()=>{ stBump('usos','exportar MIDI'); const d = buildMidi(S.mode); if (!d) { $('expInfo').textContent = 'Esta pista está vacía todavía.'; return; } deliver(`rueda-${S.mode}-${stamp()}.mid`, d, 'audio/midi'); });
-  $('expMidiAll').addEventListener('click', ()=>{ stBump('usos','exportar MIDI'); const d = buildMidi('all'); if (!d) { $('expInfo').textContent = 'No hay nada que exportar aún: programa un beat, un bajo o una progresión.'; return; } deliver(`rueda-proyecto-${stamp()}.mid`, d, 'audio/midi'); });
+  const nombreArchivo = () => (S.letra.titulo || S.nombreMaqueta || 'maqueta').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'maqueta';   // el archivo lleva el nombre de tu maqueta
+  $('expMidiOne').addEventListener('click', ()=>{ stBump('usos','exportar MIDI'); const d = buildMidi(S.mode); if (!d) { $('expInfo').textContent = 'Esta pista está vacía todavía.'; return; } deliver(`${nombreArchivo()}-${S.mode}-${stamp()}.mid`, d, 'audio/midi'); });
+  $('expMidiAll').addEventListener('click', ()=>{ stBump('usos','exportar MIDI'); const d = buildMidi('all'); if (!d) { $('expInfo').textContent = 'No hay nada que exportar aún: programa un beat, un bajo o una progresión.'; return; } deliver(`${nombreArchivo()}-${stamp()}.mid`, d, 'audio/midi'); });
 
   // ───────── Exportar PDF (escrito a mano, sin librerías) ─────────
   const pdfText = t => [...t].map(c=>{ const code=c.charCodeAt(0); const b = code<128 ? code : (CP[c] ?? 0x3f); const ch=String.fromCharCode(b); return ch==='('||ch===')'||ch==='\\' ? '\\'+ch : ch; }).join('');
@@ -4820,13 +4827,14 @@
   }
   $('expProyecto').addEventListener('click', ()=>{
     stBump('usos','exportar .denavi');
-    const nombre = (S.letra.titulo || 'maqueta').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'maqueta';
+    const nombre = nombreArchivo();
     deliver(`${nombre}-${stamp()}.denavi`, JSON.stringify(proyectoActual(), null, 1), 'application/json');
   });
   // Aplica un .denavi ya leído (de un archivo o de lo guardado en el navegador). Devuelve un texto de estado.
   function aplicarProyecto(d, nombre) {
     if (!d || d.app !== 'DenaviLAB' || !d.musica) throw new Error('no parece una maqueta de DenaviLAB');
     if (d.formato > FORMATO) throw new Error('viene de una versión más nueva de la app');
+    if (nombre && nombre !== 'tu trabajo') S.nombreMaqueta = nombre;
     // Primero género y banda, porque applyBand() vacía la progresión y pisa el tempo
     // con el de la banda. Todo lo guardado se aplica encima, después.
     S.genre = d.musica.genre; $('genre').value = S.genre;
@@ -4871,7 +4879,7 @@
   if ($('savedMaquetas')) $('savedMaquetas').addEventListener('change', revisarBotonesMaqueta);
   if ($('saveMaqueta')) $('saveMaqueta').addEventListener('click', ()=>{
     stBump('usos','guardar maqueta');
-    const name = $('maquetaName').value.trim() || S.letra.titulo || ('maqueta ' + new Date().toLocaleString('es-CL', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }));
+    const name = $('maquetaName').value.trim() || S.letra.titulo || ('maqueta ' + new Date().toLocaleString('es-CL', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })); S.nombreMaqueta = name;
     const list = store.get('rueda.maquetas'); list.push({ name, ts:Date.now(), proyecto: proyectoActual() });
     try { store.set('rueda.maquetas', list); } catch (e) { avisoGuardar('No cupo en el almacenamiento del navegador: descarga el .denavi para no perderla.'); return; }
     $('maquetaName').value=''; renderSavedMaquetas(); $('savedMaquetas').value=String(list.length-1); revisarBotonesMaqueta();
@@ -5891,6 +5899,7 @@
       { t:'Hoy vas con menos de lo que acostumbras. Ese espacio, ¿es nuevo para ti? Escúchalo antes de rellenarlo.', por:'Cuando haces algo distinto a tu costumbre, el oído todavía no tiene contexto: dale unas vueltas antes de juzgar.', de: LIBRO('Punto de referencia') },
     ],
 
+    'opinar:poco': [{ t:'Todavía hay muy poco para opinar: una semilla no se juzga. Sigue un rato más y vuelve a preguntarme.', por:'Al principio se junta sin juzgar; todavía es pronto para saber qué idea va a crecer.', de: LIBRO('Semillas') }],
     // ── Melodía
     'etapa:melodia': [
       { t:'Antes de tocar la rejilla, tararea algo encima de la vuelta, aunque sea sin palabras. ¿Qué gesto se repite en tu voz?', por:'La voz encuentra la melodía antes que la cabeza; la rejilla sirve para anotar lo que ya cantaste.', de: LIBRO('Semillas') },
@@ -6129,7 +6138,7 @@
       const d = notas.slice(1).map((n, i) => n.r - notas[i].r);
       const alt = notas.map(n => n.r), roles = notas.reduce((o, n) => (o[n.rol] = (o[n.rol] || 0) + 1, o), {});
       return { notas, len, n: notas.length, porCompas: notas.length / len, aire: vacias / (len * 16), rango: notas.length ? Math.max(...alt) - Math.min(...alt) : 0, roles,
-        grandes: d.filter(x => Math.abs(x) >= 5).length, cortos: d.filter(x => x && Math.abs(x) <= 2).length, sube: d.filter(x => x > 0).length, baja: d.filter(x => x < 0).length,
+        grandes: d.filter(x => Math.abs(x) >= 8).length, cortos: d.filter(x => x && Math.abs(x) <= 2).length, sube: d.filter(x => x > 0).length, baja: d.filter(x => x < 0).length,
         conBombo: kick.some(Boolean) && notas.length ? notas.filter(x => x.bombo).length / notas.length : null,
         antes: notas.filter(x => x.s % 4 === 3).length, largas: notas.filter(x => x.dur >= 4).length };
     }
@@ -6221,7 +6230,7 @@
     }
     function cambiosGuitarra(a, b) {
       const f = [];
-      if (b.n > a.n) f.push('agregaste un acorde'); else if (b.n < a.n) f.push('quitaste un acorde');
+      if (b.n > a.n) f.push(b.n - a.n === 1 ? 'agregaste un acorde' : `agregaste ${cuantas(b.n - a.n)} acordes`); else if (b.n < a.n) f.push(a.n - b.n === 1 ? 'quitaste un acorde' : `quitaste ${cuantas(a.n - b.n)} acordes`);
       const NOMBRE = { D: 'abajo', U: 'arriba', '': 'silencio' };
       const cambios = b.st.map((x, e) => (x || '') !== (a.st[e] || '') ? e : -1).filter(e => e >= 0);
       if (cambios.length && cambios.length <= 2) cambios.forEach(e => f.push(`cambiaste el golpe ${lugar(e * 2)} a ${NOMBRE[b.st[e] || '']}`));
@@ -6241,7 +6250,7 @@
     let ultimaPregunta = '';
     // qué hallazgo corresponde a cada cosa que se nombra al contar un cambio
     const PISTAS_CAMBIO = { 'fuera de la tonalidad': 'e_fuera', 'frase muy transitada': 'l_cliche', 'imagen concreta': 'l_imagenes', 'rima con el verso anterior': 'l_todoRima',
-      'se abrió un espacio': 'b_hueco', 'se sale del tiempo': 'b_anticipa', 'repite el dibujo': 'e_motivo', 'la frase respira': 'e_sinAire', 'se despegó del bombo': 'j_suelto',
+      'se abrió un espacio': 'b_hueco', 'se sale del tiempo': 'b_anticipa', 'repite el dibujo': 'e_motivo', 'retoma el gesto': 'e_motivo', 'la frase respira': 'e_sinAire', 'se despegó del bombo': 'j_suelto',
       'camina con el bombo': 'j_pegado', 'entró aire': 'g_huecos', 'con saltos': 'e_saltos', 'paso a paso': 'e_grados' };
     const LEER = { bateria: leerBateria, bajo: leerBajo, teclados: leerTeclados, guitarra: leerGuitarra };
     const HALLAZGOS = { bateria: hallazgosBateria, bajo: hallazgosBajo, teclados: hallazgosTeclados, guitarra: hallazgosGuitarra };
@@ -6259,13 +6268,16 @@
       }
       const d = notas.slice(1).map((n, i) => n.r - notas[i].r), alt = notas.map(n => n.r);
       const inicios = []; for (let b = 0; b < bars; b++) { const n = notas.find(x => x.st === b * 8); if (n) inicios.push(n); }
-      const dibujo = b => notas.filter(n => n.b === b).map((n, i, xs) => `${n.st % 8}:${i ? n.r - xs[i - 1].r : 0}`).join(',');
-      const motivo = bars >= 2 && notas.some(n => n.b === 0) && [...Array(bars).keys()].slice(1).some(b => dibujo(b) && dibujo(b) === dibujo(0));
+      const dibujo = b => notas.filter(n => n.b === b).map((n, i, xs) => `${n.st % 8}:${i ? n.r - xs[i - 1].r : 0}`);
+      const otros = [...Array(bars).keys()].slice(1), d0 = dibujo(0);
+      const exacto = bars >= 2 && d0.length > 0 && otros.some(b => dibujo(b).join() === d0.join());
+      const variado = !exacto && bars >= 2 && d0.length >= 3 && otros.some(b => { const x = dibujo(b); return x.length >= 3 && x.slice(0, 3).join() === d0.slice(0, 3).join(); });   // mismo gesto, otro final
+      const motivo = exacto || variado;
       const alto = notas.length ? notas.reduce((m, n) => n.r > m.r ? n : m, notas[0]) : null;
       return { notas, bars, n: notas.length, aire: vacias / (bars * 8), rango: notas.length ? Math.max(...alt) - Math.min(...alt) : 0,
         grandes: d.filter(x => Math.abs(x) >= 5).length, cortos: d.filter(x => x && Math.abs(x) <= 2).length,
         verdeUno: inicios.length ? inicios.filter(n => n.rol === 'acorde').length / inicios.length : null, inicios: inicios.length,
-        fuera: notas.filter(n => n.rol === 'fuera'), motivo, alto, conAcordes: S.prog.length > 0, ultima: notas[notas.length - 1] || null, primera: notas[0] || null };
+        fuera: notas.filter(n => n.rol === 'fuera'), motivo, variado, alto, conAcordes: S.prog.length > 0, ultima: notas[notas.length - 1] || null, primera: notas[0] || null };
     }
     const lugarMel = st => lugar((st % 8) * 2);
     function hallazgosMelodia(L) {
@@ -6282,7 +6294,9 @@
         H.push(hallazgo('e_cumbre', 0.45, `la nota más aguda llega ${L.bars < 2 ? 'dentro del compás' : pos >= 0.66 ? 'hacia el final' : pos <= 0.2 ? 'al principio' : 'en el medio'}`,
           L.bars < 2 ? 'Todo pasa en un gesto corto.' : pos >= 0.66 ? 'La frase va subiendo hasta su punto más alto: construye.' : pos <= 0.2 ? 'Empieza en lo más alto y después baja: se vacía, se entrega.' : 'Tiene forma de arco: sube, llega y vuelve.',
           '¿Ese punto alto cae en la palabra más importante?', ref('k_vivo'))); }
-      if (L.motivo) H.push(hallazgo('e_motivo', 0.6, 'el dibujo del primer compás vuelve más adelante', 'El oído lo reconoce y lo espera: eso hace que una melodía se quede pegada.', '¿Qué pasa si la última vez cambia el final?', ref('b_igual', 1)));
+      if (L.motivo) H.push(hallazgo('e_motivo', 0.6, L.variado ? 'el gesto del primer compás vuelve, con otro final' : 'el dibujo del primer compás vuelve más adelante',
+        L.variado ? 'Repetir el gesto y cambiar el final hace que la frase se recuerde sin aburrir.' : 'El oído lo reconoce y lo espera: eso hace que una melodía se quede pegada.',
+        L.variado ? '¿Ese final nuevo lleva a algún lado?' : '¿Qué pasa si la última vez cambia el final?', ref('b_igual', 1)));
       else if (L.bars >= 2 && L.n >= 6) H.push(hallazgo('e_libre', 0.45, 'ningún compás repite el dibujo de otro', 'Es libre como un recitado, y por eso cuesta recordarla.', '¿Hay algún gesto que valga la pena volver a decir?', ref('b_igual')));
       if (L.fuera.length) H.push(hallazgo('e_fuera', 0.55, `hay ${L.fuera.length === 1 ? 'una nota' : cuantas(L.fuera.length) + ' notas'} fuera de la tonalidad, ${lugarMel(L.fuera[0].st)}`, 'Incomoda, y a veces esa incomodidad es la emoción misma.', '¿Incomoda bien, o incomoda mal?', ref('k_incomoda')));
       if (L.ultima && L.conAcordes) H.push(L.ultima.rol === 'acorde'
@@ -6303,7 +6317,7 @@
       if (idas.length) f.push(idas.length > 3 ? 'borraste varias notas' : `quitaste ${idas.length === 1 ? 'la nota' : 'las notas'} ${enLista(idas.map(n => lugarMel(n.st)))}`);
       if (movidas.length) { const m = movidas[0]; f.push(`${m.r > A.get(m.st).r ? 'subiste' : 'bajaste'} la nota ${lugarMel(m.st)}`); }
       if (!f.length) return '';
-      const efecto = b.motivo && !a.motivo ? ', y repite el dibujo de un compás anterior' : b.aire >= a.aire + 0.12 ? ', y la frase respira más' : a.n && b.rango >= a.rango + 5 ? ', y la melodía se abrió' : '';
+      const efecto = b.motivo && !a.motivo ? (b.variado ? ', y retoma el gesto de un compás anterior con otro final' : ', y repite el dibujo de un compás anterior') : b.aire >= a.aire + 0.12 ? ', y la frase respira más' : a.n && b.rango >= a.rango + 5 ? ', y la melodía se abrió' : '';
       return mayus(enLista(f.slice(0, 3))) + efecto + '.';
     }
 
@@ -6311,8 +6325,14 @@
     const SIL_N = ['ninguna', 'una', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve', 'veinte'];
     const silabasTxt = n => n === 1 ? 'una sílaba' : `${SIL_N[n] || 'más de veinte'} sílabas`;
     const CLICHES = ['corazón roto', 'para siempre', 'sin ti', 'te amo', 'mi vida', 'mil pedazos', 'amor eterno', 'nunca más', 'la luna', 'las estrellas', 'mi alma', 'tu mirada', 'el destino'];
-    const CONCRETAS = /\b(calle|lluvia|ventana|mar|río|noche|luz|humo|piel|frío|café|tren|puerta|cama|cigarro|auto|playa|ciudad|cerro|polvo|vidrio|espejo|sombra|fuego|manos?|boca|ojos|pelo|sal|viento|árbol|perro|domingo|invierno|verano|madrugada|esquina|micro|plaza|techo|piso|taza|sillón|radio|bus|pasillo|lámpara|niebla|arena|olas?)\b/i;
-    const ABSTRACTAS = /\b(amor|dolor|alma|tristeza|felicidad|soledad|destino|esperanza|sentimientos?|pasión|libertad|verdad|muerte|eternidad|olvido|ilusión|nostalgia)\b/i;
+    const palabrasRE = lista => new RegExp('(?<!\\p{L})(' + lista + ')(?!\\p{L})', 'iu');   // \b no sirve con tildes («café»)
+    const CONCRETAS = palabrasRE('calle|lluvia|ventana|mar|río|noche|luz|humo|piel|frío|café|tren|puerta|cama|cigarro|auto|playa|ciudad|cerro|polvo|vidrio|espejo|sombra|fuego|manos?|boca|ojos|pelo|sal|viento|árbol|perro|domingo|invierno|verano|madrugada|esquina|micro|plaza|techo|piso|taza|sillón|radio|bus|pasillo|lámpara|niebla|arena|olas?|chaqueta|silla|mesa|zapatos?|vestido|foto|carta|teléfono|celular|botella|vaso|cuaderno|guitarra|sofá|balcón|escalera|jardín|flores?|hojas?|nubes?|estación|andén|semáforo|parque|cocina|almohada|sábanas|llaves|reloj|cortina|piano|disco|carretera|abrigo|bufanda|vereda|terraza|pieza|departamento|kiosco|feria');
+    const ABSTRACTAS = palabrasRE('amor|dolor|alma|tristeza|felicidad|soledad|destino|esperanza|sentimientos?|pasión|libertad|verdad|muerte|eternidad|olvido|ilusión|nostalgia|vida|tiempo|mundo|recuerdo|momento|sueños?');
+    const DETERMINANTES = new Set(['el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'mi', 'mis', 'tu', 'tus', 'su', 'sus', 'este', 'esta', 'ese', 'esa', 'aquel', 'aquella', 'del', 'al', 'nuestro', 'nuestra']);
+    const NO_IMAGEN = new Set(['forma', 'manera', 'cosa', 'cosas', 'vez', 'veces', 'gente', 'parte', 'verdad', 'razón', 'idea', 'nada', 'todo', 'algo', 'misma', 'mismo', 'otra', 'otro', 'única', 'último', 'última', 'primera', 'primer', 'quiero', 'siento', 'tengo', 'extraño', 'espero', 'mitad', 'final', 'fondo']);
+    const imagenesDe = t => { const low = t.toLowerCase(), out = [...(low.match(new RegExp(CONCRETAS.source, 'giu')) || [])], toks = low.match(/\p{L}+/gu) || [];
+      toks.forEach((w, i) => { if (i && DETERMINANTES.has(toks[i - 1]) && w.length >= 4 && !NO_IMAGEN.has(w) && !ABSTRACTAS.test(w) && !w.endsWith('mente') && !/(ar|er|ir|ando|iendo)$/.test(w)) out.push(w); });
+      return [...new Set(out)]; };
     const fragmento = t => { const w = t.split(/\s+/); return w.length > 7 ? '…' + w.slice(-6).join(' ') : t; };
     function leerLetra() {
       const secs = S.letra.secciones.map(sec => ({ tipo: sec.tipo, a: analizarSeccion(sec) }));
@@ -6320,7 +6340,7 @@
       const todo = versos.map(v => v.txt).join(' ').toLowerCase(), conteo = {};
       (todo.match(/[a-záéíóúüñ]+/g) || []).filter(w => w.length > 3).forEach(w => { conteo[w] = (conteo[w] || 0) + 1; });
       const rep = Object.entries(conteo).sort((x, y) => y[1] - x[1])[0];
-      const concretas = versos.map(v => (v.txt.match(CONCRETAS) || [])[0]).filter(Boolean);
+      const concretas = [...new Set(versos.flatMap(v => imagenesDe(v.txt)))];
       const sils = versos.map(v => v.sil).filter(Boolean);
       return { secs, versos, n: versos.length, titulo: (S.letra.titulo || '').trim(), concretas, abstractas: versos.filter(v => ABSTRACTAS.test(v.txt)).length,
         cliches: CLICHES.filter(c => todo.includes(c)), internas: versos.filter(v => _INTERNAS.test(v.txt)).length, preguntas: versos.filter(v => v.txt.includes('?')).length,
@@ -6356,8 +6376,8 @@
       const sil = silabas(cambiado.t), r = rimaClave(cambiado.t);
       const previo = (b.textos[cambiado.si] || []).slice(0, cambiado.li).filter(Boolean).pop();
       const rimaPrev = previo && r && rimaClave(previo) && rimaClave(previo).aso === r.aso;
-      const imagen = (cambiado.t.match(CONCRETAS) || [])[0], cliche = CLICHES.find(c => cambiado.t.toLowerCase().includes(c));
-      const extra = [].concat(rimaPrev ? ['que rima con el verso anterior'] : [], imagen ? [`con una imagen concreta, «${imagen.toLowerCase()}»`] : [], cliche ? [`con una frase muy transitada, «${cliche}»`] : []);
+      const imgs = imagenesDe(cambiado.t), imagen = imgs[0], cliche = CLICHES.find(c => cambiado.t.toLowerCase().includes(c));
+      const extra = [].concat(rimaPrev ? ['que rima con el verso anterior'] : [], imagen ? [imgs.length > 1 ? `con imágenes concretas, ${enLista(imgs.slice(0, 2).map(w => '«' + w + '»'))}` : `con una imagen concreta, «${imagen}»`] : [], cliche ? [`con una frase muy transitada, «${cliche}»`] : []);
       return `${cambiado.nuevo ? 'Escribiste un verso nuevo' : 'Cambiaste un verso'}: «${fragmento(cambiado.t)}», de ${silabasTxt(sil)}${extra.length ? ', ' + enLista(extra) : ''}.`;
     }
     Object.assign(LEER, { melodia: leerMelodia, letra: leerLetra });
@@ -6370,7 +6390,7 @@
     // Como el gusto decidido del que habla Rubin: dice lo que siente con claridad, sin venderlo; decide quien toca.
     const pro = (c, t) => c ? [t] : [], contra = (c, razon, mejora) => c ? [[razon, mejora]] : [];
     const CRITERIOS = {
-      bateria: () => { const L = leerBateria(); if (!L.total) return null; return {
+      bateria: () => { const L = leerBateria(); if (L.total < 3) return null; return {
         pos: [...pro(L.backbeat && (L.anticipa.length || L.hh.some(x => x % 4 === 2)), 'hay un pulso claro y algo que se mueve alrededor'), ...pro(L.hueco >= 4 && L.total >= 6, 'deja espacio donde entrar'),
           ...pro(L.difiere.includes(L.len - 1), 'la vuelta tiene un final'), ...pro(L.total >= 6 && L.total <= 16, 'la densidad está bien medida')],
         neg: [...contra(L.total >= 20, 'está demasiado lleno y nada destaca', 'hay que quitar hasta que lo importante se escuche solo'),
@@ -6379,13 +6399,13 @@
           ...contra(['cuatro', 'unoTres'].includes(L.kTipo) && L.backbeat && !L.anticipa.length && L.len === 1, 'es tan predecible que el cuerpo deja de prestarle atención', 'le falta un lugar donde sorprender'),
           ...contra(L.sn.length && !L.backbeat && L.k.length && L.total >= 6, 'no se entiende dónde está el golpe fuerte', 'hay que decidir dónde se apoya el compás'),
           ...contra(L.len > 1 && !L.difiere.length && L.total >= 8, 'se repite igual y no respira como frase', 'le vendría bien que la vuelta tenga un final')] }; },
-      bajo: () => { const J = leerBajo(), D = leerBateria(); if (!J.n) return null; return {
+      bajo: () => { const J = leerBajo(), D = leerBateria(); if (J.n < 3) return null; return {
         pos: [...pro(J.conBombo !== null && J.conBombo >= 0.35 && J.conBombo <= 0.85, 'conversa con el bombo sin perderse'), ...pro(J.cortos >= 2 && J.grandes <= 1, 'la línea canta'),
           ...pro(J.aire >= 0.25, 'respira'), ...pro(J.antes > 0, 'empuja con gracia')],
         neg: [...contra(J.aire < 0.15, 'no respira', 'hay que dejarle silencios'), ...contra(J.rango <= 2 && J.n >= 4, 'se queda en un solo lugar y aburre', 'necesita irse y volver'),
           ...contra(J.conBombo !== null && J.conBombo < 0.2 && J.n >= 3, 'camina por su cuenta, sin tierra', 'hay que buscar dónde coincide con el bombo'),
           ...contra(J.grandes >= 4, 'salta tanto que pierde el suelo', 'le sobran saltos'), ...contra(!D.total, 'suena sin un pulso que lo sostenga', 'hay que escucharlo con batería antes de decidir')] }; },
-      teclados: () => { const T = leerTeclados(); if (!T.n) return null; return {
+      teclados: () => { const T = leerTeclados(); if (T.n < 2) return null; return {
         pos: [...pro(T.fin === 'tension', 'el loop se enciende solo'), ...pro(T.prestados === 1, 'tiene un color propio'), ...pro(T.conAnimo && T.resuenan >= 2, 'dice lo que elegiste sentir'),
           ...pro(T.distancia.some(x => x >= 2) && !T.distancia.every(x => x >= 3), 'tiene sorpresa sin perderse')],
         neg: [...contra(T.n === 1, 'todavía no hay movimiento', 'hay que dar el primer paso'),
@@ -6393,15 +6413,15 @@
           ...contra(T.conAnimo && T.pasos.length >= 3 && !T.resuenan, 'no suena al ánimo que elegiste', 'o cambias el camino o cambias el ánimo'),
           ...contra(T.distancia.filter(x => x >= 3).length >= 3, 'salta tanto que no se sabe dónde está la casa', 'necesita un lugar al que volver'),
           ...contra(T.prestados >= 3, 'tiene tantos colores de afuera que pierde el propio', 'le sobra algo prestado')] }; },
-      melodia: () => { const M = leerMelodia(); if (!M.n) return null; return {
-        pos: [...pro(M.motivo, 'tiene un dibujo que se recuerda'), ...pro(M.aire >= 0.3, 'respira'), ...pro(M.conAcordes && M.verdeUno !== null && M.verdeUno >= 0.5, 'se apoya en la armonía'),
+      melodia: () => { const M = leerMelodia(); if (M.n < 4) return null; return {
+        pos: [...pro(M.motivo, M.variado ? 'repite su gesto y lo varía' : 'tiene un dibujo que se recuerda'), ...pro(M.aire >= 0.3, 'respira'), ...pro(M.conAcordes && M.verdeUno !== null && M.verdeUno >= 0.5, 'se apoya en la armonía'),
           ...pro(M.n >= 4 && M.rango >= 5 && M.rango <= 12, 'tiene dirección y cabe en la voz')],
         neg: [...contra(M.aire < 0.2 && M.n >= 4, 'no deja respirar a quien la canta', 'hay que abrirle silencios'),
           ...contra(!M.motivo && M.bars >= 2 && M.n >= 6, 'no tiene nada que el oído pueda recordar', 'le falta un gesto que vuelva'),
           ...contra(M.rango >= 14, 'es muy difícil de cantar', 'hay que acercarla a la voz'), ...contra(M.fuera.length >= 3, 'tiene demasiadas notas fuera y suena perdida', 'hay que decidir qué incomodidad vale la pena'),
           ...contra(M.conAcordes && M.verdeUno !== null && M.verdeUno < 0.25 && M.ultima && M.ultima.rol !== 'acorde', 'nunca se apoya en los acordes', 'necesita algún momento de tierra'),
           ...contra(M.rango <= 2 && M.n >= 5, 'casi no se mueve', 'le falta un lugar al que llegar')] }; },
-      letra: () => { const Le = leerLetra(); if (!Le.n) return null; return {
+      letra: () => { const Le = leerLetra(); if (Le.n < 2) return null; return {
         pos: [...pro(Le.concretas.length >= 2, 'tiene imágenes que se ven'), ...pro(Le.preguntas > 0, 'deja preguntas abiertas'),
           ...pro(Le.conRima && Le.rimados < Le.n * 0.9, 'la rima está, pero no obliga'), ...pro(Le.estribillo, 'tiene un lugar al que volver')],
         neg: [...contra(Le.cliches.length, `usa frases gastadas, como «${Le.cliches[0]}»`, 'hay que decirlo con algo que sólo tú hayas visto'),
@@ -6409,7 +6429,7 @@
           ...contra(Le.dispersa, 'los versos no van a caber parejos en la música', 'hay que cantarla sobre la base y ajustar'),
           ...contra(Le.prom >= 13 && S.bpm >= 110, 'los versos no caben en este tempo', 'le sobran palabras'),
           ...contra(Le.n >= 3 && Le.internas >= Le.n * 0.8, 'se queda encerrada en el yo', 'le falta mirar hacia afuera')] }; },
-      guitarra: () => { const G = leerGuitarra(); if (!G.n && !G.golpes) return null; return {
+      guitarra: () => { const G = leerGuitarra(); if (G.n < 2 && G.golpes < 3) return null; return {
         pos: [...pro(G.golpes && G.golpes < 8 && G.arriba.length && G.abajo.length, 'el rasgueo tiene balanceo'), ...pro(G.n >= 2, 'la vuelta ya se puede cantar')],
         neg: [...contra(G.n && !G.golpes, 'la mano todavía no suena', 'hay que encontrar cómo se mueve la mano'), ...contra(G.golpes === 8, 'el rasgueo tapa todo', 'hay que darle huecos'),
           ...contra(G.golpes && !G.arriba.length, 'el rasgueo es puro martillo', 'le falta el golpe que sube')] }; },
@@ -6417,13 +6437,14 @@
     const APERTURAS = { funciona: ['Esto me funciona', 'Esto sí me llega', 'Aquí hay algo'], camino: ['Va por buen camino', 'Me gusta hacia dónde va', 'Tiene algo'], no: ['Todavía no me convence', 'A mí todavía no me llega', 'Aún no está'] };
     let vecesJuicio = 0; const aclarado = new Set();   // «es mi oído» se dice una vez por instrumento, no cada vez
     function juzgar(inst) {
-      const c = CRITERIOS[inst] && CRITERIOS[inst](); if (!c) return null;
+      const c = CRITERIOS[inst] && CRITERIOS[inst](); if (!c || (!c.pos.length && !c.neg.length)) return null;   // con poco material, no opina
       const veredicto = !c.neg.length && c.pos.length ? 'funciona' : c.neg.length >= 2 || (c.neg.length && !c.pos.length) ? 'no' : 'camino';
       const op = APERTURAS[veredicto][vecesJuicio++ % 3];
-      const texto = veredicto === 'funciona' ? `${op}: ${enLista(c.pos.slice(0, 2))}.`
-        : veredicto === 'camino' ? (c.neg.length ? `${op}${c.pos[0] ? ': ' + c.pos[0] : ''}, pero ${c.neg[0][0]}; ${c.neg[0][1]}.` : `${op}, aunque todavía no termina de decir algo.`)
-        : `${op}: ${c.neg[0][0]}, y ${c.neg[0][1]}.` + (c.neg[1] ? ` Además, ${c.neg[1][0]}.` : '') + (!aclarado.has(inst) ? (aclarado.add(inst), ' Es mi oído: si a ti te mueve, confía en eso.') : '');
-      return { veredicto, texto, pos: c.pos, neg: c.neg };
+      const corto = veredicto === 'funciona' ? `${op}: ${enLista(c.pos.slice(0, 2))}.`
+        : veredicto === 'camino' ? `${op}${c.pos[0] ? ': ' + c.pos[0] : ''}, pero ${c.neg[0][0]}; ${c.neg[0][1]}.`
+        : `${op}: ${c.neg[0][0]}, y ${c.neg[0][1]}.`;
+      const texto = corto + (veredicto === 'no' && c.neg[1] ? ` Además, ${c.neg[1][0]}.` : '') + (veredicto !== 'funciona' && !aclarado.has(inst) ? (aclarado.add(inst), ' Es mi oído: si a ti te mueve, confía en eso.') : '');
+      return { veredicto, corto, texto, pos: c.pos, neg: c.neg };
     }
 
     // El conjunto: lo que se oye al terminar una vuelta con varias partes sonando
@@ -6657,6 +6678,10 @@
         boton('Salir del tutor', '', () => { const u = new URL(location.href); u.searchParams.delete('tutor'); u.searchParams.set('modo', S.mode); location.href = u; })));
     panel.append(cab, cuerpo);
     document.body.append(panel);
+    // en pantalla chica el panel se pliega a dos líneas cuando tocas el taller; tócalo para abrirlo
+    const angosta = matchMedia('(max-width: 1180px)');
+    document.addEventListener('pointerdown', e => { if (angosta.matches && !panel.contains(e.target)) panel.classList.add('plegado'); }, true);
+    panel.addEventListener('click', e => { if (panel.classList.contains('plegado') && !e.target.closest('.tu-min')) { e.preventDefault(); panel.classList.remove('plegado'); } }, true);
     pintarAprendido();
 
     let etapaLista = false;
@@ -6730,23 +6755,25 @@
         else if (per.z < -1.6) H.push(hallazgo('x_menosQueTu', 0.55, 'hoy vas con menos de lo que acostumbras', 'Ese espacio todavía no tiene contexto para tu oído.', '¿Es nuevo para ti? Escúchalo antes de rellenarlo.', ref('x_menosQueTu')));
       }
       if (!H.length) { const sitVacia = situacion(inst, ahora); return !!(sitVacia && decir(sitVacia)); }   // hoja en blanco: la pregunta de siempre
-      const h = elegirHallazgo(inst, H, per, Object.entries(PISTAS_CAMBIO).filter(([k]) => narr.includes(k)).map(([, v]) => v));
+      const preferir = Object.entries(PISTAS_CAMBIO).filter(([k]) => narr.includes(k)).map(([, v]) => v);
+      const h = elegirHallazgo(inst, H, per, preferir), aTono = !narr || preferir.includes(h.sit) || (mejora && h.sit === mejora);
       const refMejora = mejora && B[mejora] ? B[mejora][0] : null;
       const esMejora = !!(mejora && MEJORA_SENS[mejora]);
       const sensTxt = esMejora ? MEJORA_SENS[mejora]
         : narr && inst === 'teclados' && !['k_animo', 'k_resuena'].includes(h.sit) ? ''
-        : narr && h.peso <= 0.3 ? `Ahora ${h.obs}.` : h.sens;   // si lo que más se oye es poco saliente, describe cómo quedó
-      let preg = esMejora ? MEJORA_PREG[mejora] : h.preg;
-      if (preg === ultimaPregunta || est.bitacora.slice(-3).some(x => x.t.includes(preg))) preg = PREGUNTAS_RUBIN.find(q => !est.bitacora.slice(-6).some(x => x.t.includes(q))) || preg;
+        : narr && (h.peso <= 0.3 || !aTono) ? `Ahora ${h.obs}.` : h.sens;   // si lo que más se oye es poco saliente, describe cómo quedó
+      let preg = esMejora ? MEJORA_PREG[mejora] : aTono ? h.preg : '';   // si lo que más se oye no es lo que cambiaste, su pregunta no va
+      if (!preg || preg === ultimaPregunta || est.bitacora.slice(-3).some(x => x.t.includes(preg))) preg = PREGUNTAS_RUBIN.find(q => !est.bitacora.slice(-6).some(x => x.t.includes(q))) || preg || PREGUNTAS_RUBIN[0];
       ultimaPregunta = preg;
       const j = juzgar(inst), vez = (vecesInst[inst] = (vecesInst[inst] || 0) + 1);
       const conJuicio = !!(j && !esMejora && (j.veredicto !== ultimoVeredicto[inst] || vez % 3 === 0));   // opina cuando cambia su veredicto, o cada tanto
       if (conJuicio) ultimoVeredicto[inst] = j.veredicto;
-      if (conJuicio && j.veredicto !== 'funciona') {   // después de una crítica, la pregunta es sobre esa crítica
-        const PREG_CRITICA = ['¿Lo sientes así tú también?', '¿Qué cambiarías tú primero?', '¿Te pasa lo mismo al escucharlo?'];
-        preg = PREG_CRITICA.find(q => !est.bitacora.slice(-4).some(x => x.t.includes(q))) || PREG_CRITICA[0]; ultimaPregunta = preg;
+      if (conJuicio) {   // después de opinar, la pregunta es sobre esa opinión
+        const PREG_JUICIO = j.veredicto === 'funciona' ? ['¿Coincide con lo que sientes tú?', '¿Te inclinas hacia adelante cuando suena?', '¿Qué sientes en el cuerpo cuando vuelve a empezar?']
+          : ['¿Lo sientes así tú también?', '¿Qué cambiarías tú primero?', '¿Te pasa lo mismo al escucharlo?'];
+        preg = PREG_JUICIO.find(q => !est.bitacora.slice(-4).some(x => x.t.includes(q))) || PREG_JUICIO[0]; ultimaPregunta = preg;
       }
-      const texto = [narr || mayus(h.obs) + '.', conJuicio ? j.texto : sensTxt, preg].filter(Boolean).join(' ');
+      const texto = [narr || mayus(h.obs) + '.', conJuicio ? j.corto : sensTxt, preg].filter(Boolean).join(' ');
       const fuente = refMejora || h, sit = mejora || h.sit;
       if (decirTexto({ sit, t: texto, por: fuente.por, de: fuente.de }, { urgente: !!narr })) {
         espera = { id: ++idConsejo, inst, j: per.j, sit, act: per.act, ts: Date.now(), escucho: false };
@@ -6759,7 +6786,7 @@
     function opinar() {
       const inst = INSTR[S.mode]; if (!inst) return decir('ayuda:otro', { forzar:true });
       const j = juzgar(inst);
-      if (!j) return decir(situacion(inst, OIR[inst]()), { forzar:true });
+      if (!j) return decir(OIR[inst]().vacio ? situacion(inst, OIR[inst]()) : 'opinar:poco', { forzar:true });
       ultimoVeredicto[inst] = j.veredicto;
       const per = percibir(inst, OIR[inst]()), sit = 'j_' + inst;
       const t = j.texto + ' ' + (j.veredicto === 'funciona' ? '¿Coincide con lo que sientes tú?' : '¿Estás de acuerdo, o a ti te mueve igual?');
@@ -6786,7 +6813,7 @@
     const firma = () => JSON.stringify([S.drums.pat, S.drums.len, S.bassd.grid, S.bassd.len, S.bassd.golpe, S.bassd.acc,
       S._chord.pad.prog.map(c => [c.pc, c.q, c.len]), S._chord.piano.prog.map(c => [c.pc, c.q, c.len]), S.guitar.prog.map(c => [c.pc, c.q]), S.guitar.strum,
       S.lead.mel, S.lead.acc, S.letra.titulo, S.letra.secciones.map(x => [x.tipo, x.lineas.map(l => l.t)])]);
-    let ultimaFirma = null, ultimoCambio = Date.now(), pendiente = false, cambios = [], firmasVistas = [], vueltasSinCambio = 0, quietoDicho = false, modoOido = S.mode;
+    let oidaFirma = null, ultimaFirma = null, ultimoCambio = Date.now(), pendiente = false, cambios = [], firmasVistas = [], vueltasSinCambio = 0, quietoDicho = false, modoOido = S.mode;
     const hayAlgo = () => hasDrums() || hasBassD() || S._chord.pad.prog.length || S._chord.piano.prog.length || S.guitar.prog.length;
     function tick() {
       const ahora = Date.now();
@@ -6818,8 +6845,14 @@
         else if (vueltasSinCambio === 4) decir(ETAPAS[est.etapa].id === 'soltar' ? 'etapa:soltar' : 'vueltas');
         else {   // después de oír la vuelta: cómo tocas en vivo, o lo que se oye del conjunto
           const lejos = Date.now() - ultimoMensaje;
-          const h = toque.golpes.length >= 8 && lejos > 8000 ? hallazgoToque() : vueltasSinCambio >= 2 && lejos > 10000 ? elegirConjunto() : null;
+          const h = toque.golpes.length >= 8 && lejos > 8000 ? hallazgoToque() : lejos > 5000 ? elegirConjunto() : null;
           if (h) decirTexto({ sit: h.sit, t: `Escuché la vuelta: ${h.obs}. ${h.sens} ${h.preg}`, por: h.por, de: h.de });
+          else if (lejos > 5000 && oidaFirma !== ultimaFirma) {   // una opinión por versión escuchada
+            const inst = INSTR[S.mode], j = inst && juzgar(inst);
+            if (j) { oidaFirma = ultimaFirma; ultimoVeredicto[inst] = j.veredicto;
+              decirTexto({ sit: 'j_' + inst, t: `Escuché la vuelta entera. ${j.corto} ${j.veredicto === 'funciona' ? '¿Coincide con lo que sientes tú?' : '¿Lo sientes así tú también?'}`,
+                por: 'Escuchar la vuelta completa, sin tocar nada, es la mejor forma de saber si algo funciona.', de: 'Entrevista en 60 Minutes (CBS, 2023)' }); }
+          }
         }
         setTimeout(() => { if (!isPlaying) pintarOido('escuchando'); }, 400);
       },

@@ -323,10 +323,11 @@ test('tutor escucha la melodía y la letra', async ({ page }) => {
   await page.click('#modosTabs [data-m=letra]');
   await expect(page.locator('#estructura')).toBeHidden();
   await page.waitForTimeout(3000);
-  await page.locator('.v-txt').first().fill('la lluvia golpea la ventana de la micro');
+  await page.locator('.v-txt').first().fill('dejé el café enfriándose en la ventana');
   await expect(msg).toContainText('sílabas', { timeout: 14000 });
-  await expect(msg).toContainText('«lluvia»');
-  await page.locator('.v-txt').first().fill('mi corazón roto para siempre');
+  await expect(msg).toContainText('«café»');   // palabras con tilde al final también son imágenes
+  await page.locator('#secciones .versos .chip', { hasText: '+ verso' }).first().click();
+  await page.locator('.v-txt').nth(1).fill('y mi corazón roto para siempre');
   await expect(msg).toContainText('corazón roto', { timeout: 14000 });
 
   // crítico: «¿Te convence?» da un veredicto con razón
@@ -337,6 +338,45 @@ test('tutor escucha la melodía y la letra', async ({ page }) => {
   const frases = await page.evaluate(() => JSON.parse(localStorage.getItem('denavilab.tutor.schair')).bitacora.map(m => m.t));
   for (const t of frases) expect(t, t).not.toMatch(/\d/);
   expect(errores).toEqual([]);
+});
+
+test('tutor: no juzga una semilla y en el celular el panel se pliega mientras tocas', async ({ browser }) => {
+  const contexto = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const page = await contexto.newPage();
+  await comoBanda(page);
+  await page.goto('app.html?tutor=1&modo=beat');
+  const tutor = page.locator('#tutor'), msg = tutor.locator('.tu-msg');
+  await page.waitForTimeout(600);
+  await page.locator('#seq .st[data-r="kick"][data-s="0"]').dispatchEvent('click');
+  await expect(msg).toContainText('bombo', { timeout: 8000 });
+  await expect(msg).not.toContainText(/me convence|me llega|Aún no está/);   // un solo bombo: no hay veredicto
+  await page.locator('#seq').dispatchEvent('pointerdown');
+  await expect(tutor).toHaveClass(/plegado/);
+  await tutor.click();
+  await expect(tutor).not.toHaveClass(/plegado/);
+  await tutor.locator('button', { hasText: '¿Te convence?' }).click();
+  await expect(msg).toContainText('muy poco para opinar');
+  await contexto.close();
+});
+
+test('tutor: al escuchar la vuelta entera, opina sobre esa versión', async ({ page }) => {
+  await comoBanda(page);
+  await page.goto('app.html?tutor=1&modo=beat');
+  await page.waitForTimeout(600);
+  for (const [f, s] of [['kick', 0], ['kick', 10], ['snare', 4], ['snare', 12], ['hh', 0], ['hh', 4], ['hh', 8], ['hh', 12]]) await page.click(`#seq .st[data-r="${f}"][data-s="${s}"]`);
+  await page.waitForTimeout(3000);
+  await page.click('#playDrums');
+  await expect(page.locator('#tutor .tu-msg')).toContainText('Escuché la vuelta', { timeout: 20000 });
+  await page.click('#playDrums');
+});
+
+test('tutor: la melodía que repite su gesto con otro final se reconoce', async ({ page }) => {
+  await comoBanda(page);
+  await page.goto('app.html?tutor=1&modo=lead');
+  await page.waitForTimeout(600);
+  const celda = (r, st) => page.locator(`#leadSeq .st[data-s="${st}"]`).nth(23 - r).click();
+  for (const [r, st] of [[16, 0], [14, 1], [12, 2], [14, 4], [16, 8], [14, 9], [12, 10], [11, 12], [9, 14]]) await celda(r, st);
+  await expect(page.locator('#tutor .tu-msg')).toContainText('con otro final', { timeout: 8000 });
 });
 
 test('tutor al mínimo para Schair: batería y guitarra', async ({ page }) => {
