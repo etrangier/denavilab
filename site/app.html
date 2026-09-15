@@ -3158,6 +3158,8 @@
   const leadBaseMidi = () => 60 + (S.kbKeys===37 ? 0 : 0);
   const chordAtBar = (bar) => { let pos=0; for (const c of S.prog) { if (bar < pos + c.len) return c; pos += c.len; } return S.prog.length ? S.prog[S.prog.length-1] : null; };
   const hasLead = () => S.lead.mel.some(r=>r>=0);
+  // El Piano lead cuenta como pista tuya si escribiste melodía o elegiste arpegio/acordes para la derecha; la izquierda sola es el acompañamiento por defecto.
+  const leadConContenido = () => hasLead() || S.lead.rh !== 'melody';
   const leadBarsTotal = () => Math.max(1, Math.min(8, Math.ceil(usedBars() || S.bars)));
   function renderLead() {
     const bars = leadBarsTotal(); const steps = bars*8; const box=$('leadSeq'); box.innerHTML=''; box.style.setProperty('--steps', steps);
@@ -4118,7 +4120,8 @@
       if (S.lead.rh==='melody') { let st=0; while (st<8) { const idx=(b%bars)*8+st; const r=S.lead.mel[idx]; if (r<0) { st++; continue; } let n=1; while (st+n<8 && S.lead.mel[(b%bars)*8+st+n]===r && !S.lead.acc[(b%bars)*8+st+n]) n++; noteEv(4,leadBaseMidi()+r,S.lead.acc[idx]?110:88,tb+st*eighth+sw(st*2),Math.round(eighth*n*0.95),rh); st+=n; } }
       else if (S.lead.rh==='arp') { const v=voiceNear(c.pc,c.q,null).notes; const notes=[...v,v[0]+12]; for (let k=0;k<8;k++) noteEv(4,notes[k%4],84,tb+k*eighth+sw(k*2),Math.round(eighth*1.9),rh); }
       else { const v=voiceNear(c.pc,c.q,null).notes; const M=MANERAS[S.piano.manera]; (M.hits||[[0,16]]).forEach(([s,len])=>v.forEach(m=>noteEv(4,m,M.soft?72:90,tb+s*six+sw(s),Math.round(six*len*0.95),rh))); } }
-    return [midiTrack('Piano lead · mano izquierda', lh, [0,0xc3,0]), midiTrack('Piano lead · mano derecha', rh, [0,0xc4,0])];
+    // sólo las manos que tienen notas: una pista vacía en el DAW es ruido
+    return [lh.length && midiTrack('Piano lead · mano izquierda', lh, [0,0xc3,0]), rh.length && midiTrack('Piano lead · mano derecha', rh, [0,0xc4,0])].filter(Boolean);
   }
   function trackBassE(seq) { const ev=[]; let t=0; seq.forEach(c=>{ const root=midiOfKey(keyIndexOfPc(c.pc))-24; const nb=Math.round(c.len*4); for (let b=0;b<nb;b+=4) { noteEv(2,root,96,t+b*TPB,Math.round(2.4*TPB),ev); if (b+2.5<nb) noteEv(2,root,84,t+Math.round((b+2.5)*TPB),Math.round(1.2*TPB),ev); } t+=nb*TPB; }); return midiTrack('Bajo eléctrico · raíces', ev, [0,0xc2,33]); }
   function trackBassD(totalBars) { const ev=[]; const steps=S.bassd.len*16, six=TPB/4; const sw = s => Math.round(s%2 ? S.swing*six*0.66 : 0); for (let b=0;b<totalBars;b++) { let s=0; while (s<16) { const idx=((b%S.bassd.len)*16+s)%steps; const r=S.bassd.grid[idx]; if (r<0) { s++; continue; } let n=1; while (s+n<16 && S.bassd.grid[((b%S.bassd.len)*16+s+n)%steps]===r && !S.bassd.acc[((b%S.bassd.len)*16+s+n)%steps] && !(S.bassd.golpe && S.bassd.golpe[((b%S.bassd.len)*16+s+n)%steps])) n++; const nextR=S.bassd.grid[((b%S.bassd.len)*16+s+n)%steps]; const legato = S.bassd.slide[idx] && nextR>=0 && s+n<16; noteEv(1,bassMidi(r),S.bassd.acc[idx]?112:88,(b*16+s)*six+sw(s),Math.round(six*n*(legato?1.05:0.9)),ev); s+=n; } } return midiTrack('Bajo digital', ev, [0,0xc1,38]); }
@@ -4141,7 +4144,7 @@
     if (wantAll) { if (padProg.length) tracks.push(trackChords(padProg, false)); if (pianoProg.length) tracks.push(trackChords(pianoProg, true)); }
     else if (which==='pad' && padProg.length) tracks.push(trackChords(padProg, false));
     else if (which==='piano' && pianoProg.length) tracks.push(trackChords(pianoProg, true));
-    if ((wantAll || which==='lead') && padProg.length && (S.lead.mel.some(r=>r>=0) || S.lead.lh!=='none' || which==='lead')) tracks.push(...trackLead(bars));
+    if ((wantAll || which==='lead') && padProg.length && (which==='lead' || leadConContenido())) tracks.push(...trackLead(bars));
     if ((wantAll || which==='bajod') && hasBassD()) tracks.push(trackBassD(which==='bajod' && S.bassd.own ? S.bassd.bars : bars));
     if ((wantAll || which==='guitarra') && S.guitar.prog.length) tracks.push(trackGuit());
     if ((wantAll || which==='beat') && hasDrums()) tracks.push(trackDrums(bars));
@@ -4353,7 +4356,7 @@
     const padProg = progDe(S._chord.pad), pianoProg = progDe(S._chord.piano);
     if (padProg.length) trackChords(llenarVuelta(padProg, bars, 'len'), false);
     if (pianoProg.length) trackChords(llenarVuelta(pianoProg, bars, 'len'), true);
-    if (padProg.length && (S.lead.mel.some(r=>r>=0) || S.lead.lh!=='none')) trackLead(bars);
+    if (padProg.length && leadConContenido()) trackLead(bars);
     if (hasBassD()) trackBassD(bars);
     if (S.guitar.prog.length) { S.guitar.prog = llenarVuelta(S.guitar.prog, bars, 'bars'); trackGuit(); }
     if (hasDrums()) trackDrums(bars);
