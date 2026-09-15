@@ -106,6 +106,7 @@
   @media (prefers-reduced-motion: no-preference) { .bp-tecla.guia { animation: bpLatido 1.6s ease-in-out infinite; } }
   @keyframes bpLatido { 50% { box-shadow: 0 3px 0 var(--ok), 0 0 0 5px color-mix(in srgb, var(--ok) 18%, transparent); } }
   .bp-modo-ayuda { align-items: center; }
+  .bajo-acomp { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .bp-leccion { display: grid; gap: 8px; padding: 12px; border-radius: 10px; border: 1px solid var(--line); border-left: 3px solid var(--accent); background: var(--surface); }
   .bl-cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
   .bl-puntos { display: flex; gap: 6px; }
@@ -1109,7 +1110,7 @@
       <div class="panel" data-modes="bajod">
         <div class="kb-head">
           <span class="lbl">Secuenciador de bajo · <span id="bassBpm">72</span> bpm · <span id="bassBarsLbl">4</span> compases</span>
-          <label class="hint"><input type="checkbox" id="bassDrums" checked> sonar con la batería del beat</label>
+          <div class="bajo-acomp"><span class="lbl">Suena con</span><div class="chips" id="bassAcomp" role="group" aria-label="Con qué suena el bajo"></div></div>
         </div>
         <div class="bajo-pads" id="bajoPads">
           <div class="bp-pantalla">
@@ -1576,7 +1577,7 @@
     guitar: { prog:[], sel:0, withDrums:false, instrumento:'acustica', capo:0, metron:false, strum:['D','','D','U','','U','D','U'] },
     metron: false,
     lead: { lh:'root13', rh:'melody', split:12, tool:'note', mel:new Array(128).fill(-1), acc:new Array(128).fill(0) },
-    bassd: { own:false, bpm:72, bars:4, len:1, oct:0, tool:'note', grid:new Array(64).fill(-1), acc:new Array(64).fill(0), slide:new Array(64).fill(0), golpe:new Array(64).fill(0), withDrums:true } };
+    bassd: { own:false, bpm:72, bars:4, len:1, oct:0, tool:'note', grid:new Array(64).fill(-1), acc:new Array(64).fill(0), slide:new Array(64).fill(0), golpe:new Array(64).fill(0), withDrums:true, acomp:'bateria' } };
   // Pad y Piano son pistas de acordes INDEPENDIENTES: cada una con su propia progresión.
   S._chord = { pad:{prog:[],cand:null}, piano:{prog:[],cand:null} };
   const pistaAcorde = () => S.mode==='piano' ? 'piano' : 'pad';   // los demás modos editan la del Pad
@@ -1586,8 +1587,11 @@
     { id:'chords:pad',   prog:S._chord.pad.prog,   cand:S._chord.pad.cand,   inst:(S.padInst||'pad') },
     { id:'chords:piano', prog:S._chord.piano.prog, cand:S._chord.piano.cand, inst:'piano' },
   ];
-  const bassBpm = () => S.mode==='bajod' && S.bassd.own ? S.bassd.bpm : S.bpm;
+  const bassBpm = () => S.mode==='bajod' && S.bassd.own && S.bassd.acomp!=='todo' ? S.bassd.bpm : S.bpm;   // con todo, manda el tempo del proyecto
   const bassBars = () => S.mode==='bajod' && S.bassd.own ? S.bassd.bars : S.bars;
+  // Con qué suena el Secuenciador: sólo el bajo, con la batería del beat, o con todo lo del taller
+  const acompBajo = () => S.bassd.acomp || (S.bassd.withDrums === false ? 'solo' : 'bateria');
+  const modoPlayBajo = () => acompBajo() === 'todo' ? 'all' : 'bass';
   // Un solo tempo de proyecto, mostrado igual en todas las secciones.
   function syncBpmUI() {
     const v = S.bpm;
@@ -2633,14 +2637,26 @@
       case 'uke': for (let b=0;b<nb;b++) keys.forEach((m,i)=>voice(m+12,t+b*beat+i*0.03,beat*0.7,'uke',0.15)); break;
     }
   }
-  let isPlaying = false, cancelWait = null;
+  let isPlaying = false, cancelWait = null, playGen = 0;
   const wait = ms => new Promise(r=>{ const id=setTimeout(()=>{cancelWait=null; r();},ms); cancelWait=()=>{ clearTimeout(id); cancelWait=null; r(); }; });
+  // El bajo dentro de «todo»: se programa compás a compás, un instante antes de cada uno y sobre el mismo reloj de audio que
+  // el resto, así suena en sincronía y lo que escribas en el Secuenciador entra al compás siguiente (no a la vuelta siguiente).
+  async function bajoEnVivo(gen, t0, totalBars, beat) {
+    const bd = beat*4;
+    for (let b=0; b<totalBars; b++) {
+      const tb = t0 + b*bd, falta = (tb - 0.25 - ctx.currentTime)*1000;
+      if (falta > 0) await new Promise(r=>setTimeout(r, falta));
+      if (gen !== playGen || !isPlaying || stopFlag) return;
+      if (ctx.currentTime > tb + 0.05) continue;   // pestaña en segundo plano: mejor saltar el compás que amontonar notas
+      if (hasBassD() && suena('bass')) scheduleBassSeq(tb, 1, beat, b);
+    }
+  }
   async function play(mode = 'all') {
     if (isPlaying) { stopAll(); return; }
     stBump('usos', 'reproducir');
     ensureAudio(); if (ctx.state==='suspended') { try { await ctx.resume(); } catch(e) {} }
     if (ctx.state !== 'running') { showErr('El navegador mantiene el audio en pausa (estado: ' + ctx.state + '). Toca «Probar sonido» o cualquier tecla del dibujo y vuelve a intentar.'); }
-    stopFlag=false; isPlaying = true; if (typeof stopPreview==='function') stopPreview(); let beat = 60/(mode==='bass' ? bassBpm() : S.bpm), barDur = beat*4; let t0 = ctx.currentTime + 0.1;
+    stopFlag=false; isPlaying = true; const gen = ++playGen; if (typeof stopPreview==='function') stopPreview(); let beat = 60/(mode==='bass' ? bassBpm() : S.bpm), barDur = beat*4; let t0 = ctx.currentTime + 0.1;
     if (mode === 'lead' && !S.prog.length && !hasLead()) { $('leadProg').textContent = 'Graba una melodía o guarda una progresión en Pad/Piano para escuchar el lead.'; isPlaying=false; return; }
     let withChords, seq, totalBars, withDrums;
     let drumPhase = 0;   // fase del patrón de batería: se acarrea entre vueltas para que el groove no se reinicie (fluye aunque los compases de la progresión no sean múltiplo del largo del patrón)
@@ -2657,7 +2673,7 @@
       totalBars = withChords ? (Math.max(_padB, _piaB) || S.bars) : mode==='lead' ? leadBarsTotal() : mode==='guitarra' ? guitBars() : (mode==='bass' ? bassBars() : S.bars);
       if (mode==='all') totalBars = Math.max(totalBars || S.bars, hasBassD()?S.bassd.len:1, S.guitar.prog.length?guitBars():1, hasLead()?leadBarsTotal():1);
       if (cancionRep) { totalBars = cancionRep.bars; seq = withChords ? llenarVuelta(_base, totalBars, 'len') : []; drumPhase = 0; cancionRep.inicioPasada(t0, barDur); }   // la vuelta dura lo que la parte
-      withDrums = mode === 'drums' || (mode==='all' && S.drums.on && suena('drums')) || (mode==='bass' && S.bassd.withDrums) || (mode==='lead' && $('leadDrums').checked) || (mode==='guitarra' && S.guitar.withDrums);
+      withDrums = mode === 'drums' || (mode==='all' && S.drums.on && suena('drums')) || (mode==='bass' && acompBajo()!=='solo') || (mode==='lead' && $('leadDrums').checked) || (mode==='guitarra' && S.guitar.withDrums);
       if (withChords) { chordPistas().forEach(pp=>{ if (!suena(pp.id) || !(pp.prog.length || pp.cand)) return;
         const usados = pp.prog.reduce((a,c)=>a+c.len,0), rest = S.bars - usados;
         const seqP = cancionRep ? llenarVuelta(pp.prog.length ? pp.prog : [{pc:pp.cand.pc, q:pp.cand.q, len:S.defLen}], totalBars, 'len')
@@ -2665,11 +2681,11 @@
         let tt = t0; seqP.forEach((c,i)=>{ c._i=i; scheduleChord(c, tt, beat, pp.inst, cancionRep ? seqP : pp.prog); tt += c.len*barDur; }); }); }
       if (rec && rec.metron) scheduleMetronomo(t0, beat, totalBars || S.bars);
       if (mode==='guitarra' && S.guitar.metron) scheduleMetronomo(t0, beat, totalBars || 1);
-      if ((mode==='drums' || mode==='bass') && S.metron) scheduleMetronomo(t0, beat, totalBars || S.bars);
+      if (mode==='drums' && S.metron) scheduleMetronomo(t0, beat, totalBars || S.bars);
       if ((mode==='all' || mode==='lead') && S.metron) scheduleMetronomo(t0, beat, totalBars || S.bars);
       if (mode === 'guitarra') { scheduleGuit(t0, totalBars, beat); guitPlayhead(t0, totalBars, beat); }
       if (mode === 'all') {
-        if (hasBassD() && suena('bass')) scheduleBassSeq(t0, totalBars, beat);
+        bajoEnVivo(gen, t0, totalBars, beat); if (S.mode==='bajod') bassPlayhead(t0, beat, totalBars);
         if (S.guitar.prog.length && suena('guitar')) { scheduleGuit(t0, totalBars, beat); guitPlayhead(t0, totalBars, beat); }
         if (hasLead() && suena('lead')) scheduleLead(t0, totalBars, beat);
       }
@@ -2680,6 +2696,8 @@
         for (let b=0; b<totalBars && !stopFlag; b++) {
           const bt = 60/bassBpm(), bd = bt*4;
           scheduleBassSeq(tb, 1, bt, b);
+          if (acompBajo()!=='solo') (S.donner.on ? scheduleDonner : scheduleDrums)(tb, 1, bt, drumPhase + b);   // la batería, en el mismo compás y al mismo pulso que el bajo
+          if (S.metron) scheduleMetronomo(tb, bt, 1);
           const falta = (tb + bd - 0.08 - ctx.currentTime)*1000;
           if (falta > 0) await wait(falta);
           tb += bd;
@@ -2687,7 +2705,7 @@
         t0 = tb - totalBars*barDur;   // el t0 += totalBars*barDur de abajo lo deja en el tiempo real acumulado
       }
       if (mode === 'lead') { scheduleLead(t0, totalBars, beat); leadPlayhead(t0, beat, totalBars); if ($('leadBass').checked && hasBassD()) scheduleBassSeq(t0, totalBars, beat); }
-      if (withDrums && mode !== 'drums') { if (S.donner.on) scheduleDonner(t0, totalBars, beat, drumPhase); else { scheduleDrums(t0, totalBars, beat, drumPhase); drumPlayhead(t0, beat, totalBars, drumPhase); } }
+      if (withDrums && mode !== 'drums' && mode !== 'bass') { if (S.donner.on) scheduleDonner(t0, totalBars, beat, drumPhase); else { scheduleDrums(t0, totalBars, beat, drumPhase); if (S.mode !== 'bajod') drumPlayhead(t0, beat, totalBars, drumPhase); } }   // en el Secuenciador el cabezal es el del bajo
       if (mode === 'drums') {
         // compás a compás, releyendo la rejilla: lo que edites entra en la vuelta siguiente
         if (!S.donner.on) drumPlayhead(t0, beat, totalBars, drumPhase);
@@ -3359,6 +3377,9 @@
       }
     }
     $('bassBpm').textContent = bassBpm(); $('bassBarsLbl').textContent = bassBars();
+    const ac = $('bassAcomp'); if (ac) { ac.innerHTML='';
+      [['solo','Solo bajo','Sólo la línea de bajo'],['bateria','Con batería','El bajo con la batería del beat, al mismo pulso'],['todo','Con todo','Con la batería, los acordes de Pad y Piano, la guitarra y el lead, al tempo del proyecto']]
+        .forEach(([v,t,tip])=> ac.append(el('button',{class:'chip', type:'button', title:tip, 'aria-pressed':String(acompBajo()===v), onclick:()=>elegirAcompBajo(v)}, t))); }
     const oc = $('bassOwnChips'); oc.innerHTML='';
     [[false,`Mantener ${S.bpm} bpm · ${S.bars} compases`],[true,'Propios para el bajo']].forEach(([v,t])=> oc.append(el('button',{class:'chip','aria-pressed':String(S.bassd.own===v), onclick:()=>{ S.bassd.own=v; renderBassSeq(); }}, t)));
     $('bassOwnBox').hidden = !S.bassd.own; $('bassBpmVal').textContent = S.bassd.bpm; $('bassBpmRange').value = S.bassd.bpm;
@@ -3393,7 +3414,13 @@
   $('bassUp').addEventListener('click', ()=>{ if (S.bassd.grid.some(r=>r===16)) return; snapBass(); S.bassd.grid = S.bassd.grid.map(r=>r<0?r:r+1); renderBassSeq(); });
   $('bassDown').addEventListener('click', ()=>{ if (S.bassd.grid.some(r=>r===0)) return; snapBass(); S.bassd.grid = S.bassd.grid.map(r=>r<0?r:r-1); renderBassSeq(); });
   $('bassBpmRange').addEventListener('input', e=>{ S.bassd.bpm=+e.target.value; $('bassBpmVal').textContent=S.bassd.bpm; $('bassBpm').textContent=bassBpm(); });
-  $('bassDrums').addEventListener('change', e=>{ S.bassd.withDrums = e.target.checked; });
+  function elegirAcompBajo(v) {
+    const antes = modoPlayBajo(); S.bassd.acomp = v; S.bassd.withDrums = v !== 'solo'; renderBassSeq();
+    // pasar a o desde «Con todo» cambia qué suena: se reinicia solo, sin volver a darle play (batería sí/no entra al compás siguiente)
+    if (isPlaying && S.mode === 'bajod' && !lbEscuchando && antes !== modoPlayBajo()) {
+      stopAll(); const volver = () => isPlaying ? setTimeout(volver, 30) : play(modoPlayBajo()); setTimeout(volver, 30);
+    }
+  }
   $('clearBass').addEventListener('click', ()=>{ snapBass(); S.bassd.grid.fill(-1); S.bassd.acc.fill(0); S.bassd.slide.fill(0); if (S.bassd.golpe) S.bassd.golpe.fill(0); renderBassSeq(); });
   if ($('undoBeat')) $('undoBeat').addEventListener('click', undoBeat);
   if ($('undoBass')) $('undoBass').addEventListener('click', undoBass);
@@ -3648,7 +3675,7 @@
     if (isPlaying) { stopAll(); return; }
     const orig = clonar(S.bassd), hist = HIST.bass.length, pos = { ...BP };
     escribirEjemplo(L); lbEscuchando = true; renderBassSeq(); avisoBajo('Sonando el ejemplo. Lo tuyo vuelve al detenerlo.');
-    try { await play('bass'); }
+    try { await play(modoPlayBajo()); }
     finally { S.bassd = orig; HIST.bass.length = hist; Object.assign(BP, pos); lbEscuchando = false; renderBassSeq(); }
   }
   function irALeccion(i) { lbEstado.actual = Math.max(0, Math.min(LECCIONES_BAJO.length - 1, i)); lbGuardar(); BP.res = 8; BP.bar = 0; BP.paso = 0; renderBajoPads(); }
@@ -3737,7 +3764,7 @@
   if ($('seq')) $('seq').addEventListener('pointerdown', ()=>snapBeat(), true);
   if ($('bassSeq')) $('bassSeq').addEventListener('pointerdown', ()=>snapBass(), true);
   actualizarUndos();
-  $('playBass').addEventListener('click', ()=>play('bass'));
+  $('playBass').addEventListener('click', ()=>play(modoPlayBajo()));
   const swingOff = (s, six) => (s%2 ? S.swing*six*0.66 : 0);   // desplaza las semicorcheas a contratiempo
   // desdeCompas dice qué compás del patrón toca; así se puede programar de uno en uno y
   // releer la rejilla en cada vuelta, que es lo que hace que editar se oiga al momento.
