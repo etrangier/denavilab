@@ -637,3 +637,42 @@ test('en el teléfono las casillas del beat son para el dedo', async ({ browser 
   expect(m.pagina).toBeLessThanOrEqual(390);   // …sin que la página entera se mueva
   await contexto.close();
 });
+
+// El pad sonaba filoso en los acordes altos: ahora pierde brillo a medida que sube y hay un registro elegible.
+test('el registro del pad: suave por defecto, brillante si se sube una octava', async ({ page }) => {
+  const errores = vigilarErrores(page);
+  await comoBanda(page);
+  await page.addInitScript(() => {                     // un analizador colgado de la salida, para medir el brillo
+    const orig = AudioNode.prototype.connect;
+    AudioNode.prototype.connect = function (dest, ...r) {
+      const out = orig.call(this, dest, ...r);
+      try { if (dest && this.context && dest === this.context.destination) {
+        if (!window.__an || window.__an.context !== this.context) { window.__an = this.context.createAnalyser(); window.__an.fftSize = 8192; window.__an.smoothingTimeConstant = 0; }
+        orig.call(this, window.__an); } } catch (e) {}
+      return out; };
+  });
+  await page.goto('app.html?modo=pad');
+  await expect(page.locator('#padOct')).toHaveValue('-1');        // de fábrica, el colchón
+  await page.evaluate(() => { const g = [...document.querySelectorAll('#wheel g')].filter(n => n.querySelector('path')); [0, 5].forEach(i => g[i] && g[i].dispatchEvent(new MouseEvent('click', { bubbles: true }))); });
+  const brillo = async () => page.evaluate(async () => {
+    document.querySelector('#play').click();
+    await new Promise(s => setTimeout(s, 500));
+    const an = window.__an, N = an.frequencyBinCount, sr = an.context.sampleRate, buf = new Float32Array(N), ac = new Float64Array(N);
+    for (let i = 0; i < 14; i++) { an.getFloatFrequencyData(buf); for (let k = 0; k < N; k++) ac[k] += Math.pow(10, buf[k] / 10); await new Promise(s => setTimeout(s, 45)); }
+    document.querySelector('#play').click();
+    const pot = Array.from(ac, v => v / 14), piso = Math.max(...pot) * 1e-5;
+    let num = 0, den = 0;
+    for (let k = 1; k < N; k++) { const f = k * sr / 2 / N, p = pot[k] < piso ? 0 : pot[k]; num += f * p; den += p; }
+    return Math.round(num / den);
+  });
+  const grave = await brillo();
+  await page.selectOption('#padOct', '1');
+  const agudo = await brillo();
+  expect(agudo).toBeGreaterThan(grave * 1.3);                     // subir una octava se oye más brillante
+  expect(grave).toBeLessThan(700);                                // y lo de fábrica es un colchón, no un filo
+
+  // el registro viaja con la maqueta y sale también en el MIDI
+  const denavi = JSON.parse(await descargar(page, () => page.click('#expProyecto')));
+  expect(denavi.musica.padOct).toBe(1);
+  expect(errores, errores.join('\n')).toEqual([]);
+});
