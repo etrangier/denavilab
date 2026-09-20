@@ -10,7 +10,7 @@ module.exports = defineConfig({
     ...devices['Desktop Chrome'],
     baseURL: 'http://127.0.0.1:4173/',
     // el taller suena sin que nadie toque: hace falta para probar la sincronía del audio
-    launchOptions: { args: ['--autoplay-policy=no-user-gesture-required'] },
+    launchOptions: { args: ['--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] },
   },
   webServer: {
     command: 'python3 -m http.server 4173 --bind 127.0.0.1 --directory site',

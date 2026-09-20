@@ -470,6 +470,16 @@
   .cua-resumen ul { margin: 4px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
   .cua-resumen li { line-height: 1.5; }
   .cua-fechas, .cua-vacio { margin: 8px 0 0; color: var(--muted); font-size: 12.5px; }
+  .transporte { position: fixed; left: 14px; bottom: 14px; z-index: 60; display: flex; gap: 8px; align-items: center;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; box-shadow: 0 8px 22px rgba(0,0,0,.14); }
+  .transporte .tr-b { border: 0; background: transparent; color: var(--text); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; padding: 3px 6px; border-radius: 999px; }
+  .transporte .tr-b:hover { background: var(--surface-2); }
+  .transporte .tr-todo { border-left: 1px solid var(--line); padding-left: 10px; }
+  .transporte .tr-tempo { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+  body { padding-bottom: 56px; }
+  @media (max-width: 700px) { .transporte { left: 10px; right: 10px; bottom: 10px; justify-content: center; } }
+  .campo-voz .voz-audio { width: 100%; height: 34px; margin-top: 6px; }
+  .campo-voz button.grabando { border-color: #c2452d; color: #c2452d; }
   /* el gesto: sale con el foco del verso y se va contigo; no ocupa lugar en la fila */
   .verso { position: relative; }
   .cua-gesto { position: absolute; z-index: 4; border: 1px dashed var(--line); background: transparent; color: var(--muted);
@@ -527,8 +537,14 @@
     .navbar { gap: 5px; padding-bottom: 3px; }
     .navlink { padding: 6px 9px; }
     .chip { padding: 7px 12px; font-size: 12.5px; }
-    /* Celdas un poco más grandes para el dedo */
+    /* Celdas para el dedo: la rejilla de la batería se desliza de lado y muestra un compás a la vez */
     .seq { grid-template-columns: 54px repeat(var(--steps, 16), 18px); gap: 2px; }
+    #seq { grid-template-columns: 62px repeat(var(--steps, 16), 40px); gap: 4px; }
+    #seq .rl { max-width: 62px; height: 40px; display: flex; align-items: center; overflow: hidden; white-space: nowrap;
+      text-overflow: ellipsis; background: var(--surface); padding-right: 4px; }
+    #seq .st { height: 40px; }
+    .seq-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity; }
+    #seq .st { scroll-snap-align: start; }
     .seq .rl { font-size: 10px; }
     .st { height: 24px; }
     .bass-seq .st { height: 15px; }
@@ -703,8 +719,8 @@
   body.modo-tutor .heat-legend, body.modo-tutor #tipBox, body.modo-tutor .panel[data-modes="piano"], body.modo-tutor #generar, body.modo-tutor .aviso-bar.primeros,
   body.modo-tutor .bp-avanzado, body.modo-tutor .bp-ayuda, body.modo-tutor .bp-pie > .hint:not(#bpAviso),
   body.modo-tutor .field:has(> #guitGenre), body.modo-tutor .field:has(> #guitBand),
-  body.tutor-rolando #modosTabs .mtab:not([data-m="beat"]):not([data-m="bajod"]):not([data-m="pad"]):not([data-m="piano"]):not([data-m="lead"]):not([data-m="letra"]),
-  body.tutor-schair #modosTabs .mtab:not([data-m="beat"]):not([data-m="guitarra"]):not([data-m="lead"]):not([data-m="letra"]),
+  body.tutor-rolando #modosTabs .mtab:not([data-m="beat"]):not([data-m="bajod"]):not([data-m="pad"]):not([data-m="piano"]):not([data-m="lead"]):not([data-m="letra"]):not([data-m="mezcla"]),
+  body.tutor-schair #modosTabs .mtab:not([data-m="beat"]):not([data-m="guitarra"]):not([data-m="lead"]):not([data-m="letra"]):not([data-m="mezcla"]),
   body.modo-tutor .field:has(> #leadLhChips), body.modo-tutor .field:has(> #leadRhChips), body.modo-tutor #estructura, body.modo-tutor .tec-escritura,
   body.modo-tutor #letraTecnicas, body.modo-tutor .field:has(#letraDesdeProg) { display: none !important; }
   body.modo-tutor .bp-tecla[data-id="igual"] { opacity: .3; pointer-events: none; }
@@ -888,6 +904,10 @@
         </select>
         <div class="hint" id="modeHint"></div>
         <div class="row"><button class="ghost" id="testTone">Probar sonido</button><span class="diag" id="audioDiag">audio: sin iniciar</span></div>
+      </div>
+      <div class="field" data-modes="beat bajod guitarra">
+        <span class="lbl">Swing · cuánto se arrastra el contratiempo (batería y bajo)</span>
+        <div class="row"><input type="range" id="swing" min="0" max="60" step="5" value="0" aria-label="Swing"><span class="bpm-range" id="swingVal">0%</span></div>
       </div>
       <div class="field" data-modes="beat bajod pad piano lead">
         <span class="lbl">Género</span>
@@ -1302,10 +1322,6 @@
             <span class="lbl">Pincel</span>
             <div class="chips" id="bassToolChips"></div>
           </div>
-          <div class="field" style="flex:1 1 200px">
-            <span class="lbl">Swing (afecta bajo y batería)</span>
-            <div class="row"><input type="range" id="swing" min="0" max="60" step="5" value="0" aria-label="Swing"><span class="bpm-range" id="swingVal">0%</span></div>
-          </div>
         </div>
         <div class="row" style="flex-wrap:wrap">
           <div class="field" style="flex:2 1 260px">
@@ -1358,9 +1374,11 @@
         <div class="mix-rows" id="mixRowsMezcla"></div>
         <div class="actions">
           <button class="primary" id="playMezcla">▶ Reproducir todo</button>
+          <button class="ghost" id="grabMezcla" title="graba lo que suena y lo baja como archivo de audio">⏺ Grabar a un archivo</button>
           <label class="hint"><input type="checkbox" class="loopChk" checked> loop</label>
           <label class="hint"><input type="checkbox" class="metronChk"> metrónomo</label>
         </div>
+        <p class="hint" id="mezclaInfo" aria-live="polite"></p>
         <p class="hint"><b>M</b> silencia una pista · <b>S</b> la aísla (suena sólo esa). Cada pista se arma en su propia pestaña; aquí las escuchas juntas o por separado.</p>
       </div>
       <div class="panel drums" data-modes="beat">
@@ -2431,13 +2449,13 @@
   const liveMidiOf = note => (S.mode==='bajod' || S.mode==='bajoe') ? note - 12 : note;
 
   // ───────── Batería sintetizada ─────────
-  let master = null, noiseBuf = null;
+  let master = null, noiseBuf = null, grabDest = null;   // grabDest: para grabar la mezcla a un archivo
   function unlockAudio() { if (ctx && ctx.state === 'suspended') ctx.resume().then(updateAudioDiag).catch(()=>{}); }
   function updateAudioDiag() { const d=$('audioDiag'); if (!d || !ctx) return; d.textContent = `audio: ${ctx.state} · ${Math.round(ctx.sampleRate)} Hz`; d.classList.toggle('ok', ctx.state==='running'); }
   function ensureAudio() {
     ctx = ctx || new (window.AudioContext||window.webkitAudioContext)();
     if (!ctx._diag) { ctx._diag = true; ctx.onstatechange = updateAudioDiag; updateAudioDiag(); }
-    if (!master) { master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination); }
+    if (!master) { master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination); if (grabDest) master.connect(grabDest); }
     if (!noiseBuf) { noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate); const d = noiseBuf.getChannelData(0); for (let i=0;i<d.length;i++) d[i] = Math.random()*2-1; }
   }
   function noise(t, dur, filterType, fq, gainV, decay) {
@@ -2785,7 +2803,7 @@
   }
   function stopAll() {
     stopFlag = true; if (cancelWait) cancelWait();
-    if (master) { const old = master; old.gain.setTargetAtTime(0, ctx.currentTime, 0.02); setTimeout(()=>old.disconnect(), 200); master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination); }
+    if (master) { const old = master; old.gain.setTargetAtTime(0, ctx.currentTime, 0.02); setTimeout(()=>old.disconnect(), 200); master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination); if (grabDest) master.connect(grabDest); }
   }
   // Las 13 maneras de repartir un acorde en el compás (Guía 2, bloque 2) + patrones de mano izquierda
   const MANERAS = [
@@ -3027,6 +3045,33 @@
   $('candHear').addEventListener('click', ()=>{ if (!S.cand) return; previewChord(S.cand, 1.0); });
   $('play').addEventListener('click', ()=>play('all'));
   if ($('playMezcla')) $('playMezcla').addEventListener('click', ()=>play('all'));
+  // Grabar la mezcla a un archivo: suena la vuelta entera y se graba lo que sale, para mandárselo a alguien
+  if ($('grabMezcla') && window.MediaRecorder) $('grabMezcla').addEventListener('click', async () => {
+    const b = $('grabMezcla'); const info = $('mezclaInfo');
+    if (b.dataset.grabando) return;
+    ensureAudio(); if (ctx.state === 'suspended') await ctx.resume().catch(()=>{});
+    if (!grabDest) grabDest = ctx.createMediaStreamDestination();
+    try { master.connect(grabDest); } catch (e) {}
+    let rec2; try { rec2 = new MediaRecorder(grabDest.stream, { audioBitsPerSecond: 128000 }); } catch (e) { if (info) info.textContent = 'Este navegador no puede grabar la mezcla.'; return; }
+    const trozos = [];
+    rec2.ondataavailable = ev => { if (ev.data && ev.data.size) trozos.push(ev.data); };
+    rec2.onstop = () => {
+      b.dataset.grabando = ''; delete b.dataset.grabando; b.textContent = '⏺ Grabar a un archivo';
+      const blob = new Blob(trozos, { type: rec2.mimeType || 'audio/webm' });
+      const ext = (rec2.mimeType || '').includes('ogg') ? 'ogg' : 'webm';
+      deliver(`${nombreArchivo()}-${stamp()}.${ext}`, blob, blob.type);
+      if (info) info.textContent = 'Listo: se bajó el audio de la vuelta. Sirve para mandárselo a alguien que no tenga la app.';
+    };
+    b.dataset.grabando = '1'; b.textContent = '⏺ Grabando…';
+    if (info) info.textContent = 'Grabando la vuelta entera…';
+    const yoLoPuse = !isPlaying;
+    rec2.start(); if (yoLoPuse) play('all');
+    // una vuelta entera y se corta, esté o no el loop puesto
+    const vuelta = (S.bars || 4) * 4 * 60 / (S.bpm || 90);
+    const cerrar2 = () => { clearInterval(fin); if (rec2.state !== 'inactive') rec2.stop(); if (yoLoPuse && isPlaying) stopAll(); };
+    const hasta = Date.now() + (vuelta + 0.8) * 1000;
+    const fin = setInterval(() => { if (Date.now() >= hasta || (!isPlaying && Date.now() > hasta - vuelta * 1000)) cerrar2(); }, 200);
+  });
   document.querySelectorAll('.metronChk').forEach(c=>c.addEventListener('change', e=>{ S.metron = e.target.checked; document.querySelectorAll('.metronChk').forEach(o=>o.checked=S.metron); }));
   document.querySelectorAll('.loopChk').forEach(c=>c.addEventListener('change', e=>{ S.loop = e.target.checked; document.querySelectorAll('.loopChk').forEach(o=>o.checked=S.loop); }));
   $('playDrums').addEventListener('click', ()=>play('drums'));
@@ -4857,7 +4902,9 @@
   $('expProyecto').addEventListener('click', ()=>{
     stBump('usos','exportar .denavi');
     const nombre = nombreArchivo();
-    deliver(`${nombre}-${stamp()}.denavi`, JSON.stringify(proyectoActual(), null, 1), 'application/json');
+    const proy = proyectoActual();
+    if (typeof NOTA_VOZ !== 'undefined' && NOTA_VOZ.dame()) proy.voz = NOTA_VOZ.dame();   // la nota de voz viaja con el archivo
+    deliver(`${nombre}-${stamp()}.denavi`, JSON.stringify(proy, null, 1), 'application/json');
   });
   // Aplica un .denavi ya leído (de un archivo o de lo guardado en el navegador). Devuelve un texto de estado.
   function aplicarProyecto(d, nombre) {
@@ -4885,8 +4932,9 @@
     $('bpm').value = S.bpm; $('bpmVal').textContent = S.bpm; $('bpmRange').textContent = `${S.band}: ${band().bpm[0]}–${band().bpm[1]} bpm`;
     $('root').value = S.root; $('qual').value = S.qual;
     $('drumKit').value = KITS[S.drums.kit] ? S.drums.kit : 'cr78';
-    $('swing').value = S.swing || 0; $('swingVal').textContent = (S.swing||0) + '%';
+    $('swing').value = Math.round((S.swing || 0) * 100); $('swingVal').textContent = Math.round((S.swing || 0) * 100) + '%';
     buildKeyboard(); buildWheel(); renderAll(); renderSeq(); renderBassSeq(); llenarProgsDeLetra(); renderLetra(); renderGuitarra(); renderEstructura();
+    if (typeof NOTA_VOZ !== 'undefined') { if (d.voz) NOTA_VOZ.pon(d.voz); dispatchEvent(new Event('denavilab:maqueta')); }   // la nota de voz viene con la maqueta
     return `Abierta «${nombre}»` + (d.por ? ` · la guardó ${d.por}` : '') + (d.guardado ? ` el ${new Date(d.guardado).toLocaleDateString('es-CL')}` : '') + '.';
   }
   const avisoGuardar = t => { const box = $('guardarInfo') || $('expInfo'); if (box) box.textContent = t; };
@@ -6132,6 +6180,136 @@
   const sinUsarDe = (entrada, versos) => entrada.unidades.filter(u => u.pal >= 3 && !u.tachado && !_usada(u, versos))
     .sort((x, y) => (y.img.length && !y.interna ? 1 : 0) - (x.img.length && !x.interna ? 1 : 0));
 
+  // ───────── Barra de transporte: play y stop siempre a mano ─────────
+  // La rejilla es larga y el botón de tocar quedaba arriba: uno terminaba buscando cómo callar la cosa.
+  (() => {
+    const BOTON = { beat:'playDrums', bajod:'playBass', pad:'play', piano:'play', lead:'playLead', guitarra:'playGuit', mezcla:'playMezcla' };
+    const NOMBRE = { beat:'la batería', bajod:'el bajo', pad:'los acordes', piano:'el piano', lead:'la melodía', guitarra:'la guitarra', mezcla:'todo' };
+    const barra = el('div', { class:'transporte', id:'transporte' });
+    const bEsto = el('button', { class:'tr-b', type:'button', onclick: () => { const id = BOTON[S.mode]; if (id && $(id)) $(id).click(); } }, '▶');
+    const bTodo = el('button', { class:'tr-b tr-todo', type:'button', title:'escuchar todas las pistas juntas',
+      onclick: () => { if (isPlaying) { stopAll(); return; } if ($('playMezcla')) $('playMezcla').click(); } }, '▶ Todo');
+    const tempo = el('span', { class:'tr-tempo' }, '');
+    barra.append(bEsto, bTodo, tempo);
+    document.body.append(barra);
+    setInterval(() => {
+      const hay = !!BOTON[S.mode];
+      bEsto.hidden = !hay || S.mode === 'mezcla';
+      bEsto.textContent = isPlaying ? '■ Detener' : '▶ ' + (NOMBRE[S.mode] || 'esto');
+      bTodo.textContent = isPlaying ? '■ Detener todo' : '▶ Todo';
+      bTodo.hidden = isPlaying && S.mode !== 'mezcla' ? false : false;
+      tempo.textContent = (S.bpm || 90) + ' bpm' + (S.swing ? ' · swing ' + Math.round(S.swing * 100) + '%' : '');
+    }, 300);
+  })();
+
+  // ───────── Nota de voz: la melodía, antes de que se olvide ─────────
+  // Se graba del micrófono, se guarda con la maqueta en este navegador y viaja dentro del .denavi si es corta.
+  // No es una grabación de estudio: es el tarareo para no perder lo que se te ocurrió.
+  const NOTA_VOZ = (() => {
+    const CLAVE = 'denavilab.voz.' + QUIEN, TOPE = 1400000;   // ~1,4 MB: lo que cabe sin inflar la maqueta
+    const leerTodo = () => { try { return JSON.parse(localStorage.getItem(CLAVE) || '{}'); } catch (e) { return {}; } };
+    const guardarTodo = m => { try { localStorage.setItem(CLAVE, JSON.stringify(m)); return true; } catch (e) { return false; } };
+    const clave = () => (S.nombreMaqueta || 'tu trabajo');
+    return {
+      hay: () => !!leerTodo()[clave()],
+      dame: () => leerTodo()[clave()] || null,
+      pon(dataUrl) { const m = leerTodo(); if (dataUrl) m[clave()] = dataUrl; else delete m[clave()]; return guardarTodo(m); },
+      TOPE,
+    };
+  })();
+  (() => {
+    const campo = $('campoGuardar'); if (!campo || !window.MediaRecorder) return;
+    let rec = null, trozos = [], pista = null;
+    const audio = el('audio', { controls:'', class:'voz-audio', hidden:'' });
+    const bGrabar = el('button', { class:'ghost', type:'button', style:'flex:1 1 auto' }, '● Grabar una nota de voz');
+    const bBorrar = el('button', { class:'ghost', type:'button', title:'borrar la nota de voz de esta maqueta', hidden:'' }, '✕');
+    const aviso = el('div', { class:'hint' }, 'Un tarareo, la melodía silbada, la idea dicha en voz alta. Se guarda con la maqueta y viaja en el .denavi.');
+    function pintar() {
+      const d = NOTA_VOZ.dame();
+      audio.hidden = !d; bBorrar.hidden = !d;
+      if (d) audio.src = d;
+      bGrabar.textContent = rec ? '■ Detener' : (d ? '● Grabar otra' : '● Grabar una nota de voz');
+      bGrabar.classList.toggle('grabando', !!rec);
+    }
+    async function alternar() {
+      if (rec) { rec.stop(); return; }
+      let stream;
+      try { stream = await navigator.mediaDevices.getUserMedia({ audio:true }); }
+      catch (e) { aviso.textContent = 'No se pudo usar el micrófono: dale permiso al sitio y vuelve a intentar.'; return; }
+      trozos = []; pista = stream;
+      try { rec = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : '', audioBitsPerSecond: 32000 }); }
+      catch (e) { rec = new MediaRecorder(stream); }
+      rec.ondataavailable = ev => { if (ev.data && ev.data.size) trozos.push(ev.data); };
+      rec.onstop = () => {
+        pista.getTracks().forEach(t => t.stop()); rec = null;
+        const blob = new Blob(trozos, { type:'audio/webm' });
+        const fr = new FileReader();
+        fr.onload = () => {
+          const d = String(fr.result || '');
+          if (d.length > NOTA_VOZ.TOPE) { aviso.textContent = 'Quedó muy larga para guardarla con la maqueta: graba una idea más corta.'; pintar(); return; }
+          if (!NOTA_VOZ.pon(d)) aviso.textContent = 'No cupo en este navegador: borra alguna nota vieja.';
+          else aviso.textContent = 'Guardada con esta maqueta. Viaja dentro del .denavi.';
+          pintar();
+        };
+        fr.readAsDataURL(blob);
+      };
+      rec.start(); aviso.textContent = 'Grabando… canta, tararea o dilo en palabras. Aprieta otra vez para detener.'; pintar();
+    }
+    bGrabar.addEventListener('click', alternar);
+    bBorrar.addEventListener('click', () => { if (!confirm('¿Borrar la nota de voz de esta maqueta?')) return; NOTA_VOZ.pon(null); aviso.textContent = 'Borrada.'; pintar(); });
+    const caja = el('div', { class:'field campo-voz' }, el('span', { class:'lbl' }, 'Nota de voz'), el('div', { class:'row' }, bGrabar, bBorrar), audio, aviso);
+    campo.after(caja);
+    pintar();
+    window.addEventListener('denavilab:maqueta', pintar);
+  })();
+
+  // ───────── Deshacer: para que un clic mal dado no cueste la idea ─────────
+  // Guarda una foto del trabajo cada vez que algo cambia y deja volver atrás (⌘Z / Ctrl+Z) y rehacer (⇧⌘Z).
+  // Mientras escribes en una casilla de texto, manda el deshacer del navegador, no éste.
+  (() => {
+    const MAX = 40;
+    let pila = [], rehacer = [], ultima = null, aplicando = false, bDeshacer = null, bRehacer = null;
+    const foto = () => { try { const p2 = proyectoActual(); delete p2.guardado; return JSON.stringify(p2); } catch (e) { return null; } };
+    function pintar() {
+      if (!bDeshacer) return;
+      bDeshacer.disabled = !pila.length; bRehacer.disabled = !rehacer.length;
+      bDeshacer.title = pila.length ? 'volver al paso anterior' : 'todavía no hay nada que deshacer';
+    }
+    function mirar() {
+      if (aplicando) return;
+      const f = foto(); if (f === null) return;
+      if (ultima === null) { ultima = f; return; }
+      if (f === ultima) return;
+      pila.push(ultima); if (pila.length > MAX) pila.shift();
+      rehacer = []; ultima = f; pintar();
+    }
+    function saltar(desde, hacia) {
+      if (!desde.length) return;
+      const f = desde.pop(); hacia.push(ultima);
+      aplicando = true;
+      try { if (isPlaying) stopAll(); aplicarProyecto(JSON.parse(f), 'tu trabajo'); ultima = foto(); }
+      catch (e) { ultima = foto(); }
+      aplicando = false; pintar();
+    }
+    const deshacer = () => saltar(pila, rehacer), rehacerlo = () => saltar(rehacer, pila);
+    addEventListener('keydown', e => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return;
+      const t = e.target, escribiendo = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+      if (escribiendo) return;   // en un campo de texto manda el deshacer de siempre
+      e.preventDefault(); if (e.shiftKey) rehacerlo(); else deshacer();
+    });
+    const campo = $('campoGuardar');
+    if (campo) {
+      const fila = el('div', { class:'row', style:'margin-bottom:2px' });
+      bDeshacer = el('button', { class:'ghost', type:'button', style:'flex:1 1 auto', onclick: deshacer }, '↶ Deshacer');
+      bRehacer = el('button', { class:'ghost', type:'button', style:'flex:0 0 auto', title:'volver a aplicar lo deshecho', onclick: rehacerlo }, '↷');
+      fila.append(bDeshacer, bRehacer);
+      campo.insertBefore(fila, campo.querySelector('.hint.guardar-auto') || campo.firstChild.nextSibling);
+      pintar();
+    }
+    setTimeout(mirar, 1200); setInterval(mirar, 700);
+  })();
+
   // ── El corte: una cabeza tuya hasta el verbo, y el complemento de otra página. Cortar entre frases no dio nada;
   // cortar justo antes del complemento sí. No hay gramática que valga: el verso sale roto a propósito.
   const _DET_PREP = new Set([...DETERMINANTES, 'de', 'en', 'con', 'por', 'para', 'sin', 'a', 'que', 'y', 'o', 'como', 'desde', 'hasta', 'sobre', 'entre', 'muy', 'más', 'tan']);
@@ -6430,9 +6608,10 @@
     if (!PAR.has('tutor') || !['rolando', 'schair'].includes(S.quien)) return;
     document.body.classList.add('modo-tutor', 'tutor-' + S.quien);
     const ir = document.querySelector('.ir-ajustes'); if (ir) ir.textContent = '⚙ Tempo, compases, guardar y exportar ↓';
-    const PESTANAS = { rolando: ['beat', 'bajod', 'pad', 'piano', 'lead', 'letra'], schair: ['beat', 'guitarra', 'lead', 'letra'] }[S.quien];
+    // Mezcla se queda: el tutor pregunta por el conjunto («escuché la vuelta entera»), así que hay que poder oírlo entero
+    const PESTANAS = { rolando: ['beat', 'bajod', 'pad', 'piano', 'lead', 'letra', 'mezcla'], schair: ['beat', 'guitarra', 'lead', 'letra', 'mezcla'] }[S.quien];
     const INSTR = { beat:'bateria', bajod:'bajo', pad:'teclados', piano:'teclados', guitarra:'guitarra', lead:'melodia', letra:'letra' };
-    const TOCAR = { beat:'playDrums', bajod:'playBass', pad:'play', piano:'play', guitarra:'playGuit', lead:'playLead' };
+    const TOCAR = { beat:'playDrums', bajod:'playBass', pad:'play', piano:'play', guitarra:'playGuit', lead:'playLead', mezcla:'playMezcla' };
 
     // ── El oído: qué hay en cada instrumento, en términos de sensación (nunca de posiciones)
     function oirBateria() {

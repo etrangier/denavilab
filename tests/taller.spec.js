@@ -185,7 +185,7 @@ test('tutor sin moldes: fuera presets y bandas, se quedan tempo, compases y cuan
   for (const id of ['#genre', '#band', '#bpmRange', '#drumPreset', '#genBeat', '.saved']) await expect(page.locator(id).first()).toBeHidden();
   for (const id of ['#animo', '#bpm', '#barChips', '#drumLenChips', '#drumQuantChips', '#drumKit']) await expect(page.locator(id)).toBeVisible();
   const pestanas = await page.locator('#modosTabs .mtab:visible').evaluateAll(ts => ts.map(t => t.dataset.m));
-  expect(pestanas).toEqual(['beat', 'bajod', 'pad', 'piano', 'lead', 'letra']);
+  expect(pestanas).toEqual(['beat', 'bajod', 'pad', 'piano', 'lead', 'letra', 'mezcla']);   // Mezcla se queda: el tutor pregunta por el conjunto
 
   // la rueda sin porcentajes ni flechas de sugerencia
   await page.click('#modosTabs [data-m=pad]');
@@ -383,7 +383,7 @@ test('tutor al mínimo para Schair: batería y guitarra', async ({ page }) => {
   await comoBanda(page, 'schair');
   await page.goto('app.html?tutor=1&modo=mezcla');   // una pestaña fuera del tutor de Schair: vuelve a la batería
   const pestanas = await page.locator('#modosTabs .mtab:visible').evaluateAll(ts => ts.map(t => t.dataset.m));
-  expect(pestanas).toEqual(['beat', 'lead', 'guitarra', 'letra']);
+  expect(pestanas).toEqual(['beat', 'lead', 'guitarra', 'letra', 'mezcla']);   // Mezcla se queda: hay que poder oírlo junto
   await expect(page.locator('#modosTabs [data-m=beat]')).toHaveAttribute('aria-current', 'true');
   await page.click('#modosTabs [data-m=guitarra]');
   expect(await page.locator('#guitRasgueo .rg-cell.on').count()).toBe(0);   // sin rasgueo por defecto
@@ -561,4 +561,79 @@ test('el corte cruza tu verso con tus páginas y mide el calce con el beat', asy
   await expect(pop).toContainText('cabe en este verso');
   await page.keyboard.press('Escape');
   expect(errores, errores.join('\n')).toEqual([]);
+});
+
+// Lo que pidió la reseña de un maquetero: oír todo junto, deshacer de verdad, dejar la voz, swing a mano,
+// casillas para el dedo y un transporte que no se pierda de vista.
+test('deshacer y rehacer todo el trabajo, con atajo', async ({ page }) => {
+  const errores = vigilarErrores(page);
+  await comoBanda(page);
+  await page.goto('app.html?modo=beat');
+  const encendidas = () => page.evaluate(() => [...document.querySelectorAll('#seq .st')].filter(n => /(^| )on( |$)/.test(n.className)).length);
+  await page.waitForTimeout(1400);                         // la primera foto del trabajo
+  await page.evaluate(() => { const c = [...document.querySelectorAll('#seq .st')]; [0, 4, 8, 12].forEach(i => c[i] && c[i].click()); });
+  await page.waitForTimeout(1000);
+  expect(await encendidas()).toBe(4);
+  await page.getByRole('button', { name: '↶ Deshacer' }).click();
+  await expect.poll(encendidas).toBe(0);                   // vuelve el patrón anterior, no sólo la última casilla
+  await page.getByRole('button', { name: '↷' }).click();
+  await expect.poll(encendidas).toBe(4);
+  await page.keyboard.press('Meta+z');                     // y con ⌘Z / Ctrl+Z
+  await expect.poll(encendidas).toBe(0);
+  expect(errores, errores.join('\n')).toEqual([]);
+});
+
+test('la nota de voz se graba, se guarda y viaja en el .denavi', async ({ page, context }) => {
+  await context.grantPermissions(['microphone']);
+  await comoBanda(page);
+  await page.goto('app.html?modo=beat');
+  await page.getByRole('button', { name: /Grabar una nota de voz/ }).click();
+  await page.waitForTimeout(900);
+  await page.getByRole('button', { name: '■ Detener' }).click();
+  await expect(page.locator('.voz-audio')).toBeVisible();
+  await expect(page.locator('.campo-voz .hint')).toContainText('Guardada con esta maqueta');
+  const denavi = JSON.parse(await descargar(page, () => page.click('#expProyecto')));
+  expect(typeof denavi.voz).toBe('string');                // la melodía tarareada viaja con la maqueta
+  expect(denavi.voz.startsWith('data:audio')).toBe(true);
+});
+
+test('la mezcla se puede bajar como audio', async ({ page }) => {
+  await comoBanda(page);
+  await page.goto('app.html?modo=beat');
+  const preset = await page.$eval('#drumPreset', s => [...s.options].map(o => o.value).find(v => v && v !== 'Vacío'));
+  await page.selectOption('#drumPreset', preset);
+  await page.click('#modosTabs [data-m=mezcla]');
+  const audio = await descargar(page, () => page.click('#grabMezcla'));
+  expect(audio.length).toBeGreaterThan(2000);              // sirve para mandárselo a alguien sin la app
+  await expect(page.locator('#mezclaInfo')).toContainText('Listo');
+});
+
+test('el swing está donde se programa el beat, y el transporte no se pierde de vista', async ({ page }) => {
+  await comoBanda(page);
+  await page.goto('app.html?modo=beat');
+  await expect(page.locator('#swing')).toBeVisible();      // antes vivía escondido en el Secuenciador
+  await page.locator('#swing').fill('30');
+  await page.locator('#swing').dispatchEvent('input');
+  await expect(page.locator('#swingVal')).toHaveText('30%');
+  await expect(page.locator('#transporte')).toBeVisible();
+  await expect(page.locator('.tr-tempo')).toContainText('swing 30%');
+  await page.evaluate(() => scrollTo(0, document.body.scrollHeight));
+  await expect(page.locator('#transporte')).toBeInViewport();   // sigue ahí abajo del todo
+});
+
+test('en el teléfono las casillas del beat son para el dedo', async ({ browser }) => {
+  const contexto = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const page = await contexto.newPage();
+  await comoBanda(page);
+  await page.goto('app.html?modo=beat');
+  const m = await page.evaluate(() => {
+    const c = document.querySelector('#seq .st').getBoundingClientRect();
+    const caja = document.querySelector('#seq').closest('.seq-scroll');
+    return { ancho: Math.round(c.width), alto: Math.round(c.height), pagina: document.documentElement.scrollWidth, corre: caja.scrollWidth > caja.clientWidth + 4 };
+  });
+  expect(m.ancho).toBeGreaterThanOrEqual(38);
+  expect(m.alto).toBeGreaterThanOrEqual(38);
+  expect(m.corre).toBe(true);            // la rejilla se desliza de lado…
+  expect(m.pagina).toBeLessThanOrEqual(390);   // …sin que la página entera se mueva
+  await contexto.close();
 });
