@@ -414,3 +414,97 @@ test('taller en celular: el instrumento queda arriba y se ven todas las pestaña
   expect(m.pestanasFuera).toBe(0);
   await contexto.close();
 });
+
+// El cuaderno: se escribe en el taller normal (transcribir rápido) y aparece igual en el tutor. Es de cada
+// persona y se queda en este navegador: nunca entra en el proyecto ni en el .denavi.
+const PAGINAS = [
+  '# encabezado que no es tuyo', '', '2/7', '',
+  'El viento merodea por las ventanas y techos del pueblo. El miedo a la nada es terrible.', '',
+  '· EN LA SOLEDAD CRECE EL', 'RESENTIMIENTO', '',
+  '(página de versos)', '',
+  'Ella pide pensar', 'Conflictos que superar', 'No te voy a extrañar', 'Me voy a caminar', '',
+  '(sin fecha)', '', 'I never know what you want from me', 'Just another night alone',
+].join('\n');
+
+test('el cuaderno se escribe en el taller, sigue en el tutor y no se mete en la maqueta', async ({ page }) => {
+  const errores = vigilarErrores(page);
+  await comoBanda(page);
+  await page.goto('app.html?modo=letra');                    // taller normal, sin tutor
+  await page.locator('.cua-box > summary').click();
+  await page.locator('#cuadHoja').fill(PAGINAS);
+  const resumen = page.locator('.cua-resumen');
+  await expect(resumen).toContainText('3 entradas');         // se guarda y se lee solo, sin apretar nada
+  await expect(resumen).toContainText('4 en verso');
+  await expect(resumen).toContainText('1 con viñeta');       // la viñeta partida en dos líneas es una sola
+  await expect(resumen).toContainText('Tu medida: 7');       // heptasílabos
+  await expect(resumen).toContainText('en inglés');
+  await expect(resumen).not.toContainText('encabezado');
+
+  await page.goto('app.html?tutor=1&modo=letra');            // el mismo cuaderno, ahora en el tutor
+  await page.locator('.cua-box > summary').click();
+  await expect(page.locator('#cuadHoja')).toHaveValue(/merodea/);
+  await expect(page.locator('.cua-resumen')).toContainText('3 entradas');
+
+  // lo íntimo no viaja: ni en el autoguardado del taller ni en el del tutor (y por tanto tampoco en el .denavi)
+  const fuga = await page.evaluate(() => {
+    const dentro = t => t && (t.includes('merodea') || t.includes('RESENTIMIENTO'));
+    return ['denavilab.autoguardado.tutor', 'denavilab.autoguardado'].some(k => dentro(localStorage.getItem(k)));
+  });
+  expect(fuga).toBe(false);
+  expect(errores, errores.join('\n')).toEqual([]);
+});
+
+// El gesto: con el foco en un verso sale «cuaderno» y trae tus líneas; con una palabra seleccionada, tus rimas.
+// En celular no hay botón: se mantiene apretado el verso.
+test('el gesto trae tus líneas al verso y tus rimas a la palabra', async ({ page }) => {
+  const errores = vigilarErrores(page);
+  await comoBanda(page);
+  await page.addInitScript(t => { try { localStorage.setItem('denavilab.cuaderno.rolando', t); } catch (e) {} }, PAGINAS);
+  await page.goto('app.html?modo=letra');
+  const verso = page.locator('.v-txt').first();
+  await verso.click();
+  await expect(page.locator('.cua-gesto')).toBeVisible();      // el gesto sale con el foco, no está siempre
+  await page.locator('.cua-gesto').click();
+  const pop = page.locator('.cua-pop');
+  await expect(pop).toContainText('de tu cuaderno');
+  await expect(pop).toContainText('EN LA SOLEDAD CRECE EL RESENTIMIENTO');   // lo que tú subrayaste, primero
+  await page.keyboard.press('Enter');
+  await expect(verso).toHaveValue(/SOLEDAD/);
+  await expect(verso).toHaveClass(/del-cuaderno/);             // queda marcado de dónde vino
+  await expect(pop).toBeHidden();
+  await page.getByRole('button', { name: '+ verso' }).first().click();   // al repintar, la marca sigue: quedó en la letra, no en la pantalla
+  await expect(page.locator('.v-txt').first()).toHaveClass(/del-cuaderno/);
+
+  await verso.fill('Ella vuelve a pensar');                   // una palabra seleccionada pide otra cosa
+  await verso.evaluate(n => { const i = n.value.indexOf('pensar'); n.setSelectionRange(i, i + 6); });
+  await page.locator('.cua-gesto').click();
+  await expect(pop).toContainText('riman con «pensar»');
+  await pop.getByRole('button', { name: 'superar' }).click();
+  await expect(verso).toHaveValue('Ella vuelve a superar');     // reemplaza la palabra, sin corregirte nada
+
+  await verso.fill('Fue el refugio de mi vida');               // y cuando no hay con qué rimar, lo dice
+  await verso.evaluate(n => { const i = n.value.indexOf('vida'); n.setSelectionRange(i, i + 4); });
+  await page.locator('.cua-gesto').click();
+  await expect(pop).toContainText('no tienes de dónde tirar');
+  await page.keyboard.press('Escape');
+  expect(errores, errores.join('\n')).toEqual([]);
+});
+
+test('en celular el gesto es mantener apretado el verso', async ({ browser }) => {
+  const contexto = await browser.newContext({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
+  const page = await contexto.newPage();
+  await comoBanda(page);
+  await page.addInitScript(t => { try { localStorage.setItem('denavilab.cuaderno.rolando', t); } catch (e) {} }, PAGINAS);
+  await page.goto('app.html?modo=letra');
+  const verso = page.locator('.v-txt').first();
+  await verso.scrollIntoViewIfNeeded();
+  const caja = await verso.boundingBox();
+  await page.mouse.move(caja.x + 40, caja.y + 10);
+  await page.mouse.down(); await page.waitForTimeout(700); await page.mouse.up();
+  await expect(page.locator('.cua-pop')).toBeVisible();
+  await expect(page.locator('.cua-gesto')).toBeHidden();        // ningún botón en la fila: no cabe
+  const cabe = await page.evaluate(() => { const p = document.querySelector('.cua-pop').getBoundingClientRect(); return p.left >= 8 && p.right <= innerWidth - 8; });
+  expect(cabe).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  await contexto.close();
+});

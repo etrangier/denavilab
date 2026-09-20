@@ -461,9 +461,38 @@
   .tecnicas { display: grid; gap: 6px; margin: 4px 0 6px; }
   .tec-tip { font-size: 12.5px; color: var(--muted); border-left: 3px solid var(--key-line); padding-left: 10px; }
   .tec-tip b { color: var(--text); }
-  .tec-escritura, .libreta-box { border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); margin: 2px 0; }
-  .tec-escritura > summary, .libreta-box > summary { cursor: pointer; padding: 9px 12px; font-family: var(--display); font-weight: 700; font-size: 14px; list-style: none; }
-  .tec-escritura > summary::-webkit-details-marker, .libreta-box > summary::-webkit-details-marker { display: none; }
+  .tec-escritura, .libreta-box, .cua-box { border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); margin: 2px 0; }
+  .tec-escritura > summary, .libreta-box > summary, .cua-box > summary { cursor: pointer; padding: 9px 12px; font-family: var(--display); font-weight: 700; font-size: 14px; list-style: none; }
+  .tec-escritura > summary::-webkit-details-marker, .libreta-box > summary::-webkit-details-marker, .cua-box > summary::-webkit-details-marker { display: none; }
+  .cua-aviso { margin: 0; color: var(--muted); font-size: 12.5px; }
+  .cua-hoja { width: 100%; background: var(--surface-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 9px 11px; font: inherit; line-height: 1.6; resize: vertical; min-height: 180px; }
+  .cua-estado { color: var(--muted); font-size: 12px; }
+  .cua-resumen ul { margin: 4px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
+  .cua-resumen li { line-height: 1.5; }
+  .cua-fechas, .cua-vacio { margin: 8px 0 0; color: var(--muted); font-size: 12.5px; }
+  /* el gesto: sale con el foco del verso y se va contigo; no ocupa lugar en la fila */
+  .verso { position: relative; }
+  .cua-gesto { position: absolute; z-index: 4; border: 1px dashed var(--line); background: transparent; color: var(--muted);
+    border-radius: 7px; padding: 0 9px; font: inherit; font-size: 12px; cursor: pointer; }
+  .cua-gesto:hover { color: var(--text); border-style: solid; }
+  /* de dónde vino el verso: una línea al costado, que sobrevive al foco */
+  .v-txt.del-cuaderno { background-image: linear-gradient(to right, var(--accent) 0 3px, transparent 3px); background-repeat: no-repeat; }
+  .cua-pop { position: absolute; z-index: 50; background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: 0 14px 34px rgba(0,0,0,.16); padding: 10px 12px 8px; }
+  .cua-pop h4 { margin: 0 0 8px; font: 700 11.5px/1 var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .cua-item { padding: 7px 8px; border-radius: 7px; cursor: pointer; }
+  .cua-item:hover, .cua-item.sel { background: var(--surface-2); }
+  .cua-linea { font-size: 14.5px; line-height: 1.35; }
+  .cua-meta { font-size: 11.5px; color: var(--muted); margin: 2px 0 0; }
+  .cua-chip { border: 1px solid var(--line); background: transparent; color: var(--text); border-radius: 999px;
+    padding: 3px 10px; font: inherit; font-size: 13px; margin: 0 5px 5px 0; cursor: pointer; }
+  .cua-chip:hover { background: var(--surface-2); }
+  .cua-chip.afuera { border-color: var(--accent, rgba(176,116,26,.6)); }
+  .cua-pie { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 6px; padding-top: 7px;
+    border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+  .cua-pie b { font-weight: 600; color: var(--text); }
+  .cua-mas { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; text-decoration: underline; padding: 0; }
+  @media (max-width: 760px) { .cua-gesto { display: none; } }
   .tec-body { padding: 0 12px 12px; display: grid; gap: 8px; }
   .tec-sub { margin: 2px 0; color: var(--muted); font-size: 12.5px; }
   .principios > summary { cursor: pointer; font-family: var(--mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
@@ -5081,6 +5110,16 @@
   }
   // Palabras que suelen marcar lo "interno" (lo que se siente) — heurística suave para el consejo
   const _INTERNAS = /\b(yo|me|mi|mis|siento|siente|quiero|duele|dolor|miedo|alma|corazón|corazon|sueño|sueno|lloro|amo|odio|extraño|extrano|recuerdo|pienso|siendo|dentro|adentro)\b/i;
+  // Léxico compartido: lo usan el tutor y el cuaderno (que vive también en el taller normal).
+  const CLICHES = ['corazón roto', 'para siempre', 'sin ti', 'te amo', 'mi vida', 'mil pedazos', 'amor eterno', 'nunca más', 'la luna', 'las estrellas', 'mi alma', 'tu mirada', 'el destino'];
+  const palabrasRE = lista => new RegExp('(?<!\\p{L})(' + lista + ')(?!\\p{L})', 'iu');   // \b no sirve con tildes («café»)
+  const CONCRETAS = palabrasRE('calle|lluvia|ventana|mar|río|noche|luz|humo|piel|frío|café|tren|puerta|cama|cigarro|auto|playa|ciudad|cerro|polvo|vidrio|espejo|sombra|fuego|manos?|boca|ojos|pelo|sal|viento|árbol|perro|domingo|invierno|verano|madrugada|esquina|micro|plaza|techo|piso|taza|sillón|radio|bus|pasillo|lámpara|niebla|arena|olas?|chaqueta|silla|mesa|zapatos?|vestido|foto|carta|teléfono|celular|botella|vaso|cuaderno|guitarra|sofá|balcón|escalera|jardín|flores?|hojas?|nubes?|estación|andén|semáforo|parque|cocina|almohada|sábanas|llaves|reloj|cortina|piano|disco|carretera|abrigo|bufanda|vereda|terraza|pieza|departamento|kiosco|feria');
+  const ABSTRACTAS = palabrasRE('amor|dolor|alma|tristeza|felicidad|soledad|destino|esperanza|sentimientos?|pasión|libertad|verdad|muerte|eternidad|olvido|ilusión|nostalgia|vida|tiempo|mundo|recuerdo|momento|sueños?');
+  const DETERMINANTES = new Set(['el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'mi', 'mis', 'tu', 'tus', 'su', 'sus', 'este', 'esta', 'ese', 'esa', 'aquel', 'aquella', 'del', 'al', 'nuestro', 'nuestra']);
+  const NO_IMAGEN = new Set(['forma', 'manera', 'cosa', 'cosas', 'vez', 'veces', 'gente', 'parte', 'verdad', 'razón', 'idea', 'nada', 'todo', 'algo', 'misma', 'mismo', 'otra', 'otro', 'única', 'último', 'última', 'primera', 'primer', 'quiero', 'siento', 'tengo', 'extraño', 'espero', 'mitad', 'final', 'fondo']);
+  const imagenesDe = t => { const low = t.toLowerCase(), out = [...(low.match(new RegExp(CONCRETAS.source, 'giu')) || [])], toks = low.match(/\p{L}+/gu) || [];
+    toks.forEach((w, i) => { if (i && DETERMINANTES.has(toks[i - 1]) && w.length >= 4 && !NO_IMAGEN.has(w) && !ABSTRACTAS.test(w) && !w.endsWith('mente') && !/(ar|er|ir|ando|iendo)$/.test(w)) out.push(w); });
+    return [...new Set(out)]; };
 
   // Analiza una sección: sílabas por verso y esquema de rima. Devuelve info por línea + resumen.
   function analizarSeccion(sec) {
@@ -5161,7 +5200,10 @@
       const versos = el('div', {class:'versos'});
       sec.lineas.forEach((ln, li) => {
         const r = el('div', {class:'verso'});
-        r.append(el('input', {type:'text', class:'v-txt', value:ln.t, placeholder:'escribe el verso…', 'aria-label':'Verso', oninput:e=>{ ln.t = e.target.value; letraResumen(); actualizarTecnicas(); }}));
+        const vtxt = el('input', {type:'text', class:'v-txt' + (ln.c ? ' del-cuaderno' : ''), value:ln.t, placeholder:'escribe el verso…', 'aria-label':'Verso',
+          title: ln.c ? 'viene de tu cuaderno' + (typeof ln.c === 'string' ? ' · ' + ln.c : '') : '',
+          oninput:e=>{ ln.t = e.target.value; letraResumen(); actualizarTecnicas(); }});
+        vtxt._ln = ln; r.append(vtxt);
         r.append(el('input', {type:'text', class:'v-ac', value:ln.a, placeholder:'Am  F', 'aria-label':'Acordes de este verso', autocomplete:'off', oninput:e=>{ ln.a = e.target.value; }}));
         const badge = el('span', {class:'v-badge'}); letraBadges[si+'-'+li] = badge; r.append(badge);
         r.append(el('button', {class:'tiny', title:'quitar el verso', onclick:()=>{ sec.lineas.splice(li,1); if (!sec.lineas.length) sec.lineas.push({t:'',a:''}); renderLetra(); }}, '✕'));
@@ -5983,6 +6025,277 @@
       { t:'Aquí te acompaño menos: mi oído está en la batería, el secuenciador, los teclados y la guitarra.' },
     ],
   };
+  // ───────── El cuaderno: tus páginas transcritas, partidas en entradas y medidas ─────────
+  // Material propio sin editar (lo que anotas a mano) leído por la app: fechas, tus viñetas «·», tus MAYÚSCULAS,
+  // sílabas, rima y qué mira hacia afuera. Está en el taller normal (para transcribir rápido) y en el tutor: es el
+  // mismo cuaderno, uno por persona. Vive aparte del proyecto: NO entra en el .denavi ni en el autoguardado del
+  // taller, así que no viaja cuando le pasas una maqueta a la banda. Nada sale del navegador.
+  const CUAD_KEY = 'denavilab.cuaderno.' + QUIEN, CUAD_TOPE = 300000;
+  const _PAL_ES = /(?<!\p{L})(que|de|la|el|los|las|un|una|unos|unas|y|en|no|me|mi|mis|se|con|por|para|pero|como|más|mas|todo|nada|cuando|donde|si|sin|su|sus|es|era|soy|está|estoy|lo|al|del|ya|muy|porque|también|hay)(?!\p{L})/giu;
+  const _PAL_EN = /(?<!\p{L})(the|and|you|your|my|i'm|im|don't|dont|with|this|that|what|when|there|here|never|always|feel|feels|love|night|wanna|gonna|just|about|would|could|should|from|they|them|because|but|for|not|are|is|was|were|have|has|it's|its|like|know|time|away|down|over|nothing|something|everything)(?!\p{L})/giu;
+  function idiomaDe(t) {
+    const n = (t.match(/\p{L}+/gu) || []).length; if (n < 3) return 'dudoso';
+    const e = (t.match(_PAL_ES) || []).length, i = (t.match(_PAL_EN) || []).length;
+    return i >= 2 && i > e ? 'en' : 'es';
+  }
+  const _esCabecera = l => /^\(.*\)$/.test(l) || /^\d{1,2}\s*[/.-]\s*\d{1,2}(\s*[/.-]\s*\d{2,4})?\.?$/.test(l);
+  const _esNota = l => /^\[.*\]$/.test(l) || /^#/.test(l);   // notas del transcriptor y líneas de encabezado: no son tuyas
+  const _esVineta = l => /^[·•*-]\s+/.test(l);
+  const _todoMayus = t => { const ps = t.match(/\p{L}+/gu) || []; return ps.length >= 1 && /\p{Lu}/u.test(t) && ps.every(w => w === w.toUpperCase()); };
+  const _esMarcada = t => (t.match(/\p{L}+/gu) || []).length >= 2 && _todoMayus(t);
+  const _limpiar = l => l.replace(/\[[^\]]*\]/g, ' ').replace(/~~[^~]*~~/g, ' ').replace(/^[·•*-]\s+/, '').replace(/\s+/g, ' ').trim();
+
+  // Una unidad = una línea tuya (verso, viñeta, subrayada) o una oración de la prosa. Con sus medidas.
+  function _unidadCuaderno(txt, tipo, tachado) {
+    const t = txt.trim(); if (!t || !/\p{L}/u.test(t)) return null;
+    const bajo = t.toLowerCase();
+    return { t, tipo, tachado: !!tachado, sil: silabas(t), rima: rimaClave(t), idioma: idiomaDe(t),
+      img: imagenesDe(t), abstracta: ABSTRACTAS.test(t), interna: _INTERNAS.test(t),
+      cliche: CLICHES.find(c => bajo.includes(c)) || null, pal: (t.match(/\p{L}+/gu) || []).length };
+  }
+  // Un bloque de líneas cortas y sin punto final es una página de versos; lo demás es prosa, que se parte en oraciones.
+  const _bloqueVersos = ls => ls.length >= 3 && ls.filter(l => (l.match(/\p{L}+/gu) || []).length <= 8).length >= ls.length * 0.8
+    && ls.filter(l => /[.;:]$/.test(l)).length <= 1;
+
+  function leerCuaderno(texto) {
+    const entradas = []; let act = null, bloque = [], notas = 0;
+    const abrir = fecha => { act = { fecha, unidades: [] }; entradas.push(act); };
+    const cerrarBloque = () => {
+      if (!bloque.length) return;
+      if (!act) abrir(null);
+      const versos = _bloqueVersos(bloque.map(b => b.crudo));
+      if (versos) bloque.forEach(b => { const u = _unidadCuaderno(b.txt, b.tipo === 'prosa' ? 'verso' : b.tipo, b.tachado); if (u) act.unidades.push(u); });
+      else {
+        const sueltas = bloque.filter(b => b.tipo !== 'prosa'), prosa = bloque.filter(b => b.tipo === 'prosa');
+        prosa.map(b => b.txt).join(' ').trim().split(/(?<=[.;?!])\s+/).forEach(o => { const u = _unidadCuaderno(o, 'prosa', prosa.some(b => b.tachado)); if (u) act.unidades.push(u); });
+        sueltas.forEach(b => { const u = _unidadCuaderno(b.txt, b.tipo, b.tachado); if (u) act.unidades.push(u); });
+      }
+      bloque = [];
+    };
+    String(texto || '').split(/\r?\n/).forEach(cruda => {
+      const l = cruda.trim();
+      if (!l) { cerrarBloque(); return; }
+      if (_esNota(l)) { notas++; return; }
+      if (_esCabecera(l)) { cerrarBloque(); abrir(l.replace(/^\(|\)$/g, '').trim() || null); return; }
+      const txt = _limpiar(l); if (!txt) return;
+      const tipo = _esVineta(l) ? 'vineta' : _esMarcada(txt) ? 'marcada' : 'prosa';
+      // una subrayada que sigue a otra línea tuya es la misma, partida por el ancho de la página
+      const prev = bloque[bloque.length - 1];
+      if (prev && _todoMayus(txt) && (prev.tipo === 'marcada' || prev.tipo === 'vineta') && !_esVineta(l)) { prev.txt += ' ' + txt; prev.crudo += ' ' + txt; return; }
+      bloque.push({ txt, crudo: l, tipo, tachado: /~~[^~]*~~/.test(l) });
+    });
+    cerrarBloque();
+    return { entradas: entradas.filter(e => e.unidades.length), notas, texto: String(texto || '') };
+  }
+
+  // Lo que el lector ve del cuaderno entero: de qué está hecho, tu medida y tus familias de rima.
+  function resumenCuaderno(c) {
+    const U = c.entradas.flatMap(e => e.unidades);
+    const cuenta = tipo => U.filter(u => u.tipo === tipo).length;
+    const sils = U.filter(u => u.tipo !== 'prosa' && u.sil).map(u => u.sil);
+    const modo = (() => { const m = {}; sils.forEach(s => { m[s] = (m[s] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 2).map(x => +x[0]).sort((a, b) => a - b); })();
+    const fam = {}; U.forEach(u => { if (u.rima) (fam[u.rima.aso] = fam[u.rima.aso] || []).push(u); });
+    const rimas = Object.entries(fam).filter(([, v]) => v.length >= 2).sort((a, b) => b[1].length - a[1].length).slice(0, 4)
+      .map(([aso, v]) => ({ aso: aso.split('').join('-'), n: v.length, afuera: v.filter(u => u.img.length && !u.interna).length,
+        ejemplos: [...new Set(v.map(u => ((u.t.match(/\p{L}+/gu) || []).pop() || '').toLowerCase()).filter(Boolean))].slice(0, 2) }));
+    return { entradas: c.entradas.length, unidades: U.length, marcadas: cuenta('marcada'), vinetas: cuenta('vineta'),
+      versos: cuenta('verso'), prosa: cuenta('prosa'), ingles: U.filter(u => u.idioma === 'en').length,
+      conImagen: U.filter(u => u.img.length).length, internas: U.filter(u => u.interna).length, medida: modo, rimas,
+      letras: c.texto.length, notas: c.notas };
+  }
+
+  let cuaderno = null, cuadernoAlDia = null;
+  const cuadernoTexto = () => { try { return localStorage.getItem(CUAD_KEY) || ''; } catch (e) { return ''; } };
+
+  (() => {
+    if (!['rolando', 'schair'].includes(QUIEN)) return;   // material privado: sólo en la sesión de cada uno
+    const panelLetra = document.querySelector('.panel[data-modes="letra"]'); if (!panelLetra) return;
+    const boton2 = (txt, fn) => el('button', { type:'button', class:'ghost', onclick: fn }, txt);
+    const resumen = el('div', { class:'cua-resumen' }), estado = el('span', { class:'cua-estado', 'aria-live':'polite' }, '');
+    const hoja = el('textarea', { id:'cuadHoja', class:'cua-hoja', rows:'10', spellcheck:'false',
+      placeholder:'Escribe o pega aquí tus páginas, como están en el papel.\n\nUna fecha sola en su línea («2/7») abre una entrada. Tus viñetas «·» y tus MAYÚSCULAS se respetan tal cual.\n\nSe guarda solo, y lo encuentras igual en el tutor.' });
+    const archivo = el('input', { type:'file', accept:'.txt,text/plain', id:'cuadArchivo' });
+
+    function pintar() {
+      resumen.textContent = '';
+      if (!cuaderno || !cuaderno.entradas.length) { resumen.append(el('p', { class:'cua-vacio' }, 'Todavía no hay nada: escribe una página, o carga un archivo de texto.')); return; }
+      const r = resumenCuaderno(cuaderno), linea = t => el('li', {}, t);
+      const partes = [`${r.prosa} de prosa`, r.versos ? `${r.versos} en verso` : '', r.marcadas ? `${r.marcadas} ${r.marcadas === 1 ? 'subrayada' : 'subrayadas'}` : '', r.vinetas ? `${r.vinetas} con viñeta` : ''].filter(Boolean);
+      const ul = el('ul', {},
+        linea(`${r.entradas} ${r.entradas === 1 ? 'entrada' : 'entradas'} · ${r.unidades} líneas: ${partes.join(', ')}.`),
+        linea(r.medida.length ? `Tu medida: ${r.medida.join(' y ')} sílabas.` : 'Todavía no hay suficientes versos para ver tu medida.'),
+        linea(`${r.conImagen} ${r.conImagen === 1 ? 'línea trae' : 'líneas traen'} algo que se ve; ${r.internas} ${r.internas === 1 ? 'mira' : 'miran'} hacia adentro.`));
+      if (r.rimas.length) ul.append(linea('Tus familias de rima: ' + r.rimas.map(x => `«${x.aso}» ${x.ejemplos.join(', ')}… ${x.n} líneas, ${x.afuera ? x.afuera + ' con salida al mundo' : 'ninguna con salida al mundo'}`).join(' · ')));
+      if (r.ingles) ul.append(linea(`${r.ingles} ${r.ingles === 1 ? 'línea parece estar' : 'líneas parecen estar'} en inglés: no se miden en sílabas.`));
+      resumen.append(ul, el('p', { class:'cua-fechas' }, 'Entradas: ' + cuaderno.entradas.map(e => e.fecha || 'sin fecha').join(' · ')));
+    }
+    function leer(txt) { cuaderno = leerCuaderno(txt); pintar(); }
+    let espera = null;
+    function guardar(txt) {   // se guarda solo, mientras escribes, sin botón
+      clearTimeout(espera); estado.textContent = 'escribiendo…';
+      espera = setTimeout(() => {
+        if (txt.length > CUAD_TOPE) { estado.textContent = 'muy largo para este navegador: parte el cuaderno en dos'; return; }
+        try { localStorage.setItem(CUAD_KEY, txt); estado.textContent = 'guardado en este navegador'; } catch (e) { estado.textContent = 'no cupo: prueba con menos páginas'; }
+        leer(txt);
+      }, 700);
+    }
+    hoja.addEventListener('input', () => guardar(hoja.value));
+    archivo.addEventListener('change', ev => {   // un archivo se suma a lo que ya hay; no lo reemplaza
+      const f = ev.target.files && ev.target.files[0]; if (!f) return;
+      const fr = new FileReader();
+      fr.onload = () => { const antes = hoja.value.trim(); hoja.value = (antes ? antes + '\n\n\n' : '') + String(fr.result || '').trim(); guardar(hoja.value); ev.target.value = ''; };
+      fr.readAsText(f, 'utf-8');
+    });
+    const caja = el('details', { class:'cua-box' },
+      el('summary', {}, 'Cuaderno · tus páginas'),
+      el('div', { class:'tec-body' },
+        el('p', { class:'cua-aviso' }, 'Tus libretas de papel, pasadas a texto. Se quedan en este navegador: no viajan en el .denavi ni salen a internet, y no se comparten con la banda. Es el mismo cuaderno aquí y en el tutor.'),
+        hoja, estado,
+        el('div', { class:'actions' },
+          el('span', { class:'lbl' }, 'Sumar un archivo'), archivo,
+          boton2('Descargar el cuaderno', () => { const a = el('a', { href: URL.createObjectURL(new Blob([hoja.value], { type:'text/plain' })), download:'cuaderno-' + QUIEN + '.txt' }); a.click(); URL.revokeObjectURL(a.href); }),
+          boton2('Borrar', () => { if (!confirm('¿Borrar el cuaderno de este navegador? No se puede deshacer.')) return; hoja.value = ''; try { localStorage.removeItem(CUAD_KEY); } catch (e) {} estado.textContent = 'borrado'; leer(''); })),
+        resumen));
+    // Cargar y transcribir se hace de vez en cuando: va abajo, con Guardar y Exportar, para no llenar la pestaña
+    // de Letra. Lo de todos los días —traer tus líneas mientras escribes— pasa sin abrir nada (ver «el gesto»).
+    const anclaje = $('campoExportar');
+    if (anclaje) anclaje.after(caja); else panelLetra.append(caja);
+    hoja.value = cuadernoTexto(); leer(hoja.value);
+    if (hoja.value) estado.textContent = 'guardado en este navegador';
+    cuadernoAlDia = () => { if (hoja.value !== cuadernoTexto()) return; leer(hoja.value); };
+  })();
+
+  // ── El gesto: un solo movimiento, y lo que trae depende de dónde estés parado.
+  // Verso vacío o sin selección → tus líneas que calzan ahí. Una palabra seleccionada → tus rimas para esa palabra.
+  // Nada aparece solo mientras escribes, y no hay ningún control fijo en la pestaña: el botón sale con el foco
+  // (en celular, manteniendo apretado el verso) y se va contigo.
+  (() => {
+    if (!['rolando', 'schair'].includes(QUIEN)) return;
+    const cont = $('secciones'); if (!cont) return;
+    const gesto = el('button', { type:'button', class:'cua-gesto', tabindex:'-1', title:'traer algo de tu cuaderno' }, 'cuaderno');
+    const pop = el('div', { class:'cua-pop', hidden:'' });
+    document.body.append(pop);
+    let activo = null, sel = 0, opciones = [], tanda = 0, largo = null, previo = null;
+
+    const unidades = () => (cuaderno ? cuaderno.entradas.flatMap(e => e.unidades.map(u => ({ ...u, de: e.fecha || 'sin fecha' }))) : []);
+    const yaEnLaLetra = () => new Set(S.letra.secciones.flatMap(s2 => s2.lineas.map(l => (l.t || '').trim().toLowerCase())).filter(Boolean));
+    const versoAnterior = inp => { const filas = [...cont.querySelectorAll('.v-txt')], i = filas.indexOf(inp);
+      for (let k = i - 1; k >= 0; k--) if (filas[k].value.trim()) return filas[k].value.trim(); return null; };
+    const palabraSel = inp => { const a = inp.selectionStart, b = inp.selectionEnd;
+      if (a == null || b == null || b - a < 2) return null; const t = inp.value.slice(a, b).trim(); return /^\p{L}+$/u.test(t) ? t : null; };
+
+    // Qué línea tuya calza aquí: que rime con la de arriba, que mida parecido, que tú la hayas subrayado, que se vea.
+    function sugerencias(inp) {
+      const puestas = yaEnLaLetra(), ant = versoAnterior(inp), rAnt = ant && rimaClave(ant), silAnt = ant ? silabas(ant) : 0;
+      return unidades().filter(u => !puestas.has(u.t.toLowerCase()) && u.idioma !== 'en' && u.pal >= 2)
+        .map(u => { let p = 0;
+          if (rAnt && u.rima) { if (u.rima.cons === rAnt.cons) p += 3.5; else if (u.rima.aso === rAnt.aso) p += 2.5; }
+          if (silAnt && u.sil) { const d = Math.abs(u.sil - silAnt); p += d === 0 ? 2 : d === 1 ? 1.2 : d <= 2 ? 0.5 : -0.5; }
+          if (u.tipo === 'marcada') p += 1.6; else if (u.tipo === 'vineta') p += 1.2; else if (u.tipo === 'verso') p += 0.8;
+          if (u.img.length && !u.interna) p += 1; if (u.cliche) p -= 1.5; if (u.tachado) p -= 0.6;
+          if (u.pal > 12) p -= 1;
+          return { u, p };   // sin azar: lo que mejor calza va primero, y «otra tanda» corre la ventana
+        }).sort((a, b) => b.p - a.p).map(x => x.u);
+    }
+    function rimasDe(palabra) {
+      const r = rimaClave(palabra); if (!r) return [];
+      const vistas = new Set([palabra.toLowerCase()]), out = [];
+      unidades().forEach(u => { (u.t.match(/\p{L}+/gu) || []).forEach(w => {
+        const b = w.toLowerCase(); if (vistas.has(b) || b.length < 3) return;
+        const rw = rimaClave(b); if (!rw || rw.aso !== r.aso) return;
+        vistas.add(b); out.push({ w: b, cons: rw.cons === r.cons, afuera: imagenesDe(b).length > 0 && !_INTERNAS.test(b), de: u.de });
+      }); });
+      return out.sort((a, b) => (b.cons - a.cons) || (b.afuera - a.afuera)).slice(0, 10);
+    }
+
+    const meta = u => [u.de, u.sil ? (u.sil === 1 ? 'una sílaba' : u.sil + ' sílabas') : '', u.tipo === 'marcada' ? 'subrayada por ti' : u.tipo === 'vineta' ? 'la apartaste' : '', u.img.length && !u.interna ? 'algo que se ve' : ''].filter(Boolean).join(' · ');
+    function pintarPop() {
+      pop.textContent = '';
+      if (largo) {   // modo rimas
+        pop.append(el('h4', {}, `tus palabras que riman con «${largo}»`));
+        if (!opciones.length) { pop.append(el('p', { class:'cua-vacio' }, 'Tu cuaderno no tiene ninguna palabra que rime con esa. Ahí hay una respuesta: por esta rima no tienes de dónde tirar.')); }
+        else {
+          const fila = el('div', {});
+          opciones.forEach(o => fila.append(el('button', { type:'button', class:'cua-chip' + (o.afuera ? ' afuera' : ''), title: o.cons ? 'rima entera · ' + o.de : 'rima de vocales · ' + o.de, onclick: () => poner(o.w) }, o.w)));
+          pop.append(fila);
+          const afuera = opciones.filter(o => o.afuera).length;
+          pop.append(el('p', { class:'cua-meta' }, afuera ? `${afuera} de ellas mira hacia afuera.` : 'Ninguna de ellas trae algo que se vea: por esta rima, tu cuaderno tira hacia adentro.'));
+        }
+      } else {
+        pop.append(el('h4', {}, 'de tu cuaderno · cabe en este verso'));
+        if (!opciones.length) pop.append(el('p', { class:'cua-vacio' }, cuaderno && cuaderno.entradas.length ? 'Ya usaste todo lo que calzaba aquí.' : 'Todavía no hay cuaderno: se carga abajo, junto a Guardar y Exportar.'));
+        opciones.forEach((u, i) => pop.append(el('div', { class:'cua-item' + (i === sel ? ' sel' : ''), onclick: () => poner(u.t, u.de) },
+          el('div', { class:'cua-linea' }, u.t), el('div', { class:'cua-meta' }, meta(u)))));
+      }
+      const pie = el('div', { class:'cua-pie' });
+      if (!largo && opciones.length) pie.append(el('span', {}, el('b', {}, '↑↓'), '\u00a0elegir'), el('span', {}, el('b', {}, 'enter'), '\u00a0ponerla'));
+      if (opciones.length) pie.append(el('button', { type:'button', class:'cua-mas', onclick: () => { tanda++; abrir(activo, true); } }, 'otra tanda'));
+      pie.append(el('span', {}, el('b', {}, 'esc'), '\u00a0cerrar'));
+      pop.append(pie);
+    }
+    function ubicar(inp) {
+      const r = inp.getBoundingClientRect();
+      pop.style.top = (r.bottom + scrollY + 6) + 'px';
+      const ancho = Math.min(430, innerWidth - 32);
+      pop.style.width = ancho + 'px';
+      pop.style.left = Math.max(16, Math.min(r.left + scrollX, scrollX + innerWidth - ancho - 16)) + 'px';
+    }
+    function abrir(inp, mismaPalabra) {
+      if (!inp) return;
+      activo = inp; sel = 0;
+      if (typeof cuadernoAlDia === 'function') cuadernoAlDia();
+      largo = mismaPalabra ? largo : palabraSel(inp);
+      opciones = largo ? rimasDe(largo) : sugerencias(inp).slice(tanda * 3, tanda * 3 + 3);
+      if (!largo && !opciones.length && tanda) { tanda = 0; opciones = sugerencias(inp).slice(0, 3); }
+      pintarPop(); pop.hidden = false; ubicar(inp);
+    }
+    function cerrar() { pop.hidden = true; tanda = 0; largo = null; }
+    function poner(texto, de) {
+      if (!activo) return;
+      if (largo) {   // una rima reemplaza la palabra seleccionada
+        const a = activo.selectionStart, b = activo.selectionEnd;
+        activo.value = activo.value.slice(0, a) + texto + activo.value.slice(b);
+        if (activo._ln) activo._ln.t = activo.value;
+        activo.setSelectionRange(a + texto.length, a + texto.length);
+      } else {
+        activo.value = texto;
+        if (activo._ln) { activo._ln.t = texto; activo._ln.c = de || true; }
+        activo.classList.add('del-cuaderno'); activo.title = 'viene de tu cuaderno' + (de ? ' · ' + de : '');
+      }
+      activo.dispatchEvent(new Event('input', { bubbles:true }));
+      const foco = activo; cerrar(); foco.focus();
+    }
+
+    function mostrarGesto(inp) {
+      const fila = inp.closest('.verso'); if (!fila) return;
+      fila.append(gesto);
+      gesto.style.top = inp.offsetTop + 'px';
+      gesto.style.height = inp.offsetHeight + 'px';
+      gesto.style.left = (inp.offsetLeft + inp.offsetWidth - gesto.offsetWidth - 6) + 'px';
+      gesto.hidden = false;
+      inp.style.paddingRight = (gesto.offsetWidth + 14) + 'px';   // que el verso no se meta debajo del gesto
+      if (previo && previo !== inp) previo.style.paddingRight = ''; previo = inp;
+    }
+    cont.addEventListener('focusin', e => { if (e.target.classList.contains('v-txt')) { cerrar(); mostrarGesto(e.target); } });
+    cont.addEventListener('focusout', e => { if (e.target.classList.contains('v-txt')) setTimeout(() => { if (!cont.contains(document.activeElement)) { gesto.hidden = true; if (previo) { previo.style.paddingRight = ''; previo = null; } if (!pop.contains(document.activeElement)) cerrar(); } }, 150); });
+    gesto.addEventListener('mousedown', e => e.preventDefault());
+    gesto.addEventListener('click', () => { const inp = gesto.closest('.verso').querySelector('.v-txt'); if (pop.hidden) abrir(inp); else cerrar(); });
+    // en celular no cabe un botón más en la fila: se mantiene apretado el verso
+    let press = null;
+    cont.addEventListener('pointerdown', e => { if (!e.target.classList.contains('v-txt')) return;
+      press = setTimeout(() => { e.target.focus(); abrir(e.target); }, 500); });
+    ['pointerup', 'pointermove', 'pointercancel'].forEach(ev => cont.addEventListener(ev, () => clearTimeout(press)));
+    cont.addEventListener('keydown', e => {
+      if (!e.target.classList.contains('v-txt')) return;
+      if (pop.hidden) return;
+      if (e.key === 'Escape') { cerrar(); e.preventDefault(); }
+      else if (e.key === 'ArrowDown' && !largo) { sel = Math.min(sel + 1, opciones.length - 1); pintarPop(); e.preventDefault(); }
+      else if (e.key === 'ArrowUp' && !largo) { sel = Math.max(sel - 1, 0); pintarPop(); e.preventDefault(); }
+      else if (e.key === 'Enter' && opciones.length) { const o = opciones[sel]; if (o) poner(largo ? o.w : o.t, largo ? null : o.de); e.preventDefault(); }
+    });
+    addEventListener('scroll', () => { if (!pop.hidden && activo) ubicar(activo); }, { passive:true });
+  })();
+
   // ───────── Tutor a la manera de Rick Rubin ─────────
   // Escucha lo que haces —la rejilla de la batería, las notas del secuenciador, los acordes y el rasgueo, venga del clic,
   // del teclado o del MPK— y cada vuelta que suena. No dice qué nota ni qué casilla: devuelve sensaciones, preguntas y
@@ -6324,15 +6637,6 @@
     // Letra: lo que dicen los versos, cómo suenan (sílabas, rima) y qué tan concretos son
     const SIL_N = ['ninguna', 'una', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve', 'veinte'];
     const silabasTxt = n => n === 1 ? 'una sílaba' : `${SIL_N[n] || 'más de veinte'} sílabas`;
-    const CLICHES = ['corazón roto', 'para siempre', 'sin ti', 'te amo', 'mi vida', 'mil pedazos', 'amor eterno', 'nunca más', 'la luna', 'las estrellas', 'mi alma', 'tu mirada', 'el destino'];
-    const palabrasRE = lista => new RegExp('(?<!\\p{L})(' + lista + ')(?!\\p{L})', 'iu');   // \b no sirve con tildes («café»)
-    const CONCRETAS = palabrasRE('calle|lluvia|ventana|mar|río|noche|luz|humo|piel|frío|café|tren|puerta|cama|cigarro|auto|playa|ciudad|cerro|polvo|vidrio|espejo|sombra|fuego|manos?|boca|ojos|pelo|sal|viento|árbol|perro|domingo|invierno|verano|madrugada|esquina|micro|plaza|techo|piso|taza|sillón|radio|bus|pasillo|lámpara|niebla|arena|olas?|chaqueta|silla|mesa|zapatos?|vestido|foto|carta|teléfono|celular|botella|vaso|cuaderno|guitarra|sofá|balcón|escalera|jardín|flores?|hojas?|nubes?|estación|andén|semáforo|parque|cocina|almohada|sábanas|llaves|reloj|cortina|piano|disco|carretera|abrigo|bufanda|vereda|terraza|pieza|departamento|kiosco|feria');
-    const ABSTRACTAS = palabrasRE('amor|dolor|alma|tristeza|felicidad|soledad|destino|esperanza|sentimientos?|pasión|libertad|verdad|muerte|eternidad|olvido|ilusión|nostalgia|vida|tiempo|mundo|recuerdo|momento|sueños?');
-    const DETERMINANTES = new Set(['el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'mi', 'mis', 'tu', 'tus', 'su', 'sus', 'este', 'esta', 'ese', 'esa', 'aquel', 'aquella', 'del', 'al', 'nuestro', 'nuestra']);
-    const NO_IMAGEN = new Set(['forma', 'manera', 'cosa', 'cosas', 'vez', 'veces', 'gente', 'parte', 'verdad', 'razón', 'idea', 'nada', 'todo', 'algo', 'misma', 'mismo', 'otra', 'otro', 'única', 'último', 'última', 'primera', 'primer', 'quiero', 'siento', 'tengo', 'extraño', 'espero', 'mitad', 'final', 'fondo']);
-    const imagenesDe = t => { const low = t.toLowerCase(), out = [...(low.match(new RegExp(CONCRETAS.source, 'giu')) || [])], toks = low.match(/\p{L}+/gu) || [];
-      toks.forEach((w, i) => { if (i && DETERMINANTES.has(toks[i - 1]) && w.length >= 4 && !NO_IMAGEN.has(w) && !ABSTRACTAS.test(w) && !w.endsWith('mente') && !/(ar|er|ir|ando|iendo)$/.test(w)) out.push(w); });
-      return [...new Set(out)]; };
     const fragmento = t => { const w = t.split(/\s+/); return w.length > 7 ? '…' + w.slice(-6).join(' ') : t; };
     function leerLetra() {
       const secs = S.letra.secciones.map(sec => ({ tipo: sec.tipo, a: analizarSeccion(sec) }));

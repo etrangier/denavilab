@@ -1,6 +1,13 @@
 {
  "changelog": [
   {
+   "fecha": "2026-09-20",
+   "items": [
+    "El cuaderno, mientras escribes: al pararte en un verso aparece «cuaderno» (en el celular, manteniendo apretado el verso) y te trae tus propias líneas —las que riman con el verso de arriba, las que miden parecido, las que tú subrayaste—, con la fecha de dónde vienen. Si en vez de eso seleccionas una palabra, te ofrece las palabras de tu cuaderno que riman con ella, y te dice cuáles traen algo que se ve; si no hay ninguna, también lo dice. Nada se escribe solo: eliges tú, y el verso que viene del cuaderno queda con una línea al costado. No hay ningún botón fijo en la pestaña: el gesto sale con el foco y se va contigo. Cargar y transcribir el cuaderno se movió abajo, junto a Guardar y Exportar.",
+    "Cuaderno (primer paso): tus libretas de papel, pasadas a texto, dentro de la app. Está en la pestaña Letra del taller —para transcribir rápido— y también en el tutor: es el mismo cuaderno, uno por persona, y se guarda solo mientras escribes. La app lo parte en entradas por la fecha, reconoce tus viñetas «·» y tus MAYÚSCULAS como líneas que tú mismo subrayaste, cuenta las sílabas de cada línea, agrupa tus familias de rima y marca qué líneas traen algo que se ve y cuáles miran hacia adentro; si una línea está en inglés, la deja fuera de las cuentas de sílabas. Puedes sumar un archivo de texto, descargarlo y borrarlo. Se queda en tu navegador: no viaja en el .denavi ni en el autoguardado, así que no se comparte al pasar una maqueta."
+   ]
+  },
+  {
    "fecha": "2026-09-15",
    "items": [
     "Tutor, tras una prueba a fondo: ya no juzga una semilla (espera a que haya algo que oír y «¿Te convence?» lo dice); sus preguntas siguen lo que acabas de hacer; en la letra reconoce más imágenes («café», «la silla», «tu chaqueta»); en la melodía, repetir un gesto con otro final cuenta como algo que se recuerda; al escuchar la vuelta entera opina sobre esa versión; en el celular el panel se pliega a dos líneas mientras tocas; mensajes más cortos; cuenta bien los acordes agregados; el Pad no toma el timbre de una banda; y el MIDI y el .denavi se descargan con el nombre de tu maqueta.",
