@@ -508,3 +508,57 @@ test('en celular el gesto es mantener apretado el verso', async ({ browser }) =>
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
   await contexto.close();
 });
+
+// De dónde viene cada verso: la app cruza lo que escribes con tu cuaderno, aunque lo hayas escrito a mano,
+// y avisa qué quedó sin usar en esa misma página.
+test('el cuaderno reconoce de dónde viene un verso y qué quedó sin usar', async ({ page }) => {
+  const errores = vigilarErrores(page);
+  await comoBanda(page);
+  const paginas = [
+    '2/7', '', 'El viento merodea por las ventanas y techos del pueblo.',
+    'Pero también siento que no avanzo, que damos un paso y retrocedemos tres.', '',
+    '(sin fecha)', '', 'Yo sólo buscaba un poquito de amor.',
+  ].join('\n');
+  await page.addInitScript(t => { try { localStorage.setItem('denavilab.cuaderno.rolando', t); } catch (e) {} }, paginas);
+  await page.goto('app.html?tutor=1&modo=letra');
+  await page.locator('.v-txt').first().fill('Por cada paso que damos');   // escrito a mano, no traído del cuaderno
+  await expect(page.locator('.tu-msg')).toContainText('sin usar', { timeout: 20000 });
+  await expect(page.locator('.tu-msg')).toContainText('viento');          // lo que dejó atrás en esa misma entrada
+
+  await page.locator('.cua-box > summary').click();                        // y en el resumen, las páginas que aún no dieron nada
+  await expect(page.locator('.cua-resumen')).toContainText('Sin dar nada a esta letra todavía: sin fecha');
+  expect(errores, errores.join('\n')).toEqual([]);
+});
+
+// El corte: la cabeza de tu verso hasta el verbo, con el complemento de otra página tuya. Y, si hay beat,
+// cada opción dice si cabe en el compás a este tempo.
+test('el corte cruza tu verso con tus páginas y mide el calce con el beat', async ({ page }) => {
+  const errores = vigilarErrores(page);
+  await comoBanda(page);
+  const paginas = [
+    '2/7', '', 'El viento merodea por las ventanas y techos del pueblo.', '',
+    '· EN LA SOLEDAD CRECE EL RESENTIMIENTO', '',
+    '(sin fecha)', '', 'Pasan los días y el recuerdo de su rostro.',
+  ].join('\n');
+  await page.addInitScript(t => { try { localStorage.setItem('denavilab.cuaderno.rolando', t); } catch (e) {} }, paginas);
+  await page.goto('app.html?modo=beat');
+  const preset = await page.$eval('#drumPreset', s => [...s.options].map(o => o.value).find(v => v && v !== 'Vacío'));
+  await page.selectOption('#drumPreset', preset);                 // que haya un beat sonando debajo
+  await page.click('#modosTabs [data-m=letra]');
+  const verso = page.locator('.v-txt').first();
+  await verso.fill('Ella borró un nombre en mi corazón');
+  await verso.click();
+  await page.locator('.cua-gesto').click();
+  const pop = page.locator('.cua-pop');
+  await expect(pop).toContainText('cortes · tu verso contra tus páginas');
+  await expect(pop.locator('.cua-linea').first()).toContainText('Ella borró');   // la cabeza es tuya, el resto viene de otra página
+  await expect(pop.locator('.cua-meta').first()).toContainText('compás');        // el calce con el beat
+  const cortes = await pop.locator('.cua-linea').allInnerTexts();
+  expect(cortes.every(t => t.split(/\s+/).length <= 11)).toBe(true);             // nada de frases interminables
+  expect(cortes.some(t => /resentimiento|días|ventanas|rostro/i.test(t))).toBe(true);
+
+  await pop.getByRole('button', { name: 'mis líneas enteras' }).click();         // el mismo gesto, el otro camino
+  await expect(pop).toContainText('cabe en este verso');
+  await page.keyboard.press('Escape');
+  expect(errores, errores.join('\n')).toEqual([]);
+});

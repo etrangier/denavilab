@@ -6067,14 +6067,19 @@
       if (versos) bloque.forEach(b => { const u = _unidadCuaderno(b.txt, b.tipo === 'prosa' ? 'verso' : b.tipo, b.tachado); if (u) act.unidades.push(u); });
       else {
         const sueltas = bloque.filter(b => b.tipo !== 'prosa'), prosa = bloque.filter(b => b.tipo === 'prosa');
-        prosa.map(b => b.txt).join(' ').trim().split(/(?<=[.;?!])\s+/).forEach(o => { const u = _unidadCuaderno(o, 'prosa', prosa.some(b => b.tachado)); if (u) act.unidades.push(u); });
+        // se une con las tachaduras puestas y se corta en oraciones: así sólo queda tachada la oración que lo estaba
+        prosa.map(b => b.raw).join(' ').trim().split(/(?<=[.;?!])\s+/).forEach(o => {
+          const u = _unidadCuaderno(o.replace(/~~[^~]*~~/g, ' ').replace(/\s+/g, ' '), 'prosa', /~~/.test(o)); if (u) act.unidades.push(u); });
         sueltas.forEach(b => { const u = _unidadCuaderno(b.txt, b.tipo, b.tachado); if (u) act.unidades.push(u); });
       }
       bloque = [];
     };
+    let enNota = false;
     String(texto || '').split(/\r?\n/).forEach(cruda => {
       const l = cruda.trim();
+      if (enNota) { if (l.endsWith(']')) enNota = false; return; }   // una nota entre corchetes puede ocupar varias líneas
       if (!l) { cerrarBloque(); return; }
+      if (l.startsWith('[') && !l.includes(']')) { notas++; enNota = true; return; }
       if (_esNota(l)) { notas++; return; }
       if (_esCabecera(l)) { cerrarBloque(); abrir(l.replace(/^\(|\)$/g, '').trim() || null); return; }
       const txt = _limpiar(l); if (!txt) return;
@@ -6082,7 +6087,8 @@
       // una subrayada que sigue a otra línea tuya es la misma, partida por el ancho de la página
       const prev = bloque[bloque.length - 1];
       if (prev && _todoMayus(txt) && (prev.tipo === 'marcada' || prev.tipo === 'vineta') && !_esVineta(l)) { prev.txt += ' ' + txt; prev.crudo += ' ' + txt; return; }
-      bloque.push({ txt, crudo: l, tipo, tachado: /~~[^~]*~~/.test(l) });
+      const raw = l.replace(/\[[^\]]*\]/g, ' ').replace(/^[·•*-]\s+/, '').replace(/\s+/g, ' ').trim();
+      bloque.push({ txt, raw, crudo: l, tipo, tachado: /~~[^~]*~~/.test(l) });
     });
     cerrarBloque();
     return { entradas: entradas.filter(e => e.unidades.length), notas, texto: String(texto || '') };
@@ -6102,6 +6108,92 @@
       versos: cuenta('verso'), prosa: cuenta('prosa'), ingles: U.filter(u => u.idioma === 'en').length,
       conImagen: U.filter(u => u.img.length).length, internas: U.filter(u => u.interna).length, medida: modo, rimas,
       letras: c.texto.length, notas: c.notas };
+  }
+
+  // De dónde viene un verso: qué línea del cuaderno comparte con él palabras poco comunes. Sirve aunque lo hayas
+  // escrito a mano, sin traerlo: es la misma idea volviendo. Y al revés: qué dejaste sin usar en esa página.
+  const _clavePal = t => new Set((t.toLowerCase().match(/\p{L}+/gu) || []).filter(w => w.length >= 4 && !DETERMINANTES.has(w) && !NO_IMAGEN.has(w)));
+  function procedenciasDe(texto) {   // todas las líneas tuyas de las que podría venir, de la más parecida a la menos
+    if (!cuaderno || !texto) return [];
+    const a = _clavePal(texto); if (a.size < 2) return [];
+    const out = [];
+    cuaderno.entradas.forEach(entrada => entrada.unidades.forEach(u => {
+      const b = _clavePal(u.t); if (b.size < 2) return;
+      let n = 0; a.forEach(w => { if (b.has(w)) n++; });
+      const peso = n / Math.min(a.size, b.size);
+      if (n >= 2 && peso >= 0.5) out.push({ peso, u, entrada });
+    }));
+    return out.sort((x, y) => y.peso - x.peso);
+  }
+  const procedenciaDe = texto => procedenciasDe(texto)[0] || null;
+  const _usada = (u, versos) => versos.some(v => { const a = _clavePal(v), b = _clavePal(u.t); if (!b.size || !a.size) return false;
+    let n = 0; b.forEach(w => { if (a.has(w)) n++; }); return n >= 2 && n / Math.min(a.size, b.size) >= 0.5; });
+  // Lo que una entrada tuya todavía no ha dado a esta letra, con las imágenes primero
+  const sinUsarDe = (entrada, versos) => entrada.unidades.filter(u => u.pal >= 3 && !u.tachado && !_usada(u, versos))
+    .sort((x, y) => (y.img.length && !y.interna ? 1 : 0) - (x.img.length && !x.interna ? 1 : 0));
+
+  // ── El corte: una cabeza tuya hasta el verbo, y el complemento de otra página. Cortar entre frases no dio nada;
+  // cortar justo antes del complemento sí. No hay gramática que valga: el verso sale roto a propósito.
+  const _DET_PREP = new Set([...DETERMINANTES, 'de', 'en', 'con', 'por', 'para', 'sin', 'a', 'que', 'y', 'o', 'como', 'desde', 'hasta', 'sobre', 'entre', 'muy', 'más', 'tan']);
+  const _NO_VERBO = new Set(['nada', 'cada', 'vida', 'día', 'días', 'mía', 'agua', 'casa', 'cosa', 'forma', 'manera', 'hacia', 'tarde', 'noche', 'calle', 'gente', 'parte', 'madre', 'padre', 'sangre', 'nombre', 'hombre', 'mujer', 'ayer', 'lugar', 'hogar', 'amor', 'dolor', 'mar', 'sur', 'aire', 'tierra', 'sombra', 'piedra', 'puerta', 'fuerza', 'idea', 'marea', 'pelea', 'línea', 'playa', 'arena', 'pena', 'cena', 'luna', 'ropa', 'boca', 'sola', 'solo', 'otra', 'otro', 'todo', 'toda', 'esto', 'eso']);
+  const _VERBO_FIN = /(ó|é|ías?|ían|abas?|aban|aste|aron|ieron|amos|emos|imos|ando|iendo|ará|aré|aría|ar|er|ir|ea|ece|uede|uiere|iento|iente)$/;
+  const _VERBOS = new Set(['es', 'era', 'fue', 'son', 'eran', 'está', 'están', 'estoy', 'hay', 'tengo', 'tiene', 'tienen', 'quiero', 'quiere', 'puedo', 'puede', 'siento', 'siente', 'soy', 'va', 'van', 'voy', 'vas', 'vuelve', 'sale', 'sigue', 'sigo', 'pasa', 'pasan', 'pasó', 'invade', 'crece', 'pide', 'damos', 'tomo', 'digo', 'dice', 'veo', 've', 'mira', 'miro', 'espera', 'espero', 'queda', 'deja', 'llega', 'vive', 'duele', 'suena', 'abre', 'cierra', 'cae', 'rompe', 'canta', 'corre', 'busca', 'buscaba', 'borró', 'merodea', 'avanzo']);
+  const _esVerbo = (w, prev) => { const b = w.toLowerCase();
+    if (_NO_VERBO.has(b)) return false;
+    if (_VERBOS.has(b)) return true;
+    if (prev && DETERMINANTES.has(prev.toLowerCase())) return false;   // detrás de «la» o «mi» va un nombre, no un verbo
+    return b.length >= 4 && _VERBO_FIN.test(b); };
+  const _palabras = t => t.match(/[\p{L}’'-]+/gu) || [];
+  function _dondeElVerbo(texto) { const ws = _palabras(texto);
+    for (let i = 0; i < ws.length; i++) if (_esVerbo(ws[i], ws[i - 1])) return { ws, i };
+    return null; }
+  const _NEXOS = new Set(['que', 'y', 'o', 'pero', 'ni', 'si', 'porque', 'cuando', 'aunque', 'como', 'donde', 'pues', 'sino']);
+  // Corta: cabeza de A (hasta su verbo) + complemento de B (lo que va después del suyo), sin arreglar la gramática
+  function corte(a, b) {
+    const A = _dondeElVerbo(a), B = _dondeElVerbo(b);
+    if (!A || !B) return null;
+    const cabeza = A.ws.slice(0, A.i + 1);
+    if (cabeza.length > 5) return null;
+    let cola = B.ws.slice(B.i + 1).map(w => w.toLowerCase());
+    while (cola.length && _NEXOS.has(cola[0])) cola = cola.slice(1);   // un complemento no empieza con «que» ni con «y»
+    cola = cola.slice(0, 6);
+    const _COLGANDO = new Set([..._DET_PREP, ..._NEXOS, 'yo', 'tú', 'él', 'ella', 'lo', 'le', 'me', 'te', 'se', 'nos', 'su', 'mi', 'tu']);
+    while (cola.length && _COLGANDO.has(cola[cola.length - 1])) cola.pop();   // no termina colgando de una preposición
+    if (cola.length < 2) return null;
+    // el complemento tiene que traer algo, no sólo verbos sueltos
+    if (!cola.some((w, k) => w.length >= 4 && !_esVerbo(w, cola[k - 1]))) return null;
+    const t = [...cabeza, ...cola].join(' ');
+    const sil = silabas(t);
+    if (sil < 5 || sil > 12) return null;                              // que quepa cantándolo, como tus propias medidas
+    const plano = x => x.toLowerCase().replace(/[^\p{L} ]/gu, '').trim();
+    if (plano(t) === plano(a) || plano(t) === plano(b)) return null;   // si no cortó nada, no es un corte
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }
+
+  // ── El calce con el beat: cuántas sílabas caben a este tempo, y si tus acentos empujan con el golpe o van a contrapelo
+  function tonicasDe(linea) {   // en qué sílaba cae el acento de cada palabra (aproximado, sin contar sinalefas)
+    const ws = (linea.toLowerCase().normalize('NFC').match(/[a-záéíóúüñ]+/g)) || [];
+    const out = []; let n = 0;
+    ws.forEach(w => { const nuc = _nucleos(w); if (!nuc.length) return;
+      let ai = nuc.findIndex(g => /[áéíóú]/.test(w.slice(g[0], g[1])));
+      if (ai < 0) { const last = w[w.length - 1]; ai = 'aeiouns'.includes(last) ? nuc.length - 2 : nuc.length - 1; if (ai < 0) ai = 0; }
+      if (nuc.length > 1 || w.length > 3) out.push(n + ai);   // los monosílabos átonos no marcan
+      n += nuc.length; });
+    return { tonicas: out, total: n };
+  }
+  function calceDelBeat(linea) {
+    const sil = silabas(linea); if (!sil) return null;
+    const compas = 4 * 60 / (S.bpm || 90), porSeg = sil / compas;
+    const holgura = porSeg <= 2.4 ? 'holgada' : porSeg <= 4 ? 'cabe' : 'apurada';
+    const p = S.drums && S.drums.pat, golpes = [];
+    if (p) for (let i = 0; i < 16; i++) if (p.kick[i] || p.snare[i]) golpes.push(i);
+    if (!golpes.length) return { holgura, empuje: null };
+    const { tonicas, total } = tonicasDe(linea);
+    if (!tonicas.length || !total) return { holgura, empuje: null };
+    let calzan = 0;
+    tonicas.forEach(k => { const casilla = Math.round(k / total * 16); if (golpes.some(g => Math.abs(g - casilla) <= 1)) calzan++; });
+    const r = calzan / tonicas.length;
+    return { holgura, empuje: r >= 0.6 ? 'con el golpe' : r <= 0.25 ? 'a contrapelo' : null };
   }
 
   let cuaderno = null, cuadernoAlDia = null;
@@ -6127,6 +6219,12 @@
         linea(`${r.conImagen} ${r.conImagen === 1 ? 'línea trae' : 'líneas traen'} algo que se ve; ${r.internas} ${r.internas === 1 ? 'mira' : 'miran'} hacia adentro.`));
       if (r.rimas.length) ul.append(linea('Tus familias de rima: ' + r.rimas.map(x => `«${x.aso}» ${x.ejemplos.join(', ')}… ${x.n} líneas, ${x.afuera ? x.afuera + ' con salida al mundo' : 'ninguna con salida al mundo'}`).join(' · ')));
       if (r.ingles) ul.append(linea(`${r.ingles} ${r.ingles === 1 ? 'línea parece estar' : 'líneas parecen estar'} en inglés: no se miden en sílabas.`));
+      const versos = S.letra.secciones.flatMap(s2 => s2.lineas.map(l => (l.t || '').trim())).filter(Boolean);
+      if (versos.length) {
+        const mudas = cuaderno.entradas.filter(e => !e.unidades.some(u => _usada(u, versos)));
+        ul.append(linea(mudas.length ? `Sin dar nada a esta letra todavía: ${mudas.map(e => e.fecha || 'sin fecha').join(' · ')}.`
+          : 'Todas tus entradas dejaron algo en esta letra.'));
+      }
       resumen.append(ul, el('p', { class:'cua-fechas' }, 'Entradas: ' + cuaderno.entradas.map(e => e.fecha || 'sin fecha').join(' · ')));
     }
     function leer(txt) { cuaderno = leerCuaderno(txt); pintar(); }
@@ -6158,6 +6256,7 @@
         resumen));
     // Cargar y transcribir se hace de vez en cuando: va abajo, con Guardar y Exportar, para no llenar la pestaña
     // de Letra. Lo de todos los días —traer tus líneas mientras escribes— pasa sin abrir nada (ver «el gesto»).
+    caja.addEventListener('toggle', () => { if (caja.open) pintar(); });   // la letra pudo cambiar desde la última vez
     const anclaje = $('campoExportar');
     if (anclaje) anclaje.after(caja); else panelLetra.append(caja);
     hoja.value = cuadernoTexto(); leer(hoja.value);
@@ -6175,7 +6274,7 @@
     const gesto = el('button', { type:'button', class:'cua-gesto', tabindex:'-1', title:'traer algo de tu cuaderno' }, 'cuaderno');
     const pop = el('div', { class:'cua-pop', hidden:'' });
     document.body.append(pop);
-    let activo = null, sel = 0, opciones = [], tanda = 0, largo = null, previo = null;
+    let activo = null, sel = 0, opciones = [], tanda = 0, largo = null, previo = null, modo = 'lineas', verLineas = false;
 
     const unidades = () => (cuaderno ? cuaderno.entradas.flatMap(e => e.unidades.map(u => ({ ...u, de: e.fecha || 'sin fecha' }))) : []);
     const yaEnLaLetra = () => new Set(S.letra.secciones.flatMap(s2 => s2.lineas.map(l => (l.t || '').trim().toLowerCase())).filter(Boolean));
@@ -6208,7 +6307,30 @@
       return out.sort((a, b) => (b.cons - a.cons) || (b.afuera - a.afuera)).slice(0, 10);
     }
 
-    const meta = u => [u.de, u.sil ? (u.sil === 1 ? 'una sílaba' : u.sil + ' sílabas') : '', u.tipo === 'marcada' ? 'subrayada por ti' : u.tipo === 'vineta' ? 'la apartaste' : '', u.img.length && !u.interna ? 'algo que se ve' : ''].filter(Boolean).join(' · ');
+    const calceTxt = t => { const c = calceDelBeat(t); if (!c) return '';
+      return (c.holgura === 'apurada' ? 'va apurada para este tempo' : c.holgura === 'holgada' ? 'sobra aire en el compás' : 'cabe en el compás')
+        + (c.empuje ? ', ' + c.empuje : ''); };
+    const meta = u => [u.de, u.sil ? (u.sil === 1 ? 'una sílaba' : u.sil + ' sílabas') : '', u.tipo === 'marcada' ? 'subrayada por ti' : u.tipo === 'vineta' ? 'la apartaste' : '', u.img.length && !u.interna ? 'algo que se ve' : '', hayBeat() ? calceTxt(u.t) : ''].filter(Boolean).join(' · ');
+    const hayBeat = () => { const p2 = S.drums && S.drums.pat; return !!(p2 && (p2.kick.some(Boolean) || p2.snare.some(Boolean))); };
+    // los cortes: la cabeza de tu verso hasta el verbo, con el complemento de otra página tuya
+    function cortes(texto) {
+      const U = unidades().filter(u => u.pal >= 4 && u.idioma !== 'en');
+      const fuentes = texto.trim() ? [texto.trim()] : U.map(u => u.t);
+      const out = [], vistos = new Set();
+      fuentes.forEach(a => U.forEach(u => {
+        if (u.t === a) return;
+        const t = corte(a, u.t); if (!t || vistos.has(t.toLowerCase())) return;
+        vistos.add(t.toLowerCase());
+        const imgs = imagenesDe(t), c = hayBeat() ? calceDelBeat(t) : null;
+        const sil = silabas(t);
+        let p = imgs.length ? 1.2 : 0; if (_INTERNAS.test(t)) p += 0.2;
+        p += sil >= 6 && sil <= 9 ? 0.8 : 0;   // tus sietes y ochos
+        if (c && c.holgura === 'cabe') p += 0.8; else if (c && c.holgura === 'apurada') p -= 0.6;
+        if (c && c.empuje === 'con el golpe') p += 0.5;
+        out.push({ t, de: u.de, sil, img: imgs, interna: _INTERNAS.test(t), tipo: 'corte', pal: (t.match(/\p{L}+/gu) || []).length, p });
+      }));
+      return out.sort((x, y) => y.p - x.p);
+    }
     function pintarPop() {
       pop.textContent = '';
       if (largo) {   // modo rimas
@@ -6222,13 +6344,15 @@
           pop.append(el('p', { class:'cua-meta' }, afuera ? `${afuera} de ellas mira hacia afuera.` : 'Ninguna de ellas trae algo que se vea: por esta rima, tu cuaderno tira hacia adentro.'));
         }
       } else {
-        pop.append(el('h4', {}, 'de tu cuaderno · cabe en este verso'));
+        pop.append(el('h4', {}, modo === 'cortes' ? 'cortes · tu verso contra tus páginas' : 'de tu cuaderno · cabe en este verso'));
         if (!opciones.length) pop.append(el('p', { class:'cua-vacio' }, cuaderno && cuaderno.entradas.length ? 'Ya usaste todo lo que calzaba aquí.' : 'Todavía no hay cuaderno: se carga abajo, junto a Guardar y Exportar.'));
         opciones.forEach((u, i) => pop.append(el('div', { class:'cua-item' + (i === sel ? ' sel' : ''), onclick: () => poner(u.t, u.de) },
           el('div', { class:'cua-linea' }, u.t), el('div', { class:'cua-meta' }, meta(u)))));
       }
       const pie = el('div', { class:'cua-pie' });
       if (!largo && opciones.length) pie.append(el('span', {}, el('b', {}, '↑↓'), '\u00a0elegir'), el('span', {}, el('b', {}, 'enter'), '\u00a0ponerla'));
+      if (modo === 'cortes') pie.append(el('button', { type:'button', class:'cua-mas', onclick: () => { verLineas = true; modo = 'lineas'; tanda = 0; abrir(activo, true); } }, 'mis líneas enteras'));
+      else if (modo === 'lineas' && activo && activo.value.trim()) pie.append(el('button', { type:'button', class:'cua-mas', onclick: () => { verLineas = false; modo = 'cortes'; tanda = 0; abrir(activo, true); } }, 'cortar este verso'));
       if (opciones.length) pie.append(el('button', { type:'button', class:'cua-mas', onclick: () => { tanda++; abrir(activo, true); } }, 'otra tanda'));
       pie.append(el('span', {}, el('b', {}, 'esc'), '\u00a0cerrar'));
       pop.append(pie);
@@ -6245,11 +6369,13 @@
       activo = inp; sel = 0;
       if (typeof cuadernoAlDia === 'function') cuadernoAlDia();
       largo = mismaPalabra ? largo : palabraSel(inp);
-      opciones = largo ? rimasDe(largo) : sugerencias(inp).slice(tanda * 3, tanda * 3 + 3);
-      if (!largo && !opciones.length && tanda) { tanda = 0; opciones = sugerencias(inp).slice(0, 3); }
+      if (!mismaPalabra) modo = largo ? 'rimas' : (inp.value.trim() && !verLineas ? 'cortes' : 'lineas');
+      const lista = modo === 'rimas' ? rimasDe(largo) : modo === 'cortes' ? cortes(inp.value) : sugerencias(inp);
+      opciones = modo === 'rimas' ? lista : lista.slice(tanda * 3, tanda * 3 + 3);
+      if (modo !== 'rimas' && !opciones.length && tanda) { tanda = 0; opciones = lista.slice(0, 3); }
       pintarPop(); pop.hidden = false; ubicar(inp);
     }
-    function cerrar() { pop.hidden = true; tanda = 0; largo = null; }
+    function cerrar() { pop.hidden = true; tanda = 0; largo = null; verLineas = false; modo = 'lineas'; }
     function poner(texto, de) {
       if (!activo) return;
       if (largo) {   // una rima reemplaza la palabra seleccionada
@@ -6562,7 +6688,7 @@
       '¿Te dan ganas de moverte, o sólo de mirarlo?', '¿Cómo suena con los ojos cerrados?', '¿Esto te sorprende, o ya lo conocías?'];
     let ultimaPregunta = '';
     // qué hallazgo corresponde a cada cosa que se nombra al contar un cambio
-    const PISTAS_CAMBIO = { 'fuera de la tonalidad': 'e_fuera', 'frase muy transitada': 'l_cliche', 'imagen concreta': 'l_imagenes', 'rima con el verso anterior': 'l_todoRima',
+    const PISTAS_CAMBIO = { 'fuera de la tonalidad': 'e_fuera', 'frase muy transitada': 'l_cliche', 'imagen concreta': 'l_imagenes', 'rima con el verso anterior': 'l_todoRima', 'verso nuevo': 'l_cuaderno',
       'se abrió un espacio': 'b_hueco', 'se sale del tiempo': 'b_anticipa', 'repite el dibujo': 'e_motivo', 'retoma el gesto': 'e_motivo', 'la frase respira': 'e_sinAire', 'se despegó del bombo': 'j_suelto',
       'camina con el bombo': 'j_pegado', 'entró aire': 'g_huecos', 'con saltos': 'e_saltos', 'paso a paso': 'e_grados' };
     const LEER = { bateria: leerBateria, bajo: leerBajo, teclados: leerTeclados, guitarra: leerGuitarra };
@@ -6667,6 +6793,23 @@
       if (L.secs.length >= 2 && !L.estribillo) H.push(hallazgo('l_sinCoro', 0.4, 'todavía no hay estribillo', 'Sin estribillo, la canción cuenta pero no vuelve a casa.', '¿Qué frase dirías una y otra vez sin cansarte?', ref('l_vivo')));
       if (L.titulo && L.n >= 3 && !L.versos.some(v => v.txt.toLowerCase().includes(L.titulo.toLowerCase()))) H.push(hallazgo('l_titulo', 0.4, `el título, «${L.titulo}», no aparece en la letra`, 'El título promete algo que la letra no nombra: puede ser misterio o desconexión.', '¿Dónde viviría ese título dentro de la canción?', ref('l_vivo')));
       if (L.prom >= 13 && S.bpm >= 110) H.push(hallazgo('l_largos', 0.55, 'los versos son largos para este tempo', 'Cantados sobre la base, van a sonar apurados.', '¿Qué palabra podría irse sin que se pierda lo que dices?', ref('m_quitar')));
+      // el cuaderno: un verso que ya estaba en tus páginas, y lo que esa misma entrada dejó sin usar
+      if (cuaderno && cuaderno.entradas.length) {
+        const textos = L.versos.map(v => v.txt);
+        for (const v of L.versos) {
+          let p = null, sobra = null;
+          for (const c of procedenciasDe(v.txt)) {   // si esa página ya no tiene nada guardado, mira la siguiente de donde pudo venir
+            const s2 = sinUsarDe(c.entrada, textos).find(u => u !== c.u && u.img.length);
+            if (s2) { p = c; sobra = s2; break; }
+          }
+          if (!sobra) continue;
+          H.push(hallazgo('l_cuaderno', 0.8,
+            'eso ya estaba en tus páginas, dicho de otra manera',
+            `En esa misma entrada quedó sin usar ${enLista(sobra.img.slice(0, 2).map(w => '«' + w + '»'))}: volviste a la idea, pero dejaste atrás lo que se veía.`,
+            '¿Lo necesitas aquí, o el verso ya se sostiene solo?', ref('m_imagen')));
+          break;
+        }
+      }
       H.push(hallazgo('l_vivo', 0.3, `la letra tiene ${L.n === 1 ? 'un verso' : cuantas(L.n) + ' versos'}`, 'Ya hay palabras sobre la mesa.', 'Cántalos sobre la base, aunque sea bajito: ¿dónde tropiezan?', ref('l_vivo')));
       return H;
     }
