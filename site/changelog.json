@@ -3,6 +3,7 @@
   {
    "fecha": "2026-09-20",
    "items": [
+    "La nota de voz queda pegada a su maqueta: si la grabas antes de bautizarla, al guardar se va con ella; al recargar la app recuerda en qué maqueta ibas, así que el reproductor vuelve a aparecer. El panel dice a qué maqueta pertenece y cuánto pesa, y hay un botón para bajarla como archivo de audio. Se escucha ahí mismo, y también al abrir el .denavi en otro computador.",
     "Los pads de teclados ya no chillan: los acordes pierden filo a medida que suben (un estante de agudos que se abre más mientras más alta es la nota, como bajarle el brillo a un teclado) y, sobre todo, hay un «Registro del pad» en los ajustes de la pestaña Pad: Grave —lo nuevo de fábrica, colchón suave—, Medio (como está escrito) y Agudo, una octava arriba y más brillante. Los acordes no cambian: cambia dónde suenan, con tope para no embarrarse con el bajo ni irse a la zona que molesta. Vale también para Voces y Ukelele, viaja con la maqueta y sale igual en el MIDI.",
     "Ahora se puede bajar la mezcla como archivo de audio: en Mezcla, «⏺ Grabar a un archivo» graba la vuelta entera tal como suena y la descarga. Sirve para mandarle la idea a alguien que no tiene la app, que hasta ahora era imposible: sólo salía MIDI.",
     "Nota de voz por maqueta: un botón para grabar un tarareo, la melodía silbada o la idea dicha en voz alta, junto a Guardar. Se guarda con la maqueta en este navegador y viaja dentro del .denavi, para que lo primero que se te ocurrió no se pierda.",
