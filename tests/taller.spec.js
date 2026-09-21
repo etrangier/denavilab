@@ -788,3 +788,36 @@ test('grabar y escuchar la nota desde la barra de transporte', async ({ page, co
   await expect(oir).toHaveText('▶ tu nota');
   expect(errores, errores.join('\n')).toEqual([]);
 });
+
+// Las notas y la mezcla bajan en WAV, en la mínima calidad que todavía suena a música: 11.025 Hz, 16 bits, mono.
+function cabeceraWav(buf) {
+  const v = new DataView(buf.buffer, buf.byteOffset, buf.byteLength), txt = (o, n) => String.fromCharCode(...buf.subarray(o, o + n));
+  return { riff: txt(0, 4), wave: txt(8, 4), formato: v.getUint16(20, true), canales: v.getUint16(22, true),
+    hz: v.getUint32(24, true), bits: v.getUint16(34, true), segundos: v.getUint32(40, true) / (v.getUint32(24, true) * 2) };
+}
+test('la nota de voz y la mezcla bajan en WAV de baja calidad', async ({ page, context }) => {
+  const errores = vigilarErrores(page);
+  await context.grantPermissions(['microphone']);
+  await comoBanda(page);
+  await page.goto('app.html?modo=beat');
+  const preset = await page.$eval('#drumPreset', s => [...s.options].map(o => o.value).find(v => v && v !== 'Vacío'));
+  await page.selectOption('#drumPreset', preset);
+  await page.locator('.tr-rec').click();
+  await page.waitForTimeout(3000);
+  await page.locator('.tr-rec').click();
+  await expect(page.locator('.tr-oir')).toBeVisible();
+
+  const nota = await descargar(page, () => page.locator('.campo-voz').getByTitle('bajar la nota como WAV').click());
+  const n = cabeceraWav(nota);
+  expect([n.riff, n.wave, n.formato, n.canales, n.hz, n.bits]).toEqual(['RIFF', 'WAVE', 1, 1, 11025, 16]);
+  expect(n.segundos).toBeGreaterThan(2);                          // dura lo que se grabó
+  expect(n.segundos).toBeLessThan(5);
+  expect(nota.length).toBeLessThan(n.segundos * 23000);          // ~21 kB por segundo, no más
+
+  await page.click('#modosTabs [data-m=mezcla]');
+  const mezcla = await descargar(page, () => page.click('#grabMezcla'));
+  const m = cabeceraWav(mezcla);
+  expect([m.riff, m.wave, m.canales, m.hz, m.bits]).toEqual(['RIFF', 'WAVE', 1, 11025, 16]);
+  await expect(page.locator('#mezclaInfo')).toContainText('WAV');
+  expect(errores, errores.join('\n')).toEqual([]);
+});

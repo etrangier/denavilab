@@ -1,6 +1,12 @@
 {
  "changelog": [
   {
+   "fecha": "2026-09-21",
+   "items": [
+    "Las notas de voz y la mezcla grabada se descargan en WAV, en la mínima calidad que todavía suena a música: 11.025 Hz, 16 bits, mono (unos 21 kB por segundo; medio minuto de tarareo son ~650 kB). Más abajo ya no sólo pesa menos, suena peor: a 8 kHz los platillos desaparecen y a 8 bits aparece un siseo. Si la nota quedó bajita, se sube al convertirla para que se oiga. Dentro de la app se siguen guardando comprimidas, para que quepan en el navegador."
+   ]
+  },
+  {
    "fecha": "2026-09-20",
    "items": [
     "Grabar y escuchar el tarareo desde la barra de abajo: el panel de la nota de voz quedaba a dos pantallas de scroll, así que el botón rojo ● y el ▶ para escucharla están ahora en la barra de transporte, siempre a la vista. Mientras grabas, la barra muestra los segundos que quedan. El panel de abajo sigue para lo demás: bajar la nota, borrarla y ver a qué maqueta pertenece.",

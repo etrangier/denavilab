@@ -3085,9 +3085,11 @@
     rec2.onstop = () => {
       b.dataset.grabando = ''; delete b.dataset.grabando; b.textContent = '⏺ Grabar a un archivo';
       const blob = new Blob(trozos, { type: rec2.mimeType || 'audio/webm' });
-      const ext = (rec2.mimeType || '').includes('ogg') ? 'ogg' : 'webm';
-      deliver(`${nombreArchivo()}-${stamp()}.${ext}`, blob, blob.type);
-      if (info) info.textContent = 'Listo: se bajó el audio de la vuelta. Sirve para mandárselo a alguien que no tenga la app.';
+      if (info) info.textContent = 'Preparando el WAV…';
+      aWav(blob).then(w => { deliver(`${nombreArchivo()}-${stamp()}.wav`, w, 'audio/wav');
+          if (info) info.textContent = `Listo: se bajó la vuelta en WAV (11 kHz, mono, ${Math.round(w.size / 1024)} kB). Sirve para mandárselo a alguien que no tenga la app.`; })
+        .catch(() => { const ext = (rec2.mimeType || '').includes('ogg') ? 'ogg' : 'webm';   // si no se pudo convertir, al menos baja como vino
+          deliver(`${nombreArchivo()}-${stamp()}.${ext}`, blob, blob.type); if (info) info.textContent = 'Listo: se bajó el audio de la vuelta (este navegador no pudo pasarlo a WAV).'; });
     };
     b.dataset.grabando = '1'; b.textContent = '⏺ Grabando…';
     if (info) info.textContent = 'Grabando la vuelta entera…';
@@ -4852,6 +4854,36 @@
     }
   }
   const stamp = () => new Date().toISOString().slice(0,10);
+  // WAV en la mínima calidad que todavía suena a música: 11.025 Hz, 16 bits, mono (~21 kB por segundo).
+  // Más abajo ya se pierde, no sólo se achica: a 8 kHz los platillos desaparecen y a 8 bits aparece siseo.
+  const WAV_HZ = 11025;
+  async function aWav(fuente) {
+    const datos = fuente instanceof Blob ? await fuente.arrayBuffer() : await (await fetch(fuente)).arrayBuffer();
+    const dec = new (window.AudioContext || window.webkitAudioContext)();
+    let audio; try { audio = await dec.decodeAudioData(datos); } finally { dec.close && dec.close(); }
+    let pcm;
+    try {   // el navegador baja la frecuencia y junta los canales por nosotros
+      const off = new OfflineAudioContext(1, Math.max(1, Math.ceil(audio.duration * WAV_HZ)), WAV_HZ);
+      const src = off.createBufferSource(); src.buffer = audio; src.connect(off.destination); src.start();
+      pcm = (await off.startRendering()).getChannelData(0);
+    } catch (e) {   // respaldo a mano: promedio y salto (algunos navegadores no aceptan 11.025 Hz)
+      const paso = audio.sampleRate / WAV_HZ, n = Math.floor(audio.length / paso), ch = audio.numberOfChannels;
+      pcm = new Float32Array(n);
+      for (let i = 0; i < n; i++) { let acc = 0, k = 0; const a0 = Math.floor(i * paso), a1 = Math.floor((i + 1) * paso);
+        for (let j = a0; j < a1 && j < audio.length; j++) for (let c = 0; c < ch; c++) { acc += audio.getChannelData(c)[j]; k++; }
+        pcm[i] = k ? acc / k : 0; }
+    }
+    let pico = 0; for (let i = 0; i < pcm.length; i++) pico = Math.max(pico, Math.abs(pcm[i]));
+    const g = pico > 0 && pico < 0.5 ? 0.89 / pico : 1;   // un tarareo bajito se sube, para que se oiga
+    const buf = new ArrayBuffer(44 + pcm.length * 2), v = new DataView(buf);
+    const txt = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+    txt(0, 'RIFF'); v.setUint32(4, 36 + pcm.length * 2, true); txt(8, 'WAVE');
+    txt(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, WAV_HZ, true); v.setUint32(28, WAV_HZ * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    txt(36, 'data'); v.setUint32(40, pcm.length * 2, true);
+    for (let i = 0; i < pcm.length; i++) { const x = Math.max(-1, Math.min(1, pcm[i] * g)); v.setInt16(44 + i * 2, x < 0 ? x * 0x8000 : x * 0x7fff, true); }
+    return new Blob([buf], { type:'audio/wav' });
+  }
   const nombreArchivo = () => (S.letra.titulo || S.nombreMaqueta || 'maqueta').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'maqueta';   // el archivo lleva el nombre de tu maqueta
   $('expMidiOne').addEventListener('click', ()=>{ stBump('usos','exportar MIDI'); const d = buildMidi(S.mode); if (!d) { $('expInfo').textContent = 'Esta pista está vacía todavía.'; return; } deliver(`${nombreArchivo()}-${S.mode}-${stamp()}.mid`, d, 'audio/midi'); });
   $('expMidiAll').addEventListener('click', ()=>{ stBump('usos','exportar MIDI'); const d = buildMidi('all'); if (!d) { $('expInfo').textContent = 'No hay nada que exportar aún: programa un beat, un bajo o una progresión.'; return; } deliver(`${nombreArchivo()}-${stamp()}.mid`, d, 'audio/midi'); });
@@ -6342,9 +6374,11 @@
       irAlPanel() { const c = document.querySelector('.campo-voz'); if (c) { const d = c.closest('details'); if (d) d.open = true; c.scrollIntoView({ behavior:'smooth', block:'center' }); } },
     };
     bBorrar.addEventListener('click', () => { if (!confirm('¿Borrar la nota de voz de esta maqueta?')) return; NOTA_VOZ.pon(null); aviso.textContent = 'Borrada.'; pintar(); });
-    const bBajar = el('button', { class:'ghost', type:'button', title:'bajar la nota como archivo de audio', hidden:'' }, '⤓');
+    const bBajar = el('button', { class:'ghost', type:'button', title:'bajar la nota como WAV', hidden:'' }, '⤓');
     bBajar.addEventListener('click', () => { const d = NOTA_VOZ.dame(); if (!d) return;
-      const a2 = el('a', { href: d, download: (nombreArchivo() || 'nota') + '-voz.webm' }); a2.click(); });
+      aviso.textContent = 'Preparando el WAV…';
+      aWav(d).then(w => { deliver((nombreArchivo() || 'nota') + '-voz.wav', w, 'audio/wav'); aviso.textContent = `Bajó en WAV (11 kHz, mono): ${Math.round(w.size / 1024)} kB.`; })
+        .catch(() => { aviso.textContent = 'No se pudo convertir a WAV en este navegador.'; }); });
     const conBase = el('input', { type:'checkbox', id:'vozConBase' });
     conBase.addEventListener('change', () => pintar());   // el botón dice lo que va a hacer
     const etiqueta = el('label', { class:'hint', for:'vozConBase', style:'display:flex; gap:6px; align-items:center' }, conBase, 'tararear sobre la maqueta (suena mientras grabas)');
