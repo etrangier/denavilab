@@ -591,10 +591,35 @@ test('la nota de voz se graba, se guarda y viaja en el .denavi', async ({ page, 
   await page.waitForTimeout(900);
   await page.getByRole('button', { name: '■ Detener' }).click();
   await expect(page.locator('.voz-audio')).toBeVisible();
-  await expect(page.locator('.campo-voz .hint')).toContainText('Guardada con esta maqueta');
-  const denavi = JSON.parse(await descargar(page, () => page.click('#expProyecto')));
+  await expect(page.locator('.campo-voz .hint').last()).toContainText('Guardada con esta maqueta');
+  const bytes = await descargar(page, () => page.click('#expProyecto'));
+  const denavi = JSON.parse(bytes);
   expect(typeof denavi.voz).toBe('string');                // la melodía tarareada viaja con la maqueta
   expect(denavi.voz.startsWith('data:audio')).toBe(true);
+  await expect(page.locator('.voz-audio')).toHaveAttribute('src', /^data:audio/);   // y se puede volver a escuchar ahí mismo
+
+  // al bautizar la maqueta, la nota se va con ella y sigue ahí al recargar
+  const preset = await page.$eval('#drumPreset', s => [...s.options].map(o => o.value).find(v => v && v !== 'Vacío'));
+  await page.selectOption('#drumPreset', preset);
+  await page.fill('#maquetaName', 'la del puente');
+  await page.click('#saveMaqueta');
+  await expect(page.locator('.campo-voz .cua-estado')).toContainText('«la del puente»');
+  await page.waitForTimeout(4300);                          // que alcance a autoguardarse con su nombre
+  await page.reload();
+  await expect(page.locator('.campo-voz .cua-estado')).toContainText('«la del puente»');
+  await expect(page.locator('.voz-audio')).toBeVisible();
+
+  // y en otro navegador, abriendo el .denavi, la nota llega con la maqueta
+  const otro = await page.context().browser().newContext();
+  const p2 = await otro.newPage();
+  await comoBanda(p2);
+  await p2.goto('app.html?modo=beat');
+  const tmp = require('path').join(require('os').tmpdir(), 'maqueta-con-voz.denavi');
+  fs.writeFileSync(tmp, bytes);
+  await p2.setInputFiles('#impProyecto', tmp);
+  await expect(p2.locator('.voz-audio')).toBeVisible();
+  await expect(p2.locator('.voz-audio')).toHaveAttribute('src', /^data:audio/);
+  await otro.close();
 });
 
 test('la mezcla se puede bajar como audio', async ({ page }) => {

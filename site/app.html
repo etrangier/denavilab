@@ -4985,6 +4985,7 @@
   if ($('saveMaqueta')) $('saveMaqueta').addEventListener('click', ()=>{
     stBump('usos','guardar maqueta');
     const name = $('maquetaName').value.trim() || S.letra.titulo || ('maqueta ' + new Date().toLocaleString('es-CL', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })); S.nombreMaqueta = name;
+    if (typeof NOTA_VOZ !== 'undefined') { NOTA_VOZ.muda('tu trabajo', name); dispatchEvent(new Event('denavilab:maqueta')); }
     const list = store.get('rueda.maquetas'); list.push({ name, ts:Date.now(), proyecto: proyectoActual() });
     try { store.set('rueda.maquetas', list); } catch (e) { avisoGuardar('No cupo en el almacenamiento del navegador: descarga el .denavi para no perderla.'); return; }
     $('maquetaName').value=''; renderSavedMaquetas(); $('savedMaquetas').value=String(list.length-1); revisarBotonesMaqueta();
@@ -6242,6 +6243,10 @@
       hay: () => !!leerTodo()[clave()],
       dame: () => leerTodo()[clave()] || null,
       pon(dataUrl) { const m = leerTodo(); if (dataUrl) m[clave()] = dataUrl; else delete m[clave()]; return guardarTodo(m); },
+      // al bautizar la maqueta, la nota se va con ella (si no, quedaba huérfana bajo «tu trabajo»)
+      muda(desde, hasta) { if (!desde || !hasta || desde === hasta) return; const m = leerTodo();
+        if (m[desde] && !m[hasta]) { m[hasta] = m[desde]; delete m[desde]; guardarTodo(m); } },
+      nombre: () => clave(),
       TOPE,
     };
   })();
@@ -6254,7 +6259,8 @@
     const aviso = el('div', { class:'hint' }, 'Un tarareo, la melodía silbada, la idea dicha en voz alta. Se guarda con la maqueta y viaja en el .denavi.');
     function pintar() {
       const d = NOTA_VOZ.dame();
-      audio.hidden = !d; bBorrar.hidden = !d;
+      audio.hidden = !d; bBorrar.hidden = !d; bBajar.hidden = !d;
+      cual.textContent = d ? `Guardada con «${NOTA_VOZ.nombre()}» · ${Math.round(d.length / 1400)} kB` : '';
       if (d) audio.src = d;
       bGrabar.textContent = rec ? '■ Detener' : (d ? '● Grabar otra' : '● Grabar una nota de voz');
       bGrabar.classList.toggle('grabando', !!rec);
@@ -6285,7 +6291,11 @@
     }
     bGrabar.addEventListener('click', alternar);
     bBorrar.addEventListener('click', () => { if (!confirm('¿Borrar la nota de voz de esta maqueta?')) return; NOTA_VOZ.pon(null); aviso.textContent = 'Borrada.'; pintar(); });
-    const caja = el('div', { class:'field campo-voz' }, el('span', { class:'lbl' }, 'Nota de voz'), el('div', { class:'row' }, bGrabar, bBorrar), audio, aviso);
+    const bBajar = el('button', { class:'ghost', type:'button', title:'bajar la nota como archivo de audio', hidden:'' }, '⤓');
+    bBajar.addEventListener('click', () => { const d = NOTA_VOZ.dame(); if (!d) return;
+      const a2 = el('a', { href: d, download: (nombreArchivo() || 'nota') + '-voz.webm' }); a2.click(); });
+    const cual = el('div', { class:'hint cua-estado' }, '');
+    const caja = el('div', { class:'field campo-voz' }, el('span', { class:'lbl' }, 'Nota de voz'), el('div', { class:'row' }, bGrabar, bBajar, bBorrar), audio, cual, aviso);
     campo.after(caja);
     pintar();
     window.addEventListener('denavilab:maqueta', pintar);
@@ -7627,23 +7637,26 @@
     if (previo && !otraEntrada) {
       try {
         aplicarProyecto(previo.proyecto, 'tu trabajo');
+        // vuelve también en qué maqueta ibas: de eso cuelga la nota de voz
+        if (previo.nombre) { S.nombreMaqueta = previo.nombre; dispatchEvent(new Event('denavilab:maqueta')); }
         barra([el('b', {}, 'Recuperé lo que tenías abierto'), ` (se guardó solo el ${cuando(previo.ts)})`],
               [['Empezar en blanco', () => { const u = new URL(location.href); u.searchParams.set('nuevo', '1'); location.href = u; }], ['entendido', () => {}]]);
       } catch (e) {}
     } else if (previo) {
       barra([el('b', {}, MODO_TUTOR ? 'Tienes una sesión del tutor sin guardar' : 'Tienes trabajo sin guardar'), ` del ${cuando(previo.ts)}`],
-            [[MODO_TUTOR ? 'Recuperarla' : 'Recuperarlo', () => { try { aplicarProyecto(previo.proyecto, 'tu trabajo'); } catch (e) {} }], ['no, gracias', () => {}]]);
+            [[MODO_TUTOR ? 'Recuperarla' : 'Recuperarlo', () => { try { aplicarProyecto(previo.proyecto, 'tu trabajo'); if (previo.nombre) { S.nombreMaqueta = previo.nombre; dispatchEvent(new Event('denavilab:maqueta')); } } catch (e) {} }], ['no, gracias', () => {}]]);
     }
     const marcarAuto = ts => { const ai = $('autoInfo'); if (ai) { ai.textContent = '✓ Autoguardado en este navegador · ' + new Date(ts).toLocaleTimeString('es-CL', { hour:'2-digit', minute:'2-digit' }); ai.classList.add('guardar-auto'); } };
     if (previo && !otraEntrada) marcarAuto(previo.ts);
     // Sólo se escribe cuando tocaste algo y el proyecto cambió: abrir la página no pisa lo anterior.
-    let base = firmaP(proyectoActual()), activo = false;
+    let base = firmaP(proyectoActual()) + '|', activo = false;
     ['pointerdown','keydown'].forEach(t => document.addEventListener(t, () => { activo = true; }, { capture:true, once:true }));
     function autoguardar() {
       if (!activo || cancionRep || vbEscuchando || lbEscuchando) return;   // mientras suena la canción del mapa, el taller va cargando las partes
       let p; try { p = proyectoActual(); } catch (e) { return; }
-      const f = firmaP(p); if (f === base || !tieneAlgo(p)) return;
-      try { const ts = Date.now(); localStorage.setItem(CLAVE, JSON.stringify({ ts, proyecto: p })); base = f; marcarAuto(ts); }
+      const f = firmaP(p) + '|' + (S.nombreMaqueta || '');   // el nombre también cuenta: de él cuelga la nota de voz
+      if (f === base || !tieneAlgo(p)) return;
+      try { const ts = Date.now(); localStorage.setItem(CLAVE, JSON.stringify({ ts, proyecto: p, nombre: S.nombreMaqueta || '' })); base = f; marcarAuto(ts); }
       catch (e) { const ai = $('autoInfo'); if (ai) { ai.textContent = '⚠ El navegador no dejó autoguardar (almacenamiento lleno): descarga el .denavi.'; ai.classList.remove('guardar-auto'); } }
     }
     setInterval(autoguardar, 4000);
