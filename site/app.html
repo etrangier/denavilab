@@ -474,7 +474,10 @@
     background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; box-shadow: 0 8px 22px rgba(0,0,0,.14); }
   .transporte .tr-b { border: 0; background: transparent; color: var(--text); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; padding: 3px 6px; border-radius: 999px; }
   .transporte .tr-b:hover { background: var(--surface-2); }
-  .transporte .tr-todo { border-left: 1px solid var(--line); padding-left: 10px; }
+  .transporte .tr-todo, .transporte .tr-rec { border-left: 1px solid var(--line); padding-left: 10px; }
+  .transporte .tr-rec { color: #c2452d; }
+  .transporte .tr-rec.grabando { background: #c2452d; color: #fff; }
+  @media (max-width: 700px) { .transporte { gap: 4px; padding: 6px 8px; } .transporte .tr-b { padding: 3px 4px; font-size: 12.5px; } .transporte .tr-tempo { display: none; } }
   .transporte .tr-tempo { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
   body { padding-bottom: 56px; }
   @media (max-width: 700px) { .transporte { left: 10px; right: 10px; bottom: 10px; justify-content: center; } }
@@ -6218,8 +6221,12 @@
     const bEsto = el('button', { class:'tr-b', type:'button', onclick: () => { const id = BOTON[S.mode]; if (id && $(id)) $(id).click(); } }, '▶');
     const bTodo = el('button', { class:'tr-b tr-todo', type:'button', title:'escuchar todas las pistas juntas',
       onclick: () => { if (isPlaying) { stopAll(); return; } if ($('playMezcla')) $('playMezcla').click(); } }, '▶ Todo');
+    const bRec = el('button', { class:'tr-b tr-rec', type:'button', title:'grabar un tarareo (30 s)',
+      onclick: () => { if (notaVoz) notaVoz.alternar(); } }, '●');
+    const bOir = el('button', { class:'tr-b tr-oir', type:'button', hidden:'', title:'escuchar tu nota de voz',
+      onclick: () => { if (notaVoz) notaVoz.escuchar(); } }, '▶ tu nota');
     const tempo = el('span', { class:'tr-tempo' }, '');
-    barra.append(bEsto, bTodo, tempo);
+    barra.append(bEsto, bTodo, bRec, bOir, tempo);
     document.body.append(barra);
     setInterval(() => {
       const hay = !!BOTON[S.mode];
@@ -6228,9 +6235,17 @@
       bTodo.textContent = isPlaying ? '■ Detener todo' : '▶ Todo';
       bTodo.hidden = isPlaying && S.mode !== 'mezcla' ? false : false;
       tempo.textContent = (S.bpm || 90) + ' bpm' + (S.swing ? ' · swing ' + Math.round(S.swing * 100) + '%' : '');
+      if (notaVoz) {
+        const grabando = notaVoz.grabando();
+        bRec.textContent = grabando ? '■ ' + notaVoz.quedan() + ' s' : (notaVoz.conBase() ? '● tararear' : '● nota de voz');
+        bRec.classList.toggle('grabando', grabando);
+        bOir.hidden = grabando || !notaVoz.hay();
+        bOir.textContent = notaVoz.sonando() ? '■ tu nota' : '▶ tu nota';
+      }
     }, 300);
   })();
 
+  let notaVoz = null;   // lo que la barra de transporte necesita de la nota de voz
   // ───────── Nota de voz: la melodía, antes de que se olvide ─────────
   // Se graba del micrófono, se guarda con la maqueta en este navegador y viaja dentro del .denavi si es corta.
   // No es una grabación de estudio: es el tarareo para no perder lo que se te ocurrió.
@@ -6266,7 +6281,7 @@
       bGrabar.classList.toggle('grabando', !!rec);
     }
     const TOPE_SEG = 30;
-    let cuenta = null;
+    let cuenta = null, quedanSeg = TOPE_SEG;
     async function alternar() {
       if (rec) { rec.stop(); return; }
       let stream;
@@ -6308,13 +6323,24 @@
       };
       if (conMaqueta && !isPlaying) { yoLoPuse = true; if ($('playMezcla')) $('playMezcla').click(); }
       rec.start();
-      let queda = TOPE_SEG;
-      const pintarCuenta = () => { aviso.textContent = (conMaqueta ? 'Grabando sobre la maqueta' : 'Grabando') + `… quedan ${queda} s. Aprieta otra vez para detener.`; };
+      quedanSeg = TOPE_SEG;
+      const pintarCuenta = () => { aviso.textContent = (conMaqueta ? 'Grabando sobre la maqueta' : 'Grabando') + `… quedan ${quedanSeg} s. Aprieta otra vez para detener.`; };
       pintarCuenta();
-      cuenta = setInterval(() => { queda--; if (queda <= 0) { if (rec && rec.state !== 'inactive') rec.stop(); return; } pintarCuenta(); }, 1000);
+      cuenta = setInterval(() => { quedanSeg--; if (quedanSeg <= 0) { if (rec && rec.state !== 'inactive') rec.stop(); return; } pintarCuenta(); }, 1000);
       pintar();
     }
     bGrabar.addEventListener('click', alternar);
+    // lo mismo, desde la barra de transporte: grabar y escuchar sin irse a buscar el panel
+    notaVoz = {
+      alternar,
+      grabando: () => !!rec,
+      quedan: () => quedanSeg,
+      conBase: () => !!(conBase && conBase.checked),
+      hay: () => !!NOTA_VOZ.dame(),
+      sonando: () => !!(audio.src && !audio.paused),
+      escuchar() { if (!NOTA_VOZ.dame()) return; if (audio.paused) { audio.currentTime = 0; audio.play().catch(()=>{}); } else audio.pause(); },
+      irAlPanel() { const c = document.querySelector('.campo-voz'); if (c) { const d = c.closest('details'); if (d) d.open = true; c.scrollIntoView({ behavior:'smooth', block:'center' }); } },
+    };
     bBorrar.addEventListener('click', () => { if (!confirm('¿Borrar la nota de voz de esta maqueta?')) return; NOTA_VOZ.pon(null); aviso.textContent = 'Borrada.'; pintar(); });
     const bBajar = el('button', { class:'ghost', type:'button', title:'bajar la nota como archivo de audio', hidden:'' }, '⤓');
     bBajar.addEventListener('click', () => { const d = NOTA_VOZ.dame(); if (!d) return;

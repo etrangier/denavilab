@@ -760,3 +760,31 @@ test('el tarareo se graba sobre la maqueta y queda con ella adentro', async ({ p
   expect(conBase.dur).toBeLessThan(31);                         // y nada pasa de medio minuto
   expect(errores, errores.join('\n')).toEqual([]);
 });
+
+// El panel de la nota quedaba a dos pantallas de scroll: grabar y escuchar se hacen desde la barra de abajo.
+test('grabar y escuchar la nota desde la barra de transporte', async ({ page, context }) => {
+  const errores = vigilarErrores(page);
+  await context.grantPermissions(['microphone']);
+  await comoBanda(page);
+  await page.goto('app.html?modo=beat');
+  const preset = await page.$eval('#drumPreset', s => [...s.options].map(o => o.value).find(v => v && v !== 'Vacío'));
+  await page.selectOption('#drumPreset', preset);
+  const rec = page.locator('.tr-rec'), oir = page.locator('.tr-oir');
+  await expect(rec).toBeVisible();
+  await expect(oir).toBeHidden();                       // todavía no hay nada que escuchar
+  await page.check('#vozConBase');
+  await expect(rec).toHaveText('● tararear');           // dice lo que va a hacer
+
+  await rec.click();
+  await expect(rec).toHaveText(/■ \d+ s/);              // cuenta atrás en la barra
+  expect(await page.locator('#playMezcla').textContent()).toMatch(/Detener/);   // y la maqueta suena
+  await page.waitForTimeout(2500);
+  await rec.click();
+  await expect(oir).toBeVisible();
+  await oir.click();
+  await expect(oir).toHaveText('■ tu nota');
+  expect(await page.evaluate(() => { const a = document.querySelector('.voz-audio'); return !!a && !a.paused; })).toBe(true);
+  await oir.click();
+  await expect(oir).toHaveText('▶ tu nota');
+  expect(errores, errores.join('\n')).toEqual([]);
+});
