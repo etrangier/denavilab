@@ -701,3 +701,62 @@ test('el registro del pad: suave por defecto, brillante si se sube una octava', 
   expect(denavi.musica.padOct).toBe(1);
   expect(errores, errores.join('\n')).toEqual([]);
 });
+
+// Tararear encima de lo que suena: la voz y la maqueta se mezclan por dentro (nunca por el aire),
+// tope de 30 s y baja calidad, porque es un recordatorio y no una toma de estudio.
+test('el tarareo se graba sobre la maqueta y queda con ella adentro', async ({ page, context }) => {
+  const errores = vigilarErrores(page);
+  await context.grantPermissions(['microphone']);
+  await comoBanda(page);
+  await page.goto('app.html?modo=beat');
+  const preset = await page.$eval('#drumPreset', s => [...s.options].map(o => o.value).find(v => v && v !== 'Vacío'));
+  await page.selectOption('#drumPreset', preset);
+  const panel = page.locator('.campo-voz');
+  await expect(panel.getByRole('button').first()).toHaveText(/nota de voz · 30 s/);
+  await page.check('#vozConBase');
+  await expect(panel.getByRole('button').first()).toHaveText(/tarareo · 30 s/);   // el botón dice lo que va a hacer
+
+  const fuerza = async () => page.evaluate(async () => {        // cuánto suena el archivo y cuánto de eso es grave
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    const b = await ac.decodeAudioData(await (await fetch(document.querySelector('.voz-audio').src)).arrayBuffer());
+    const y = b.getChannelData(0), sr = b.sampleRate, N = 16384;
+    let bajo = 0, total = 0, ventanas = 0;
+    for (let v = 1; v <= 4; v++) {                              // varias ventanas repartidas, no una sola
+      const o = Math.floor(y.length * v / 5) - N / 2; if (o < 0 || o + N > y.length) continue;
+      ventanas++;
+      for (let k = 1; k < N / 2; k++) {
+        const f = k * sr / N; if (f > 5000) break;
+        let re = 0, im = 0;
+        for (let n = 0; n < N; n += 8) { const w = 0.5 - 0.5 * Math.cos(2 * Math.PI * n / N), a = 2 * Math.PI * f * n / sr;
+          re += y[o + n] * w * Math.cos(a); im += y[o + n] * w * Math.sin(a); }
+        const p = re * re + im * im; total += p; if (f < 220) bajo += p;
+      }
+    }
+    bajo /= Math.max(1, ventanas); total /= Math.max(1, ventanas);
+    let sum = 0, n2 = 0;
+    for (let i = 0; i < y.length; i += 16) { sum += y[i] * y[i]; n2++; }
+    const dur = b.duration; await ac.close();
+    return { graves: bajo / total * 100, bajoAbs: bajo, rms: Math.sqrt(sum / n2), dur };
+  });
+
+  await panel.getByRole('button', { name: /Grabar/ }).click();
+  await expect(panel.locator('.hint').last()).toContainText('Grabando sobre la maqueta');
+  await expect(panel.locator('.hint').last()).toContainText('quedan');        // la cuenta atrás
+  expect(await page.locator('#playMezcla').textContent()).toMatch(/Detener/); // la maqueta suena mientras grabas
+  await page.waitForTimeout(4500);
+  await panel.getByRole('button', { name: '■ Detener' }).click();
+  await expect(panel.locator('.hint').last()).toContainText('la maqueta adentro');
+  expect(await page.locator('#playMezcla').textContent()).toMatch(/Reproducir/); // y se detiene al terminar
+  const conBase = await fuerza();
+
+  await page.uncheck('#vozConBase');                            // la misma grabación, sin la base
+  await panel.getByRole('button', { name: /Grabar/ }).click();
+  await page.waitForTimeout(4500);
+  await panel.getByRole('button', { name: '■ Detener' }).click();
+  await expect(panel.locator('.hint').last()).toContainText('Guardada con esta maqueta');
+  const soloVoz = await fuerza();
+
+  expect(conBase.bajoAbs).toBeGreaterThan(soloVoz.bajoAbs * 2);  // el bombo de la maqueta quedó dentro del archivo
+  expect(conBase.dur).toBeLessThan(31);                         // y nada pasa de medio minuto
+  expect(errores, errores.join('\n')).toEqual([]);
+});

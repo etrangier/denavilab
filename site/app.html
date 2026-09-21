@@ -6262,40 +6262,69 @@
       audio.hidden = !d; bBorrar.hidden = !d; bBajar.hidden = !d;
       cual.textContent = d ? `Guardada con «${NOTA_VOZ.nombre()}» · ${Math.round(d.length / 1400)} kB` : '';
       if (d) audio.src = d;
-      bGrabar.textContent = rec ? '■ Detener' : (d ? '● Grabar otra' : '● Grabar una nota de voz');
+      bGrabar.textContent = rec ? '■ Detener' : (d ? '● Grabar otra' : (conBase && conBase.checked ? '● Grabar un tarareo · 30 s' : '● Grabar una nota de voz · 30 s'));
       bGrabar.classList.toggle('grabando', !!rec);
     }
+    const TOPE_SEG = 30;
+    let cuenta = null;
     async function alternar() {
       if (rec) { rec.stop(); return; }
       let stream;
-      try { stream = await navigator.mediaDevices.getUserMedia({ audio:true }); }
+      try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation:true, noiseSuppression:true, autoGainControl:true } }); }
       catch (e) { aviso.textContent = 'No se pudo usar el micrófono: dale permiso al sitio y vuelve a intentar.'; return; }
       trozos = []; pista = stream;
-      try { rec = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : '', audioBitsPerSecond: 32000 }); }
-      catch (e) { rec = new MediaRecorder(stream); }
+      // Con la maqueta: la voz y lo que suena se juntan por dentro (nunca por el aire), así no hay eco ni desfase.
+      const conMaqueta = !!(conBase && conBase.checked);
+      let fuenteMic = null, destino = null, yoLoPuse = false;
+      if (conMaqueta) {
+        ensureAudio(); if (ctx.state === 'suspended') await ctx.resume().catch(()=>{});
+        if (!grabDest) grabDest = ctx.createMediaStreamDestination();
+        try { master.connect(grabDest); } catch (e) {}
+        fuenteMic = ctx.createMediaStreamSource(stream); fuenteMic.connect(grabDest);
+        destino = grabDest.stream;
+      }
+      const opciones = { audioBitsPerSecond: 24000 };   // baja calidad a propósito: es un recordatorio, no una toma
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) opciones.mimeType = 'audio/webm;codecs=opus';
+      try { rec = new MediaRecorder(destino || stream, opciones); }
+      catch (e) { rec = new MediaRecorder(destino || stream); }
       rec.ondataavailable = ev => { if (ev.data && ev.data.size) trozos.push(ev.data); };
       rec.onstop = () => {
-        pista.getTracks().forEach(t => t.stop()); rec = null;
+        clearInterval(cuenta); cuenta = null;
+        pista.getTracks().forEach(t => t.stop());
+        if (fuenteMic) { try { fuenteMic.disconnect(); } catch (e) {} }
+        if (yoLoPuse && isPlaying) stopAll();
+        rec = null;
         const blob = new Blob(trozos, { type:'audio/webm' });
         const fr = new FileReader();
         fr.onload = () => {
           const d = String(fr.result || '');
           if (d.length > NOTA_VOZ.TOPE) { aviso.textContent = 'Quedó muy larga para guardarla con la maqueta: graba una idea más corta.'; pintar(); return; }
           if (!NOTA_VOZ.pon(d)) aviso.textContent = 'No cupo en este navegador: borra alguna nota vieja.';
-          else aviso.textContent = 'Guardada con esta maqueta. Viaja dentro del .denavi.';
+          else aviso.textContent = conMaqueta ? 'Guardada con la maqueta adentro: al escucharla suena todo junto. Viaja dentro del .denavi.'
+                                              : 'Guardada con esta maqueta. Viaja dentro del .denavi.';
           pintar();
         };
         fr.readAsDataURL(blob);
       };
-      rec.start(); aviso.textContent = 'Grabando… canta, tararea o dilo en palabras. Aprieta otra vez para detener.'; pintar();
+      if (conMaqueta && !isPlaying) { yoLoPuse = true; if ($('playMezcla')) $('playMezcla').click(); }
+      rec.start();
+      let queda = TOPE_SEG;
+      const pintarCuenta = () => { aviso.textContent = (conMaqueta ? 'Grabando sobre la maqueta' : 'Grabando') + `… quedan ${queda} s. Aprieta otra vez para detener.`; };
+      pintarCuenta();
+      cuenta = setInterval(() => { queda--; if (queda <= 0) { if (rec && rec.state !== 'inactive') rec.stop(); return; } pintarCuenta(); }, 1000);
+      pintar();
     }
     bGrabar.addEventListener('click', alternar);
     bBorrar.addEventListener('click', () => { if (!confirm('¿Borrar la nota de voz de esta maqueta?')) return; NOTA_VOZ.pon(null); aviso.textContent = 'Borrada.'; pintar(); });
     const bBajar = el('button', { class:'ghost', type:'button', title:'bajar la nota como archivo de audio', hidden:'' }, '⤓');
     bBajar.addEventListener('click', () => { const d = NOTA_VOZ.dame(); if (!d) return;
       const a2 = el('a', { href: d, download: (nombreArchivo() || 'nota') + '-voz.webm' }); a2.click(); });
+    const conBase = el('input', { type:'checkbox', id:'vozConBase' });
+    conBase.addEventListener('change', () => pintar());   // el botón dice lo que va a hacer
+    const etiqueta = el('label', { class:'hint', for:'vozConBase', style:'display:flex; gap:6px; align-items:center' }, conBase, 'tararear sobre la maqueta (suena mientras grabas)');
+    const audifonos = el('div', { class:'hint' }, '🎧 Con audífonos: si suena por los parlantes, el micrófono capta la base y sale con eco. La maqueta se mezcla por dentro, no por el aire.');
     const cual = el('div', { class:'hint cua-estado' }, '');
-    const caja = el('div', { class:'field campo-voz' }, el('span', { class:'lbl' }, 'Nota de voz'), el('div', { class:'row' }, bGrabar, bBajar, bBorrar), audio, cual, aviso);
+    const caja = el('div', { class:'field campo-voz' }, el('span', { class:'lbl' }, 'Nota de voz'), el('div', { class:'row' }, bGrabar, bBajar, bBorrar), etiqueta, audifonos, audio, cual, aviso);
     campo.after(caja);
     pintar();
     window.addEventListener('denavilab:maqueta', pintar);
