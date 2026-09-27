@@ -64,6 +64,7 @@ test('el sonido usa Retro Synth (confirmado en el propio Logic de Rolando), no n
   await page.selectOption('#asGenero', 'acid-house');
   await page.locator('#asInstrumentos input[value=b1]').check();
   await expect(out).toContainText('squelch');                    // mecanismo explicado, no un patch prometido
+  await expect(out).toContainText('Gate Length');                // control real de la B1 (ficha de Captain Pikant), no inventado
   await expect(out).toContainText('Tape Delay');                 // el delay corto del bajo, con su panel
 });
 

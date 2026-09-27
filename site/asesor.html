@@ -361,14 +361,14 @@
         no: 'el house es el menos perdonador sin cable. Si no tienes el MIDI, trata Logic y la D1 como dos capas independientes en parlantes distintos, en vez de forzar la sincronía.' },
       tips: ['El sidechain del bajo contra el bombo es lo que hace «respirar» al house; sin eso, el bajo tapa el bombo y todo suena denso en vez de bailable.'] },
 
-    'acid-house': { nombre: 'Acid house', bpm: [120, 128, 123], bpmNota: 'parecido a house',
+    'acid-house': { nombre: 'Acid house', bpm: [120, 128, 123], bpmNota: 'parecido a house · «Acid Tracks» de Phuture, el tema que fundó el género en 1987, corre a 120.6',
       escala: 'Re menor', acordes: ['Dm', 'Am'], notas: ['re·fa·la', 'la·do·mi'],
       porque: 'El acid es minimalista a propósito: la armonía es de fondo, el filtro resonante del bajo es el protagonista.',
       padNota: 'Uno o dos acordes alternando cada 4 u 8 compases alcanza. Si quieres más movimiento: Dm–Am–C–G (re·fa·la · la·do·mi · do·mi·sol · sol·si·re), pero no hace falta.',
       leadNota: 'En acid house el «lead» suele ser el propio bajo resonante tocando la línea principal. Considera no usar un lead aparte y dejar que el bajo lleve la melodía.',
       sonido: [
         { rol: 'Bajo (el protagonista)', req: ['b1', 'logic'], instr: 'Retro Synth (modo Analog) — el knob «Env» del filtro es la envolvente dedicada al cutoff',
-          hardware: 'Con la B1: resonancia alta, cutoff bajo para empezar, y ábrelo con la mano en vivo. Si trae accent/slide, úsalos — ahí está el «squelch» típico.',
+          hardware: 'Con la B1: resonancia alta, cutoff bajo para empezar, y ábrelo con la mano en vivo. El control real que hace el «squelch» es el Gate Length de cada paso (0–8): un 4 es una 32ª nota, «el largo por defecto de un 303» según la propia ficha de la B1 — córtalo corto para el efecto stabby, o súbelo a 8 para atar dos notas. ACCENT y SLIDE son botones dedicados, uno por paso; combina slide entre dos notas de igual altura para simular una nota sostenida. RATCHET mete redobles rápidos en un paso, para los remates.',
           receta: R('Shape 1: diente de sierra, un solo oscilador (Mix a fondo)', 'cutoff 0.15–0.20 para empezar · resonancia 0.75–0.85', 'Amp Env: ataque 2 ms, release 100 ms · Filter Env: decay 180 ms, sustain 0.10, perilla «Env» del filtro a ~60% — eso es lo que hace el «squelch»'),
           eq: 'sólo pasa-alto 30 Hz para el subsónico. No toques medios ni agudos ahí vive el carácter — el trabajo lo hace el filtro, no el EQ.', eqB: [{ t: 'hp', f: 30 }],
           extra: 'Tape Delay: nota 1/16, feedback bajo, sin saturarlo — le suma movimiento sin tocar la armonía.', dl: { nota: '1/16', feedback: 20, wet: 15 },
@@ -384,7 +384,8 @@
       secD1: { BD: [0,4,8,12], HC: [4,12], CH: [2,6,10,14] },
       secB1: { pasos: [0,2,3,6,8,9,11,14], acento: [0,8], nota: 'Un ejemplo de partida, no la única manera: la gracia está en abrir el filtro en vivo mientras suena, no en la melodía exacta. Los pasos marcados con borde son los acentos.' },
       sync: { si: 'igual de exigente que house con el reloj.', no: 'el acid se presta a que la B1 improvise libre encima del beat de la D1, sin perseguir el compás exacto — es percusivo, no melódico, así que un pequeño desfase se disimula mejor que en house.' },
-      tips: ['No le agregues muchos acordes: cuantos menos, más espacio para que el filtro del bajo sea la estrella.'] },
+      tips: ['No le agregues muchos acordes: cuantos menos, más espacio para que el filtro del bajo sea la estrella.',
+        'Percusión auténtica: «Acid Tracks» usa sonidos de 707 y 727 por encima del groove — agogó, maracas y un silbido (whistle) mezclado con cuidado para que no tape al agogó. Si tu D1 trae percusión latina, una capa suelta de eso es tan «acid» como el propio bajo resonante.'] },
 
     'synth-pop': { nombre: 'Synth pop', bpm: [100, 118, 110], bpmNota: 'varía mucho según la canción, 110 es un punto medio razonable',
       escala: 'La menor', acordes: ['F', 'G', 'Am'], notas: ['fa·la·do', 'sol·si·re', 'la·do·mi'],
