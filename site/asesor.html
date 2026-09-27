@@ -49,11 +49,22 @@
   .as-bloque { margin: 0 0 26px; }
   .as-bloque > h2 { font-family: var(--display); font-size: 19px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
   .as-seccion { margin: 0 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
-  .as-seccion > summary { cursor: pointer; padding: 13px 16px; list-style: none; font-family: var(--display); font-size: 17px; }
+  .as-seccion > summary { cursor: pointer; padding: 13px 16px; list-style: none; display: flex; align-items: baseline; gap: 10px; }
   .as-seccion > summary::-webkit-details-marker { display: none; }
-  .as-seccion > summary::before { content: '▸ '; color: var(--accent); }
-  .as-seccion[open] > summary::before { content: '▾ '; }
+  .as-seccion > summary::before { content: '▸'; color: var(--accent); flex: 0 0 auto; }
+  .as-seccion[open] > summary::before { content: '▾'; }
+  .as-seccion > summary .tit { font-family: var(--display); font-size: 17px; }
+  .as-seccion > summary .resumen { color: var(--muted); font-size: 12.5px; margin-left: auto; text-align: right; }
+  .as-seccion[open] > summary .resumen { display: none; }
   .as-seccion > .cuerpo { padding: 4px 16px 18px; }
+  .as-seccion.destacada { border-color: var(--accent); }
+  .as-pista { border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px; background: var(--surface-2); margin-bottom: 9px; }
+  .as-pista.hecha { opacity: .55; }
+  .as-pista > .cab { display: flex; align-items: baseline; gap: 8px; cursor: pointer; font-family: var(--display); font-weight: 700; font-size: 14.5px; }
+  .as-pista > .cab input { margin-top: 2px; }
+  .as-pista .instr { font-family: var(--mono); font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; }
+  .as-pista > .txt { margin: 5px 0 0 23px; font-size: 13px; line-height: 1.5; }
+  .as-pista.hecha > .txt { text-decoration: line-through; text-decoration-color: var(--muted); }
   .as-porque { font-size: 13.5px; color: var(--muted); margin: 0 0 12px; max-width: 66ch; }
   .as-acordes { display: flex; flex-wrap: wrap; gap: 0; align-items: center; margin: 10px 0; }
   .as-ac { display: grid; justify-items: center; gap: 2px; padding: 8px 14px; }
@@ -92,8 +103,13 @@
   .as-eq-curva .curva { fill: var(--accent); opacity: .22; }
   .as-eq-curva .linea { fill: none; stroke: var(--accent); stroke-width: 1.6; }
   .as-eq-curva text { fill: var(--muted); font-family: var(--mono); font-size: 8px; }
-  .as-eq-curva text.dB { fill: var(--accent); font-weight: 600; }
+  .as-eq-curva .nodo { fill: var(--accent); stroke: var(--surface); stroke-width: 1.5; }
+  .as-eq-curva .num { fill: var(--accent-ink); font-size: 8px; font-weight: 700; text-anchor: middle; }
   .as-eq-leyenda { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+  .as-eq-bandas { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 5px; }
+  .as-eq-bandas li { display: flex; align-items: baseline; gap: 7px; font-size: 13px; }
+  .as-eq-bandas .n { flex: 0 0 auto; width: 15px; height: 15px; border-radius: 999px; background: var(--accent); color: var(--accent-ink);
+    font-family: var(--mono); font-size: 9px; font-weight: 700; display: grid; place-items: center; }
   .as-diales { display: flex; flex-wrap: wrap; gap: 14px; }
   .as-dial { display: grid; justify-items: center; gap: 3px; width: 56px; }
   .as-dial svg { width: 44px; height: 44px; }
@@ -258,10 +274,28 @@
     });
     svg.append(svgEl('path', { class: 'curva', d: relleno }));
     svg.append(svgEl('path', { class: 'linea', d }));
-    bandas.forEach(b => { if (!['hp', 'lp'].includes(b.t)) { const cx = xDe(b.f), cy = yc - Math.max(-24, Math.min(24, b.g || 0)) * esc;
-      const t = svgEl('text', { class: 'dB', x: Math.min(x1 - 55, Math.max(x0, cx - 20)), y: cy + (b.g >= 0 ? -6 : 14) });
-      t.textContent = (b.f >= 1000 ? (b.f / 1000) + 'k' : b.f) + 'Hz ' + (b.g > 0 ? '+' : '') + (b.g || 0) + 'dB'; svg.append(t); } });
+    // Cada banda es un nodo numerado sobre la curva — igual que en el Channel EQ real, donde cada banda
+    // es un punto que se agarra y se mueve. El pasa-alto/pasa-bajo se marca en su frecuencia de corte, sobre la línea de 0 dB.
+    bandas.forEach((b, i) => {
+      const esCorte = b.t === 'hp' || b.t === 'lp';
+      const cx = xDe(b.f), cy = esCorte ? yc : yc - Math.max(-24, Math.min(24, b.g || 0)) * esc;
+      svg.append(svgEl('circle', { class: 'nodo', cx, cy, r: 6 }));
+      const num = svgEl('text', { class: 'num', x: cx, y: cy + 2.8 }); num.textContent = i + 1; svg.append(num);
+    });
     return svg;
+  }
+  // Lista explícita de qué es cada banda numerada del Channel EQ — el porqué de los nodos de curvaEQ().
+  function leyendaBandasEQ(bandas) {
+    const hz = f => f >= 1000 ? (f / 1000) + ' kHz' : f + ' Hz';
+    const db = g => (g > 0 ? '+' : '') + g + ' dB';
+    const desc = b => {
+      if (b.t === 'hp') return `Pasa-alto en ${hz(b.f)}: corta todo lo que está más abajo.`;
+      if (b.t === 'lp') return `Pasa-bajo en ${hz(b.f)}: corta todo lo que está más arriba.`;
+      if (b.t === 'ls') return `Shelf grave ${db(b.g || 0)} desde ${hz(b.f)}: sube o baja todo ese rango parejo.`;
+      if (b.t === 'hs') return `Shelf agudo ${db(b.g || 0)} desde ${hz(b.f)}: sube o baja todo ese rango parejo.`;
+      return `Campana ${db(b.g || 0)} en ${hz(b.f)}: realza o corta sólo alrededor de esa frecuencia.`;
+    };
+    return el('ol', { class: 'as-eq-bandas' }, ...bandas.map((b, i) => el('li', {}, el('span', { class: 'n' }, String(i + 1)), el('span', {}, desc(b)))));
   }
   // Un dial chico para leer cutoff/resonancia (0.00–1.00, igual a como los muestra Retro Synth).
   function dialMini(valor01, etiqueta) { return dial(valor01, etiqueta, valor01.toFixed(2)); }
@@ -553,19 +587,48 @@
     }
     cuerpo.push(ul);
     if (f.eqB && hayLogic) cuerpo.push(el('div', { class: 'as-panel' }, el('div', { class: 'cab' }, 'Channel EQ'),
-      el('div', { class: 'cuerpo' }, curvaEQ(f.eqB), el('p', { class: 'as-eq-leyenda' }, 'Donde la línea sube, ese tramo suena más fuerte; donde baja, más bajo. La línea punteada es 0 dB: ahí nada cambia.'))));
+      el('div', { class: 'cuerpo' }, curvaEQ(f.eqB),
+        el('p', { class: 'as-eq-leyenda' }, `Cada número es una banda del Channel EQ — ${f.eqB.length === 1 ? 'esta es la única que necesitas activar' : `activa las ${f.eqB.length} bandas de abajo`}, con estos valores:`),
+        leyendaBandasEQ(f.eqB))));
     if (f.rv && hayLogic) cuerpo.push(panelReverb(f.rv));
     if (f.dl && hayLogic) cuerpo.push(panelDelay(f.dl));
     return el('div', { class: 'as-sonido-fila' }, ...cuerpo);
   }
 
-  // Cada sección del plan es un acordeón que recuerda si estaba abierta o cerrada, aunque pintar() reconstruya todo de nuevo
-  const seccionesAbiertas = new Set(['ritmo', 'sonido', 'acordes', 'secuencias']);
-  function seccion(clave, titulo, ...hijos) {
-    const d = el('details', { class: 'as-seccion' }, el('summary', {}, titulo), el('div', { class: 'cuerpo' }, ...hijos));
+  // Cada sección del plan es un acordeón que recuerda si estaba abierta o cerrada, aunque pintar() reconstruya todo de nuevo.
+  // «rapido», «secuencias» y «acordes» son lo operativo (arma el preset y sabe qué tocar); el resto es la
+  // profundidad pedagógica, cerrada por defecto para no taparlo, pero con un resumen a la vista aunque esté cerrada.
+  const seccionesAbiertas = new Set(['rapido', 'secuencias', 'acordes']);
+  function seccion(clave, titulo, resumen, ...hijos) {
+    const cab = [el('span', { class: 'tit' }, titulo)];
+    if (resumen) cab.push(el('span', { class: 'resumen' }, resumen));
+    const d = el('details', { class: 'as-seccion' + (clave === 'rapido' ? ' destacada' : '') }, el('summary', {}, ...cab), el('div', { class: 'cuerpo' }, ...hijos));
     d.open = seccionesAbiertas.has(clave);
     d.addEventListener('toggle', () => { d.open ? seccionesAbiertas.add(clave) : seccionesAbiertas.delete(clave); });
     return d;
+  }
+
+  // Una pista del preset, para marcarla lista mientras se arma en Logic — el resumen denso, sin ilustraciones,
+  // de lo mismo que «Sonido, por rol» explica despacio más abajo.
+  let pistaId = 0;
+  function pistaRapida(nombre, instr, lineas) {
+    const id = 'pista' + (pistaId++);
+    const cb = el('input', { type: 'checkbox', id });
+    const capEls = [cb, el('span', {}, nombre)];
+    if (instr) capEls.push(el('span', { class: 'instr' }, instr));
+    const card = el('div', { class: 'as-pista' }, el('label', { class: 'cab', for: id }, ...capEls),
+      el('p', { class: 'txt' }, lineas.filter(Boolean).join(' · ')));
+    cb.addEventListener('change', () => card.classList.toggle('hecha', cb.checked));
+    return card;
+  }
+  // Mismas líneas de EQ/fader del bus de batería, para no repetir el texto entre la pista rápida y el detalle de Ritmo.
+  const EQ_BUS_BATERIA = 'realce +2 dB en 60–80 Hz (peso del bombo) · corte −2 dB en 300–400 Hz (el barro) · si el hi-hat lo pide, shelf alto +1.5 dB desde 8 kHz';
+  const FADER_BUS_BATERIA = 'referencia en 0 dB de pico, y ajusta el resto de los instrumentos contra la batería, no al revés';
+  // Misma condición que pintarSonidoFila() usa para decidir si un rol trae algo que mostrar — se usa acá
+  // para no ofrecer una pista rápida vacía de un rol que igual no va a aparecer abajo.
+  function pistaVisible(f, s) {
+    const hayLogic = tiene(s, 'logic');
+    return (f.hardware && tiene(s, 'b1')) || (f.eq && (hayLogic || tiene(s, 'b1'))) || (f.reverb && hayLogic) || (f.fader && hayLogic) || !!f.extra;
   }
 
   function pintar() {
@@ -581,38 +644,51 @@
     out.append(el('p', { class: 'as-resumen' },
       `${s.personas === 1 ? 'Solo' : s.personas === 2 ? 'Dos personas' : 'Tres o más personas'} · ${nombres.join(', ') || 'sin instrumentos marcados'}${s.otro ? ' · también: ' + s.otro : ''} · ${s.cable === 'si' ? 'con cable MIDI' : 'sin cable MIDI'} · ${g.nombre} a ${s.bpm} BPM.`));
 
-    // Ritmo
     const hayD1 = tiene(s, 'd1');
-    const bloqueRitmo = [
-      el('p', { class: 'as-porque' }, `${s.bpm} BPM · ${g.bpmNota}. Rango típico del género: ${g.bpm[0]}–${g.bpm[1]}.`),
-      el('p', { class: 'as-rol-nota' }, hayD1 ? g.ritmoD1 : (g.ritmoSinD1 || 'Sin D1, arma este patrón a mano o con el Drummer de Logic, con el mismo espíritu: bombo firme, caja en el 2 y el 4, hi-hat según el género.'))];
-    if (g.swing) bloqueRitmo.push(el('p', { class: 'as-rol-nota' }, el('b', {}, 'Swing: '),
-      `${g.swing.linn}% en la convención Linn (la que usa la mayoría de las cajas de ritmos) — ${g.swing.offset}. Si tu D1 da el swing en otra escala, usa la tabla de conversión: 50% Linn es «sin swing», 66% es «swing de triplet».`));
-    if (tiene(s, 'logic') && g.ritmoLogic) {
-      bloqueRitmo.push(el('p', { class: 'as-rol-nota' }, el('b', {}, 'Programándolo en Logic: '), g.ritmoLogic));
-      bloqueRitmo.push(el('p', { class: 'as-rol-nota' }, el('b', {}, 'EQ del bus de batería: '),
-        'realce +2 dB en 60–80 Hz (peso del bombo) · corte −2 dB en 300–400 Hz (el barro) · si el hi-hat lo pide, shelf alto +1.5 dB desde 8 kHz. Fader del bus: referencia en 0 dB de pico, y ajusta el resto de los instrumentos contra la batería, no al revés.'));
-    }
-    out.append(seccion('ritmo', '🥁 Ritmo', ...bloqueRitmo));
+    const hayLogic = tiene(s, 'logic');
 
-    // Sonido (sólo si hay algo que suene: Logic o B1)
-    if (tiene(s, 'logic', 'b1')) {
-      const filas = g.sonido.map(f => pintarSonidoFila(f, s)).filter(Boolean);
-      const cuerpo = [];
-      if (!tiene(s, 'ak25', 'ak37', 'b1') && tiene(s, 'logic'))
-        cuerpo.push(el('p', { class: 'as-porque' }, 'Marcaste Logic pero ningún Akai ni la B1: Logic no toca solo — necesitas un controlador o instrumento que le mande las notas.'));
-      if (tiene(s, 'logic')) cuerpo.push(el('div', { class: 'as-generales' },
-        el('p', {}, el('b', {}, 'Por qué así: '), 'en vez de nombrarte un «patch» al azar, cada receta parte de ', el('b', {}, 'Retro Synth'), ' — confirmamos con tu propio Logic que el preset «Classic Analog Pad» existe de verdad, así que para el Pad se parte de ahí; para los demás roles, se arma desde cero con las mismas perillas.'),
-        el('ol', {},
-          el('li', {}, 'Abre ', el('b', {}, 'Retro Synth'), ' en modo ', el('b', {}, 'Analog'), ' (Sync/Table/FM para variar): Shape 1 y 2 son los osciladores, con Mix, Semitonas y Cents para separarlos.'),
-          el('li', {}, 'La sección FILTER trae Cutoff y Res como número de 0.00 a 1.00 — igual que ves en tu pantalla —, más Filter FM/LFO/Env para modulaciones.'),
-          el('li', {}, 'AMP ENV y FILTER ENV (abajo del panel) traen Ataque/Decay/Sustain/Release — ahí van los números de «Envolvente» de cada receta.'),
-          el('li', {}, 'En la cadena del canal, agrega un ', el('b', {}, 'Channel EQ'), ' (la curva de abajo) y, donde corresponda, un ', el('b', {}, 'ChromaVerb'), ' o un ', el('b', {}, 'Tape Delay'), ' — los mismos plugins de tu barra lateral —, y deja el fader en el nivel indicado.'))));
-      if (filas.length) cuerpo.push(el('div', { class: 'as-sonido-tabla' }, ...filas));
-      out.append(seccion('sonido', '🎛️ Sonido, por rol', ...cuerpo));
-    } else if (tiene(s, 'ak25', 'ak37')) {
-      out.append(seccion('sonido', '🎛️ Sonido',
-        el('p', { class: 'as-porque' }, 'El Akai es solo controlador: no genera sonido por sí mismo. Sin Logic ni otro instrumento recibiéndolo, no vas a escuchar nada al tocarlo.')));
+    // 🎚️ Preset en Logic, pista por pista: lo primero que se ve, sin ilustraciones — cada pista es una
+    // instrucción que se ejecuta y se marca, para tenerlo todo listo antes de tocar la primera nota.
+    const pistas = [];
+    if (hayLogic && g.ritmoLogic) pistas.push(pistaRapida('Batería', hayD1 ? 'Donner D1 + Logic' : 'Drummer / Drum Machine Designer',
+      [g.ritmoLogic, 'EQ bus: ' + EQ_BUS_BATERIA, 'Fader bus: ' + FADER_BUS_BATERIA]));
+    // Mismo candado que abre la sección «Sonido» de abajo: sin Logic ni B1 sonando, no hay pista que armar.
+    (tiene(s, 'logic', 'b1') ? g.sonido.filter(f => pistaVisible(f, s)) : []).forEach(f => {
+      const l = [];
+      if (f.cadena) l.push(f.cadena.join(' → '));
+      if (f.adsr) l.push(`cutoff ${f.adsr.cutoff} · res ${f.adsr.res}`);
+      if (f.hardware) l.push(f.hardware);
+      if (f.eq) l.push('EQ: ' + f.eq);
+      if (f.reverb) l.push('Reverb: ' + f.reverb);
+      if (f.fader) l.push('Fader: ' + f.fader);
+      if (f.extra) l.push(f.extra);
+      pistas.push(pistaRapida(f.rol, f.instr, l));
+    });
+    if (pistas.length) {
+      const resumenRapido = `${pistas.length} pista${pistas.length === 1 ? '' : 's'} para dejar lista${pistas.length === 1 ? '' : 's'}`;
+      out.append(seccion('rapido', '🎚️ Preset en Logic, pista por pista', resumenRapido,
+        el('p', { class: 'as-eq-leyenda' }, 'Ábrelas en Logic en este orden y marca cada una lista. El porqué de cada número está más abajo, en «Sonido» y «Ritmo», por si algo no calza y quieres entenderlo.'),
+        ...pistas));
+    }
+
+    // Secuencias ilustradas: la D1 y la B1, en la misma grilla de 16 pasos que ya usan los ejemplos de la guía.
+    if (hayD1 || tiene(s, 'b1')) {
+      const cuerpoSec = [];
+      const disp = [];
+      if (hayD1) {
+        disp.push('Donner D1');
+        const NOMBRE_VOZ = { BD: 'Bombo (BD)', HC: 'Aplauso (HC)', CH: 'Hi-hat cerr. (CH)', OH: 'Hi-hat ab. (OH)', PC: 'Percusión (PC)' };
+        const filas = Object.entries(g.secD1).map(([voz, pasos]) => [NOMBRE_VOZ[voz] || voz, pasos, null]);
+        cuerpoSec.push(el('div', { class: 'as-grid-caja' }, el('span', { class: 'lbl' }, 'Donner D1'), pintarGridPasos(filas),
+          el('p', { class: 'as-rol-nota' }, g.ritmoD1)));
+      }
+      if (tiene(s, 'b1')) {
+        disp.push('Donner B1');
+        const b = g.secB1;
+        cuerpoSec.push(el('div', { class: 'as-grid-caja' }, el('span', { class: 'lbl' }, 'Donner B1 · secuencia de bajo'),
+          pintarGridPasos([['Nota', b.pasos, b.acento]]), el('p', { class: 'as-rol-nota' }, b.nota)));
+      }
+      out.append(seccion('secuencias', '🔢 Secuencias, paso a paso', disp.join(' + '), ...cuerpoSec));
     }
 
     // Acordes (sólo si hay con qué tocarlos: algún Akai, o Logic, o para referencia igual sirve si sólo hay B1 tocando la línea)
@@ -628,27 +704,47 @@
       el('p', { class: 'as-rol-nota' }, el('b', {}, 'Pad: '), g.padNota),
       el('p', { class: 'as-rol-nota' }, el('b', {}, 'Lead: '), g.leadNota)];
     if (g.variante) cuerpoAc.push(el('p', { class: 'as-rol-nota' }, el('b', {}, 'Si quieres variar: '), g.variante));
-    out.append(seccion('acordes', '🎹 Acordes, para pad y para lead', ...cuerpoAc));
+    out.append(seccion('acordes', '🎹 Acordes, para pad y para lead', g.acordes.join(' · '), ...cuerpoAc));
 
-    // Secuencias ilustradas: la D1 y la B1, en la misma grilla de 16 pasos que ya usan los ejemplos de la guía.
-    if (tiene(s, 'd1') || tiene(s, 'b1')) {
-      const cuerpoSec = [];
-      if (tiene(s, 'd1')) {
-        const NOMBRE_VOZ = { BD: 'Bombo (BD)', HC: 'Aplauso (HC)', CH: 'Hi-hat cerr. (CH)', OH: 'Hi-hat ab. (OH)', PC: 'Percusión (PC)' };
-        const filas = Object.entries(g.secD1).map(([voz, pasos]) => [NOMBRE_VOZ[voz] || voz, pasos, null]);
-        cuerpoSec.push(el('div', { class: 'as-grid-caja' }, el('span', { class: 'lbl' }, 'Donner D1'), pintarGridPasos(filas),
-          el('p', { class: 'as-rol-nota' }, g.ritmoD1)));
-      }
-      if (tiene(s, 'b1')) {
-        const b = g.secB1;
-        cuerpoSec.push(el('div', { class: 'as-grid-caja' }, el('span', { class: 'lbl' }, 'Donner B1 · secuencia de bajo'),
-          pintarGridPasos([['Nota', b.pasos, b.acento]]), el('p', { class: 'as-rol-nota' }, b.nota)));
-      }
-      out.append(seccion('secuencias', '🔢 Secuencias, paso a paso', ...cuerpoSec));
+    // A partir de aquí, la profundidad pedagógica: el porqué de cada número de arriba, cerrado por defecto
+    // para no taparlo, pero con un resumen a la vista para saber qué hay adentro sin tener que abrirlo.
+
+    // Ritmo
+    const bloqueRitmo = [
+      el('p', { class: 'as-porque' }, `${s.bpm} BPM · ${g.bpmNota}. Rango típico del género: ${g.bpm[0]}–${g.bpm[1]}.`),
+      el('p', { class: 'as-rol-nota' }, hayD1 ? g.ritmoD1 : (g.ritmoSinD1 || 'Sin D1, arma este patrón a mano o con el Drummer de Logic, con el mismo espíritu: bombo firme, caja en el 2 y el 4, hi-hat según el género.'))];
+    if (g.swing) bloqueRitmo.push(el('p', { class: 'as-rol-nota' }, el('b', {}, 'Swing: '),
+      `${g.swing.linn}% en la convención Linn (la que usa la mayoría de las cajas de ritmos) — ${g.swing.offset}. Si tu D1 da el swing en otra escala, usa la tabla de conversión: 50% Linn es «sin swing», 66% es «swing de triplet».`));
+    if (hayLogic && g.ritmoLogic) {
+      bloqueRitmo.push(el('p', { class: 'as-rol-nota' }, el('b', {}, 'Programándolo en Logic: '), g.ritmoLogic));
+      bloqueRitmo.push(el('p', { class: 'as-rol-nota' }, el('b', {}, 'EQ del bus de batería: '),
+        EQ_BUS_BATERIA + '. Fader del bus: ' + FADER_BUS_BATERIA + '.'));
+    }
+    out.append(seccion('ritmo', '🥁 Ritmo — el detalle', `${s.bpm} BPM${g.swing ? ' · swing ' + g.swing.linn + '%' : ''}`, ...bloqueRitmo));
+
+    // Sonido (sólo si hay algo que suene: Logic o B1)
+    if (tiene(s, 'logic', 'b1')) {
+      const filas = g.sonido.map(f => pintarSonidoFila(f, s)).filter(Boolean);
+      const cuerpo = [];
+      if (!tiene(s, 'ak25', 'ak37', 'b1') && hayLogic)
+        cuerpo.push(el('p', { class: 'as-porque' }, 'Marcaste Logic pero ningún Akai ni la B1: Logic no toca solo — necesitas un controlador o instrumento que le mande las notas.'));
+      if (hayLogic) cuerpo.push(el('div', { class: 'as-generales' },
+        el('p', {}, el('b', {}, 'Por qué así: '), 'en vez de nombrarte un «patch» al azar, cada receta parte de ', el('b', {}, 'Retro Synth'), ' — confirmamos con tu propio Logic que el preset «Classic Analog Pad» existe de verdad, así que para el Pad se parte de ahí; para los demás roles, se arma desde cero con las mismas perillas.'),
+        el('ol', {},
+          el('li', {}, 'Abre ', el('b', {}, 'Retro Synth'), ' en modo ', el('b', {}, 'Analog'), ' (Sync/Table/FM para variar): Shape 1 y 2 son los osciladores, con Mix, Semitonas y Cents para separarlos.'),
+          el('li', {}, 'La sección FILTER trae Cutoff y Res como número de 0.00 a 1.00 — igual que ves en tu pantalla —, más Filter FM/LFO/Env para modulaciones.'),
+          el('li', {}, 'AMP ENV y FILTER ENV (abajo del panel) traen Ataque/Decay/Sustain/Release — ahí van los números de «Envolvente» de cada receta.'),
+          el('li', {}, 'En la cadena del canal, agrega un ', el('b', {}, 'Channel EQ'), ' (la curva de abajo) y, donde corresponda, un ', el('b', {}, 'ChromaVerb'), ' o un ', el('b', {}, 'Tape Delay'), ' — los mismos plugins de tu barra lateral —, y deja el fader en el nivel indicado.'))));
+      if (filas.length) cuerpo.push(el('div', { class: 'as-sonido-tabla' }, ...filas));
+      const roles = g.sonido.filter(f => pistaVisible(f, s)).map(f => f.rol);
+      out.append(seccion('sonido', '🎛️ Sonido — el porqué y el detalle', roles.length ? `${roles.length} rol${roles.length === 1 ? '' : 'es'}: ${roles.join(', ')}` : '', ...cuerpo));
+    } else if (tiene(s, 'ak25', 'ak37')) {
+      out.append(seccion('sonido', '🎛️ Sonido', '',
+        el('p', { class: 'as-porque' }, 'El Akai es solo controlador: no genera sonido por sí mismo. Sin Logic ni otro instrumento recibiéndolo, no vas a escuchar nada al tocarlo.')));
     }
 
     // Sincronía
-    out.append(seccion('sincronia', '🔗 Sincronía',
+    out.append(seccion('sincronia', '🔗 Sincronía', s.cable === 'si' ? 'con cable MIDI' : 'sin cable, cada uno a su aire',
       el('p', { class: 'as-rol-nota' }, s.cable === 'si' ? g.sync.si : g.sync.no)));
 
     // Reparto de roles
@@ -658,25 +754,23 @@
         const lista = el('ul', { class: 'as-roles' }, ...roles.map((r, i) => el('li', {}, `Persona ${(i % s.personas) + 1}: ${r[1]}.`)));
         const extra = roles.length < s.personas ? el('p', { class: 'as-rol-nota' }, 'Sobran manos para los instrumentos que marcaste: alguien dobla, o suma voz/percusión de cuerpo.')
           : roles.length > s.personas ? el('p', { class: 'as-rol-nota' }, 'Hay más instrumentos que personas: alguien toma dos, o túrnense por sección.') : null;
-        out.append(seccion('roles', '🎧 Reparto de roles', lista, ...(extra ? [extra] : [])));
+        out.append(seccion('roles', '🎧 Reparto de roles', `${roles.length} entre ${s.personas} personas`, lista, ...(extra ? [extra] : [])));
       }
     }
 
     // Consejos y checklist
     const tips = [...(g.tips || [])];
     if (s.instrumentos.length >= 3) tips.push('Antes de tocar, guarda esto como plantilla en Logic (File → Save as Template): la próxima vez llegas con el sonido puesto.');
-    if (tips.length) out.append(seccion('consejos', '💡 Consejos', el('ul', { class: 'as-tips' }, ...tips.map(t => el('li', {}, t)))));
+    if (tips.length) out.append(seccion('consejos', '💡 Consejos', `${tips.length} tip${tips.length === 1 ? '' : 's'}`, el('ul', { class: 'as-tips' }, ...tips.map(t => el('li', {}, t)))));
 
     const check = [
       [true, `BPM (${s.bpm}) puesto en Logic y en la cabeza de todos`],
-      [tiene(s, 'logic'), 'Sonidos cargados y guardados como plantilla'],
       [true, 'Progresión elegida, para el pad y para el lead'],
-      [tiene(s, 'logic'), 'EQ y reverb puestos por track'],
       [s.cable === 'si', 'Cable MIDI conectado y probado'],
       [s.cable === 'no', 'Todos saben que no hay sincronía automática, y dónde reencontrarse'],
       [s.personas >= 2, 'Roles repartidos'],
     ].filter(([c]) => c);
-    out.append(seccion('checklist', '📋 Antes de tocar',
+    out.append(seccion('checklist', '📋 Antes de tocar', `${check.length} pendiente${check.length === 1 ? '' : 's'}`,
       el('div', { class: 'as-checklist' }, ...check.map(([, t], i) => {
         const id = 'chk' + i; const inp = el('input', { type: 'checkbox', id });
         return el('label', { for: id }, inp, t);

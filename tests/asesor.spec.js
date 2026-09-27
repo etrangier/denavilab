@@ -9,6 +9,12 @@ async function abrirPaso(page, id) {
   if (!(await details.evaluate(el => el.open))) await details.locator('summary').click();
 }
 
+async function abrirSeccion(page, texto) {
+  const details = page.locator('#asResultado .as-seccion', { has: page.locator('summary .tit', { hasText: texto }) }).first();
+  if (!(await details.evaluate(el => el.open))) await details.locator('summary').click();
+  return details;
+}
+
 async function pasarWizard(page) {
   for (const id of ['pasoPersonas', 'pasoInstrumentos', 'pasoCable']) {
     await abrirPaso(page, id);
@@ -94,6 +100,7 @@ test('el sonido usa Retro Synth (confirmado en el propio Logic de Rolando), no n
   await expect(out).toContainText('Oscilador');                  // la receta paso a paso
   await expect(out).toContainText('Fader');
   await expect(out).toContainText('Channel EQ');
+  await abrirSeccion(page, 'Sonido');   // el detalle está colapsado por defecto: la vista rápida va primero
   await expect(out.locator('.as-cadena').first()).toBeVisible(); // la cadena de plugins, en orden
 
   await abrirPaso(page, 'pasoGenero');
@@ -103,6 +110,42 @@ test('el sonido usa Retro Synth (confirmado en el propio Logic de Rolando), no n
   await expect(out).toContainText('squelch');                    // mecanismo explicado, no un patch prometido
   await expect(out).toContainText('Gate Length');                // control real de la B1 (ficha de Captain Pikant), no inventado
   await expect(out).toContainText('Tape Delay');                 // el delay corto del bajo, con su panel
+});
+
+test('el preset queda armable pista por pista, arriba de todo y sin abrir nada más', async ({ page }) => {
+  await page.goto('/asesor.html');
+  await pasarWizard(page);
+  const out = page.locator('#asResultado');
+  const rapido = out.locator('.as-seccion').first();
+  await expect(rapido.locator('summary .tit')).toContainText('pista por pista');
+  await expect(rapido).toHaveJSProperty('open', true);             // abierta por defecto: es lo primero que se hace
+  const pistas = rapido.locator('.as-pista');
+  await expect(pistas).toHaveCount(5);                             // Batería + Pad + Arpegio + Bajo + Textura, con lofi house por defecto
+  await expect(pistas.first()).toContainText('Batería');
+
+  // el detalle pedagógico (Ritmo, Sonido) no debe estorbar: colapsado por defecto
+  const detalleSonido = out.locator('.as-seccion', { has: page.locator('summary .tit', { hasText: 'Sonido' }) });
+  await expect(detalleSonido).toHaveJSProperty('open', false);
+
+  // marcar una pista lista la tacha, para seguir el avance mientras se arma el preset en Logic
+  const primeraPista = pistas.nth(1);
+  await primeraPista.locator('input[type=checkbox]').check();
+  await expect(primeraPista).toHaveClass(/hecha/);
+});
+
+test('el Channel EQ numera cada banda y explica qué hace cada una', async ({ page }) => {
+  await page.goto('/asesor.html');
+  await pasarWizard(page);
+  await abrirSeccion(page, 'Sonido');
+  const primerEq = page.locator('#asResultado .as-eq-curva').first();
+  await expect(primerEq).toBeVisible();
+  const nodos = await primerEq.locator('circle.nodo').count();
+  const numeros = await primerEq.locator('text.num').allTextContents();
+  expect(nodos).toBeGreaterThan(0);
+  expect(numeros).toEqual(Array.from({ length: nodos }, (_, i) => String(i + 1)));   // 1, 2, 3... en orden
+
+  const leyenda = page.locator('#asResultado .as-eq-bandas').first();
+  await expect(leyenda.locator('li')).toHaveCount(nodos);          // una línea de texto por cada nodo de la curva
 });
 
 test('cada acorde se ilustra con un teclado, marcando sus notas', async ({ page }) => {
