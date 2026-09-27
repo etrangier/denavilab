@@ -158,7 +158,7 @@
 
   <div class="as-resultado" id="asResultado"></div>
 
-  <p class="as-aviso">De dónde sale esto: los BPM y los patrones de batería vienen de tus propias guías «D1 en vivo» y «Logic + Akai en vivo». El instrumento de las recetas es Retro Synth — confirmado con capturas de tu propio Logic, incluido el preset «Classic Analog Pad» que usamos como punto de partida del Pad —, más Channel EQ, ChromaVerb y Tape Delay, los mismos plugins que se ven en tu barra lateral. Los nombres de parámetro (Cutoff, Res, Decay, Wet…) son los reales; los números y las curvas ilustradas son puntos de partida razonables, no ajustes tomados de tu Logic — confírmalos escuchando y muévelos si algo no calza con tu oído. Batería (Drummer, Drum Machine Designer) confirmados en la documentación de Apple y reseñas técnicas de Logic Pro.</p>
+  <p class="as-aviso">De dónde sale esto: los BPM y los patrones de batería vienen de tus propias guías «D1 en vivo» y «Logic + Akai en vivo». El instrumento de las recetas es Retro Synth — confirmado con capturas de tu propio Logic, incluido el preset «Classic Analog Pad» que usamos como punto de partida del Pad —, más Channel EQ, ChromaVerb y Tape Delay, los mismos plugins que se ven en tu barra lateral. Los nombres de parámetro (Cutoff, Res, Decay, Wet…) son los reales; los números y las curvas ilustradas son puntos de partida razonables, no ajustes tomados de tu Logic — confírmalos escuchando y muévelos si algo no calza con tu oído. Batería (Drummer, Drum Machine Designer) confirmados en la documentación de Apple y reseñas técnicas de Logic Pro. El swing y las convenciones de secuenciación (Linn, swing de triplet, on-beat/off-beat) salen de «Drum Machine 101» de Captain Pikant — un libro técnico y medido, no una opinión: el swing sólo aparece en el 15% de los patrones que transcribió, pero es donde más se nota en house y hip hop, que es justo cuándo lo recomendamos acá.</p>
 </div>
 
 <script>
@@ -293,6 +293,7 @@
       ],
       ritmoD1: 'BD en el paso 1 y en los pasos 3–4 (el «y» y el «a» del primer tiempo) · HC en 5 y 13 · CH en los 16 pasos con HUMANIZE activo, para que no suene a máquina.',
       ritmoSinD1: 'Sin D1, prográmalo igual de disperso a mano o con el Drummer de Logic: bombo fuera del «uno» estricto, caja en el 2 y el 4, hi-hat parejo pero humanizado.',
+      swing: { linn: 62, offset: '+1/64' },
       ritmoLogic: "Con Drummer: estilo «Songwriter» o «Hip Hop», X/Y hacia abajo-izquierda (suelto, poco denso). Con Drum Machine Designer: un kit electrónico simple, bombo largo y suave.",
       secD1: { BD: [0,2,3], HC: [4,12], CH: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15] },
       secB1: { pasos: [0,8], acento: [], nota: 'Una nota larga cada medio compás, sin acentos — que respire, sin prisa.' },
@@ -326,6 +327,7 @@
       ],
       ritmoD1: 'BD en los 4 tiempos, relajado (92 BPM) · HC en 5 y 13 · CH en todos los pasos impares con HUMANIZE activo · agrega percusión (PC) suelta en los pasos 4 y 12 para el toque orgánico.',
       ritmoSinD1: 'Sin D1, baja el patrón de house (124) a este tempo, con menos llenado de hi-hat y bastante humanización.',
+      swing: { linn: 66, offset: '+1/48 (swing de triplet)' },
       ritmoLogic: "Con Drummer: estilo «Electronic», X/Y a media altura, no al máximo — que respire. Con Drum Machine Designer: kit 808-style, con el hi-hat abierto suave para el «polvo».",
       secD1: { BD: [0,4,8,12], HC: [4,12], CH: [0,2,4,6,8,10,12,14], PC: [3,11] },
       secB1: { pasos: [0,8], acento: [], nota: 'Nota sostenida medio compás cada una; el sidechain con el bombo le da el «respiro».' },
@@ -351,6 +353,7 @@
           cadena: ['Retro Synth', 'Channel EQ', 'Compressor (sidechain)'] },
       ],
       ritmoD1: 'BD en 1, 5, 9 y 13 · HC en 5 y 13 · CH en todos los impares · OH en 7 y 15 reemplazando al CH ahí, para el «aire» característico.',
+      swing: { linn: 54, offset: '+1/64, apenas — el four-on-the-floor pide poco' },
       ritmoLogic: "Con Drummer: estilo «Electronic», X/Y hacia la derecha (denso, constante) y arriba (energía). Con Drum Machine Designer: kit 909-style, bombo seco y directo.",
       secD1: { BD: [0,4,8,12], HC: [4,12], CH: [0,2,4,8,10,12], OH: [6,14] },
       secB1: { pasos: [0], acento: [0], nota: 'Un solo golpe que dura el compás entero — el «respiro» lo hace el sidechain con el bombo, no la nota.' },
@@ -376,6 +379,7 @@
           fader: '−14 dB (de fondo, casi imperceptible)', cadena: ['Retro Synth', 'Channel EQ'] },
       ],
       ritmoD1: 'Igual que house pero con la mitad del CH (deja solo 3, 7, 11 y 15) — ese espacio es justo donde entra el bajo resonante.',
+      swing: { linn: 54, offset: '+1/64, apenas' },
       ritmoLogic: "Igual que house: Drummer en «Electronic», denso y constante — pero deja hueco en el hi-hat (la mitad de los golpes), porque ahí entra el bajo resonante.",
       secD1: { BD: [0,4,8,12], HC: [4,12], CH: [2,6,10,14] },
       secB1: { pasos: [0,2,3,6,8,9,11,14], acento: [0,8], nota: 'Un ejemplo de partida, no la única manera: la gracia está en abrir el filtro en vivo mientras suena, no en la melodía exacta. Los pasos marcados con borde son los acentos.' },
@@ -404,6 +408,7 @@
           fader: '−7 dB', cadena: ['Retro Synth', 'Channel EQ'] },
       ],
       ritmoD1: 'Sin patrón dedicado todavía: parte de la base de house (124) y bájala a tu tempo, con menos llenado de hi-hat y el bombo firme en los 4 tiempos.',
+      swing: { linn: 50, offset: 'ninguno — recto a propósito' },
       ritmoLogic: "Con Drummer: estilo «Electronic» o «Pop», X/Y a media altura — firme mas no repetitivo hasta el cansancio. Con Drum Machine Designer: caja con bastante cuerpo, típica de los 80.",
       secD1: { BD: [0,4,8,12], HC: [4,12], CH: [2,6,10,14] },
       secB1: { pasos: [0], acento: [0], nota: 'Raíz sostenida el compás entero, sin adornos.' },
@@ -430,6 +435,7 @@
           dl: { nota: 'alternativa sin Vinyl', feedback: 0, wet: 7 }, cadena: ['Vinyl / crackle (bus)'] },
       ],
       ritmoD1: 'Parecido al de trip hop pero más lento y con más swing/HUMANIZE: bombo relajado, caja en 2 y 4, hi-hat con bastante «polvo».',
+      swing: { linn: 68, offset: 'entre +1/48 y +1/32, el más marcado de tus géneros' },
       ritmoLogic: "Con Drummer: estilo «Hip Hop», X/Y hacia abajo (relajado) con harto swing. Con Drum Machine Designer: kit boom-bap, bombo grueso, caja floja.",
       secD1: { BD: [0,2,3], HC: [4,12], CH: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15] },
       secB1: { pasos: [0,10], acento: [], nota: 'Entra con cierto atraso, como el lead — nunca clavado al golpe.' },
@@ -499,6 +505,8 @@
       el('h2', {}, '🥁 Ritmo'),
       el('p', { class: 'as-porque' }, `${s.bpm} BPM · ${g.bpmNota}. Rango típico del género: ${g.bpm[0]}–${g.bpm[1]}.`),
       el('p', { class: 'as-rol-nota' }, hayD1 ? g.ritmoD1 : (g.ritmoSinD1 || 'Sin D1, arma este patrón a mano o con el Drummer de Logic, con el mismo espíritu: bombo firme, caja en el 2 y el 4, hi-hat según el género.')));
+    if (g.swing) bloqueRitmo.append(el('p', { class: 'as-rol-nota' }, el('b', {}, 'Swing: '),
+      `${g.swing.linn}% en la convención Linn (la que usa la mayoría de las cajas de ritmos) — ${g.swing.offset}. Si tu D1 da el swing en otra escala, usa la tabla de conversión: 50% Linn es «sin swing», 66% es «swing de triplet».`));
     if (tiene(s, 'logic') && g.ritmoLogic) {
       bloqueRitmo.append(el('p', { class: 'as-rol-nota' }, el('b', {}, 'Programándolo en Logic: '), g.ritmoLogic));
       bloqueRitmo.append(el('p', { class: 'as-rol-nota' }, el('b', {}, 'EQ del bus de batería: '),

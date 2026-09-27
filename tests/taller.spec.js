@@ -821,3 +821,17 @@ test('la nota de voz y la mezcla bajan en WAV de baja calidad', async ({ page, c
   await expect(page.locator('#mezclaInfo')).toContainText('WAV');
   expect(errores, errores.join('\n')).toEqual([]);
 });
+
+// El hi-hat cerrado y el abierto son el mismo platillo en casi cualquier caja de ritmos real (808, 909, la D1
+// que emula el taller): se chocan entre sí y no pueden sonar juntos en el mismo paso.
+test('el hi-hat cerrado y el abierto se chocan en el mismo paso', async ({ page }) => {
+  const errores = vigilarErrores(page);
+  await comoBanda(page);
+  await page.goto('app.html?modo=beat');
+  await page.click('button[data-r="hh"][data-s="0"]');
+  await expect(page.locator('button[data-r="hh"][data-s="0"]')).toHaveClass(/on/);
+  await page.click('button[data-r="oh"][data-s="0"]');
+  await expect(page.locator('button[data-r="oh"][data-s="0"]')).toHaveClass(/on/);
+  await expect(page.locator('button[data-r="hh"][data-s="0"]')).not.toHaveClass(/on/);   // el cerrado se apagó solo
+  expect(errores, errores.join('\n')).toEqual([]);
+});

@@ -2797,7 +2797,12 @@
       box.append(el('div',{class:'rl'}, label));
       for (let s=0;s<steps;s++) {
         const b = el('button',{class:'st'+(s%4===0?' beat':'')+(s%16===0&&s>0?' bar2':'')+(S.drums.pat[id][s]?' on':''), 'data-s':s, 'data-r':id, 'aria-label':`${label} casilla ${s+1}`, 'aria-pressed':String(!!S.drums.pat[id][s]),
-          onclick:()=>{ S.drums.pat[id][s] = S.drums.pat[id][s]?0:1; b.classList.toggle('on'); consejoBeat(); b.setAttribute('aria-pressed', String(!!S.drums.pat[id][s])); if (S.drums.pat[id][s]) { ensureAudio(); unlockAudio(); DRUM[id](ctx.currentTime+0.03); } }});
+          onclick:()=>{ S.drums.pat[id][s] = S.drums.pat[id][s]?0:1; b.classList.toggle('on'); b.setAttribute('aria-pressed', String(!!S.drums.pat[id][s]));
+            // el hi-hat cerrado y el abierto son el mismo platillo en casi cualquier caja de ritmos real (808, 909, y
+            // también la D1): se «chocan» entre sí y no pueden sonar juntos en el mismo paso.
+            if (S.drums.pat[id][s]) { const otro = id==='hh' ? 'oh' : id==='oh' ? 'hh' : null;
+              if (otro && S.drums.pat[otro][s]) { S.drums.pat[otro][s] = 0; const ob = box.querySelector(`button[data-r="${otro}"][data-s="${s}"]`); if (ob) { ob.classList.remove('on'); ob.setAttribute('aria-pressed', 'false'); } } }
+            consejoBeat(); if (S.drums.pat[id][s]) { ensureAudio(); unlockAudio(); DRUM[id](ctx.currentTime+0.03); } }});
         box.append(b);
       }
     });
