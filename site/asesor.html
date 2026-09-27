@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="DenaviLAB · asesor de jam session: prepara el sonido, el ritmo y los acordes antes de tocar con hardware y Logic Pro. Acceso libre, sin cuenta.">
+<title>DenaviLab · asesor de jam</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="estilo.css?v=20260915e">
+<script>
+(()=>{try{const K='denavilab.stats';const o=JSON.parse(localStorage.getItem(K)||'{}');const n=Date.now();o.visitas=(o.visitas||0)+1;o.primera=o.primera||n;o.ultima=n;o.paginas=o.paginas||{};const pg=(location.pathname.split('/').pop()||'index.html');o.paginas[pg]=(o.paginas[pg]||0)+1;let h='directo';const r=document.referrer||'';try{if(r){const u=new URL(r);h=u.hostname===location.hostname?'interno':u.hostname;}}catch(e){}o.procedencias=o.procedencias||{};o.procedencias[h]=(o.procedencias[h]||0)+1;localStorage.setItem(K,JSON.stringify(o));}catch(e){}})();
+</script>
+<style>
+  /* ── Asesor de jam: cuestionario de una sola pantalla, el resultado se recalcula solo. Acceso libre: sin sesión. ── */
+  .as-libre { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 3px 10px; margin: 0 0 14px; }
+  .as-grid { display: grid; gap: 16px; margin: 20px 0 28px; }
+  @media (min-width: 760px) { .as-grid { grid-template-columns: 1fr 1fr; } }
+  .as-campo { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .as-campo > .lbl { display: block; font-family: var(--display); font-weight: 700; font-size: 15px; margin: 0 0 10px; }
+  .as-op { display: flex; flex-wrap: wrap; gap: 8px; }
+  .as-chip { position: relative; }
+  .as-chip input { position: absolute; opacity: 0; inset: 0; cursor: pointer; margin: 0; }
+  .as-chip span { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 7px 13px; font-size: 13.5px; cursor: pointer; user-select: none; transition: border-color .15s, background .15s; }
+  .as-chip input:checked + span { border-color: var(--accent); background: var(--surface-2); font-weight: 600; }
+  .as-chip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .as-bpm-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .as-bpm-row input[type=number] { width: 84px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--text); font: inherit; font-family: var(--mono); }
+  .as-bpm-hint { font-size: 12.5px; color: var(--muted); }
+  select.as-select { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--text); font: inherit; font-size: 14.5px; }
+  .as-otro { width: 100%; margin-top: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--text); font: inherit; font-size: 13.5px; }
+
+  .as-resultado { margin-top: 30px; }
+  .as-resumen { font-size: 13.5px; color: var(--muted); margin: 0 0 22px; padding: 10px 14px; border-left: 3px solid var(--accent); background: var(--surface-2); border-radius: 0 8px 8px 0; }
+  .as-bloque { margin: 0 0 26px; }
+  .as-bloque > h2 { font-family: var(--display); font-size: 19px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+  .as-porque { font-size: 13.5px; color: var(--muted); margin: 0 0 12px; max-width: 66ch; }
+  .as-acordes { display: flex; flex-wrap: wrap; gap: 0; align-items: center; margin: 10px 0; }
+  .as-ac { display: grid; justify-items: center; gap: 2px; padding: 8px 14px; }
+  .as-ac b { font-family: var(--display); font-size: 20px; }
+  .as-ac span { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+  .as-flecha { color: var(--muted); font-size: 15px; }
+  .as-rol-nota { font-size: 13.5px; margin: 6px 0 0; max-width: 66ch; }
+  .as-sonido-tabla { display: grid; gap: 10px; margin-top: 10px; }
+  .as-sonido-fila { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--surface-2); }
+  .as-sonido-fila .rol { font-family: var(--display); font-weight: 700; font-size: 14.5px; }
+  .as-sonido-fila .cat { font-family: var(--mono); font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; margin-left: 8px; }
+  .as-sonido-fila ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13.5px; }
+  .as-sonido-fila ul li b { font-weight: 600; }
+  .as-checklist { display: grid; gap: 8px; }
+  .as-checklist label { display: flex; align-items: flex-start; gap: 9px; font-size: 14px; cursor: pointer; }
+  .as-checklist input { margin-top: 3px; }
+  .as-tips, .as-roles { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .as-tips li, .as-roles li { padding: 9px 12px; border-left: 3px solid var(--accent); background: var(--surface-2); border-radius: 0 8px 8px 0; font-size: 13.5px; }
+  .as-aviso { font-size: 12.5px; color: var(--muted); margin-top: 30px; padding-top: 16px; border-top: 1px solid var(--line); max-width: 68ch; }
+  .as-vacio { color: var(--muted); font-size: 13.5px; }
+</style>
+</head>
+<body class="pag-asesor">
+<div class="wrap">
+
+  <nav class="navbar">
+    <button class="navlink" id="navAtras" type="button">&larr; Atrás</button>
+    <a class="navlink" href="index.html">Portada</a>
+    <a class="navlink" href="guia.html">Trabajo guiado</a>
+    <a class="navlink" href="app.html">Taller</a>
+    <span class="navsesion sesion" id="sesion"></span>
+  </nav>
+
+  <span class="as-libre">Acceso libre · sin sesión</span>
+  <h1>Asesor de jam session</h1>
+  <p class="lede">Antes de tocar, no en vivo. Cuenta qué vas a usar y qué quieres tocar, y te deja el sonido, el ritmo y los acordes pensados para tu Donner D1, tu B1, el Akai y Logic Pro — sin conectarse a nada de eso. Cambia cualquier respuesta y lo de abajo se recalcula solo.</p>
+
+  <div class="as-grid">
+    <div class="as-campo">
+      <span class="lbl">¿Quiénes tocan?</span>
+      <div class="as-op" id="asPersonas">
+        <label class="as-chip"><input type="radio" name="personas" value="1" checked><span>Solo</span></label>
+        <label class="as-chip"><input type="radio" name="personas" value="2"><span>Dos</span></label>
+        <label class="as-chip"><input type="radio" name="personas" value="3"><span>Tres o más</span></label>
+      </div>
+    </div>
+
+    <div class="as-campo">
+      <span class="lbl">¿Cable MIDI entre los aparatos?</span>
+      <div class="as-op" id="asCable">
+        <label class="as-chip"><input type="radio" name="cable" value="si" checked><span>Sí, van sincronizados</span></label>
+        <label class="as-chip"><input type="radio" name="cable" value="no"><span>No, suenan a su aire</span></label>
+      </div>
+    </div>
+
+    <div class="as-campo" style="grid-column: 1 / -1">
+      <span class="lbl">¿Qué vas a usar?</span>
+      <div class="as-op" id="asInstrumentos">
+        <label class="as-chip"><input type="checkbox" value="d1" checked><span>Donner D1</span></label>
+        <label class="as-chip"><input type="checkbox" value="b1"><span>Donner B1</span></label>
+        <label class="as-chip"><input type="checkbox" value="ak25"><span>Akai MPK mini (25 teclas)</span></label>
+        <label class="as-chip"><input type="checkbox" value="ak37" checked><span>Akai MPK mini Plus (37 teclas)</span></label>
+        <label class="as-chip"><input type="checkbox" value="logic" checked><span>Logic Pro</span></label>
+        <label class="as-chip"><input type="checkbox" value="bajoelec"><span>Bajo eléctrico</span></label>
+      </div>
+      <input type="text" class="as-otro" id="asOtro" placeholder="Otro instrumento o sintetizador (opcional) — se anota, sin sugerencias específicas">
+    </div>
+
+    <div class="as-campo" style="grid-column: 1 / -1">
+      <span class="lbl">¿Qué vas a tocar?</span>
+      <select class="as-select" id="asGenero">
+        <option value="trip-hop">Trip hop</option>
+        <option value="lofi-house" selected>Lofi house</option>
+        <option value="house">House</option>
+        <option value="acid-house">Acid house</option>
+        <option value="synth-pop">Synth pop</option>
+        <option value="lofi-hiphop">Lo-fi hip hop</option>
+      </select>
+      <div class="as-bpm-row">
+        <span class="lbl" style="margin:0">BPM</span>
+        <input type="number" id="asBpm" min="40" max="200">
+        <span class="as-bpm-hint" id="asBpmHint"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="as-resultado" id="asResultado"></div>
+
+  <p class="as-aviso">De dónde sale esto: los BPM y los patrones de batería vienen de tus propias guías «D1 en vivo» y «Logic + Akai en vivo». Los criterios de EQ, reverb y saturación son principios generales de mezcla, no ajustes verificados en tu Logic — confírmalos escuchando. Las categorías de Library y las palabras de búsqueda son eso, categorías y palabras: los nombres exactos de los patches cambian entre versiones de Logic.</p>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const el = (t, a = {}, ...k) => { const n = document.createElement(t); for (const [x, v] of Object.entries(a)) { if (x === 'class') n.className = v; else n.setAttribute(x, v); } k.forEach(c => n.append(c)); return n; };
+
+  // ───────── Lo que sabe el asesor, por género ─────────
+  // pad: acorde sostenido, colchón armónico · lead: lo que se toca encima, más suelto.
+  // sonido: por rol, categoría de Logic Library + palabras de búsqueda + puntos de partida de EQ/reverb.
+  const GENEROS = {
+    'trip-hop': { nombre: 'Trip hop', bpm: [75, 90, 77], bpmNota: 'tu tempo de siempre',
+      escala: 'La menor', acordes: ['Am', 'F', 'C', 'G'], notas: ['la·do·mi', 'fa·la·do', 'do·mi·sol', 'sol·si·re'],
+      porque: 'Cuatro acordes que respiran, con harto espacio entre uno y otro — la base que ya tienes probada a 77 BPM.',
+      padNota: 'Un acorde sostenido por compás (o cada dos). Deja que la caja y el hi-hat llenen lo que el pad calla.',
+      leadNota: 'Pocas notas, largas, con silencio: dos o tres por frase, nunca una corrida completa de la escala. Si tienes el bajo eléctrico a mano, tócalo así en vez del synth — es donde más se nota el género.',
+      variante: 'Para una vuelta de tensión antes de resolver, prueba subir la tercera del V (el sol se vuelve mi mayor arriba, sol-si-re → mi-sol♯-si): es la resolución de la menor armónica, un color melancólico muy propio del género.',
+      sonido: [
+        { rol: 'Pad', cat: 'Synthesizer → Pad / Keyboard → Organ', palabras: '«Rhodes», «Electric Piano», «Dark Pad», «Warm Pad»',
+          eq: 'corta debajo de 150–200 Hz (ese espacio es del bajo) y, si suena filoso, baja un poco entre 2–4 kHz — el mismo criterio que usamos en el Pad de DenaviLab: los agudos son los que cansan, no el timbre.',
+          reverb: 'plate largo, 2–3 segundos, bien mojado: el espacio es parte del género.', extra: 'saturación de cinta (Vintage/Tape) sutil, para el calor.' },
+        { rol: 'Bajo', req: ['b1', 'bajoelec', 'logic'],
+          hardware: 'Con la B1: cutoff bajo, resonancia suave, envolvente larga — un bajo redondo, no punzante. Dóblalo con el bajo eléctrico si lo tienes, a la octava.',
+          cat: 'Bass', palabras: '«Sub Bass», «Upright Bass», «Fingered Bass»',
+          eq: 'realce leve entre 80–120 Hz para que se sienta sin ensuciar el bombo de la D1; corta todo lo que sobre arriba de 3 kHz.' },
+      ],
+      ritmoD1: 'BD en el paso 1 y en los pasos 3–4 (el «y» y el «a» del primer tiempo) · HC en 5 y 13 · CH en los 16 pasos con HUMANIZE activo, para que no suene a máquina.',
+      ritmoSinD1: 'Sin D1, prográmalo igual de disperso a mano o con el Drummer de Logic: bombo fuera del «uno» estricto, caja en el 2 y el 4, hi-hat parejo pero humanizado.',
+      sync: { si: 'Deja que la D1 mande el reloj; Logic solo sigue.', no: 'Escribe 77 en el BPM de Logic antes de tocar. El trip hop tolera bien el arrastre — si se desalinean un poco, se siente flojo a propósito, no roto.' },
+      tips: ['El silencio es un instrumento más acá: si dudas entre tocar una nota o dejar el espacio vacío, casi siempre gana el espacio vacío.'] },
+
+    'lofi-house': { nombre: 'Lofi house', bpm: [88, 96, 92], bpmNota: 'tu referencia habitual',
+      escala: 'Sol Mayor', acordes: ['G', 'D', 'Em', 'C'], notas: ['sol·si·re', 're·fa♯·la', 'mi·sol·si', 'do·mi·sol'],
+      porque: 'Una progresión cantable, que queda especialmente bien con séptimas — el color jazzy que define al lofi house.',
+      padNota: 'Un acorde por compás. Al acorde donde termina la frase (una vez cada 4–8 compases) súbele la séptima — Gmaj7, Em7, lo que corresponda — para el color típico del género; no hace falta en todos.',
+      leadNota: 'Activa el ARP del Akai sosteniendo las tres notas del acorde: esa textura repetitiva de fondo es la seña de identidad del lofi house.',
+      sonido: [
+        { rol: 'Pad', cat: 'Synthesizer → Pad', palabras: '«Warm Pad», «Analog Pad», «Juno Pad»',
+          eq: 'mismo criterio: recorta grave que no necesita y suaviza el filo arriba de 2 kHz si molesta.', reverb: 'sala mediana, 1–1.5 segundos — no tan larga como trip hop, que no tape el groove.' },
+        { rol: 'Arpegio / pluck', cat: 'Synthesizer → Pluck / Arp', palabras: '«Pluck», «Sequence», «Arp»',
+          eq: 'un realce leve entre 2–4 kHz para que se sienta sin subir el volumen.' },
+        { rol: 'Bajo', req: ['b1', 'logic'],
+          hardware: 'Con la B1: filtro más cerrado que en house liso, movimiento lento.',
+          cat: 'Bass', palabras: '«Sub Bass», «808»',
+          eq: 'corta debajo de 30–40 Hz (es ruido, no grave útil); si el bombo de la D1 y el bajo están en pistas separadas, un sidechain suave entre los dos les da espacio a ambos.' },
+        { rol: 'Textura', cat: '—', palabras: '«Lo-Fi», «Vinyl», «Bitcrusher» (si tu versión de Logic los trae)',
+          eq: 'un poco en el bus general, más HUMANIZE bien activo en la D1 — es el polvo característico del género.' },
+      ],
+      ritmoD1: 'BD en los 4 tiempos, relajado (92 BPM) · HC en 5 y 13 · CH en todos los pasos impares con HUMANIZE activo · agrega percusión (PC) suelta en los pasos 4 y 12 para el toque orgánico.',
+      ritmoSinD1: 'Sin D1, baja el patrón de house (124) a este tempo, con menos llenado de hi-hat y bastante humanización.',
+      sync: { si: 'clock de la D1 a Logic, sin drama.', no: 'a 92 BPM el oído perdona bastante: revisa cada 8 compases si notas que se separan.' },
+      tips: ['Dobla el pad con una capa de Cuerdas a volumen bajo (layering) para engrosarlo sin sumar un track completo.'] },
+
+    'house': { nombre: 'House', bpm: [122, 126, 124], bpmNota: 'el rango clásico',
+      escala: 'Do Mayor', acordes: ['C', 'G', 'Am', 'F'], notas: ['do·mi·sol', 'sol·si·re', 'la·do·mi', 'fa·la·do'],
+      porque: 'La vuelta más transitada del género: acordes cortos tipo «stab», el bombo de la D1 manda el pulso.',
+      padNota: 'Entran y se cortan, no se sostienen — nada de pad largo tapando el groove.',
+      leadNota: 'Un stab corto en el contratiempo, o el mismo acorde con el ARP. Evita melodías largas: el house se mueve por groove, no por melodía.',
+      sonido: [
+        { rol: 'Stab / acordes', cat: 'Synthesizer → Brass / Horn, o Pad', palabras: '«Brass», «Synth Brass», «Analog Brass», «Classic Analog Pad»',
+          eq: 'pasa-alto agresivo, deja el grave para el bajo y la D1 — el house vive en medios y agudos.', reverb: 'sala corta, medio segundo a uno — casi seco, para no embarrar el four-on-the-floor.' },
+        { rol: 'Bajo', req: ['b1', 'logic'],
+          hardware: 'Con la B1: una sola nota grave y limpia, sin adornos.',
+          cat: 'Bass', palabras: '«Sub Bass»',
+          eq: 'una nota sostenida por compás, con sidechain al bombo (Compressor de Logic, fuente = la pista de la D1) para el «respiro» que hace bailable al house.' },
+      ],
+      ritmoD1: 'BD en 1, 5, 9 y 13 · HC en 5 y 13 · CH en todos los impares · OH en 7 y 15 reemplazando al CH ahí, para el «aire» característico.',
+      sync: { si: 'imprescindible que compartan el mismo reloj: a este tempo, medio compás desalineado ya se nota.',
+        no: 'el house es el menos perdonador sin cable. Si no tienes el MIDI, trata Logic y la D1 como dos capas independientes en parlantes distintos, en vez de forzar la sincronía.' },
+      tips: ['El sidechain del bajo contra el bombo es lo que hace «respirar» al house; sin eso, el bajo tapa el bombo y todo suena denso en vez de bailable.'] },
+
+    'acid-house': { nombre: 'Acid house', bpm: [120, 128, 123], bpmNota: 'parecido a house',
+      escala: 'Re menor', acordes: ['Dm', 'Am'], notas: ['re·fa·la', 'la·do·mi'],
+      porque: 'El acid es minimalista a propósito: la armonía es de fondo, el filtro resonante del bajo es el protagonista.',
+      padNota: 'Uno o dos acordes alternando cada 4 u 8 compases alcanza. Si quieres más movimiento: Dm–Am–C–G (re·fa·la · la·do·mi · do·mi·sol · sol·si·re), pero no hace falta.',
+      leadNota: 'En acid house el «lead» suele ser el propio bajo resonante tocando la línea principal. Considera no usar un lead aparte y dejar que el bajo lleve la melodía.',
+      sonido: [
+        { rol: 'Bajo (el protagonista)', req: ['b1', 'logic'],
+          hardware: 'Con la B1: resonancia alta, cutoff bajo para empezar, y ábrelo con la mano en vivo. Si trae accent/slide, úsalos — ahí está el «squelch» típico.',
+          cat: 'Bass', palabras: '«Acid Bass», «TB Bass», «Resonant Bass», «303»',
+          eq: 'casi nada que hacer acá: el carácter sale del filtro, no de la ecualización. Déjalo pasar sin recortar altos ni medios.', extra: 'un delay corto (1/8 o 1/16) le suma movimiento sin tocar la armonía.' },
+        { rol: 'Pad (opcional, discreto)', cat: 'Synthesizer → Pad', palabras: '«Warm Pad»', eq: 'muy de fondo, casi imperceptible — solo un colchón tenue si hace falta.' },
+      ],
+      ritmoD1: 'Igual que house pero con la mitad del CH (deja solo 3, 7, 11 y 15) — ese espacio es justo donde entra el bajo resonante.',
+      sync: { si: 'igual de exigente que house con el reloj.', no: 'el acid se presta a que la B1 improvise libre encima del beat de la D1, sin perseguir el compás exacto — es percusivo, no melódico, así que un pequeño desfase se disimula mejor que en house.' },
+      tips: ['No le agregues muchos acordes: cuantos menos, más espacio para que el filtro del bajo sea la estrella.'] },
+
+    'synth-pop': { nombre: 'Synth pop', bpm: [100, 118, 110], bpmNota: 'varía mucho según la canción, 110 es un punto medio razonable',
+      escala: 'La menor', acordes: ['F', 'G', 'Am'], notas: ['fa·la·do', 'sol·si·re', 'la·do·mi'],
+      porque: 'La cadencia menor típica de los 80 (Depeche Mode, Pet Shop Boys): sube por grados y resuelve en el acorde menor.',
+      padNota: 'Sostenido, como colchón — rol de Pad puro, sin cortes.',
+      leadNota: 'Una melodía simple y pegajosa, de pocas notas, que vuelve. El gancho importa más que la variación; deja espacio entre frases.',
+      sonido: [
+        { rol: 'Pad', cat: 'Synthesizer → Pad', palabras: '«Classic Analog Pad», «Juno Pad», «Warm Pad»',
+          eq: 'mismo criterio de siempre para el filo arriba de 2 kHz.', reverb: 'plate mediano, 1–1.5 segundos, brillante — el synth pop no le teme al brillo del reverb, a diferencia del lofi.', extra: 'un chorus sutil, si el patch no lo trae, le da el aire ochentero.' },
+        { rol: 'Lead', cat: 'Synthesizer → Lead', palabras: '«Saw Lead», «Analog Lead», «Square Lead»', eq: 'realce entre 3–5 kHz para que la melodía corte sin subir el fader.' },
+        { rol: 'Bajo', req: ['b1', 'logic'], hardware: 'Con la B1: raíz simple, sin adornos.', cat: 'Bass', palabras: '«Sub Bass», «Analog Bass»',
+          eq: 'limpio y directo — el bajo de synth pop suele ser una raíz sostenida, no una línea elaborada.' },
+      ],
+      ritmoD1: 'Sin patrón dedicado todavía: parte de la base de house (124) y bájala a tu tempo, con menos llenado de hi-hat y el bombo firme en los 4 tiempos.',
+      sync: { si: 'sin drama, comparten reloj.', no: 'el synth pop suele tener partes muy marcadas (verso/estribillo). Sin cable, acuerden de antemano dónde empieza cada sección para reencontrarse ahí.' },
+      tips: ['Menos es más: un pad, un lead simple y un bajo raíz ya suenan a synth pop. Resiste la tentación de llenar todo el espacio.'] },
+
+    'lofi-hiphop': { nombre: 'Lo-fi hip hop', bpm: [70, 90, 82], bpmNota: 'el rango de siempre del género',
+      escala: 'Do Mayor (relativa La menor)', acordes: ['Am7', 'Dm7', 'G7', 'Cmaj7'], notas: ['la·do·mi·sol', 're·fa·la·do', 'sol·si·re·fa', 'do·mi·sol·si'],
+      porque: 'El giro de jazz más clásico que hay (ii–V–I, con el vi delante). Con séptima desde el principio, no como agregado — es el sonido base del género.',
+      padNota: 'Un acorde por compás, voicing completo de cuatro notas, relajado.',
+      leadNota: 'Frases cortas, casi bluesy, con hartas pausas. Entra justo después del golpe fuerte de la caja, «atrasado», nunca encima.',
+      sonido: [
+        { rol: 'Piano / Pad', cat: 'Piano / Keyboard, o Synthesizer → Pad', palabras: '«Electric Piano», «Rhodes», «Warm Pad»',
+          eq: 'pasa-alto suave debajo de 150 Hz; si el Rhodes suena metálico arriba de 3 kHz, bájale un poco ahí.', reverb: 'sala pequeña, medio segundo a uno — íntimo, como grabado en una pieza, no en un estudio grande.' },
+        { rol: 'Bajo', req: ['b1', 'logic'], hardware: 'Con la B1: movimiento lento, sin resonancia marcada.', cat: 'Bass', palabras: '«Upright Bass», «Fingered Bass», «Sub Bass»',
+          eq: 'realce suave entre 80–100 Hz, corta todo debajo de 40 Hz.' },
+        { rol: 'Textura', cat: '—', palabras: '«Vinyl», «Lo-Fi», crackle o wow&flutter si tu Logic los trae',
+          eq: 'define al género tanto como los acordes — no la dejes fuera.' },
+      ],
+      ritmoD1: 'Parecido al de trip hop pero más lento y con más swing/HUMANIZE: bombo relajado, caja en 2 y 4, hi-hat con bastante «polvo».',
+      sync: { si: 'sin drama.', no: 'a este tempo tan bajo, un pequeño desfase encaja con la estética «grabado en cinta vieja» — no te obsesiones con cuadrarlo perfecto.' },
+      tips: ['Automatiza el volumen del pad para que «respire» con la frase del lead: sube un poco cuando el lead calla, baja cuando entra.'] },
+  };
+
+  const INSTR_NOMBRE = { d1: 'la D1', b1: 'la B1', ak25: 'el Akai de 25', ak37: 'el Akai de 37', logic: 'Logic', bajoelec: 'el bajo eléctrico' };
+  // Reparto de roles cuando son dos o más: orden de prioridad de instrumento → rol.
+  const ORDEN_ROL = [['d1', 'el ritmo (D1)'], ['b1', 'el bajo (B1)'], ['ak37', 'acordes y lead (Akai 37 + Logic)'], ['ak25', 'acordes o percusión extra (Akai 25)'], ['bajoelec', 'el bajo eléctrico']];
+
+  function estado() {
+    return {
+      personas: +document.querySelector('input[name=personas]:checked').value,
+      cable: document.querySelector('input[name=cable]:checked').value,
+      instrumentos: [...document.querySelectorAll('#asInstrumentos input:checked')].map(i => i.value),
+      otro: $('asOtro').value.trim(),
+      genero: $('asGenero').value,
+      bpm: +$('asBpm').value || 0,
+    };
+  }
+
+  function tiene(s, ...ids) { return ids.some(id => s.instrumentos.includes(id)); }
+
+  function pintarSonidoFila(f, s) {
+    const item = (b, t) => el('li', {}, el('b', {}, b + ': '), t);
+    const ul = el('ul', {});
+    if (f.hardware && tiene(s, 'b1')) ul.append(item('Hardware (B1)', f.hardware));
+    if (f.cat && f.cat !== '—' && tiene(s, 'logic')) { ul.append(item('En la Library de Logic', f.cat)); ul.append(item('Busca', f.palabras)); }
+    else if (f.cat === '—' && tiene(s, 'logic')) ul.append(item('Busca en Logic', f.palabras));
+    if (f.eq && (tiene(s, 'logic') || tiene(s, 'b1'))) ul.append(item('EQ, punto de partida', f.eq));
+    if (f.reverb && tiene(s, 'logic')) ul.append(item('Reverb', f.reverb));
+    if (f.extra) ul.append(item('Extra', f.extra));
+    if (!ul.children.length) return null;
+    return el('div', { class: 'as-sonido-fila' }, el('span', { class: 'rol' }, f.rol), ul);
+  }
+
+  function pintar() {
+    const s = estado();
+    const g = GENEROS[s.genero];
+    const out = $('asResultado'); out.textContent = '';
+    if (!s.instrumentos.length && !s.otro) {
+      out.append(el('p', { class: 'as-vacio' }, 'Marca al menos un instrumento arriba para ver las sugerencias.'));
+      return;
+    }
+
+    const nombres = s.instrumentos.map(i => INSTR_NOMBRE[i]).filter(Boolean);
+    out.append(el('p', { class: 'as-resumen' },
+      `${s.personas === 1 ? 'Solo' : s.personas === 2 ? 'Dos personas' : 'Tres o más personas'} · ${nombres.join(', ') || 'sin instrumentos marcados'}${s.otro ? ' · también: ' + s.otro : ''} · ${s.cable === 'si' ? 'con cable MIDI' : 'sin cable MIDI'} · ${g.nombre} a ${s.bpm} BPM.`));
+
+    // Ritmo
+    const hayD1 = tiene(s, 'd1');
+    out.append(el('div', { class: 'as-bloque' },
+      el('h2', {}, '🥁 Ritmo'),
+      el('p', { class: 'as-porque' }, `${s.bpm} BPM · ${g.bpmNota}. Rango típico del género: ${g.bpm[0]}–${g.bpm[1]}.`),
+      el('p', { class: 'as-rol-nota' }, hayD1 ? g.ritmoD1 : (g.ritmoSinD1 || 'Sin D1, arma este patrón a mano o con el Drummer de Logic, con el mismo espíritu: bombo firme, caja en el 2 y el 4, hi-hat según el género.'))));
+
+    // Sonido (sólo si hay algo que suene: Logic o B1)
+    if (tiene(s, 'logic', 'b1')) {
+      const filas = g.sonido.map(f => pintarSonidoFila(f, s)).filter(Boolean);
+      const bloque = el('div', { class: 'as-bloque' }, el('h2', {}, '🎛️ Sonido, por rol'));
+      if (!tiene(s, 'ak25', 'ak37', 'b1') && tiene(s, 'logic'))
+        bloque.append(el('p', { class: 'as-porque' }, 'Marcaste Logic pero ningún Akai ni la B1: Logic no toca solo — necesitas un controlador o instrumento que le mande las notas.'));
+      if (filas.length) bloque.append(el('div', { class: 'as-sonido-tabla' }, ...filas));
+      out.append(bloque);
+    } else if (tiene(s, 'ak25', 'ak37')) {
+      out.append(el('div', { class: 'as-bloque' }, el('h2', {}, '🎛️ Sonido'),
+        el('p', { class: 'as-porque' }, 'El Akai es solo controlador: no genera sonido por sí mismo. Sin Logic ni otro instrumento recibiéndolo, no vas a escuchar nada al tocarlo.')));
+    }
+
+    // Acordes (sólo si hay con qué tocarlos: algún Akai, o Logic, o para referencia igual sirve si sólo hay B1 tocando la línea)
+    const chips = g.acordes.map((c, i) => {
+      const grupo = [el('div', { class: 'as-ac' }, el('b', {}, c), el('span', {}, g.notas[i]))];
+      if (i < g.acordes.length - 1) grupo.push(el('span', { class: 'as-flecha' }, '→'));
+      return grupo;
+    }).flat();
+    const bloqueAc = el('div', { class: 'as-bloque' }, el('h2', {}, '🎹 Acordes, para pad y para lead'),
+      el('p', { class: 'as-porque' }, `Escala: ${g.escala}. ${g.porque}`),
+      el('div', { class: 'as-acordes' }, ...chips),
+      el('p', { class: 'as-rol-nota' }, el('b', {}, 'Pad: '), g.padNota),
+      el('p', { class: 'as-rol-nota' }, el('b', {}, 'Lead: '), g.leadNota));
+    if (g.variante) bloqueAc.append(el('p', { class: 'as-rol-nota' }, el('b', {}, 'Si quieres variar: '), g.variante));
+    out.append(bloqueAc);
+
+    // Sincronía
+    out.append(el('div', { class: 'as-bloque' }, el('h2', {}, '🔗 Sincronía'),
+      el('p', { class: 'as-rol-nota' }, s.cable === 'si' ? g.sync.si : g.sync.no)));
+
+    // Reparto de roles
+    if (s.personas >= 2) {
+      const roles = ORDEN_ROL.filter(([id]) => s.instrumentos.includes(id));
+      if (roles.length) {
+        const lista = el('ul', { class: 'as-roles' }, ...roles.map((r, i) => el('li', {}, `Persona ${(i % s.personas) + 1}: ${r[1]}.`)));
+        const extra = roles.length < s.personas ? el('p', { class: 'as-rol-nota' }, 'Sobran manos para los instrumentos que marcaste: alguien dobla, o suma voz/percusión de cuerpo.')
+          : roles.length > s.personas ? el('p', { class: 'as-rol-nota' }, 'Hay más instrumentos que personas: alguien toma dos, o túrnense por sección.') : null;
+        out.append(el('div', { class: 'as-bloque' }, el('h2', {}, '🎧 Reparto de roles'), lista, ...(extra ? [extra] : [])));
+      }
+    }
+
+    // Consejos y checklist
+    const tips = [...(g.tips || [])];
+    if (s.instrumentos.length >= 3) tips.push('Antes de tocar, guarda esto como plantilla en Logic (File → Save as Template): la próxima vez llegas con el sonido puesto.');
+    if (tips.length) out.append(el('div', { class: 'as-bloque' }, el('h2', {}, '💡 Consejos'), el('ul', { class: 'as-tips' }, ...tips.map(t => el('li', {}, t)))));
+
+    const check = [
+      [true, `BPM (${s.bpm}) puesto en Logic y en la cabeza de todos`],
+      [tiene(s, 'logic'), 'Sonidos cargados y guardados como plantilla'],
+      [true, 'Progresión elegida, para el pad y para el lead'],
+      [tiene(s, 'logic'), 'EQ y reverb puestos por track'],
+      [s.cable === 'si', 'Cable MIDI conectado y probado'],
+      [s.cable === 'no', 'Todos saben que no hay sincronía automática, y dónde reencontrarse'],
+      [s.personas >= 2, 'Roles repartidos'],
+    ].filter(([c]) => c);
+    out.append(el('div', { class: 'as-bloque' }, el('h2', {}, '📋 Antes de tocar'),
+      el('div', { class: 'as-checklist' }, ...check.map(([, t], i) => {
+        const id = 'chk' + i; const inp = el('input', { type: 'checkbox', id });
+        return el('label', { for: id }, inp, t);
+      }))));
+  }
+
+  function fijarBpmDefault() { const g = GENEROS[$('asGenero').value]; $('asBpm').value = g.bpm[2]; $('asBpmHint').textContent = `sugerido para ${g.nombre.toLowerCase()}: ${g.bpm[0]}–${g.bpm[1]}`; }
+
+  document.querySelectorAll('#asPersonas input, #asCable input, #asInstrumentos input').forEach(i => i.addEventListener('change', pintar));
+  $('asOtro').addEventListener('input', pintar);
+  $('asBpm').addEventListener('input', pintar);
+  $('asGenero').addEventListener('change', () => { fijarBpmDefault(); pintar(); });
+  fijarBpmDefault(); pintar();
+
+  $('navAtras').addEventListener('click', () => { if (history.length > 1) history.back(); else location.href = 'index.html'; });
+})();
+</script>
+<script src="acceso.js?v=20260915d" defer></script>
+</body>
+</html>

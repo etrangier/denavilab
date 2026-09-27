@@ -1,6 +1,12 @@
 {
  "changelog": [
   {
+   "fecha": "2026-09-27",
+   "items": [
+    "Asesor de jam session, nuevo y de acceso libre (no hace falta sesión): cuenta cuántos tocan, qué vas a usar —Donner D1, Donner B1, Akai MPK mini de 25 o 37 teclas, Logic Pro, bajo eléctrico—, si van con cable MIDI o suenan a su aire, y qué género (trip hop, lofi house, house, acid house, synth pop, lo-fi hip hop) y BPM. Sin conectarse a ningún aparato ni a Logic, deja listo el ritmo, la curatoría de sonido por rol (categoría de la Library, palabras de búsqueda, un punto de partida de EQ y reverb), una familia de acordes para el pad y otra para el lead, el consejo de sincronía que corresponda, el reparto de roles si son dos o más personas, y una lista para chequear antes de tocar. Todo se recalcula al cambiar cualquier respuesta. Se entra desde la portada o desde «¿Cómo quieres trabajar hoy?», junto a Trabajo guiado y el Tutor."
+   ]
+  },
+  {
    "fecha": "2026-09-21",
    "items": [
     "Las notas de voz y la mezcla grabada se descargan en WAV, en la mínima calidad que todavía suena a música: 11.025 Hz, 16 bits, mono (unos 21 kB por segundo; medio minuto de tarareo son ~650 kB). Más abajo ya no sólo pesa menos, suena peor: a 8 kHz los platillos desaparecen y a 8 bits aparece un siseo. Si la nota quedó bajita, se sube al convertirla para que se oiga. Dentro de la app se siguen guardando comprimidas, para que quepan en el navegador."

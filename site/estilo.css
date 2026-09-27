@@ -436,6 +436,7 @@ section.solo-cab { margin-bottom: 0; }
 .fo-ir { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; margin-top: auto; padding-top: 10px; }
 .forma-opcion.tutor { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .forma-opcion.tutor .fo-eyebrow, .forma-opcion.tutor .fo-d { color: var(--accent-ink); opacity: .85; }
+a.forma-opcion { text-decoration: none; }
 .guia-cambiar { font: inherit; font-size: 13px; background: none; border: none; color: var(--muted); cursor: pointer; padding: 0; text-decoration: underline; text-underline-offset: 3px; }
 .guia-cambiar:hover, .guia-cambiar:focus-visible { color: var(--accent); }
 .guia-cab:not(.compacta) .guia-cambiar { display: inline-block; margin: 0 0 10px; }
