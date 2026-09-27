@@ -50,19 +50,21 @@ test('los tres puntos de entrada llevan al asesor', async ({ page }) => {
   await expect(page).toHaveURL(/asesor\.html/);
 });
 
-test('el sonido usa instrumentos reales de Logic, no nombres de patch sin verificar', async ({ page }) => {
+test('el sonido usa Retro Synth (confirmado en el propio Logic de Rolando), no nombres inventados', async ({ page }) => {
   await page.goto('/asesor.html');
   const out = page.locator('#asResultado');
-  await expect(out).toContainText('ES2');                       // el instrumento confirmado, no «Juno Pad»
+  await expect(out).toContainText('Retro Synth');                // el instrumento confirmado, no «Juno Pad»
+  await expect(out).toContainText('Classic Analog Pad');         // confirmado real: preset de partida para el Pad
   await expect(out).not.toContainText('Juno Pad');
-  await expect(out).not.toContainText('Classic Analog Pad');
-  await expect(out).toContainText('Oscilador');                 // la receta paso a paso
+  await expect(out).toContainText('Oscilador');                  // la receta paso a paso
   await expect(out).toContainText('Fader');
+  await expect(out).toContainText('Channel EQ');
+  await expect(out.locator('.as-cadena').first()).toBeVisible(); // la cadena de plugins, en orden
 
   await page.selectOption('#asGenero', 'acid-house');
   await page.locator('#asInstrumentos input[value=b1]').check();
-  await expect(out).toContainText('ES M');                       // bajo: ES M o ES2 según el rol
-  await expect(out).toContainText('303');                        // mecanismo explicado, no un patch prometido
+  await expect(out).toContainText('squelch');                    // mecanismo explicado, no un patch prometido
+  await expect(out).toContainText('Tape Delay');                 // el delay corto del bajo, con su panel
 });
 
 test('cada acorde se ilustra con un teclado, marcando sus notas', async ({ page }) => {

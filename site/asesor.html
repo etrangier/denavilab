@@ -53,6 +53,25 @@
   .as-generales { background: var(--surface); border: 1px dashed var(--line); border-radius: 10px; padding: 14px 16px; margin: 10px 0 16px; }
   .as-generales p { font-size: 13.5px; margin: 6px 0; }
   .as-generales ol { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 4px; font-size: 13.5px; }
+  /* Cadena de plugins + ilustraciones (Channel EQ, ChromaVerb, Tape Delay) — parecidas a los paneles reales, no clones */
+  .as-cadena { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 10px; font-family: var(--mono); font-size: 11px; }
+  .as-cadena span.paso { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+  .as-cadena span.flecha { color: var(--muted); }
+  .as-panel { margin: 10px 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+  .as-panel > .cab { background: var(--surface-2); padding: 6px 12px; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); border-bottom: 1px solid var(--line); }
+  .as-panel > .cuerpo { padding: 12px; }
+  .as-eq-curva { display: block; width: 100%; height: auto; }
+  .as-eq-curva .eje { stroke: var(--line); stroke-width: 1; }
+  .as-eq-curva .curva { fill: var(--accent); opacity: .22; }
+  .as-eq-curva .linea { fill: none; stroke: var(--accent); stroke-width: 1.6; }
+  .as-eq-curva text { fill: var(--muted); font-family: var(--mono); font-size: 7px; }
+  .as-diales { display: flex; flex-wrap: wrap; gap: 14px; }
+  .as-dial { display: grid; justify-items: center; gap: 3px; width: 56px; }
+  .as-dial svg { width: 44px; height: 44px; }
+  .as-dial .fondo { fill: none; stroke: var(--line); stroke-width: 4; }
+  .as-dial .valor { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; }
+  .as-dial .num { font-family: var(--mono); font-size: 10px; }
+  .as-dial .lbl { font-size: 9.5px; color: var(--muted); text-align: center; }
   /* Ilustraciones: teclado mini por acorde, grilla de 16 pasos para D1/B1 (mismas clases .ej-* que usan los ejemplos de la guía) */
   .as-ac { position: relative; }
   .as-mini { display: block; width: 68px; height: auto; margin-top: 4px; }
@@ -139,7 +158,7 @@
 
   <div class="as-resultado" id="asResultado"></div>
 
-  <p class="as-aviso">De dónde sale esto: los BPM y los patrones de batería vienen de tus propias guías «D1 en vivo» y «Logic + Akai en vivo». Las recetas de sonido ya no nombran un «patch» — antes sugerían nombres como «Juno Pad» que no pudimos confirmar que existan en Logic — sino un instrumento de fábrica verificado (ES2, ES M, Retro Synth, Drummer, Drum Machine Designer, todos confirmados en la documentación de Apple y reseñas técnicas de Logic Pro) con los parámetros para armar el sonido desde cero. Los números de EQ, reverb, dB y fader son principios generales de mezcla y puntos de partida razonables, no ajustes tomados de tu Logic — confírmalos escuchando y muévelos si algo no calza con tu oído.</p>
+  <p class="as-aviso">De dónde sale esto: los BPM y los patrones de batería vienen de tus propias guías «D1 en vivo» y «Logic + Akai en vivo». El instrumento de las recetas es Retro Synth — confirmado con capturas de tu propio Logic, incluido el preset «Classic Analog Pad» que usamos como punto de partida del Pad —, más Channel EQ, ChromaVerb y Tape Delay, los mismos plugins que se ven en tu barra lateral. Los nombres de parámetro (Cutoff, Res, Decay, Wet…) son los reales; los números y las curvas ilustradas son puntos de partida razonables, no ajustes tomados de tu Logic — confírmalos escuchando y muévelos si algo no calza con tu oído. Batería (Drummer, Drum Machine Designer) confirmados en la documentación de Apple y reseñas técnicas de Logic Pro.</p>
 </div>
 
 <script>
@@ -162,6 +181,72 @@
     blancas.forEach(([p, wx]) => svg.append(svgEl('rect', { class: 'mw' + (on.has(p) ? ' on' : ''), x: wx, y: 0, width: W, height: H })));
     negras.forEach(([p, bx]) => svg.append(svgEl('rect', { class: 'mb' + (on.has(p) ? ' on' : ''), x: bx, y: 0, width: BW, height: BH })));
     return svg;
+  }
+
+  // Curva de EQ, a la manera del Channel EQ real (banda log de 20 Hz a 20 kHz, ganancia en dB).
+  // bandas: [{t:'hp'|'lp'|'ls'|'hs'|'bell', f: Hz, g: dB, q}]. No es una simulación exacta del filtro,
+  // es una ilustración de la forma — para ver de un vistazo qué sube y qué baja, como en tu captura.
+  function curvaEQ(bandas) {
+    const W = 320, H = 90, x0 = 20, x1 = 300, yc = 45, esc = 3.2;   // esc: px por dB
+    const xDe = hz => x0 + (Math.log10(hz / 20) / Math.log10(20000 / 20)) * (x1 - x0);
+    const gEn = x => { const hz = 20 * Math.pow(1000, (x - x0) / (x1 - x0));
+      let g = 0;
+      bandas.forEach(b => {
+        const dist = Math.log2(hz / b.f);
+        if (b.t === 'bell') g += (b.g || 0) / (1 + Math.pow(dist * (b.q || 1) * 1.6, 2));
+        else if (b.t === 'ls') g += (b.g || 0) * (1 / (1 + Math.exp(dist * 3)));
+        else if (b.t === 'hs') g += (b.g || 0) * (1 / (1 + Math.exp(-dist * 3)));
+        else if (b.t === 'hp') g += hz < b.f ? -Math.min(24, (Math.log2(b.f / Math.max(hz, 1))) * 9) : 0;
+        else if (b.t === 'lp') g += hz > b.f ? -Math.min(24, (Math.log2(Math.max(hz, 1) / b.f)) * 9) : 0;
+      });
+      return g;
+    };
+    let d = `M ${x0} ${yc - gEn(x0) * esc}`;
+    for (let x = x0; x <= x1; x += 4) d += ` L ${x} ${yc - Math.max(-24, Math.min(24, gEn(x))) * esc}`;
+    const relleno = d + ` L ${x1} ${yc} L ${x0} ${yc} Z`;
+    const svg = svgEl('svg', { class: 'as-eq-curva', viewBox: `0 0 ${W} ${H}`, 'aria-hidden': 'true' });
+    svg.append(svgEl('line', { class: 'eje', x1: x0, x2: x1, y1: yc, y2: yc }));
+    [100, 1000, 10000].forEach(hz => { const x = xDe(hz);
+      svg.append(svgEl('line', { class: 'eje', x1: x, x2: x, y1: 8, y2: H - 8, opacity: .4 }));
+      const t = svgEl('text', { x: x + 2, y: H - 4 }); t.textContent = hz >= 1000 ? (hz / 1000) + 'k' : hz; svg.append(t);
+    });
+    svg.append(svgEl('path', { class: 'curva', d: relleno }));
+    svg.append(svgEl('path', { class: 'linea', d }));
+    bandas.forEach(b => { if (!['hp', 'lp'].includes(b.t)) { const cx = xDe(b.f); const t = svgEl('text', { x: cx - 8, y: 10 }); t.textContent = (b.f >= 1000 ? (b.f / 1000) + 'k' : b.f) + ' ' + (b.g > 0 ? '+' : '') + b.g + 'dB'; svg.append(t); } });
+    return svg;
+  }
+
+  // Un dial simple (0–1) a la manera de los knobs de ChromaVerb/Tape Delay — no el diseño real, sólo el gesto: un arco.
+  function dial(valor01, etiqueta, texto) {
+    const r = 17, cx = 22, cy = 22, a0 = -220, a1 = 40;   // arco de ~260°, como un knob real
+    const ang = a0 + Math.max(0, Math.min(1, valor01)) * (a1 - a0);
+    const pt = (a, rr) => [cx + rr * Math.cos(a * Math.PI / 180), cy + rr * Math.sin(a * Math.PI / 180)];
+    const arco = (aIni, aFin, rr) => { const [x1, y1] = pt(aIni, rr), [x2, y2] = pt(aFin, rr);
+      return `M ${x1} ${y1} A ${rr} ${rr} 0 ${(aFin - aIni) > 180 ? 1 : 0} 1 ${x2} ${y2}`; };
+    const svg = svgEl('svg', { viewBox: '0 0 44 44' });
+    svg.append(svgEl('path', { class: 'fondo', d: arco(a0, a1, r) }));
+    svg.append(svgEl('path', { class: 'valor', d: arco(a0, ang, r) }));
+    return el('div', { class: 'as-dial' }, svg, el('span', { class: 'num' }, texto), el('span', { class: 'lbl' }, etiqueta));
+  }
+
+  // Paneles: mismos nombres de parámetro que traen ChromaVerb y Tape Delay de verdad (confirmado con capturas
+  // del propio Logic de Rolando), como ilustración de a qué mover cada perilla — no el plugin en sí.
+  function panelReverb(rv) {
+    return el('div', { class: 'as-panel' }, el('div', { class: 'cab' }, 'ChromaVerb' + (rv.preset ? ' · ' + rv.preset : '')),
+      el('div', { class: 'cuerpo as-diales' },
+        dial(rv.decay / 8, 'Decay', rv.decay + ' s'),
+        dial(rv.size / 100, 'Size', rv.size + '%'),
+        dial(rv.density / 100, 'Density', rv.density + '%'),
+        dial(rv.distance / 100, 'Distance', rv.distance + '%'),
+        dial(rv.dry / 100, 'Dry', rv.dry + '%'),
+        dial(rv.wet / 100, 'Wet', rv.wet + '%')));
+  }
+  function panelDelay(dl) {
+    return el('div', { class: 'as-panel' }, el('div', { class: 'cab' }, 'Tape Delay' + (dl.nota ? ' · ' + dl.nota : '')),
+      el('div', { class: 'cuerpo as-diales' },
+        dial(dl.feedback / 100, 'Feedback', dl.feedback + '%'),
+        dial(dl.wet / 100, 'Wet', dl.wet + '%'),
+        dial(1, 'Dry', '100%')));
   }
 
   // Grilla de 16 pasos, una fila por voz — mismas clases (.ej-fila/.ej-c) que ya usan los ejemplos de la guía.
@@ -192,13 +277,19 @@
       leadNota: 'Pocas notas, largas, con silencio: dos o tres por frase, nunca una corrida completa de la escala. Si tienes el bajo eléctrico a mano, tócalo así en vez del synth — es donde más se nota el género.',
       variante: 'Para una vuelta de tensión antes de resolver, prueba subir la tercera del V (el sol se vuelve mi mayor arriba, sol-si-re → mi-sol♯-si): es la resolución de la menor armónica, un color melancólico muy propio del género.',
       sonido: [
-        { rol: 'Pad', instr: 'ES2', receta: R('Osc 1 y 2: diente de sierra, Osc 2 desafinado +7 cents · Osc 3 (sub): triangular, −1 octava, nivel bajo', '35% cutoff · 12% resonancia', 'ataque 400 ms · release 700 ms'),
+        { rol: 'Pad', instr: 'Retro Synth · preset «Classic Analog Pad» (modo Analog)',
+          receta: R('parte del preset: Shape 1 y 2 entre diente de sierra y pulso · Cents +7 en Osc 2, para el ancho', 'cutoff 0.35 · resonancia 0.12 (filtro LP 24dB Lush/Fat, el que ya trae el preset)', 'Amp Env: ataque 400 ms · release 700 ms (el preset trae más largo; acórtalo para trip hop)'),
           eq: 'pasa-alto 180 Hz (12 dB/oct) · shelf alto −2.5 dB desde 2.5 kHz si suena filoso — el mismo criterio que usamos en el Pad de DenaviLab: los agudos son los que cansan, no el timbre.',
-          reverb: 'ChromaVerb, Chamber o Plate grande, decay 2.8 s, mezcla 30%.', fader: '−9 dB', extra: 'saturación de cinta (Vintage Tape) sutil, para el calor.' },
-        { rol: 'Bajo', req: ['b1', 'bajoelec', 'logic'], instr: 'ES M (o ES2 con un oscilador)',
+          eqB: [{ t: 'hp', f: 180 }, { t: 'hs', f: 2500, g: -2.5 }],
+          reverb: 'ChromaVerb, decay 2.8 s, mezcla 30%.', rv: { preset: 'Smooth Space, de partida', decay: 2.8, size: 80, density: 60, distance: 60, dry: 70, wet: 30 },
+          fader: '−9 dB', extra: 'Tape Delay con Wet bajo y sin feedback, sólo por el color de las cabezas — no como eco.', dl: { nota: 'sólo color', feedback: 0, wet: 8 },
+          cadena: ['Retro Synth', 'Channel EQ', 'ChromaVerb', 'Tape Delay'] },
+        { rol: 'Bajo', req: ['b1', 'bajoelec', 'logic'], instr: 'Retro Synth (modo Analog, un oscilador)',
           hardware: 'Con la B1: cutoff bajo, resonancia suave, envolvente larga — un bajo redondo, no punzante. Dóblalo con el bajo eléctrico si lo tienes, a la octava.',
-          receta: R('sine + triangle mezclados', '30% cutoff · 5% resonancia', 'ataque 8 ms · release 200 ms'),
-          eq: 'pasa-alto 35 Hz · realce +2.5 dB en 90 Hz · corte −3 dB en 500 Hz (el barro). Sin reverb: que quede al frente y limpio.', fader: '−7 dB' },
+          receta: R('Shape 1: onda seno/triangular (Mix a fondo hacia Osc 1)', 'cutoff 0.30 · resonancia 0.05', 'Amp Env: ataque 8 ms · release 200 ms'),
+          eq: 'pasa-alto 35 Hz · realce +2.5 dB en 90 Hz · corte −3 dB en 500 Hz (el barro). Sin reverb: que quede al frente y limpio.',
+          eqB: [{ t: 'hp', f: 35 }, { t: 'bell', f: 90, g: 2.5, q: 1.2 }, { t: 'bell', f: 500, g: -3, q: 1 }],
+          fader: '−7 dB', cadena: ['Retro Synth', 'Channel EQ'] },
       ],
       ritmoD1: 'BD en el paso 1 y en los pasos 3–4 (el «y» y el «a» del primer tiempo) · HC en 5 y 13 · CH en los 16 pasos con HUMANIZE activo, para que no suene a máquina.',
       ritmoSinD1: 'Sin D1, prográmalo igual de disperso a mano o con el Drummer de Logic: bombo fuera del «uno» estricto, caja en el 2 y el 4, hi-hat parejo pero humanizado.',
@@ -214,16 +305,24 @@
       padNota: 'Un acorde por compás. Al acorde donde termina la frase (una vez cada 4–8 compases) súbele la séptima — Gmaj7, Em7, lo que corresponda — para el color típico del género; no hace falta en todos.',
       leadNota: 'Activa el ARP del Akai sosteniendo las tres notas del acorde: esa textura repetitiva de fondo es la seña de identidad del lofi house.',
       sonido: [
-        { rol: 'Pad', instr: 'ES2', receta: R('Osc 1 y 2: diente de sierra, Osc 2 desafinado +7 cents', '45% cutoff · 15% resonancia', 'ataque 250 ms · release 500 ms'),
-          eq: 'pasa-alto 160 Hz · shelf alto −2 dB desde 3 kHz si molesta.', reverb: 'ChromaVerb, Room mediano, decay 1.3 s, mezcla 18% — no tan largo como trip hop, que no tape el groove.', fader: '−8 dB' },
-        { rol: 'Arpegio / pluck', instr: 'ES2', receta: R('diente de sierra, corto', '60% cutoff · 20% resonancia', 'ataque 2 ms · decay 150 ms · sustain 0% · release 60 ms (percusivo)'),
-          eq: 'realce +2.5 dB en 3.5 kHz para que se sienta sin subir el fader.', reverb: 'mismo del pad, mezcla 12%.', fader: '−8 dB' },
-        { rol: 'Bajo', req: ['b1', 'logic'], instr: 'ES M (o ES2 con un oscilador)',
+        { rol: 'Pad', instr: 'Retro Synth · preset «Classic Analog Pad» (modo Analog)',
+          receta: R('parte del preset: Shape 1 y 2 diente de sierra/pulso · Cents +7 en Osc 2', 'cutoff 0.45 · resonancia 0.15', 'Amp Env: ataque 250 ms · release 500 ms (más corto que en trip hop)'),
+          eq: 'pasa-alto 160 Hz · shelf alto −2 dB desde 3 kHz si molesta.', eqB: [{ t: 'hp', f: 160 }, { t: 'hs', f: 3000, g: -2 }],
+          reverb: 'ChromaVerb, decay 1.3 s, mezcla 18% — no tan largo como trip hop, que no tape el groove.', rv: { decay: 1.3, size: 55, density: 55, distance: 45, dry: 82, wet: 18 },
+          fader: '−8 dB', cadena: ['Retro Synth', 'Channel EQ', 'ChromaVerb'] },
+        { rol: 'Arpegio / pluck', instr: 'Retro Synth (modo Analog, envolvente corta)',
+          receta: R('Shape 1: diente de sierra', 'cutoff 0.60 · resonancia 0.20', 'Amp Env: ataque 2 ms · decay 150 ms · sustain 0 · release 60 ms (percusivo)'),
+          eq: 'realce +2.5 dB en 3.5 kHz para que se sienta sin subir el fader.', eqB: [{ t: 'bell', f: 3500, g: 2.5, q: 1 }],
+          reverb: 'mismo envío del pad, mezcla 12%.', fader: '−8 dB', cadena: ['Retro Synth', 'Channel EQ', 'ChromaVerb (envío del pad)'] },
+        { rol: 'Bajo', req: ['b1', 'logic'], instr: 'Retro Synth (modo Analog, un oscilador)',
           hardware: 'Con la B1: filtro más cerrado que en house liso, movimiento lento.',
-          receta: R('sine (sub) + saw suave', '35% cutoff · 8% resonancia', 'ataque 3 ms · release 150 ms'),
-          eq: 'pasa-alto 35–40 Hz (debajo es ruido, no grave útil).', extra: 'sidechain: Compressor de Logic en el bajo, entrada lateral = la pista de la D1, para que bajo y bombo se turnen el espacio.', fader: '−6 dB' },
-        { rol: 'Textura', instr: 'plugins de efecto (si tu Logic los trae)', receta: null,
-          eq: 'Bitcrusher o el efecto «Lo-Fi»/«Vinyl» en el bus general, sutil — más HUMANIZE bien activo en la D1: es el polvo característico del género.' },
+          receta: R('Shape 1: seno/triangular · un poco de Osc 2 diente de sierra para cuerpo', 'cutoff 0.35 · resonancia 0.08', 'Amp Env: ataque 3 ms · release 150 ms'),
+          eq: 'pasa-alto 35–40 Hz (debajo es ruido, no grave útil).', eqB: [{ t: 'hp', f: 38 }],
+          extra: 'sidechain: Compressor de Logic en el bajo, entrada lateral = la pista de la D1, para que bajo y bombo se turnen el espacio.', fader: '−6 dB',
+          cadena: ['Retro Synth', 'Channel EQ', 'Compressor (sidechain)'] },
+        { rol: 'Textura', instr: 'Bitcrusher / Vinyl (efecto, si tu Logic los trae)', receta: null,
+          eq: 'Bitcrusher o el efecto «Lo-Fi»/«Vinyl» en el bus general, sutil — más HUMANIZE bien activo en la D1: es el polvo característico del género. Si no los tienes, un Tape Delay con Wet 5–8% y sin feedback da un aire parecido.',
+          dl: { nota: 'alternativa sin Bitcrusher', feedback: 0, wet: 7 }, cadena: ['Bitcrusher o Vinyl (bus)'] },
       ],
       ritmoD1: 'BD en los 4 tiempos, relajado (92 BPM) · HC en 5 y 13 · CH en todos los pasos impares con HUMANIZE activo · agrega percusión (PC) suelta en los pasos 4 y 12 para el toque orgánico.',
       ritmoSinD1: 'Sin D1, baja el patrón de house (124) a este tempo, con menos llenado de hi-hat y bastante humanización.',
@@ -239,12 +338,17 @@
       padNota: 'Entran y se cortan, no se sostienen — nada de pad largo tapando el groove.',
       leadNota: 'Un stab corto en el contratiempo, o el mismo acorde con el ARP. Evita melodías largas: el house se mueve por groove, no por melodía.',
       sonido: [
-        { rol: 'Stab / acordes', instr: 'ES2', receta: R('Osc 1: diente de sierra · Osc 2: onda cuadrada (mezcla tipo brass)', '55% cutoff · 10% resonancia', 'ataque 5 ms · decay 250 ms · sustain 0% · release 80 ms (se corta, no se sostiene)'),
-          eq: 'pasa-alto agresivo 220 Hz (18 dB/oct) — deja el grave para el bajo y la D1 — realce +2 dB en 1.5 kHz para que corte.', reverb: 'ChromaVerb, Room chico, decay 0.6 s, mezcla 10% — casi seco, para no embarrar el four-on-the-floor.', fader: '−7 dB' },
-        { rol: 'Bajo', req: ['b1', 'logic'], instr: 'ES M (o ES2 con un oscilador)',
+        { rol: 'Stab / acordes', instr: 'Retro Synth (modo Analog, mezcla de dos formas)',
+          receta: R('Shape 1: diente de sierra · Shape 2: onda cuadrada, Mix al centro (tipo brass)', 'cutoff 0.55 · resonancia 0.10', 'Amp Env: ataque 5 ms · decay 250 ms · sustain 0 · release 80 ms (se corta, no se sostiene)'),
+          eq: 'pasa-alto agresivo 220 Hz (18 dB/oct) — deja el grave para el bajo y la D1 — realce +2 dB en 1.5 kHz para que corte.', eqB: [{ t: 'hp', f: 220 }, { t: 'bell', f: 1500, g: 2, q: 1 }],
+          reverb: 'ChromaVerb, decay 0.6 s, mezcla 10% — casi seco, para no embarrar el four-on-the-floor.', rv: { decay: 0.6, size: 30, density: 50, distance: 30, dry: 90, wet: 10 },
+          fader: '−7 dB', cadena: ['Retro Synth', 'Channel EQ', 'ChromaVerb'] },
+        { rol: 'Bajo', req: ['b1', 'logic'], instr: 'Retro Synth (modo Analog, un oscilador)',
           hardware: 'Con la B1: una sola nota grave y limpia, sin adornos.',
-          receta: R('sine (sub) + saw suave', '35% cutoff · 8% resonancia', 'ataque 3 ms · release 150 ms'),
-          eq: 'pasa-alto 35 Hz · realce +2 dB en 80–100 Hz.', extra: 'sidechain: Compressor de Logic, entrada lateral = la pista de la D1 (ratio 4:1, ataque rápido, release medio) — es lo que hace «respirar» al house.', fader: '−6 dB' },
+          receta: R('Shape 1: seno/triangular · un poco de Osc 2 para cuerpo', 'cutoff 0.35 · resonancia 0.08', 'Amp Env: ataque 3 ms · release 150 ms'),
+          eq: 'pasa-alto 35 Hz · realce +2 dB en 80–100 Hz.', eqB: [{ t: 'hp', f: 35 }, { t: 'bell', f: 90, g: 2, q: 1.2 }],
+          extra: 'sidechain: Compressor de Logic, entrada lateral = la pista de la D1 (ratio 4:1, ataque rápido, release medio) — es lo que hace «respirar» al house.', fader: '−6 dB',
+          cadena: ['Retro Synth', 'Channel EQ', 'Compressor (sidechain)'] },
       ],
       ritmoD1: 'BD en 1, 5, 9 y 13 · HC en 5 y 13 · CH en todos los impares · OH en 7 y 15 reemplazando al CH ahí, para el «aire» característico.',
       ritmoLogic: "Con Drummer: estilo «Electronic», X/Y hacia la derecha (denso, constante) y arriba (energía). Con Drum Machine Designer: kit 909-style, bombo seco y directo.",
@@ -260,12 +364,16 @@
       padNota: 'Uno o dos acordes alternando cada 4 u 8 compases alcanza. Si quieres más movimiento: Dm–Am–C–G (re·fa·la · la·do·mi · do·mi·sol · sol·si·re), pero no hace falta.',
       leadNota: 'En acid house el «lead» suele ser el propio bajo resonante tocando la línea principal. Considera no usar un lead aparte y dejar que el bajo lleve la melodía.',
       sonido: [
-        { rol: 'Bajo (el protagonista)', req: ['b1', 'logic'], instr: 'ES2 (necesita su envolvente de filtro dedicada — es el mecanismo real del sonido 303)',
+        { rol: 'Bajo (el protagonista)', req: ['b1', 'logic'], instr: 'Retro Synth (modo Analog) — el knob «Env» del filtro es la envolvente dedicada al cutoff',
           hardware: 'Con la B1: resonancia alta, cutoff bajo para empezar, y ábrelo con la mano en vivo. Si trae accent/slide, úsalos — ahí está el «squelch» típico.',
-          receta: R('un solo oscilador, diente de sierra', 'cutoff 15–20% para empezar · resonancia 75–85%', 'ampl.: ataque 2 ms, release 100 ms · filtro: ataque 0 ms, decay 180 ms, sustain 10%, ruteada al cutoff (cantidad ~60%) — eso es lo que hace el «squelch»'),
-          eq: 'sólo pasa-alto 30 Hz para el subsónico. No toques medios ni agudos ahí vive el carácter — el trabajo lo hace el filtro, no el EQ.', extra: 'delay 1/16, feedback bajo, mezcla 15%, le suma movimiento sin tocar la armonía.', fader: '−5 dB (el protagonista, más alto que el resto)' },
-        { rol: 'Pad (opcional, discreto)', instr: 'ES2', receta: R('triangular, un solo oscilador', '25% cutoff · 8% resonancia', 'ataque 600 ms · release 900 ms'),
-          eq: 'shelf alto −4 dB desde 2 kHz — bien apagado.', fader: '−14 dB (de fondo, casi imperceptible)' },
+          receta: R('Shape 1: diente de sierra, un solo oscilador (Mix a fondo)', 'cutoff 0.15–0.20 para empezar · resonancia 0.75–0.85', 'Amp Env: ataque 2 ms, release 100 ms · Filter Env: decay 180 ms, sustain 0.10, perilla «Env» del filtro a ~60% — eso es lo que hace el «squelch»'),
+          eq: 'sólo pasa-alto 30 Hz para el subsónico. No toques medios ni agudos ahí vive el carácter — el trabajo lo hace el filtro, no el EQ.', eqB: [{ t: 'hp', f: 30 }],
+          extra: 'Tape Delay: nota 1/16, feedback bajo, sin saturarlo — le suma movimiento sin tocar la armonía.', dl: { nota: '1/16', feedback: 20, wet: 15 },
+          fader: '−5 dB (el protagonista, más alto que el resto)', cadena: ['Retro Synth', 'Channel EQ', 'Tape Delay'] },
+        { rol: 'Pad (opcional, discreto)', instr: 'Retro Synth (modo Analog, un oscilador)',
+          receta: R('Shape 1: triangular (Mix a fondo)', 'cutoff 0.25 · resonancia 0.08', 'Amp Env: ataque 600 ms · release 900 ms'),
+          eq: 'shelf alto −4 dB desde 2 kHz — bien apagado.', eqB: [{ t: 'hs', f: 2000, g: -4 }],
+          fader: '−14 dB (de fondo, casi imperceptible)', cadena: ['Retro Synth', 'Channel EQ'] },
       ],
       ritmoD1: 'Igual que house pero con la mitad del CH (deja solo 3, 7, 11 y 15) — ese espacio es justo donde entra el bajo resonante.',
       ritmoLogic: "Igual que house: Drummer en «Electronic», denso y constante — pero deja hueco en el hi-hat (la mitad de los golpes), porque ahí entra el bajo resonante.",
@@ -280,13 +388,20 @@
       padNota: 'Sostenido, como colchón — rol de Pad puro, sin cortes.',
       leadNota: 'Una melodía simple y pegajosa, de pocas notas, que vuelve. El gancho importa más que la variación; deja espacio entre frases.',
       sonido: [
-        { rol: 'Pad', instr: 'ES2', receta: R('Osc 1 y 2: diente de sierra, Osc 2 desafinado +9 cents (ancho, ochentero)', '50% cutoff · 15% resonancia', 'ataque 300 ms · release 600 ms'),
-          eq: 'pasa-alto 150 Hz · realce +1.5 dB shelf alto desde 8 kHz — el synth pop no le teme al brillo, a diferencia del lofi.', reverb: 'ChromaVerb, Plate mediano, decay 1.4 s, mezcla 25%.', fader: '−8 dB', extra: 'chorus sutil (Ensemble o Chorus de Logic) para el aire ochentero.' },
-        { rol: 'Lead', instr: 'ES2 (o Retro Synth, modo Wavetable, para algo más moderno)', receta: R('diente de sierra + onda cuadrada mezclados', '60% cutoff · 20% resonancia', 'ataque 8 ms · release 250 ms'),
-          eq: 'realce +3 dB en 4 kHz para que corte sin subir el fader.', reverb: 'mismo del pad, mezcla 15%.', fader: '−6 dB' },
-        { rol: 'Bajo', req: ['b1', 'logic'], instr: 'ES M (o ES2 con un oscilador)', hardware: 'Con la B1: raíz simple, sin adornos.',
-          receta: R('diente de sierra, sin filtro muy cerrado', '45% cutoff · 5% resonancia', 'ataque 5 ms · release 180 ms'),
-          eq: 'pasa-alto 35 Hz · realce +1.5 dB en 100 Hz — una raíz sostenida, no una línea elaborada.', fader: '−7 dB' },
+        { rol: 'Pad', instr: 'Retro Synth · preset «Classic Analog Pad» (modo Analog, con su Chorus interno activado)',
+          receta: R('parte del preset: Shape 1 y 2 diente de sierra/pulso · Cents +9 en Osc 2 (ancho, ochentero)', 'cutoff 0.50 · resonancia 0.15', 'Amp Env: ataque 300 ms · release 600 ms'),
+          eq: 'pasa-alto 150 Hz · realce +1.5 dB shelf alto desde 8 kHz — el synth pop no le teme al brillo, a diferencia del lofi.', eqB: [{ t: 'hp', f: 150 }, { t: 'hs', f: 8000, g: 1.5 }],
+          reverb: 'ChromaVerb, decay 1.4 s, mezcla 25%.', rv: { decay: 1.4, size: 60, density: 60, distance: 50, dry: 75, wet: 25 },
+          fader: '−8 dB', extra: 'el propio Retro Synth ya trae un Chorus en su sección EFFECT — actívalo, Mix ~30%, en vez de agregar uno aparte.',
+          cadena: ['Retro Synth (con su Chorus interno)', 'Channel EQ', 'ChromaVerb'] },
+        { rol: 'Lead', instr: 'Retro Synth (modo Table/Wavetable para algo más moderno, o Analog)',
+          receta: R('Shape 1: diente de sierra · Shape 2: onda cuadrada, Mix al centro', 'cutoff 0.60 · resonancia 0.20', 'Amp Env: ataque 8 ms · release 250 ms'),
+          eq: 'realce +3 dB en 4 kHz para que corte sin subir el fader.', eqB: [{ t: 'bell', f: 4000, g: 3, q: 1 }],
+          reverb: 'mismo envío del pad, mezcla 15%.', fader: '−6 dB', cadena: ['Retro Synth', 'Channel EQ', 'ChromaVerb (envío del pad)'] },
+        { rol: 'Bajo', req: ['b1', 'logic'], instr: 'Retro Synth (modo Analog, un oscilador)', hardware: 'Con la B1: raíz simple, sin adornos.',
+          receta: R('Shape 1: diente de sierra, filtro sin cerrar mucho', 'cutoff 0.45 · resonancia 0.05', 'Amp Env: ataque 5 ms · release 180 ms'),
+          eq: 'pasa-alto 35 Hz · realce +1.5 dB en 100 Hz — una raíz sostenida, no una línea elaborada.', eqB: [{ t: 'hp', f: 35 }, { t: 'bell', f: 100, g: 1.5, q: 1.2 }],
+          fader: '−7 dB', cadena: ['Retro Synth', 'Channel EQ'] },
       ],
       ritmoD1: 'Sin patrón dedicado todavía: parte de la base de house (124) y bájala a tu tempo, con menos llenado de hi-hat y el bombo firme en los 4 tiempos.',
       ritmoLogic: "Con Drummer: estilo «Electronic» o «Pop», X/Y a media altura — firme mas no repetitivo hasta el cansancio. Con Drum Machine Designer: caja con bastante cuerpo, típica de los 80.",
@@ -301,13 +416,18 @@
       padNota: 'Un acorde por compás, voicing completo de cuatro notas, relajado.',
       leadNota: 'Frases cortas, casi bluesy, con hartas pausas. Entra justo después del golpe fuerte de la caja, «atrasado», nunca encima.',
       sonido: [
-        { rol: 'Piano / Pad', instr: 'Studio Piano (piano real de Logic) o ES2 si prefieres sintetizarlo', receta: R('si es ES2: triangular + sine −1 octava (cuerpo tipo Rhodes)', '40% cutoff · 5% resonancia', 'ataque 5 ms · decay 400 ms · sustain 40% · release 500 ms (percusivo, como una tecla)'),
-          eq: 'pasa-alto suave 150 Hz · corte −2 dB en 3.2 kHz si suena metálico.', reverb: 'ChromaVerb, Room pequeño, decay 0.8 s, mezcla 15% — íntimo, como grabado en una pieza.', fader: '−9 dB' },
-        { rol: 'Bajo', req: ['b1', 'logic'], instr: 'ES M (o ES2 con un oscilador)', hardware: 'Con la B1: movimiento lento, sin resonancia marcada.',
-          receta: R('triangular + sine sub', '30% cutoff · 5% resonancia', 'ataque 10 ms (algo más suave, tipo dedo en cuerda) · release 300 ms'),
-          eq: 'pasa-alto 40 Hz · realce +2 dB en 90 Hz.', fader: '−7 dB' },
-        { rol: 'Textura', instr: 'plugins de efecto (si tu Logic los trae)', receta: null,
-          eq: 'Vinyl / crackle / wow&flutter en el bus general — define al género tanto como los acordes, no la dejes fuera.' },
+        { rol: 'Piano / Pad', instr: 'Studio Piano (piano real de Logic) — o Retro Synth si prefieres sintetizarlo',
+          receta: R('si es Retro Synth: Shape 1 triangular, Osc 2 con Semitonas −12 (cuerpo tipo Rhodes)', 'cutoff 0.40 · resonancia 0.05', 'Amp Env: ataque 5 ms · decay 400 ms · sustain 0.40 · release 500 ms (percusivo, como una tecla)'),
+          eq: 'pasa-alto suave 150 Hz · corte −2 dB en 3.2 kHz si suena metálico.', eqB: [{ t: 'hp', f: 150 }, { t: 'bell', f: 3200, g: -2, q: 1.5 }],
+          reverb: 'ChromaVerb, decay 0.8 s, mezcla 15% — íntimo, como grabado en una pieza.', rv: { decay: 0.8, size: 35, density: 50, distance: 35, dry: 85, wet: 15 },
+          fader: '−9 dB', cadena: ['Studio Piano (o Retro Synth)', 'Channel EQ', 'ChromaVerb'] },
+        { rol: 'Bajo', req: ['b1', 'logic'], instr: 'Retro Synth (modo Analog, un oscilador)', hardware: 'Con la B1: movimiento lento, sin resonancia marcada.',
+          receta: R('Shape 1: triangular · algo de seno grave', 'cutoff 0.30 · resonancia 0.05', 'Amp Env: ataque 10 ms (algo más suave, tipo dedo en cuerda) · release 300 ms'),
+          eq: 'pasa-alto 40 Hz · realce +2 dB en 90 Hz.', eqB: [{ t: 'hp', f: 40 }, { t: 'bell', f: 90, g: 2, q: 1.2 }],
+          fader: '−7 dB', cadena: ['Retro Synth', 'Channel EQ'] },
+        { rol: 'Textura', instr: 'Vinyl / crackle / wow&flutter (efecto, si tu Logic los trae)', receta: null,
+          eq: 'en el bus general — define al género tanto como los acordes, no la dejes fuera. Si no los tienes, un Tape Delay con Wet 5–8% y sin feedback da un aire parecido.',
+          dl: { nota: 'alternativa sin Vinyl', feedback: 0, wet: 7 }, cadena: ['Vinyl / crackle (bus)'] },
       ],
       ritmoD1: 'Parecido al de trip hop pero más lento y con más swing/HUMANIZE: bombo relajado, caja en 2 y 4, hi-hat con bastante «polvo».',
       ritmoLogic: "Con Drummer: estilo «Hip Hop», X/Y hacia abajo (relajado) con harto swing. Con Drum Machine Designer: kit boom-bap, bombo grueso, caja floja.",
@@ -347,11 +467,16 @@
     const cabeza = el('span', { class: 'rol' }, f.rol);
     if (f.instr && hayLogic) cabeza.append(el('span', { class: 'instr' }, f.instr));
     const cuerpo = [cabeza];
+    if (f.cadena && hayLogic) cuerpo.push(el('div', { class: 'as-cadena' },
+      ...f.cadena.flatMap((p, i) => i === 0 ? [el('span', { class: 'paso' }, p)] : [el('span', { class: 'flecha' }, '→'), el('span', { class: 'paso' }, p)])));
     if (f.receta && hayLogic) cuerpo.push(el('div', { class: 'as-receta' },
       el('div', { class: 'osc' }, el('b', {}, 'Oscilador'), f.receta.osc),
       el('div', { class: 'filtro' }, el('b', {}, 'Filtro'), f.receta.filtro),
       el('div', { class: 'env' }, el('b', {}, 'Envolvente'), f.receta.env)));
     cuerpo.push(ul);
+    if (f.eqB && hayLogic) cuerpo.push(el('div', { class: 'as-panel' }, el('div', { class: 'cab' }, 'Channel EQ'), el('div', { class: 'cuerpo' }, curvaEQ(f.eqB))));
+    if (f.rv && hayLogic) cuerpo.push(panelReverb(f.rv));
+    if (f.dl && hayLogic) cuerpo.push(panelDelay(f.dl));
     return el('div', { class: 'as-sonido-fila' }, ...cuerpo);
   }
 
@@ -388,12 +513,12 @@
       if (!tiene(s, 'ak25', 'ak37', 'b1') && tiene(s, 'logic'))
         bloque.append(el('p', { class: 'as-porque' }, 'Marcaste Logic pero ningún Akai ni la B1: Logic no toca solo — necesitas un controlador o instrumento que le mande las notas.'));
       if (tiene(s, 'logic')) bloque.append(el('div', { class: 'as-generales' },
-        el('p', {}, el('b', {}, 'Por qué así: '), 'en vez de nombrarte un «patch» — los nombres de sonido exactos cambian entre versiones de Logic y no se pueden prometer —, cada receta usa un instrumento de fábrica confirmado y te arma el sonido desde cero.'),
+        el('p', {}, el('b', {}, 'Por qué así: '), 'en vez de nombrarte un «patch» al azar, cada receta parte de ', el('b', {}, 'Retro Synth'), ' — confirmamos con tu propio Logic que el preset «Classic Analog Pad» existe de verdad, así que para el Pad se parte de ahí; para los demás roles, se arma desde cero con las mismas perillas.'),
         el('ol', {},
-          el('li', {}, 'Abre ', el('b', {}, 'ES2'), ' (o ES M / ES E / ES P si tu Logic trae las Legacy, o Retro Synth en modo Analog): todos comparten la misma lógica — oscilador → filtro → envolvente.'),
-          el('li', {}, 'Elige la forma de onda del oscilador que dice la receta (diente de sierra = brillante, cuadrada = hueca/retro, triangular o seno = suave/sub).'),
-          el('li', {}, 'Ajusta el filtro (cutoff/resonancia) y la envolvente de amplitud (ataque/release) con los números de la receta.'),
-          el('li', {}, 'En la cadena del canal, agrega un Channel EQ y un ChromaVerb (o Space Designer) con los ajustes de abajo, y deja el fader en el nivel indicado.'))));
+          el('li', {}, 'Abre ', el('b', {}, 'Retro Synth'), ' en modo ', el('b', {}, 'Analog'), ' (Sync/Table/FM para variar): Shape 1 y 2 son los osciladores, con Mix, Semitonas y Cents para separarlos.'),
+          el('li', {}, 'La sección FILTER trae Cutoff y Res como número de 0.00 a 1.00 — igual que ves en tu pantalla —, más Filter FM/LFO/Env para modulaciones.'),
+          el('li', {}, 'AMP ENV y FILTER ENV (abajo del panel) traen Ataque/Decay/Sustain/Release — ahí van los números de «Envolvente» de cada receta.'),
+          el('li', {}, 'En la cadena del canal, agrega un ', el('b', {}, 'Channel EQ'), ' (la curva de abajo) y, donde corresponda, un ', el('b', {}, 'ChromaVerb'), ' o un ', el('b', {}, 'Tape Delay'), ' — los mismos plugins de tu barra lateral —, y deja el fader en el nivel indicado.'))));
       if (filas.length) bloque.append(el('div', { class: 'as-sonido-tabla' }, ...filas));
       out.append(bloque);
     } else if (tiene(s, 'ak25', 'ak37')) {
