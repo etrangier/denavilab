@@ -14,9 +14,23 @@
   /* ── Asesor de jam: cuestionario de una sola pantalla, el resultado se recalcula solo. Acceso libre: sin sesión. ── */
   .as-libre { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
     color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 3px 10px; margin: 0 0 14px; }
-  .as-grid { display: grid; gap: 16px; margin: 20px 0 28px; }
-  @media (min-width: 760px) { .as-grid { grid-template-columns: 1fr 1fr; } }
-  .as-campo { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+
+  /* ── Pasos: uno a la vez, como el cuaderno del taller (mismo <details>, mismo gesto) ── */
+  .as-pasos { display: grid; gap: 10px; margin: 20px 0 10px; counter-reset: paso; }
+  .as-paso { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
+  .as-paso[open] { border-color: var(--accent); }
+  .as-paso > summary { cursor: pointer; padding: 13px 16px; list-style: none; display: flex; align-items: center; gap: 10px; }
+  .as-paso > summary::-webkit-details-marker { display: none; }
+  .as-paso > summary .num { counter-increment: paso; flex: 0 0 auto; width: 22px; height: 22px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line);
+    display: grid; place-items: center; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .as-paso > summary .num::before { content: counter(paso); }
+  .as-paso.hecho:not([open]) > summary .num::before { content: '✓'; }
+  .as-paso[open] > summary .num { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .as-paso > summary .tit { font-family: var(--display); font-weight: 700; font-size: 15px; }
+  .as-paso > summary .resumen { color: var(--muted); font-size: 13px; margin-left: auto; text-align: right; }
+  .as-paso[open] > summary .resumen { display: none; }
+  .as-paso .cuerpo { padding: 4px 16px 16px; }
+  .as-siguiente { margin-top: 14px; }
   .as-campo > .lbl { display: block; font-family: var(--display); font-weight: 700; font-size: 15px; margin: 0 0 10px; }
   .as-op { display: flex; flex-wrap: wrap; gap: 8px; }
   .as-chip { position: relative; }
@@ -34,6 +48,12 @@
   .as-resumen { font-size: 13.5px; color: var(--muted); margin: 0 0 22px; padding: 10px 14px; border-left: 3px solid var(--accent); background: var(--surface-2); border-radius: 0 8px 8px 0; }
   .as-bloque { margin: 0 0 26px; }
   .as-bloque > h2 { font-family: var(--display); font-size: 19px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+  .as-seccion { margin: 0 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
+  .as-seccion > summary { cursor: pointer; padding: 13px 16px; list-style: none; font-family: var(--display); font-size: 17px; }
+  .as-seccion > summary::-webkit-details-marker { display: none; }
+  .as-seccion > summary::before { content: '▸ '; color: var(--accent); }
+  .as-seccion[open] > summary::before { content: '▾ '; }
+  .as-seccion > .cuerpo { padding: 4px 16px 18px; }
   .as-porque { font-size: 13.5px; color: var(--muted); margin: 0 0 12px; max-width: 66ch; }
   .as-acordes { display: flex; flex-wrap: wrap; gap: 0; align-items: center; margin: 10px 0; }
   .as-ac { display: grid; justify-items: center; gap: 2px; padding: 8px 14px; }
@@ -47,9 +67,15 @@
   .as-sonido-fila .instr { font-family: var(--mono); font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; margin-left: 8px; }
   .as-sonido-fila ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13.5px; }
   .as-sonido-fila ul li b { font-weight: 600; }
-  .as-receta { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 14px; margin: 8px 0 0; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
-  .as-receta div { font-size: 12.5px; }
-  .as-receta div b { display: block; font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 2px; font-weight: 600; }
+  .as-receta { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0; margin: 8px 0 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .as-receta > div { font-size: 12.5px; padding: 9px 12px; border-left: 1px solid var(--line); background: var(--surface); }
+  .as-receta > div:first-child { border-left: none; }
+  .as-receta > div > b.tit { display: block; font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); margin-bottom: 6px; font-weight: 600; }
+  .as-receta .txt { font-size: 12.5px; line-height: 1.4; }
+  .as-adsr { display: block; width: 100%; height: auto; margin-top: 4px; }
+  .as-adsr .linea { fill: none; stroke: var(--accent); stroke-width: 1.6; }
+  .as-adsr .curva { fill: var(--accent); opacity: .18; }
+  .as-adsr text { fill: var(--muted); font-family: var(--mono); font-size: 7.5px; }
   .as-generales { background: var(--surface); border: 1px dashed var(--line); border-radius: 10px; padding: 14px 16px; margin: 10px 0 16px; }
   .as-generales p { font-size: 13.5px; margin: 6px 0; }
   .as-generales ol { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 4px; font-size: 13.5px; }
@@ -62,9 +88,12 @@
   .as-panel > .cuerpo { padding: 12px; }
   .as-eq-curva { display: block; width: 100%; height: auto; }
   .as-eq-curva .eje { stroke: var(--line); stroke-width: 1; }
+  .as-eq-curva .cero { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 2; }
   .as-eq-curva .curva { fill: var(--accent); opacity: .22; }
   .as-eq-curva .linea { fill: none; stroke: var(--accent); stroke-width: 1.6; }
-  .as-eq-curva text { fill: var(--muted); font-family: var(--mono); font-size: 7px; }
+  .as-eq-curva text { fill: var(--muted); font-family: var(--mono); font-size: 8px; }
+  .as-eq-curva text.dB { fill: var(--accent); font-weight: 600; }
+  .as-eq-leyenda { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
   .as-diales { display: flex; flex-wrap: wrap; gap: 14px; }
   .as-dial { display: grid; justify-items: center; gap: 3px; width: 56px; }
   .as-dial svg { width: 44px; height: 44px; }
@@ -105,58 +134,70 @@
 
   <span class="as-libre">Acceso libre · sin sesión</span>
   <h1>Asesor de jam session</h1>
-  <p class="lede">Antes de tocar, no en vivo. Cuenta qué vas a usar y qué quieres tocar, y te deja el sonido, el ritmo y los acordes pensados para tu Donner D1, tu B1, el Akai y Logic Pro — sin conectarse a nada de eso. Cambia cualquier respuesta y lo de abajo se recalcula solo.</p>
+  <p class="lede">Antes de tocar, no en vivo. Cuatro preguntas cortas y te deja el sonido, el ritmo y los acordes pensados para tu Donner D1, tu B1, el Akai y Logic Pro — sin conectarse a nada de eso. Puedes volver a cualquier paso y cambiar la respuesta cuando quieras.</p>
 
-  <div class="as-grid">
-    <div class="as-campo">
-      <span class="lbl">¿Quiénes tocan?</span>
-      <div class="as-op" id="asPersonas">
-        <label class="as-chip"><input type="radio" name="personas" value="1" checked><span>Solo</span></label>
-        <label class="as-chip"><input type="radio" name="personas" value="2"><span>Dos</span></label>
-        <label class="as-chip"><input type="radio" name="personas" value="3"><span>Tres o más</span></label>
+  <div class="as-pasos" id="asPasos">
+    <details class="as-paso" id="pasoPersonas" open>
+      <summary><span class="num"></span><span class="tit">¿Quiénes tocan?</span><span class="resumen" id="resPersonas"></span></summary>
+      <div class="cuerpo">
+        <div class="as-op" id="asPersonas">
+          <label class="as-chip"><input type="radio" name="personas" value="1" checked><span>Solo</span></label>
+          <label class="as-chip"><input type="radio" name="personas" value="2"><span>Dos</span></label>
+          <label class="as-chip"><input type="radio" name="personas" value="3"><span>Tres o más</span></label>
+        </div>
+        <button type="button" class="btn as-siguiente" data-next="pasoInstrumentos">Siguiente →</button>
       </div>
-    </div>
+    </details>
 
-    <div class="as-campo">
-      <span class="lbl">¿Cable MIDI entre los aparatos?</span>
-      <div class="as-op" id="asCable">
-        <label class="as-chip"><input type="radio" name="cable" value="si" checked><span>Sí, van sincronizados</span></label>
-        <label class="as-chip"><input type="radio" name="cable" value="no"><span>No, suenan a su aire</span></label>
+    <details class="as-paso" id="pasoInstrumentos">
+      <summary><span class="num"></span><span class="tit">¿Qué vas a usar?</span><span class="resumen" id="resInstrumentos"></span></summary>
+      <div class="cuerpo">
+        <div class="as-op" id="asInstrumentos">
+          <label class="as-chip"><input type="checkbox" value="d1" checked><span>Donner D1</span></label>
+          <label class="as-chip"><input type="checkbox" value="b1"><span>Donner B1</span></label>
+          <label class="as-chip"><input type="checkbox" value="ak25"><span>Akai MPK mini (25 teclas)</span></label>
+          <label class="as-chip"><input type="checkbox" value="ak37" checked><span>Akai MPK mini Plus (37 teclas)</span></label>
+          <label class="as-chip"><input type="checkbox" value="logic" checked><span>Logic Pro</span></label>
+          <label class="as-chip"><input type="checkbox" value="bajoelec"><span>Bajo eléctrico</span></label>
+        </div>
+        <input type="text" class="as-otro" id="asOtro" placeholder="Otro instrumento o sintetizador (opcional) — se anota, sin sugerencias específicas">
+        <button type="button" class="btn as-siguiente" data-next="pasoCable">Siguiente →</button>
       </div>
-    </div>
+    </details>
 
-    <div class="as-campo" style="grid-column: 1 / -1">
-      <span class="lbl">¿Qué vas a usar?</span>
-      <div class="as-op" id="asInstrumentos">
-        <label class="as-chip"><input type="checkbox" value="d1" checked><span>Donner D1</span></label>
-        <label class="as-chip"><input type="checkbox" value="b1"><span>Donner B1</span></label>
-        <label class="as-chip"><input type="checkbox" value="ak25"><span>Akai MPK mini (25 teclas)</span></label>
-        <label class="as-chip"><input type="checkbox" value="ak37" checked><span>Akai MPK mini Plus (37 teclas)</span></label>
-        <label class="as-chip"><input type="checkbox" value="logic" checked><span>Logic Pro</span></label>
-        <label class="as-chip"><input type="checkbox" value="bajoelec"><span>Bajo eléctrico</span></label>
+    <details class="as-paso" id="pasoCable">
+      <summary><span class="num"></span><span class="tit">¿Cable MIDI entre los aparatos?</span><span class="resumen" id="resCable"></span></summary>
+      <div class="cuerpo">
+        <div class="as-op" id="asCable">
+          <label class="as-chip"><input type="radio" name="cable" value="si" checked><span>Sí, van sincronizados</span></label>
+          <label class="as-chip"><input type="radio" name="cable" value="no"><span>No, suenan a su aire</span></label>
+        </div>
+        <button type="button" class="btn as-siguiente" data-next="pasoGenero">Siguiente →</button>
       </div>
-      <input type="text" class="as-otro" id="asOtro" placeholder="Otro instrumento o sintetizador (opcional) — se anota, sin sugerencias específicas">
-    </div>
+    </details>
 
-    <div class="as-campo" style="grid-column: 1 / -1">
-      <span class="lbl">¿Qué vas a tocar?</span>
-      <select class="as-select" id="asGenero">
-        <option value="trip-hop">Trip hop</option>
-        <option value="lofi-house" selected>Lofi house</option>
-        <option value="house">House</option>
-        <option value="acid-house">Acid house</option>
-        <option value="synth-pop">Synth pop</option>
-        <option value="lofi-hiphop">Lo-fi hip hop</option>
-      </select>
-      <div class="as-bpm-row">
-        <span class="lbl" style="margin:0">BPM</span>
-        <input type="number" id="asBpm" min="40" max="200">
-        <span class="as-bpm-hint" id="asBpmHint"></span>
+    <details class="as-paso" id="pasoGenero">
+      <summary><span class="num"></span><span class="tit">¿Qué vas a tocar?</span><span class="resumen" id="resGenero"></span></summary>
+      <div class="cuerpo">
+        <select class="as-select" id="asGenero">
+          <option value="trip-hop">Trip hop</option>
+          <option value="lofi-house" selected>Lofi house</option>
+          <option value="house">House</option>
+          <option value="acid-house">Acid house</option>
+          <option value="synth-pop">Synth pop</option>
+          <option value="lofi-hiphop">Lo-fi hip hop</option>
+        </select>
+        <div class="as-bpm-row">
+          <span class="lbl" style="margin:0">BPM</span>
+          <input type="number" id="asBpm" min="40" max="200">
+          <span class="as-bpm-hint" id="asBpmHint"></span>
+        </div>
+        <button type="button" class="btn as-siguiente" id="btnVerPlan">Ver el plan →</button>
       </div>
-    </div>
+    </details>
   </div>
 
-  <div class="as-resultado" id="asResultado"></div>
+  <div class="as-resultado" id="asResultado" hidden></div>
 
   <p class="as-aviso">De dónde sale esto: los BPM y los patrones de batería vienen de tus propias guías «D1 en vivo» y «Logic + Akai en vivo». El instrumento de las recetas es Retro Synth — confirmado con capturas de tu propio Logic, incluido el preset «Classic Analog Pad» que usamos como punto de partida del Pad —, más Channel EQ, ChromaVerb y Tape Delay, los mismos plugins que se ven en tu barra lateral. Los nombres de parámetro (Cutoff, Res, Decay, Wet…) son los reales; los números y las curvas ilustradas son puntos de partida razonables, no ajustes tomados de tu Logic — confírmalos escuchando y muévelos si algo no calza con tu oído. Batería (Drummer, Drum Machine Designer) confirmados en la documentación de Apple y reseñas técnicas de Logic Pro. El swing y las convenciones de secuenciación (Linn, swing de triplet, on-beat/off-beat) salen de «Drum Machine 101» de Captain Pikant — un libro técnico y medido, no una opinión: el swing sólo aparece en el 15% de los patrones que transcribió, pero es donde más se nota en house y hip hop, que es justo cuándo lo recomendamos acá.</p>
 </div>
@@ -183,11 +224,11 @@
     return svg;
   }
 
-  // Curva de EQ, a la manera del Channel EQ real (banda log de 20 Hz a 20 kHz, ganancia en dB).
+  // Curva de EQ, a la manera del Channel EQ real (banda log de 20 Hz a 20 kHz, ganancia en dB, con su eje).
   // bandas: [{t:'hp'|'lp'|'ls'|'hs'|'bell', f: Hz, g: dB, q}]. No es una simulación exacta del filtro,
   // es una ilustración de la forma — para ver de un vistazo qué sube y qué baja, como en tu captura.
   function curvaEQ(bandas) {
-    const W = 320, H = 90, x0 = 20, x1 = 300, yc = 45, esc = 3.2;   // esc: px por dB
+    const W = 320, H = 110, x0 = 30, x1 = 310, yc = 55, esc = 2, margen = 10;   // esc: px por dB (±24 dB caben en ±48 px)
     const xDe = hz => x0 + (Math.log10(hz / 20) / Math.log10(20000 / 20)) * (x1 - x0);
     const gEn = x => { const hz = 20 * Math.pow(1000, (x - x0) / (x1 - x0));
       let g = 0;
@@ -205,14 +246,38 @@
     for (let x = x0; x <= x1; x += 4) d += ` L ${x} ${yc - Math.max(-24, Math.min(24, gEn(x))) * esc}`;
     const relleno = d + ` L ${x1} ${yc} L ${x0} ${yc} Z`;
     const svg = svgEl('svg', { class: 'as-eq-curva', viewBox: `0 0 ${W} ${H}`, 'aria-hidden': 'true' });
-    svg.append(svgEl('line', { class: 'eje', x1: x0, x2: x1, y1: yc, y2: yc }));
+    // eje vertical: dB, con el 0 marcado (ahí el sonido no cambia)
+    [-12, 0, 12].forEach(db => { const y = yc - db * esc;
+      svg.append(svgEl('line', { class: db === 0 ? 'cero' : 'eje', x1: x0, x2: x1, y1: y, y2: y, opacity: db === 0 ? 1 : .3 }));
+      const t = svgEl('text', { x: 2, y: y + 3 }); t.textContent = (db > 0 ? '+' : '') + db; svg.append(t);
+    });
+    // eje horizontal: Hz
     [100, 1000, 10000].forEach(hz => { const x = xDe(hz);
-      svg.append(svgEl('line', { class: 'eje', x1: x, x2: x, y1: 8, y2: H - 8, opacity: .4 }));
-      const t = svgEl('text', { x: x + 2, y: H - 4 }); t.textContent = hz >= 1000 ? (hz / 1000) + 'k' : hz; svg.append(t);
+      svg.append(svgEl('line', { class: 'eje', x1: x, x2: x, y1: margen, y2: H - margen, opacity: .3 }));
+      const t = svgEl('text', { x: x + 2, y: H - 3 }); t.textContent = hz >= 1000 ? (hz / 1000) + 'k' : hz; svg.append(t);
     });
     svg.append(svgEl('path', { class: 'curva', d: relleno }));
     svg.append(svgEl('path', { class: 'linea', d }));
-    bandas.forEach(b => { if (!['hp', 'lp'].includes(b.t)) { const cx = xDe(b.f); const t = svgEl('text', { x: cx - 8, y: 10 }); t.textContent = (b.f >= 1000 ? (b.f / 1000) + 'k' : b.f) + ' ' + (b.g > 0 ? '+' : '') + b.g + 'dB'; svg.append(t); } });
+    bandas.forEach(b => { if (!['hp', 'lp'].includes(b.t)) { const cx = xDe(b.f), cy = yc - Math.max(-24, Math.min(24, b.g || 0)) * esc;
+      const t = svgEl('text', { class: 'dB', x: Math.min(x1 - 55, Math.max(x0, cx - 20)), y: cy + (b.g >= 0 ? -6 : 14) });
+      t.textContent = (b.f >= 1000 ? (b.f / 1000) + 'k' : b.f) + 'Hz ' + (b.g > 0 ? '+' : '') + (b.g || 0) + 'dB'; svg.append(t); } });
+    return svg;
+  }
+  // Un dial chico para leer cutoff/resonancia (0.00–1.00, igual a como los muestra Retro Synth).
+  function dialMini(valor01, etiqueta) { return dial(valor01, etiqueta, valor01.toFixed(2)); }
+
+  // Envolvente ADSR, a la manera del gráfico que ya trae Retro Synth (AMP ENV / FILTER ENV): sube en el
+  // ataque, cae al nivel de sostén, y baja del todo en el release. a/d/r en ms, s de 0 a 1.
+  function envolventeADSR(a, d, s, r) {
+    const W = 200, H = 60, pad = 6, total = Math.max(1, a + d + 400 + r);   // 400 ms de «sostén visible» fijos
+    const escX = (W - pad * 2) / total, x0 = pad, yBase = H - pad, yTop = pad;
+    const xA = x0 + a * escX, xD = xA + d * escX, xS = xD + 400 * escX, xR = xS + r * escX;
+    const yS = yBase - (yBase - yTop) * Math.max(0, Math.min(1, s));
+    const path = `M ${x0} ${yBase} L ${xA} ${yTop} L ${xD} ${yS} L ${xS} ${yS} L ${xR} ${yBase}`;
+    const svg = svgEl('svg', { class: 'as-adsr', viewBox: `0 0 ${W} ${H}`, 'aria-hidden': 'true' });
+    svg.append(svgEl('path', { class: 'curva', d: path + ` L ${xR} ${yBase} Z` }));
+    svg.append(svgEl('path', { class: 'linea', d: path }));
+    [['A', x0, xA], ['D', xA, xD], ['R', xS, xR]].forEach(([l, xa, xb]) => { const t = svgEl('text', { x: (xa + xb) / 2 - 2, y: H - 1 }); t.textContent = l; svg.append(t); });
     return svg;
   }
 
@@ -278,7 +343,7 @@
       variante: 'Para una vuelta de tensión antes de resolver, prueba subir la tercera del V (el sol se vuelve mi mayor arriba, sol-si-re → mi-sol♯-si): es la resolución de la menor armónica, un color melancólico muy propio del género.',
       sonido: [
         { rol: 'Pad', instr: 'Retro Synth · preset «Classic Analog Pad» (modo Analog)',
-          receta: R('parte del preset: Shape 1 y 2 entre diente de sierra y pulso · Cents +7 en Osc 2, para el ancho', 'cutoff 0.35 · resonancia 0.12 (filtro LP 24dB Lush/Fat, el que ya trae el preset)', 'Amp Env: ataque 400 ms · release 700 ms (el preset trae más largo; acórtalo para trip hop)'),
+          receta: R('parte del preset: Shape 1 y 2 entre diente de sierra y pulso · Cents +7 en Osc 2, para el ancho', 'cutoff 0.35 · resonancia 0.12 (filtro LP 24dB Lush/Fat, el que ya trae el preset)', 'Amp Env: ataque 400 ms · release 700 ms (el preset trae más largo; acórtalo para trip hop)'), adsr: {cutoff: 0.35, res: 0.12, a: 400, d: 200, s: 0.8, r: 700},
           eq: 'pasa-alto 180 Hz (12 dB/oct) · shelf alto −2.5 dB desde 2.5 kHz si suena filoso — el mismo criterio que usamos en el Pad de DenaviLab: los agudos son los que cansan, no el timbre.',
           eqB: [{ t: 'hp', f: 180 }, { t: 'hs', f: 2500, g: -2.5 }],
           reverb: 'ChromaVerb, decay 2.8 s, mezcla 30%.', rv: { preset: 'Smooth Space, de partida', decay: 2.8, size: 80, density: 60, distance: 60, dry: 70, wet: 30 },
@@ -286,7 +351,7 @@
           cadena: ['Retro Synth', 'Channel EQ', 'ChromaVerb', 'Tape Delay'] },
         { rol: 'Bajo', req: ['b1', 'bajoelec', 'logic'], instr: 'Retro Synth (modo Analog, un oscilador)',
           hardware: 'Con la B1: cutoff bajo, resonancia suave, envolvente larga — un bajo redondo, no punzante. Dóblalo con el bajo eléctrico si lo tienes, a la octava.',
-          receta: R('Shape 1: onda seno/triangular (Mix a fondo hacia Osc 1)', 'cutoff 0.30 · resonancia 0.05', 'Amp Env: ataque 8 ms · release 200 ms'),
+          receta: R('Shape 1: onda seno/triangular (Mix a fondo hacia Osc 1)', 'cutoff 0.30 · resonancia 0.05', 'Amp Env: ataque 8 ms · release 200 ms'), adsr: {cutoff: 0.3, res: 0.05, a: 8, d: 50, s: 0.9, r: 200},
           eq: 'pasa-alto 35 Hz · realce +2.5 dB en 90 Hz · corte −3 dB en 500 Hz (el barro). Sin reverb: que quede al frente y limpio.',
           eqB: [{ t: 'hp', f: 35 }, { t: 'bell', f: 90, g: 2.5, q: 1.2 }, { t: 'bell', f: 500, g: -3, q: 1 }],
           fader: '−7 dB', cadena: ['Retro Synth', 'Channel EQ'] },
@@ -307,17 +372,17 @@
       leadNota: 'Activa el ARP del Akai sosteniendo las tres notas del acorde: esa textura repetitiva de fondo es la seña de identidad del lofi house.',
       sonido: [
         { rol: 'Pad', instr: 'Retro Synth · preset «Classic Analog Pad» (modo Analog)',
-          receta: R('parte del preset: Shape 1 y 2 diente de sierra/pulso · Cents +7 en Osc 2', 'cutoff 0.45 · resonancia 0.15', 'Amp Env: ataque 250 ms · release 500 ms (más corto que en trip hop)'),
+          receta: R('parte del preset: Shape 1 y 2 diente de sierra/pulso · Cents +7 en Osc 2', 'cutoff 0.45 · resonancia 0.15', 'Amp Env: ataque 250 ms · release 500 ms (más corto que en trip hop)'), adsr: {cutoff: 0.45, res: 0.15, a: 250, d: 150, s: 0.8, r: 500},
           eq: 'pasa-alto 160 Hz · shelf alto −2 dB desde 3 kHz si molesta.', eqB: [{ t: 'hp', f: 160 }, { t: 'hs', f: 3000, g: -2 }],
           reverb: 'ChromaVerb, decay 1.3 s, mezcla 18% — no tan largo como trip hop, que no tape el groove.', rv: { decay: 1.3, size: 55, density: 55, distance: 45, dry: 82, wet: 18 },
           fader: '−8 dB', cadena: ['Retro Synth', 'Channel EQ', 'ChromaVerb'] },
         { rol: 'Arpegio / pluck', instr: 'Retro Synth (modo Analog, envolvente corta)',
-          receta: R('Shape 1: diente de sierra', 'cutoff 0.60 · resonancia 0.20', 'Amp Env: ataque 2 ms · decay 150 ms · sustain 0 · release 60 ms (percusivo)'),
+          receta: R('Shape 1: diente de sierra', 'cutoff 0.60 · resonancia 0.20', 'Amp Env: ataque 2 ms · decay 150 ms · sustain 0 · release 60 ms (percusivo)'), adsr: {cutoff: 0.6, res: 0.2, a: 2, d: 150, s: 0, r: 60},
           eq: 'realce +2.5 dB en 3.5 kHz para que se sienta sin subir el fader.', eqB: [{ t: 'bell', f: 3500, g: 2.5, q: 1 }],
           reverb: 'mismo envío del pad, mezcla 12%.', fader: '−8 dB', cadena: ['Retro Synth', 'Channel EQ', 'ChromaVerb (envío del pad)'] },
         { rol: 'Bajo', req: ['b1', 'logic'], instr: 'Retro Synth (modo Analog, un oscilador)',
           hardware: 'Con la B1: filtro más cerrado que en house liso, movimiento lento.',
-          receta: R('Shape 1: seno/triangular · un poco de Osc 2 diente de sierra para cuerpo', 'cutoff 0.35 · resonancia 0.08', 'Amp Env: ataque 3 ms · release 150 ms'),
+          receta: R('Shape 1: seno/triangular · un poco de Osc 2 diente de sierra para cuerpo', 'cutoff 0.35 · resonancia 0.08', 'Amp Env: ataque 3 ms · release 150 ms'), adsr: {cutoff: 0.35, res: 0.08, a: 3, d: 50, s: 0.9, r: 150},
           eq: 'pasa-alto 35–40 Hz (debajo es ruido, no grave útil).', eqB: [{ t: 'hp', f: 38 }],
           extra: 'sidechain: Compressor de Logic en el bajo, entrada lateral = la pista de la D1, para que bajo y bombo se turnen el espacio.', fader: '−6 dB',
           cadena: ['Retro Synth', 'Channel EQ', 'Compressor (sidechain)'] },
@@ -341,13 +406,13 @@
       leadNota: 'Un stab corto en el contratiempo, o el mismo acorde con el ARP. Evita melodías largas: el house se mueve por groove, no por melodía.',
       sonido: [
         { rol: 'Stab / acordes', instr: 'Retro Synth (modo Analog, mezcla de dos formas)',
-          receta: R('Shape 1: diente de sierra · Shape 2: onda cuadrada, Mix al centro (tipo brass)', 'cutoff 0.55 · resonancia 0.10', 'Amp Env: ataque 5 ms · decay 250 ms · sustain 0 · release 80 ms (se corta, no se sostiene)'),
+          receta: R('Shape 1: diente de sierra · Shape 2: onda cuadrada, Mix al centro (tipo brass)', 'cutoff 0.55 · resonancia 0.10', 'Amp Env: ataque 5 ms · decay 250 ms · sustain 0 · release 80 ms (se corta, no se sostiene)'), adsr: {cutoff: 0.55, res: 0.1, a: 5, d: 250, s: 0, r: 80},
           eq: 'pasa-alto agresivo 220 Hz (18 dB/oct) — deja el grave para el bajo y la D1 — realce +2 dB en 1.5 kHz para que corte.', eqB: [{ t: 'hp', f: 220 }, { t: 'bell', f: 1500, g: 2, q: 1 }],
           reverb: 'ChromaVerb, decay 0.6 s, mezcla 10% — casi seco, para no embarrar el four-on-the-floor.', rv: { decay: 0.6, size: 30, density: 50, distance: 30, dry: 90, wet: 10 },
           fader: '−7 dB', cadena: ['Retro Synth', 'Channel EQ', 'ChromaVerb'] },
         { rol: 'Bajo', req: ['b1', 'logic'], instr: 'Retro Synth (modo Analog, un oscilador)',
           hardware: 'Con la B1: una sola nota grave y limpia, sin adornos.',
-          receta: R('Shape 1: seno/triangular · un poco de Osc 2 para cuerpo', 'cutoff 0.35 · resonancia 0.08', 'Amp Env: ataque 3 ms · release 150 ms'),
+          receta: R('Shape 1: seno/triangular · un poco de Osc 2 para cuerpo', 'cutoff 0.35 · resonancia 0.08', 'Amp Env: ataque 3 ms · release 150 ms'), adsr: {cutoff: 0.35, res: 0.08, a: 3, d: 50, s: 0.9, r: 150},
           eq: 'pasa-alto 35 Hz · realce +2 dB en 80–100 Hz.', eqB: [{ t: 'hp', f: 35 }, { t: 'bell', f: 90, g: 2, q: 1.2 }],
           extra: 'sidechain: Compressor de Logic, entrada lateral = la pista de la D1 (ratio 4:1, ataque rápido, release medio) — es lo que hace «respirar» al house.', fader: '−6 dB',
           cadena: ['Retro Synth', 'Channel EQ', 'Compressor (sidechain)'] },
@@ -369,12 +434,12 @@
       sonido: [
         { rol: 'Bajo (el protagonista)', req: ['b1', 'logic'], instr: 'Retro Synth (modo Analog) — el knob «Env» del filtro es la envolvente dedicada al cutoff',
           hardware: 'Con la B1: resonancia alta, cutoff bajo para empezar, y ábrelo con la mano en vivo. El control real que hace el «squelch» es el Gate Length de cada paso (0–8): un 4 es una 32ª nota, «el largo por defecto de un 303» según la propia ficha de la B1 — córtalo corto para el efecto stabby, o súbelo a 8 para atar dos notas. ACCENT y SLIDE son botones dedicados, uno por paso; combina slide entre dos notas de igual altura para simular una nota sostenida. RATCHET mete redobles rápidos en un paso, para los remates.',
-          receta: R('Shape 1: diente de sierra, un solo oscilador (Mix a fondo)', 'cutoff 0.15–0.20 para empezar · resonancia 0.75–0.85', 'Amp Env: ataque 2 ms, release 100 ms · Filter Env: decay 180 ms, sustain 0.10, perilla «Env» del filtro a ~60% — eso es lo que hace el «squelch»'),
+          receta: R('Shape 1: diente de sierra, un solo oscilador (Mix a fondo)', 'cutoff 0.15–0.20 para empezar · resonancia 0.75–0.85', 'Amp Env: ataque 2 ms, release 100 ms · Filter Env: decay 180 ms, sustain 0.10, perilla «Env» del filtro a ~60% — eso es lo que hace el «squelch»'), adsr: {cutoff: 0.18, res: 0.8, a: 2, d: 30, s: 0.8, r: 100},
           eq: 'sólo pasa-alto 30 Hz para el subsónico. No toques medios ni agudos ahí vive el carácter — el trabajo lo hace el filtro, no el EQ.', eqB: [{ t: 'hp', f: 30 }],
           extra: 'Tape Delay: nota 1/16, feedback bajo, sin saturarlo — le suma movimiento sin tocar la armonía.', dl: { nota: '1/16', feedback: 20, wet: 15 },
           fader: '−5 dB (el protagonista, más alto que el resto)', cadena: ['Retro Synth', 'Channel EQ', 'Tape Delay'] },
         { rol: 'Pad (opcional, discreto)', instr: 'Retro Synth (modo Analog, un oscilador)',
-          receta: R('Shape 1: triangular (Mix a fondo)', 'cutoff 0.25 · resonancia 0.08', 'Amp Env: ataque 600 ms · release 900 ms'),
+          receta: R('Shape 1: triangular (Mix a fondo)', 'cutoff 0.25 · resonancia 0.08', 'Amp Env: ataque 600 ms · release 900 ms'), adsr: {cutoff: 0.25, res: 0.08, a: 600, d: 200, s: 0.85, r: 900},
           eq: 'shelf alto −4 dB desde 2 kHz — bien apagado.', eqB: [{ t: 'hs', f: 2000, g: -4 }],
           fader: '−14 dB (de fondo, casi imperceptible)', cadena: ['Retro Synth', 'Channel EQ'] },
       ],
@@ -394,17 +459,17 @@
       leadNota: 'Una melodía simple y pegajosa, de pocas notas, que vuelve. El gancho importa más que la variación; deja espacio entre frases.',
       sonido: [
         { rol: 'Pad', instr: 'Retro Synth · preset «Classic Analog Pad» (modo Analog, con su Chorus interno activado)',
-          receta: R('parte del preset: Shape 1 y 2 diente de sierra/pulso · Cents +9 en Osc 2 (ancho, ochentero)', 'cutoff 0.50 · resonancia 0.15', 'Amp Env: ataque 300 ms · release 600 ms'),
+          receta: R('parte del preset: Shape 1 y 2 diente de sierra/pulso · Cents +9 en Osc 2 (ancho, ochentero)', 'cutoff 0.50 · resonancia 0.15', 'Amp Env: ataque 300 ms · release 600 ms'), adsr: {cutoff: 0.5, res: 0.15, a: 300, d: 150, s: 0.8, r: 600},
           eq: 'pasa-alto 150 Hz · realce +1.5 dB shelf alto desde 8 kHz — el synth pop no le teme al brillo, a diferencia del lofi.', eqB: [{ t: 'hp', f: 150 }, { t: 'hs', f: 8000, g: 1.5 }],
           reverb: 'ChromaVerb, decay 1.4 s, mezcla 25%.', rv: { decay: 1.4, size: 60, density: 60, distance: 50, dry: 75, wet: 25 },
           fader: '−8 dB', extra: 'el propio Retro Synth ya trae un Chorus en su sección EFFECT — actívalo, Mix ~30%, en vez de agregar uno aparte.',
           cadena: ['Retro Synth (con su Chorus interno)', 'Channel EQ', 'ChromaVerb'] },
         { rol: 'Lead', instr: 'Retro Synth (modo Table/Wavetable para algo más moderno, o Analog)',
-          receta: R('Shape 1: diente de sierra · Shape 2: onda cuadrada, Mix al centro', 'cutoff 0.60 · resonancia 0.20', 'Amp Env: ataque 8 ms · release 250 ms'),
+          receta: R('Shape 1: diente de sierra · Shape 2: onda cuadrada, Mix al centro', 'cutoff 0.60 · resonancia 0.20', 'Amp Env: ataque 8 ms · release 250 ms'), adsr: {cutoff: 0.6, res: 0.2, a: 8, d: 80, s: 0.7, r: 250},
           eq: 'realce +3 dB en 4 kHz para que corte sin subir el fader.', eqB: [{ t: 'bell', f: 4000, g: 3, q: 1 }],
           reverb: 'mismo envío del pad, mezcla 15%.', fader: '−6 dB', cadena: ['Retro Synth', 'Channel EQ', 'ChromaVerb (envío del pad)'] },
         { rol: 'Bajo', req: ['b1', 'logic'], instr: 'Retro Synth (modo Analog, un oscilador)', hardware: 'Con la B1: raíz simple, sin adornos.',
-          receta: R('Shape 1: diente de sierra, filtro sin cerrar mucho', 'cutoff 0.45 · resonancia 0.05', 'Amp Env: ataque 5 ms · release 180 ms'),
+          receta: R('Shape 1: diente de sierra, filtro sin cerrar mucho', 'cutoff 0.45 · resonancia 0.05', 'Amp Env: ataque 5 ms · release 180 ms'), adsr: {cutoff: 0.45, res: 0.05, a: 5, d: 50, s: 0.9, r: 180},
           eq: 'pasa-alto 35 Hz · realce +1.5 dB en 100 Hz — una raíz sostenida, no una línea elaborada.', eqB: [{ t: 'hp', f: 35 }, { t: 'bell', f: 100, g: 1.5, q: 1.2 }],
           fader: '−7 dB', cadena: ['Retro Synth', 'Channel EQ'] },
       ],
@@ -423,12 +488,12 @@
       leadNota: 'Frases cortas, casi bluesy, con hartas pausas. Entra justo después del golpe fuerte de la caja, «atrasado», nunca encima.',
       sonido: [
         { rol: 'Piano / Pad', instr: 'Studio Piano (piano real de Logic) — o Retro Synth si prefieres sintetizarlo',
-          receta: R('si es Retro Synth: Shape 1 triangular, Osc 2 con Semitonas −12 (cuerpo tipo Rhodes)', 'cutoff 0.40 · resonancia 0.05', 'Amp Env: ataque 5 ms · decay 400 ms · sustain 0.40 · release 500 ms (percusivo, como una tecla)'),
+          receta: R('si es Retro Synth: Shape 1 triangular, Osc 2 con Semitonas −12 (cuerpo tipo Rhodes)', 'cutoff 0.40 · resonancia 0.05', 'Amp Env: ataque 5 ms · decay 400 ms · sustain 0.40 · release 500 ms (percusivo, como una tecla)'), adsr: {cutoff: 0.4, res: 0.05, a: 5, d: 400, s: 0.4, r: 500},
           eq: 'pasa-alto suave 150 Hz · corte −2 dB en 3.2 kHz si suena metálico.', eqB: [{ t: 'hp', f: 150 }, { t: 'bell', f: 3200, g: -2, q: 1.5 }],
           reverb: 'ChromaVerb, decay 0.8 s, mezcla 15% — íntimo, como grabado en una pieza.', rv: { decay: 0.8, size: 35, density: 50, distance: 35, dry: 85, wet: 15 },
           fader: '−9 dB', cadena: ['Studio Piano (o Retro Synth)', 'Channel EQ', 'ChromaVerb'] },
         { rol: 'Bajo', req: ['b1', 'logic'], instr: 'Retro Synth (modo Analog, un oscilador)', hardware: 'Con la B1: movimiento lento, sin resonancia marcada.',
-          receta: R('Shape 1: triangular · algo de seno grave', 'cutoff 0.30 · resonancia 0.05', 'Amp Env: ataque 10 ms (algo más suave, tipo dedo en cuerda) · release 300 ms'),
+          receta: R('Shape 1: triangular · algo de seno grave', 'cutoff 0.30 · resonancia 0.05', 'Amp Env: ataque 10 ms (algo más suave, tipo dedo en cuerda) · release 300 ms'), adsr: {cutoff: 0.3, res: 0.05, a: 10, d: 60, s: 0.85, r: 300},
           eq: 'pasa-alto 40 Hz · realce +2 dB en 90 Hz.', eqB: [{ t: 'hp', f: 40 }, { t: 'bell', f: 90, g: 2, q: 1.2 }],
           fader: '−7 dB', cadena: ['Retro Synth', 'Channel EQ'] },
         { rol: 'Textura', instr: 'Vinyl / crackle / wow&flutter (efecto, si tu Logic los trae)', receta: null,
@@ -476,15 +541,31 @@
     const cuerpo = [cabeza];
     if (f.cadena && hayLogic) cuerpo.push(el('div', { class: 'as-cadena' },
       ...f.cadena.flatMap((p, i) => i === 0 ? [el('span', { class: 'paso' }, p)] : [el('span', { class: 'flecha' }, '→'), el('span', { class: 'paso' }, p)])));
-    if (f.receta && hayLogic) cuerpo.push(el('div', { class: 'as-receta' },
-      el('div', { class: 'osc' }, el('b', {}, 'Oscilador'), f.receta.osc),
-      el('div', { class: 'filtro' }, el('b', {}, 'Filtro'), f.receta.filtro),
-      el('div', { class: 'env' }, el('b', {}, 'Envolvente'), f.receta.env)));
+    if (f.receta && hayLogic) {
+      const filtroCol = [el('b', { class: 'tit' }, 'Filtro'), el('p', { class: 'txt' }, f.receta.filtro)];
+      if (f.adsr) filtroCol.push(dialMini(f.adsr.cutoff, 'Cutoff'), dialMini(f.adsr.res, 'Res'));
+      const envCol = [el('b', { class: 'tit' }, 'Envolvente'), el('p', { class: 'txt' }, f.receta.env)];
+      if (f.adsr) envCol.push(envolventeADSR(f.adsr.a, f.adsr.d, f.adsr.s, f.adsr.r));
+      cuerpo.push(el('div', { class: 'as-receta' },
+        el('div', {}, el('b', { class: 'tit' }, 'Oscilador'), el('p', { class: 'txt' }, f.receta.osc)),
+        el('div', {}, ...filtroCol),
+        el('div', {}, ...envCol)));
+    }
     cuerpo.push(ul);
-    if (f.eqB && hayLogic) cuerpo.push(el('div', { class: 'as-panel' }, el('div', { class: 'cab' }, 'Channel EQ'), el('div', { class: 'cuerpo' }, curvaEQ(f.eqB))));
+    if (f.eqB && hayLogic) cuerpo.push(el('div', { class: 'as-panel' }, el('div', { class: 'cab' }, 'Channel EQ'),
+      el('div', { class: 'cuerpo' }, curvaEQ(f.eqB), el('p', { class: 'as-eq-leyenda' }, 'Donde la línea sube, ese tramo suena más fuerte; donde baja, más bajo. La línea punteada es 0 dB: ahí nada cambia.'))));
     if (f.rv && hayLogic) cuerpo.push(panelReverb(f.rv));
     if (f.dl && hayLogic) cuerpo.push(panelDelay(f.dl));
     return el('div', { class: 'as-sonido-fila' }, ...cuerpo);
+  }
+
+  // Cada sección del plan es un acordeón que recuerda si estaba abierta o cerrada, aunque pintar() reconstruya todo de nuevo
+  const seccionesAbiertas = new Set(['ritmo', 'sonido', 'acordes', 'secuencias']);
+  function seccion(clave, titulo, ...hijos) {
+    const d = el('details', { class: 'as-seccion' }, el('summary', {}, titulo), el('div', { class: 'cuerpo' }, ...hijos));
+    d.open = seccionesAbiertas.has(clave);
+    d.addEventListener('toggle', () => { d.open ? seccionesAbiertas.add(clave) : seccionesAbiertas.delete(clave); });
+    return d;
   }
 
   function pintar() {
@@ -502,36 +583,35 @@
 
     // Ritmo
     const hayD1 = tiene(s, 'd1');
-    const bloqueRitmo = el('div', { class: 'as-bloque' },
-      el('h2', {}, '🥁 Ritmo'),
+    const bloqueRitmo = [
       el('p', { class: 'as-porque' }, `${s.bpm} BPM · ${g.bpmNota}. Rango típico del género: ${g.bpm[0]}–${g.bpm[1]}.`),
-      el('p', { class: 'as-rol-nota' }, hayD1 ? g.ritmoD1 : (g.ritmoSinD1 || 'Sin D1, arma este patrón a mano o con el Drummer de Logic, con el mismo espíritu: bombo firme, caja en el 2 y el 4, hi-hat según el género.')));
-    if (g.swing) bloqueRitmo.append(el('p', { class: 'as-rol-nota' }, el('b', {}, 'Swing: '),
+      el('p', { class: 'as-rol-nota' }, hayD1 ? g.ritmoD1 : (g.ritmoSinD1 || 'Sin D1, arma este patrón a mano o con el Drummer de Logic, con el mismo espíritu: bombo firme, caja en el 2 y el 4, hi-hat según el género.'))];
+    if (g.swing) bloqueRitmo.push(el('p', { class: 'as-rol-nota' }, el('b', {}, 'Swing: '),
       `${g.swing.linn}% en la convención Linn (la que usa la mayoría de las cajas de ritmos) — ${g.swing.offset}. Si tu D1 da el swing en otra escala, usa la tabla de conversión: 50% Linn es «sin swing», 66% es «swing de triplet».`));
     if (tiene(s, 'logic') && g.ritmoLogic) {
-      bloqueRitmo.append(el('p', { class: 'as-rol-nota' }, el('b', {}, 'Programándolo en Logic: '), g.ritmoLogic));
-      bloqueRitmo.append(el('p', { class: 'as-rol-nota' }, el('b', {}, 'EQ del bus de batería: '),
+      bloqueRitmo.push(el('p', { class: 'as-rol-nota' }, el('b', {}, 'Programándolo en Logic: '), g.ritmoLogic));
+      bloqueRitmo.push(el('p', { class: 'as-rol-nota' }, el('b', {}, 'EQ del bus de batería: '),
         'realce +2 dB en 60–80 Hz (peso del bombo) · corte −2 dB en 300–400 Hz (el barro) · si el hi-hat lo pide, shelf alto +1.5 dB desde 8 kHz. Fader del bus: referencia en 0 dB de pico, y ajusta el resto de los instrumentos contra la batería, no al revés.'));
     }
-    out.append(bloqueRitmo);
+    out.append(seccion('ritmo', '🥁 Ritmo', ...bloqueRitmo));
 
     // Sonido (sólo si hay algo que suene: Logic o B1)
     if (tiene(s, 'logic', 'b1')) {
       const filas = g.sonido.map(f => pintarSonidoFila(f, s)).filter(Boolean);
-      const bloque = el('div', { class: 'as-bloque' }, el('h2', {}, '🎛️ Sonido, por rol'));
+      const cuerpo = [];
       if (!tiene(s, 'ak25', 'ak37', 'b1') && tiene(s, 'logic'))
-        bloque.append(el('p', { class: 'as-porque' }, 'Marcaste Logic pero ningún Akai ni la B1: Logic no toca solo — necesitas un controlador o instrumento que le mande las notas.'));
-      if (tiene(s, 'logic')) bloque.append(el('div', { class: 'as-generales' },
+        cuerpo.push(el('p', { class: 'as-porque' }, 'Marcaste Logic pero ningún Akai ni la B1: Logic no toca solo — necesitas un controlador o instrumento que le mande las notas.'));
+      if (tiene(s, 'logic')) cuerpo.push(el('div', { class: 'as-generales' },
         el('p', {}, el('b', {}, 'Por qué así: '), 'en vez de nombrarte un «patch» al azar, cada receta parte de ', el('b', {}, 'Retro Synth'), ' — confirmamos con tu propio Logic que el preset «Classic Analog Pad» existe de verdad, así que para el Pad se parte de ahí; para los demás roles, se arma desde cero con las mismas perillas.'),
         el('ol', {},
           el('li', {}, 'Abre ', el('b', {}, 'Retro Synth'), ' en modo ', el('b', {}, 'Analog'), ' (Sync/Table/FM para variar): Shape 1 y 2 son los osciladores, con Mix, Semitonas y Cents para separarlos.'),
           el('li', {}, 'La sección FILTER trae Cutoff y Res como número de 0.00 a 1.00 — igual que ves en tu pantalla —, más Filter FM/LFO/Env para modulaciones.'),
           el('li', {}, 'AMP ENV y FILTER ENV (abajo del panel) traen Ataque/Decay/Sustain/Release — ahí van los números de «Envolvente» de cada receta.'),
           el('li', {}, 'En la cadena del canal, agrega un ', el('b', {}, 'Channel EQ'), ' (la curva de abajo) y, donde corresponda, un ', el('b', {}, 'ChromaVerb'), ' o un ', el('b', {}, 'Tape Delay'), ' — los mismos plugins de tu barra lateral —, y deja el fader en el nivel indicado.'))));
-      if (filas.length) bloque.append(el('div', { class: 'as-sonido-tabla' }, ...filas));
-      out.append(bloque);
+      if (filas.length) cuerpo.push(el('div', { class: 'as-sonido-tabla' }, ...filas));
+      out.append(seccion('sonido', '🎛️ Sonido, por rol', ...cuerpo));
     } else if (tiene(s, 'ak25', 'ak37')) {
-      out.append(el('div', { class: 'as-bloque' }, el('h2', {}, '🎛️ Sonido'),
+      out.append(seccion('sonido', '🎛️ Sonido',
         el('p', { class: 'as-porque' }, 'El Akai es solo controlador: no genera sonido por sí mismo. Sin Logic ni otro instrumento recibiéndolo, no vas a escuchar nada al tocarlo.')));
     }
 
@@ -542,33 +622,33 @@
       if (i < g.acordes.length - 1) grupo.push(el('span', { class: 'as-flecha' }, '→'));
       return grupo;
     }).flat();
-    const bloqueAc = el('div', { class: 'as-bloque' }, el('h2', {}, '🎹 Acordes, para pad y para lead'),
+    const cuerpoAc = [
       el('p', { class: 'as-porque' }, `Escala: ${g.escala}. ${g.porque}`),
       el('div', { class: 'as-acordes' }, ...chips),
       el('p', { class: 'as-rol-nota' }, el('b', {}, 'Pad: '), g.padNota),
-      el('p', { class: 'as-rol-nota' }, el('b', {}, 'Lead: '), g.leadNota));
-    if (g.variante) bloqueAc.append(el('p', { class: 'as-rol-nota' }, el('b', {}, 'Si quieres variar: '), g.variante));
-    out.append(bloqueAc);
+      el('p', { class: 'as-rol-nota' }, el('b', {}, 'Lead: '), g.leadNota)];
+    if (g.variante) cuerpoAc.push(el('p', { class: 'as-rol-nota' }, el('b', {}, 'Si quieres variar: '), g.variante));
+    out.append(seccion('acordes', '🎹 Acordes, para pad y para lead', ...cuerpoAc));
 
     // Secuencias ilustradas: la D1 y la B1, en la misma grilla de 16 pasos que ya usan los ejemplos de la guía.
     if (tiene(s, 'd1') || tiene(s, 'b1')) {
-      const bloqueSec = el('div', { class: 'as-bloque' }, el('h2', {}, '🔢 Secuencias, paso a paso'));
+      const cuerpoSec = [];
       if (tiene(s, 'd1')) {
         const NOMBRE_VOZ = { BD: 'Bombo (BD)', HC: 'Aplauso (HC)', CH: 'Hi-hat cerr. (CH)', OH: 'Hi-hat ab. (OH)', PC: 'Percusión (PC)' };
         const filas = Object.entries(g.secD1).map(([voz, pasos]) => [NOMBRE_VOZ[voz] || voz, pasos, null]);
-        bloqueSec.append(el('div', { class: 'as-grid-caja' }, el('span', { class: 'lbl' }, 'Donner D1'), pintarGridPasos(filas),
+        cuerpoSec.push(el('div', { class: 'as-grid-caja' }, el('span', { class: 'lbl' }, 'Donner D1'), pintarGridPasos(filas),
           el('p', { class: 'as-rol-nota' }, g.ritmoD1)));
       }
       if (tiene(s, 'b1')) {
         const b = g.secB1;
-        bloqueSec.append(el('div', { class: 'as-grid-caja' }, el('span', { class: 'lbl' }, 'Donner B1 · secuencia de bajo'),
+        cuerpoSec.push(el('div', { class: 'as-grid-caja' }, el('span', { class: 'lbl' }, 'Donner B1 · secuencia de bajo'),
           pintarGridPasos([['Nota', b.pasos, b.acento]]), el('p', { class: 'as-rol-nota' }, b.nota)));
       }
-      out.append(bloqueSec);
+      out.append(seccion('secuencias', '🔢 Secuencias, paso a paso', ...cuerpoSec));
     }
 
     // Sincronía
-    out.append(el('div', { class: 'as-bloque' }, el('h2', {}, '🔗 Sincronía'),
+    out.append(seccion('sincronia', '🔗 Sincronía',
       el('p', { class: 'as-rol-nota' }, s.cable === 'si' ? g.sync.si : g.sync.no)));
 
     // Reparto de roles
@@ -578,14 +658,14 @@
         const lista = el('ul', { class: 'as-roles' }, ...roles.map((r, i) => el('li', {}, `Persona ${(i % s.personas) + 1}: ${r[1]}.`)));
         const extra = roles.length < s.personas ? el('p', { class: 'as-rol-nota' }, 'Sobran manos para los instrumentos que marcaste: alguien dobla, o suma voz/percusión de cuerpo.')
           : roles.length > s.personas ? el('p', { class: 'as-rol-nota' }, 'Hay más instrumentos que personas: alguien toma dos, o túrnense por sección.') : null;
-        out.append(el('div', { class: 'as-bloque' }, el('h2', {}, '🎧 Reparto de roles'), lista, ...(extra ? [extra] : [])));
+        out.append(seccion('roles', '🎧 Reparto de roles', lista, ...(extra ? [extra] : [])));
       }
     }
 
     // Consejos y checklist
     const tips = [...(g.tips || [])];
     if (s.instrumentos.length >= 3) tips.push('Antes de tocar, guarda esto como plantilla en Logic (File → Save as Template): la próxima vez llegas con el sonido puesto.');
-    if (tips.length) out.append(el('div', { class: 'as-bloque' }, el('h2', {}, '💡 Consejos'), el('ul', { class: 'as-tips' }, ...tips.map(t => el('li', {}, t)))));
+    if (tips.length) out.append(seccion('consejos', '💡 Consejos', el('ul', { class: 'as-tips' }, ...tips.map(t => el('li', {}, t)))));
 
     const check = [
       [true, `BPM (${s.bpm}) puesto en Logic y en la cabeza de todos`],
@@ -596,7 +676,7 @@
       [s.cable === 'no', 'Todos saben que no hay sincronía automática, y dónde reencontrarse'],
       [s.personas >= 2, 'Roles repartidos'],
     ].filter(([c]) => c);
-    out.append(el('div', { class: 'as-bloque' }, el('h2', {}, '📋 Antes de tocar'),
+    out.append(seccion('checklist', '📋 Antes de tocar',
       el('div', { class: 'as-checklist' }, ...check.map(([, t], i) => {
         const id = 'chk' + i; const inp = el('input', { type: 'checkbox', id });
         return el('label', { for: id }, inp, t);
@@ -605,11 +685,35 @@
 
   function fijarBpmDefault() { const g = GENEROS[$('asGenero').value]; $('asBpm').value = g.bpm[2]; $('asBpmHint').textContent = `sugerido para ${g.nombre.toLowerCase()}: ${g.bpm[0]}–${g.bpm[1]}`; }
 
-  document.querySelectorAll('#asPersonas input, #asCable input, #asInstrumentos input').forEach(i => i.addEventListener('change', pintar));
-  $('asOtro').addEventListener('input', pintar);
-  $('asBpm').addEventListener('input', pintar);
-  $('asGenero').addEventListener('change', () => { fijarBpmDefault(); pintar(); });
-  fijarBpmDefault(); pintar();
+  // ───────── El asistente: un paso a la vez, con resumen al cerrar; se puede reabrir y editar cualquiera ─────────
+  let planVisible = false;
+  function resumirPasos() {
+    const s = estado();
+    const nombres = s.instrumentos.map(i => INSTR_NOMBRE[i]).filter(Boolean);
+    $('resPersonas').textContent = s.personas === 1 ? 'Solo' : s.personas === 2 ? 'Dos personas' : 'Tres o más';
+    $('resInstrumentos').textContent = nombres.join(', ') + (s.otro ? ' · ' + s.otro : '') || 'ninguno marcado';
+    $('resCable').textContent = s.cable === 'si' ? 'Sí, sincronizados' : 'No, cada uno a su aire';
+    $('resGenero').textContent = `${GENEROS[s.genero].nombre} a ${s.bpm} BPM`;
+  }
+  function irAlPaso(id) {
+    document.querySelectorAll('.as-paso').forEach(p => { p.open = p.id === id; if (p.id !== id) p.classList.add('hecho'); });
+    if (id) { const el2 = $(id); if (el2) el2.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  }
+  document.querySelectorAll('.as-siguiente[data-next]').forEach(b => b.addEventListener('click', () => { resumirPasos(); irAlPaso(b.dataset.next); }));
+  $('btnVerPlan').addEventListener('click', () => {
+    resumirPasos();
+    document.querySelectorAll('.as-paso').forEach(p => { p.open = false; p.classList.add('hecho'); });
+    planVisible = true; $('asResultado').hidden = false; pintar();
+    $('asResultado').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  // al reabrir un paso ya contestado para editarlo, quita la marca de «hecho» mientras lo miras
+  document.querySelectorAll('.as-paso').forEach(p => p.addEventListener('toggle', () => { if (p.open) p.classList.remove('hecho'); }));
+
+  document.querySelectorAll('#asPersonas input, #asCable input, #asInstrumentos input').forEach(i => i.addEventListener('change', () => { resumirPasos(); if (planVisible) pintar(); }));
+  $('asOtro').addEventListener('input', () => { resumirPasos(); if (planVisible) pintar(); });
+  $('asBpm').addEventListener('input', () => { resumirPasos(); if (planVisible) pintar(); });
+  $('asGenero').addEventListener('change', () => { fijarBpmDefault(); resumirPasos(); if (planVisible) pintar(); });
+  fijarBpmDefault(); resumirPasos();
 
   $('navAtras').addEventListener('click', () => { if (history.length > 1) history.back(); else location.href = 'index.html'; });
 })();
