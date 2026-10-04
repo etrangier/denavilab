@@ -213,3 +213,32 @@ test('la lista por grupo reúne todos los sonidos del plan y lleva a cada pad', 
   await expect(page.locator('#tabB')).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#ksDetalle h2')).toContainText(nombre);
 });
+
+test('los samples 254–257 (de fábrica, antes sin inventariar) están en la base con sus medidas, como acordes Bm7, y marcados como estimados', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  const base = await page.evaluate(() => JSON.parse(document.getElementById('ksDatos').textContent));
+  const nuevos = base.sonidos.filter(s => s.slot >= 254 && s.slot <= 257).sort((a, b) => a.slot - b.slot);
+  expect(nuevos.map(s => s.slot)).toEqual([254, 255, 256, 257]);
+  for (const s of nuevos) { expect(s.rol).toBe('Acorde / stab'); expect(s.origen).toBe('fabrica'); expect(s.pack).toBe('EP-133 Factory Sounds'); expect(s.cargado).toBe(true); expect(s.estimado).toBe(true); expect(s.aviso).toContain('Nivel bajo'); }
+  expect(nuevos.map(s => s.dur_s)).toEqual([0.26, 0.26, 0.39, 0.14]);        // medidas con el método de la base
+  expect(nuevos.slice(0, 3).map(s => s.acorde)).toEqual(['≈ B m7', '≈ B m7', '≈ B m7']);
+  expect(nuevos[3].acorde).toBe('');                                          // el 257 no se pudo clasificar con seguridad
+  expect(base.sonidos).toHaveLength(501);
+});
+
+test('los samples 254–257 se pueden elegir desde las mejores opciones de un pad y avisan su nivel y su encaje estimado', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await page.selectOption('#ksGenero', 'Synth pop');
+  await page.click('#tabC'); await pad(page, 'C:7').click();
+  await page.locator('.ks-ops summary').click();
+  const opcion = page.locator('.ks-op', { hasText: 'synth keys bm7 254' });
+  await expect(opcion).toHaveCount(1);                                         // entra entre las mejores opciones del pad
+  await expect(opcion).toContainText('encaje ~');                              // «~» = estimado
+  await opcion.click();
+  expect(await slotDe(page, 'C:7')).toBe(254);
+  await expect(pad(page, 'C:7').locator('.enc')).toContainText('~');
+  await expect(page.locator('#ksDetalle')).toContainText('encaje estimado');
+  await expect(page.locator('#ksDetalle')).toContainText('Nivel bajo');
+  await expect(page.locator('#ksDetalle')).toContainText('≈ B m7');
+  await expect(page.locator('.ks-op[aria-current=true]')).toContainText('synth keys bm7 254');   // la opción elegida queda marcada
+});
