@@ -1,6 +1,12 @@
 {
  "changelog": [
   {
+   "fecha": "2026-10-04",
+   "items": [
+    "Kits K.O. II, sólo para Rolando: una página nueva (con su puerta en la portada, que sólo aparece al entrar como Rolando) que, dado un género y un BPM, sugiere qué sonido de tu base cargar en cada pad de los cuatro grupos del EP-133 —A batería, B bajos, C samplers, D efectos y varios— dibujados como los 12 pads reales (7 8 9 / 4 5 6 / 1 2 3 / . 0 ENTER). Cada pad muestra el número de slot, el nombre, el rol y el encaje; al tocarlo se abre con las medidas, el motivo de la sugerencia y un botón «siguiente alternativa». Con el interruptor «sólo lo que ya está cargado» apagado, también sugiere sonidos de tu carpeta, marcados ★ «por cargar», y puedes marcar uno como cargado con su slot. Avisa cuando la cola de un bombo o una caja pasa de un tiempo (o la de un hat cerrado, de medio) al BPM elegido, cuando un bombo o bajo tiene el grave tan bajo que casi no se oye en un parlante chico, y cuántos compases dura un sonido largo. Se puede copiar el plan en texto plano o imprimirlo. Los puntajes son una heurística hecha por código, sin escuchar el audio: confírmalo de oído. Por ahora no se conecta al aparato ni escribe nada en él."
+   ]
+  },
+  {
    "fecha": "2026-09-27",
    "items": [
     "Asesor de jam session, nuevo y de acceso libre (no hace falta sesión): cuenta cuántos tocan, qué vas a usar —Donner D1, Donner B1, Akai MPK mini de 25 o 37 teclas, Logic Pro, bajo eléctrico—, si van con cable MIDI o suenan a su aire, y qué género (trip hop, lofi house, house, acid house, synth pop, lo-fi hip hop) y BPM. Sin conectarse a ningún aparato ni a Logic, deja listo el ritmo, la curatoría de sonido por rol (categoría de la Library, palabras de búsqueda, un punto de partida de EQ y reverb), una familia de acordes para el pad y otra para el lead, el consejo de sincronía que corresponda, el reparto de roles si son dos o más personas, y una lista para chequear antes de tocar. Todo se recalcula al cambiar cualquier respuesta. Se entra desde la portada o desde «¿Cómo quieres trabajar hoy?», junto a Trabajo guiado y el Tutor.",
