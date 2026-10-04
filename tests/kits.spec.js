@@ -242,3 +242,77 @@ test('los samples 254–257 se pueden elegir desde las mejores opciones de un pa
   await expect(page.locator('#ksDetalle')).toContainText('≈ B m7');
   await expect(page.locator('.ks-op[aria-current=true]')).toContainText('synth keys bm7 254');   // la opción elegida queda marcada
 });
+
+test('el buscador encuentra sonidos por nombre, rol, slot o acorde', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await page.selectOption('#ksGenero', 'Synth pop');
+  await expect(page.locator('#ksResultados')).toContainText('Escribe parte del nombre');
+  await page.fill('#ksBuscar', 'synth keys');
+  await expect(page.locator('#ksResultados .ks-rs')).toHaveCount(4);                       // por nombre
+  await expect(page.locator('#ksResultados')).toContainText('4 resultados para Synth pop');
+  await page.fill('#ksBuscar', 'bm7');                                                      // por acorde: sólo los tres que se detectaron
+  await expect(page.locator('#ksResultados .ks-rs')).toHaveCount(3);
+  await page.fill('#ksBuscar', '254');                                                      // por slot
+  await expect(page.locator('[data-fijar="synth keys bm7 254"]')).toHaveCount(1);
+  await page.fill('#ksBuscar', 'acorde stab');                                              // por rol, varias palabras a la vez
+  expect(await page.locator('#ksResultados .ks-rs').count()).toBeGreaterThan(10);
+  await page.fill('#ksBuscar', 'ÓRGANO');                                                   // sin distinguir mayúsculas ni tildes
+  expect(await page.locator('#ksResultados .ks-rs').count()).toBeGreaterThan(0);
+  await page.fill('#ksBuscar', 'zzzzqx');
+  await expect(page.locator('#ksResultados')).toContainText('Ningún sonido coincide');
+});
+
+test('sin un pad abierto no se puede fijar nada, y con uno abierto el botón dice dónde', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await page.selectOption('#ksGenero', 'Synth pop'); await page.fill('#ksBuscar', 'synth keys');
+  const boton = page.locator('[data-fijar="synth keys bm7 254"]');
+  await expect(boton).toBeDisabled(); await expect(boton).toHaveText('Abre un pad para fijarlo');
+  await page.click('#tabC'); await pad(page, 'C:7').click();
+  await expect(boton).toBeEnabled(); await expect(boton).toHaveText('Fijar en C · pad 7');
+});
+
+test('un sonido fijado se queda en su pad aunque cambien alternativas, interruptor y recarga; se puede quitar', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await page.selectOption('#ksGenero', 'Synth pop'); await page.click('#tabC'); await pad(page, 'C:7').click();
+  const automatico = await slotDe(page, 'C:7');
+  expect(automatico).not.toBe(254);
+  await page.fill('#ksBuscar', 'synth keys bm7 254'); await page.locator('[data-fijar="synth keys bm7 254"]').click();
+  expect(await slotDe(page, 'C:7')).toBe(254);
+  await expect(pad(page, 'C:7').locator('.tecla')).toContainText('📌');
+  await expect(page.locator('#ksDetalle')).toContainText('Fijado por ti');
+  await expect(page.locator('[data-fijar="synth keys bm7 254"]')).toHaveText('Fijado aquí');            // el buscador lo muestra como ya puesto
+  await expect(page.locator('[data-fijar="synth keys bm7 254"]')).toBeDisabled();
+  await expect(page.locator('#ksSig')).toBeDisabled();                                       // fijado: no hay «siguiente alternativa»
+  await page.uncheck('#ksSolo'); await page.check('#ksSolo');                                // cambiar el interruptor no lo suelta
+  expect(await slotDe(page, 'C:7')).toBe(254);
+  await page.reload(); await page.click('#tabC');
+  expect(await slotDe(page, 'C:7')).toBe(254);                                               // y sobrevive a recargar
+  await pad(page, 'C:7').click(); await page.click('#ksQuitarFijo');
+  expect(await slotDe(page, 'C:7')).toBe(automatico);                                        // vuelve a lo que sugería el ranking
+  await expect(pad(page, 'C:7').locator('.tecla')).not.toContainText('📌');
+});
+
+test('un sonido va en un solo pad: fijarlo en otro lo saca del anterior, y los demás pads no se lo llevan', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await page.selectOption('#ksGenero', 'Synth pop'); await page.click('#tabC');
+  const nombres = async () => page.locator('button.ks-pad .nom').allTextContents();
+  await pad(page, 'C:7').click(); await page.fill('#ksBuscar', 'synth keys bm7 254'); await page.locator('[data-fijar="synth keys bm7 254"]').click();
+  await pad(page, 'C:8').click(); await page.locator('[data-fijar="synth keys bm7 254"]').click();
+  expect(await slotDe(page, 'C:8')).toBe(254);
+  expect(await slotDe(page, 'C:7')).not.toBe(254);
+  expect((await nombres()).filter(n => n === 'synth keys bm7 254')).toHaveLength(1);        // aparece una sola vez en todo el grupo
+  const vistos = [];
+  for (const g of ['A', 'B', 'C', 'D']) { await page.click('#tab' + g); vistos.push(...(await nombres())); }
+  expect(new Set(vistos).size).toBe(vistos.length);                                          // y en ningún otro grupo
+});
+
+test('los fijos son de cada género', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await page.selectOption('#ksGenero', 'Synth pop'); await page.click('#tabC'); await pad(page, 'C:7').click();
+  await page.fill('#ksBuscar', 'synth keys bm7 254'); await page.locator('[data-fijar="synth keys bm7 254"]').click();
+  expect(await slotDe(page, 'C:7')).toBe(254);
+  await page.selectOption('#ksGenero', 'Techno / tech house'); await page.click('#tabC');
+  await expect(pad(page, 'C:7').locator('.tecla')).not.toContainText('📌');
+  await page.selectOption('#ksGenero', 'Synth pop'); await page.click('#tabC');
+  expect(await slotDe(page, 'C:7')).toBe(254);                                               // al volver, sigue ahí
+});

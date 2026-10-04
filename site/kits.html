@@ -115,10 +115,21 @@
   .ks-op .s { font-family: var(--mono); color: var(--accent); }
   .ks-op .n { overflow-wrap: anywhere; }
   .ks-op .n small { display: block; color: var(--muted); font-size: 11.5px; }
+  .ks-buscar { margin: 22px 0 0; max-width: 540px; }
+  .ks-buscar h2 { font-family: var(--display); font-size: 18px; margin: 0 0 4px; }
+  .ks-busca { width: 100%; margin: 8px 0 6px; }
+  .ks-resultados ol { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 2px; max-height: 340px; overflow: auto; }
+  .ks-rs { display: grid; grid-template-columns: 50px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 5px 8px; border-radius: 6px; font-size: 13px; }
+  .ks-rs:hover { background: var(--surface-2); }
+  .ks-rs .s { font-family: var(--mono); color: var(--accent); }
+  .ks-rs .n { overflow-wrap: anywhere; }
+  .ks-rs .n small { display: block; color: var(--muted); font-size: 11.5px; }
+  .ks-rs .ks-fijar { font-size: 12px; padding: 5px 9px; white-space: nowrap; }
+  .ks-pad .tecla { white-space: nowrap; }
   .ks-print { display: none; }
   @media print {
     body.pag-kits .wrap > *:not(.ks-print) { display: none !important; }
-    .ks-lista, .ks-ilu { display: none !important; }
+    .ks-lista, .ks-ilu, .ks-buscar { display: none !important; }
     body.pag-kits .wrap { max-width: none; padding: 0; }
     .ks-print { display: block; color: #000; background: #fff; font-size: 11pt; }
     .ks-print h1 { font-size: 16pt; margin: 0 0 2pt; }
@@ -185,6 +196,13 @@
     <div class="ks-grid" id="ksGrid" role="group" aria-label="Pads del grupo"></div>
     <div class="ks-detalle" id="ksDetalle" hidden></div>
 
+    <section class="ks-buscar" id="ksBuscarCaja" aria-labelledby="ksBuscarTit">
+      <h2 id="ksBuscarTit">Buscar un sonido</h2>
+      <p class="ks-hint">Abre un pad y busca el sonido que quieras ponerle: queda fijo ahí aunque cambies de alternativa o de interruptor.</p>
+      <input type="search" class="ks-select ks-busca" id="ksBuscar" placeholder="Nombre, rol, pack, slot o acorde (ej. kick, bm7, 254)" aria-label="Buscar un sonido" autocomplete="off">
+      <div id="ksResultados" class="ks-resultados" aria-live="polite"></div>
+    </section>
+
     <section class="ks-lista" id="ksLista" aria-labelledby="ksListaTit">
       <h2 id="ksListaTit">Lista de sonidos por grupo</h2>
       <div id="ksListaCuerpo"></div>
@@ -242,12 +260,12 @@
   let base = null;                       // la base cargada: {version, generado, roles, generos, sonidos}
   let ov = leer(CLAVE_OV, {});           // marcas locales: {nombre: {cargado: true, slot: N}} para tus sonidos propios que ya subiste
   const guardado = leer(CLAVE_PLAN, {});
-  const est = { genero: guardado.genero || null, bpm: guardado.bpm || null, solo: guardado.solo !== false, grupo: GRUPOS[guardado.grupo] ? guardado.grupo : 'A', alt: guardado.alt || {} };
+  const est = { genero: guardado.genero || null, bpm: guardado.bpm || null, solo: guardado.solo !== false, grupo: GRUPOS[guardado.grupo] ? guardado.grupo : 'A', alt: guardado.alt || {}, fijos: guardado.fijos || {} };
   let sel = null;                        // pad abierto, como 'A:7'
   let opcionesAbiertas = false;          // la lista de opciones del pad recuerda si estaba abierta
   let plan = null;                       // resultado de calcular()
 
-  const persistir = () => guardar(CLAVE_PLAN, { genero: est.genero, bpm: est.bpm, solo: est.solo, grupo: est.grupo, alt: est.alt });
+  const persistir = () => guardar(CLAVE_PLAN, { genero: est.genero, bpm: est.bpm, solo: est.solo, grupo: est.grupo, alt: est.alt, fijos: est.fijos });
 
   // ───────── Base ─────────
   function validar(j) {
@@ -301,18 +319,22 @@
     const ranking = roles => todos.filter(s => roles.includes(s.rol))
       .sort((a, b) => puntaje(b, g) - puntaje(a, g) || (b.cargado - a.cargado) || a.nombre.localeCompare(b.nombre));
     const usados = new Set(), res = {};
+    // Fijos: sonidos que Rolando eligió para un pad concreto de este género. Mandan sobre el ranking, y los otros pads no los usan.
+    const fijosG = (est.fijos && est.fijos[g]) || {}, porNombre = new Map(sonidosEf().map(x => [x.nombre, x]));
+    const reservados = new Set(Object.values(fijosG).filter(nom => porNombre.has(nom)));
     for (const gr of ['A', 'B', 'C', 'D']) {
       const cfg = GRUPOS[gr], bases = new Set(), porRol = {}, filas = {};
       // En el orden de ORDEN_PADS, no el de las claves del objeto: JS recorre '0'…'9' de menor a mayor y el pad 0 se llevaría el mejor bombo.
       const pads = cfg.pads ? ORDEN_PADS.filter(p => p in cfg.pads) : ORDEN_PADS;
       for (const pad of pads) {
         const roles = cfg.pads ? cfg.pads[pad] : cfg.roles;
-        const elegibles = ranking(roles).filter(s => !usados.has(s.nombre) && !bases.has(nombreBase(s.nombre)) && (cfg.pads || (porRol[s.rol] || 0) < MAX_POR_ROL));
+        const fijo = porNombre.get(fijosG[gr + ':' + pad]) || null;
+        const elegibles = ranking(roles).filter(s => !usados.has(s.nombre) && !reservados.has(s.nombre) && !bases.has(nombreBase(s.nombre)) && (cfg.pads || (porRol[s.rol] || 0) < MAX_POR_ROL));
         const n = elegibles.length;
         const alt = n ? (est.alt[gr + ':' + pad] || 0) % n : 0;
-        const s = n ? elegibles[alt] : null;
+        const s = fijo || (n ? elegibles[alt] : null);
         if (s) { usados.add(s.nombre); bases.add(nombreBase(s.nombre)); porRol[s.rol] = (porRol[s.rol] || 0) + 1; }
-        filas[pad] = { sonido: s, alt, n, roles, opciones: elegibles.slice(0, 24) };
+        filas[pad] = { sonido: s, alt, n, roles, opciones: elegibles.slice(0, 24), fijo: !!fijo };
       }
       res[gr] = filas;
     }
@@ -345,6 +367,44 @@
   // El grupo elegido, el pad abierto y los saltos desde la ilustración y desde la lista: un solo lugar para los tres.
   function fijarGrupo(gr) { est.grupo = gr; sel = null; pintarTabs(); pintarGrid(); pintarDetalle(); persistir(); }
   function abrirPad(key) { sel = sel === key ? null : key; pintarGrid(); pintarDetalle(); if (sel) $('ksDetalle').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+  // Un sonido va en un solo pad por género: fijarlo en otro lo saca del anterior.
+  function fijar(nombre) {
+    if (!sel) return;
+    const m = (est.fijos[est.genero] = est.fijos[est.genero] || {});
+    for (const k of Object.keys(m)) if (m[k] === nombre) delete m[k];
+    m[sel] = nombre; recalcular();
+  }
+  function quitarFijo(key) { const m = est.fijos[est.genero]; if (m) delete m[key]; recalcular(); }
+  const ubicacionFijo = nombre => { const m = (est.fijos && est.fijos[est.genero]) || {}; return Object.keys(m).find(k => m[k] === nombre) || null; };
+
+  // Buscador: cualquier sonido de la base por nombre, rol, pack, slot, acorde… ordenado por encaje con el género elegido.
+  const norm = t => String(t == null ? '' : t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  function buscar(q) {
+    const toks = norm(q).split(/\s+/).filter(Boolean); if (!toks.length) return null;
+    const g = est.genero;
+    return sonidosEf().filter(x => !est.solo || x.cargado)
+      .filter(x => { const h = norm([x.nombre, x.rol, x.pack, x.slot, x.acorde, x.perfil, x.nota, x.maquina_inferida].join(' ')); return toks.every(t => h.includes(t)); })
+      .sort((a, b) => puntaje(b, g) - puntaje(a, g) || a.nombre.localeCompare(b.nombre));
+  }
+  function pintarBusqueda() {
+    const cu = $('ksResultados'); if (!cu) return; cu.textContent = '';
+    const r = buscar($('ksBuscar').value);
+    if (r === null) { cu.append(el('p', { class: 'ks-hint' }, 'Escribe parte del nombre, el rol, el pack, el slot o el acorde.')); return; }
+    if (!r.length) { cu.append(el('p', { class: 'ks-hint' }, 'Ningún sonido coincide' + (est.solo ? ' entre los cargados; apaga «sólo lo que ya está cargado» para buscar en toda tu carpeta.' : '.'))); return; }
+    cu.append(el('p', { class: 'ks-hint' }, `${r.length} resultado${r.length === 1 ? '' : 's'}${r.length > 40 ? ': muestro los 40 con mejor encaje' : ''} para ${est.genero}.`));
+    const ol = el('ol', {});
+    for (const x of r.slice(0, 40)) {
+      const donde = ubicacionFijo(x.nombre);
+      const yaAqui = !!sel && donde === sel;
+      const b = el('button', { type: 'button', class: 'ks-btn ghost ks-fijar', 'data-fijar': x.nombre }, !sel ? 'Abre un pad para fijarlo' : yaAqui ? 'Fijado aquí' : `Fijar en ${sel.replace(':', ' · pad ')}`);
+      b.disabled = !sel || yaAqui; b.addEventListener('click', () => fijar(x.nombre));
+      ol.append(el('li', { class: 'ks-rs' }, el('span', { class: 's' }, x.cargado ? String(x.slot) : '★'),
+        el('span', { class: 'n' }, x.nombre, el('small', {}, `${x.rol} · encaje ${encTxt(x)}${x.acorde ? ' · ' + x.acorde : ''}${x.cargado ? '' : ' · por cargar'}${donde ? ' · 📌 fijado en ' + donde.replace(':', ' · pad ') : ''}`)), b));
+    }
+    cu.append(ol);
+  }
+  $('ksBuscar').addEventListener('input', pintarBusqueda);
+
   function irAPad(gr, pad) { est.grupo = gr; sel = gr + ':' + pad; pintarTabs(); pintarGrid(); pintarDetalle(); persistir(); $('ksDetalle').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
 
   // Género y BPM a la vista, con lo que significan en segundos.
@@ -383,7 +443,7 @@
       if (!s) { grid.append(el('div', { class: 'ks-pad libre' }, el('span', { class: 'tecla' }, pad), el('span', { class: 'nom' }, 'sin sonido'), el('span', { class: 'rol' }, f.roles.join(' / ')))); continue; }
       const av = avisos(s, est.bpm).filter(x => !x.info);
       const b = el('button', { type: 'button', class: 'ks-pad' + (s.cargado ? '' : ' xcargar'), 'aria-pressed': String(sel === key), 'data-pad': key, 'data-slot': s.cargado ? String(s.slot) : '' },
-        el('span', { class: 'tecla' }, 'PAD ' + pad),
+        el('span', { class: 'tecla' }, 'PAD ' + pad + (f.fijo ? ' 📌' : '')),
         el('span', { class: 'slot' }, s.cargado ? String(s.slot) : '★ por cargar'),
         el('span', { class: 'nom' }, s.nombre),
         el('span', { class: 'rol' }, s.rol),
@@ -447,7 +507,7 @@
       for (const [pad, f] of filas) {
         const s = f.sonido;
         const b = el('button', { type: 'button', class: 'ks-li', 'data-li': gr + ':' + pad },
-          el('span', { class: 'p' }, 'PAD ' + pad), el('span', { class: 's' }, s.cargado ? String(s.slot) : '★ por cargar'),
+          el('span', { class: 'p' }, 'PAD ' + pad + (f.fijo ? ' 📌' : '')), el('span', { class: 's' }, s.cargado ? String(s.slot) : '★ por cargar'),
           el('span', { class: 'n' }, s.nombre, el('small', {}, `${s.rol} · encaje ${encTxt(s)}`)));
         b.addEventListener('click', () => irAPad(gr, pad));
         ol.append(el('li', {}, b));
@@ -457,6 +517,7 @@
   }
 
   function motivo(f, s) {
+    if (f.fijo) return `Fijado por ti en este pad: se queda aunque cambies de alternativa o de interruptor. Encaje ${encTxt(s)} para ${est.genero}. Sugerencia, confírmalo de oído.`;
     const g = est.genero, partes = [`Encaje ${encaje(s, g)}% para ${g}`];
     if (esGrave(s)) partes.push(`menos ${PENAL_GRAVE} puntos por tener el pico grave bajo ${GRAVE_HZ} Hz`);
     partes.push(`es la opción ${f.alt + 1} de ${f.n} disponibles para ${f.roles.join(' / ')}`);
@@ -466,6 +527,7 @@
   }
 
   function pintarDetalle() {
+    pintarBusqueda();
     const box = $('ksDetalle');
     if (!sel) { box.hidden = true; box.textContent = ''; return; }
     const [gr, pad] = sel.split(':'), f = plan[gr] && plan[gr][pad], s = f && f.sonido;
@@ -485,9 +547,12 @@
 
     const acc = el('div', { class: 'ks-acciones' });
     const sig = el('button', { type: 'button', class: 'ks-btn ghost', id: 'ksSig' }, 'Siguiente alternativa');
-    sig.disabled = f.n < 2;
+    sig.disabled = f.n < 2 || f.fijo;
     sig.addEventListener('click', () => { est.alt[sel] = (f.alt + 1) % f.n; recalcular(); });
     acc.append(sig);
+    const pin = el('button', { type: 'button', class: 'ks-btn ghost', id: f.fijo ? 'ksQuitarFijo' : 'ksFijar' }, f.fijo ? 'Quitar el fijo' : '📌 Fijar este sonido aquí');
+    pin.addEventListener('click', () => (f.fijo ? quitarFijo(sel) : fijar(s.nombre)));
+    acc.append(pin);
     if (s._ov) {
       const q = el('button', { type: 'button', class: 'ks-btn ghost', id: 'ksQuitar' }, 'Quitar la marca «cargado»');
       q.addEventListener('click', () => { delete ov[s.nombre]; guardar(CLAVE_OV, ov); recalcular(); });
