@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="DenaviLAB · kits K.O. II: qué sonido cargar en cada pad de cada grupo del EP-133, según el género y el BPM.">
-<title>DenaviLab · kits K.O. II</title>
+<meta name="description" content="DenaviLAB · EP-133 Beatmaking Assistant: qué sonido cargar en cada pad de cada grupo del EP-133 K.O. II, según el género y el BPM.">
+<title>DenaviLab · EP-133 Beatmaking Assistant</title>
 <script>
 (() => {
   // Sólo Rolando, y sólo cuando se sirve por web: el archivo descargado (file://) se abre solo, igual que el taller.
@@ -21,7 +21,7 @@
 (()=>{try{const K='denavilab.stats';const o=JSON.parse(localStorage.getItem(K)||'{}');const n=Date.now();o.visitas=(o.visitas||0)+1;o.primera=o.primera||n;o.ultima=n;o.paginas=o.paginas||{};const pg=(location.pathname.split('/').pop()||'index.html');o.paginas[pg]=(o.paginas[pg]||0)+1;let h='directo';const r=document.referrer||'';try{if(r){const u=new URL(r);h=u.hostname===location.hostname?'interno':u.hostname;}}catch(e){}o.procedencias=o.procedencias||{};o.procedencias[h]=(o.procedencias[h]||0)+1;localStorage.setItem(K,JSON.stringify(o));}catch(e){}})();
 </script>
 <style>
-  /* ── Kits K.O. II: qué sonido va en cada pad. Sólo lectura de tu propia base; nada se escribe en el aparato. ── */
+  /* ── EP-133 Beatmaking Assistant: qué sonido va en cada pad. Sólo lectura de tu propia base; nada se escribe en el aparato. ── */
   .ks-solo { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
     color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 3px 10px; margin: 0 0 14px; }
   .ks-lede { color: var(--muted); max-width: 62ch; margin: 0 0 8px; }
@@ -80,9 +80,35 @@
   .ks-pie { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0 0; }
   .ks-estado { font-size: 12.5px; color: var(--muted); min-height: 1em; }
   .ks-aviso { font-size: 12px; color: var(--muted); margin: 26px 0 0; padding-top: 14px; border-top: 1px solid var(--line); max-width: 62ch; }
+  .ks-banda { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; margin: 14px 0 4px; font-size: 14px; }
+  .ks-banda .chip { font-family: var(--mono); font-size: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px; }
+  .ks-banda .chip.gen { color: var(--accent); border-color: var(--accent); font-weight: 600; }
+  .ks-ilu { margin: 10px 0 4px; max-width: 540px; }
+  .ks-ilu svg { display: block; width: 100%; height: auto; }
+  .ks-ilu figcaption { margin-top: 4px; }
+  .ks-ilu [data-ilu] { cursor: pointer; }
+  .ks-ilu [data-ilu]:hover .tecla-fondo { stroke: #ff7a2b; }
+  .ks-lista { margin: 22px 0 0; max-width: 540px; }
+  .ks-lista h2 { font-family: var(--display); font-size: 18px; margin: 0 0 8px; }
+  .ks-gl { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); margin: 0 0 8px; overflow: hidden; }
+  .ks-gl > summary { cursor: pointer; padding: 10px 14px; list-style: none; display: flex; align-items: baseline; gap: 8px; font-weight: 600; }
+  .ks-gl > summary::-webkit-details-marker { display: none; }
+  .ks-gl > summary::before { content: '▾'; color: var(--accent); }
+  .ks-gl:not([open]) > summary::before { content: '▸'; }
+  .ks-gl > summary small { font-weight: 400; color: var(--muted); font-size: 12px; margin-left: auto; }
+  .ks-gl ol { list-style: none; margin: 0; padding: 0 6px 8px; display: grid; gap: 2px; }
+  .ks-li { width: 100%; display: grid; grid-template-columns: 74px 66px minmax(0, 1fr); gap: 8px; align-items: baseline; text-align: left; font: inherit; font-size: 13px; color: var(--text);
+    background: none; border: none; border-radius: 6px; padding: 5px 8px; cursor: pointer; }
+  .ks-li:hover { background: var(--surface-2); }
+  .ks-li .p { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .ks-li .s { font-family: var(--mono); color: var(--accent); font-weight: 500; }
+  .ks-li .n { overflow-wrap: anywhere; }
+  .ks-li .n small { display: block; color: var(--muted); font-size: 11.5px; }
+  .ks-li.libre { cursor: default; opacity: .5; }
   .ks-print { display: none; }
   @media print {
     body.pag-kits .wrap > *:not(.ks-print) { display: none !important; }
+    .ks-lista, .ks-ilu { display: none !important; }
     body.pag-kits .wrap { max-width: none; padding: 0; }
     .ks-print { display: block; color: #000; background: #fff; font-size: 11pt; }
     .ks-print h1 { font-size: 16pt; margin: 0 0 2pt; }
@@ -113,8 +139,8 @@
   </nav>
 
   <span class="ks-solo">Sólo Rolando</span>
-  <h1>Kits K.O. II</h1>
-  <p class="ks-lede">Elige un género y un BPM y te sugiero qué sonido cargar en cada pad de los grupos A, B, C y D del EP-133. Sólo lee tu base de sonidos: no escribe nada en el aparato.</p>
+  <h1>EP-133 Beatmaking Assistant</h1>
+  <p class="ks-lede">Elige el género y el BPM de tu beat y te sugiero la lista de sonidos para cada grupo del EP-133 K.O. II (A, B, C y D), con el slot que hay que escribir en cada tecla. Sólo lee tu base de sonidos: no escribe nada en el aparato.</p>
 
   <section class="ks-carga" id="ksCarga" hidden>
     <p><b>Carga tu base de sonidos.</b> Elige el archivo <code>ep133_sonidos.json</code>. Se queda en este navegador y no se sube a ninguna parte.</p>
@@ -138,9 +164,21 @@
       <label class="ks-switch"><input type="checkbox" id="ksSolo" checked> Sólo lo que ya está cargado en mi K.O. II</label>
     </div>
 
+    <p class="ks-banda" id="ksBanda" aria-live="polite"></p>
+
+    <figure class="ks-ilu" id="ksIlu">
+      <svg id="ksIluSvg" viewBox="0 0 360 270" role="img" aria-hidden="true" focusable="false"></svg>
+      <figcaption class="ks-hint">Esquema del K.O. II, no a escala: el grupo elegido y el slot que escribes en cada tecla. Toca un grupo o una tecla.</figcaption>
+    </figure>
+
     <div class="ks-tabs" role="tablist" aria-label="Grupos del K.O. II" id="ksTabs"></div>
     <div class="ks-grid" id="ksGrid" role="group" aria-label="Pads del grupo"></div>
     <div class="ks-detalle" id="ksDetalle" hidden></div>
+
+    <section class="ks-lista" id="ksLista" aria-labelledby="ksListaTit">
+      <h2 id="ksListaTit">Lista de sonidos por grupo</h2>
+      <div id="ksListaCuerpo"></div>
+    </section>
 
     <p class="ks-como"><b>Cómo cargarlo:</b> mantén SOUND, escribe el número, pulsa ENTER.</p>
     <div class="ks-pie">
@@ -185,6 +223,7 @@
 
   const $ = id => document.getElementById(id);
   const el = (t, a = {}, ...k) => { const n = document.createElement(t); for (const [x, v] of Object.entries(a)) { if (x === 'class') n.className = v; else n.setAttribute(x, v); } k.forEach(c => { if (c != null) n.append(c); }); return n; };
+  const svgEl = (t, a = {}, ...k) => { const n = document.createElementNS('http://www.w3.org/2000/svg', t); for (const [x, v] of Object.entries(a)) n.setAttribute(x, v); k.forEach(c => { if (c != null) n.append(c); }); return n; };
   const leer = (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch (e) { return def; } };
   const guardar = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
   const nf = n => (n == null ? '—' : n.toLocaleString('es', { maximumFractionDigits: 2 }));
@@ -284,10 +323,22 @@
   function pintarTodo() {
     pintarControles();
     plan = calcular();
-    pintarTabs(); pintarGrid(); pintarDetalle(); pintarBase();
+    pintarBanda(); pintarTabs(); pintarGrid(); pintarDetalle(); pintarLista(); pintarBase();
     persistir();
   }
-  function recalcular() { plan = calcular(); pintarGrid(); pintarDetalle(); persistir(); }
+  function recalcular() { plan = calcular(); pintarBanda(); pintarGrid(); pintarDetalle(); pintarLista(); persistir(); }
+
+  // El grupo elegido, el pad abierto y los saltos desde la ilustración y desde la lista: un solo lugar para los tres.
+  function fijarGrupo(gr) { est.grupo = gr; sel = null; pintarTabs(); pintarGrid(); pintarDetalle(); persistir(); }
+  function abrirPad(key) { sel = sel === key ? null : key; pintarGrid(); pintarDetalle(); if (sel) $('ksDetalle').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+  function irAPad(gr, pad) { est.grupo = gr; sel = gr + ':' + pad; pintarTabs(); pintarGrid(); pintarDetalle(); persistir(); $('ksDetalle').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+
+  // Género y BPM a la vista, con lo que significan en segundos.
+  function pintarBanda() {
+    const b = $('ksBanda'), t = 60 / est.bpm; b.textContent = '';
+    b.append(el('span', { class: 'chip gen' }, est.genero), el('span', { class: 'chip' }, est.bpm + ' BPM'),
+      el('span', { class: 'chip' }, '1 tiempo = ' + nf(t) + ' s'), el('span', { class: 'chip' }, '1 compás (4/4) = ' + nf(t * 4) + ' s'));
+  }
 
   function pintarControles() {
     const sel = $('ksGenero'); sel.textContent = '';
@@ -303,11 +354,12 @@
     const t = $('ksTabs'); t.textContent = '';
     for (const gr of Object.keys(GRUPOS)) {
       const b = el('button', { type: 'button', class: 'ks-tab', role: 'tab', id: 'tab' + gr, 'aria-selected': String(gr === est.grupo) }, 'Grupo ' + gr, el('small', {}, GRUPOS[gr].nombre));
-      b.addEventListener('click', () => { est.grupo = gr; sel = null; pintarTabs(); pintarGrid(); pintarDetalle(); persistir(); });
+      b.addEventListener('click', () => fijarGrupo(gr));
       t.append(b);
     }
   }
-  function pintarGrid() {
+  function pintarGrid() { pintarGridPads(); pintarIlu(); }
+  function pintarGridPads() {
     const gr = est.grupo, grid = $('ksGrid'); grid.textContent = '';
     grid.setAttribute('aria-label', `Pads del grupo ${gr}, ${GRUPOS[gr].nombre}`);
     for (const pad of ORDEN_PADS) {
@@ -323,8 +375,70 @@
         el('span', { class: 'rol' }, s.rol),
         el('span', { class: 'enc' }, 'encaje ' + encaje(s, est.genero) + '%'));
       if (av.length) b.append(el('span', { class: 'av', title: av.map(x => x.t).join('\n') }, '⚠'));
-      b.addEventListener('click', () => { sel = sel === key ? null : key; pintarGrid(); pintarDetalle(); if (sel) $('ksDetalle').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
+      b.addEventListener('click', () => abrirPad(key));
       grid.append(b);
+    }
+  }
+
+  // Esquema del K.O. II: pantalla con el género y el BPM, los cuatro grupos y el teclado con el slot de cada tecla.
+  // No es un dibujo fiel del aparato (colores y proporciones son aproximados): sólo ubica el grupo y la tecla.
+  function pintarIlu() {
+    const svg = $('ksIluSvg'); svg.textContent = '';
+    const gr = est.grupo, MONO = 'ui-monospace, Menlo, monospace', NARANJA = '#ff7a2b';
+    svg.append(svgEl('rect', { x: 4, y: 4, width: 352, height: 262, rx: 16, fill: '#dcdcd7', stroke: '#8d8d88', 'stroke-width': 2 }));
+    svg.append(svgEl('rect', { x: 20, y: 18, width: 132, height: 46, rx: 5, fill: '#1b1b1f' }));
+    const gen = est.genero.length > 19 ? est.genero.slice(0, 18) + '…' : est.genero;
+    svg.append(svgEl('text', { x: 28, y: 33, fill: '#b9b9c2', 'font-size': 9.5, 'font-family': MONO }, gen));
+    svg.append(svgEl('text', { x: 28, y: 57, fill: NARANJA, 'font-size': 24, 'font-weight': 700, 'font-family': MONO }, String(est.bpm)));
+    svg.append(svgEl('text', { x: 118, y: 57, fill: '#b9b9c2', 'font-size': 10, 'font-family': MONO }, 'BPM'));
+    for (const cx of [196, 246]) {
+      svg.append(svgEl('circle', { cx, cy: 40, r: 15, fill: '#f4f4f0', stroke: '#7d7d78', 'stroke-width': 1.5 }));
+      svg.append(svgEl('line', { x1: cx, y1: 40, x2: cx + 7, y2: 31, stroke: '#555', 'stroke-width': 2, 'stroke-linecap': 'round' }));
+    }
+    svg.append(svgEl('rect', { x: 284, y: 24, width: 60, height: 28, rx: 6, fill: NARANJA }));
+    svg.append(svgEl('text', { x: 314, y: 42, fill: '#fff', 'font-size': 10.5, 'font-weight': 700, 'text-anchor': 'middle', 'font-family': MONO }, 'SOUND'));
+    Object.keys(GRUPOS).forEach((g, i) => {
+      const on = g === gr, cy = 100 + i * 40;
+      const nodo = svgEl('g', { 'data-ilu': 'grupo', 'data-grupo': g },
+        svgEl('title', {}, `Grupo ${g}: ${GRUPOS[g].nombre}`),
+        svgEl('circle', { cx: 52, cy, r: 16, fill: on ? NARANJA : '#f4f4f0', stroke: on ? '#b84f00' : '#7d7d78', 'stroke-width': on ? 2.5 : 1.5, class: 'tecla-fondo' }),
+        svgEl('text', { x: 52, y: cy + 5, 'text-anchor': 'middle', fill: on ? '#fff' : '#333', 'font-size': 14, 'font-weight': 700, 'font-family': MONO }, g));
+      nodo.addEventListener('click', () => fijarGrupo(g));
+      svg.append(nodo);
+    });
+    PADS.forEach((fila, r) => fila.forEach((pad, c) => {
+      const x = 104 + c * 82, y = 84 + r * 44, key = gr + ':' + pad, f = plan[gr][pad], s = f && f.sonido, abierto = sel === key;
+      const nodo = svgEl('g', { 'data-ilu': 'pad', 'data-pad': key },
+        svgEl('title', {}, s ? `${s.nombre} (${s.rol})` : 'sin sonido'),
+        svgEl('rect', { x, y, width: 72, height: 38, rx: 6, fill: s ? '#f7f7f3' : '#e6e6e1', stroke: abierto ? NARANJA : '#9c9c97', 'stroke-width': abierto ? 3 : 1.5, class: 'tecla-fondo' }),
+        svgEl('text', { x: x + 7, y: y + 13, fill: '#555', 'font-size': 9, 'font-family': MONO }, pad),
+        svgEl('text', { x: x + 36, y: y + 31, 'text-anchor': 'middle', fill: s ? (s.cargado ? '#222' : '#b85c00') : '#aaa', 'font-size': s && s.cargado ? 15 : 14, 'font-weight': 700, 'font-family': MONO }, s ? (s.cargado ? String(s.slot) : '★') : '—'));
+      if (s) nodo.addEventListener('click', () => abrirPad(key)); else nodo.style.cursor = 'default';
+      svg.append(nodo);
+    }));
+  }
+
+  // La lista completa del plan, grupo por grupo, para leerla de corrido; tocar una fila abre ese pad.
+  const listaCerrada = new Set();
+  function pintarLista() {
+    const cu = $('ksListaCuerpo'); cu.textContent = '';
+    for (const gr of Object.keys(GRUPOS)) {
+      const filas = ORDEN_PADS.map(pad => [pad, plan[gr][pad]]).filter(([, f]) => f && f.sonido);
+      const d = el('details', { class: 'ks-gl', 'data-grupo': gr });
+      d.open = !listaCerrada.has(gr);
+      d.addEventListener('toggle', () => { d.open ? listaCerrada.delete(gr) : listaCerrada.add(gr); });
+      d.append(el('summary', {}, `Grupo ${gr} · ${GRUPOS[gr].nombre}`, el('small', {}, `${filas.length} sonido${filas.length === 1 ? '' : 's'}`)));
+      const ol = el('ol', {});
+      if (!filas.length) ol.append(el('li', {}, el('span', { class: 'ks-li libre' }, el('span', { class: 'p' }, ''), el('span', { class: 's' }, ''), el('span', { class: 'n' }, 'Sin sonidos disponibles para este grupo con estos ajustes.'))));
+      for (const [pad, f] of filas) {
+        const s = f.sonido;
+        const b = el('button', { type: 'button', class: 'ks-li', 'data-li': gr + ':' + pad },
+          el('span', { class: 'p' }, 'PAD ' + pad), el('span', { class: 's' }, s.cargado ? String(s.slot) : '★ por cargar'),
+          el('span', { class: 'n' }, s.nombre, el('small', {}, `${s.rol} · encaje ${encaje(s, est.genero)}%`)));
+        b.addEventListener('click', () => irAPad(gr, pad));
+        ol.append(el('li', {}, b));
+      }
+      d.append(ol); cu.append(d);
     }
   }
 
@@ -405,7 +519,7 @@
 
   // ───────── Copiar e imprimir ─────────
   function textoPlan() {
-    const l = [`Kits K.O. II · ${est.genero} · ${est.bpm} BPM`, 'Sugerencia por heurística, sin escuchar el audio: confírmalo de oído.', 'Cómo cargarlo: mantén SOUND, escribe el número, pulsa ENTER.'];
+    const l = [`EP-133 Beatmaking Assistant · ${est.genero} · ${est.bpm} BPM`, 'Sugerencia por heurística, sin escuchar el audio: confírmalo de oído.', 'Cómo cargarlo: mantén SOUND, escribe el número, pulsa ENTER.'];
     for (const gr of Object.keys(GRUPOS)) {
       l.push('', `Grupo ${gr} · ${GRUPOS[gr].nombre.toLowerCase()}`);
       for (const pad of ORDEN_PADS) {
@@ -426,7 +540,7 @@
   function construirImpresion() {
     if (!base || !plan) return;
     const box = $('ksImpresion'); box.textContent = '';
-    box.append(el('h1', {}, `Kits K.O. II · ${est.genero} · ${est.bpm} BPM`),
+    box.append(el('h1', {}, `EP-133 Beatmaking Assistant · ${est.genero} · ${est.bpm} BPM`),
       el('p', {}, 'Sugerencia por heurística, sin escuchar el audio: confírmalo de oído. Cómo cargarlo: mantén SOUND, escribe el número, pulsa ENTER.'));
     for (const gr of Object.keys(GRUPOS)) {
       const t = el('table', {});

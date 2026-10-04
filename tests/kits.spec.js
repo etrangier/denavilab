@@ -1,4 +1,4 @@
-// Kits K.O. II: página sólo para Rolando que sugiere qué sonido cargar en cada pad del EP-133. Corre con `npm test`.
+// EP-133 Beatmaking Assistant: página sólo para Rolando que sugiere qué sonido cargar en cada pad del EP-133. Corre con `npm test`.
 // Los casos de aceptación usan la base real incrustada en la página; las reglas finas, una base sintética inventada aquí.
 const { test, expect } = require('@playwright/test');
 
@@ -35,7 +35,7 @@ test('sólo entra Rolando: los demás vuelven a la portada', async ({ page }) =>
   }
   await rolando(page); await page.goto('/kits.html');
   await expect(page).toHaveURL(/kits\.html/);
-  await expect(page.locator('h1')).toHaveText('Kits K.O. II');
+  await expect(page.locator('h1')).toHaveText('EP-133 Beatmaking Assistant');
 });
 
 test('la puerta de la portada aparece sólo con la sesión de Rolando', async ({ page }) => {
@@ -149,7 +149,7 @@ test('copiar plan sale en texto plano, un pad por línea', async ({ page, contex
   await page.click('#ksCopiar');
   await expect(page.locator('#ksEstado')).toContainText('copiado');
   const txt = await page.evaluate(() => navigator.clipboard.readText());
-  expect(txt).toMatch(/^Kits K\.O\. II · Lofi house · 120 BPM/);
+  expect(txt).toMatch(/^EP-133 Beatmaking Assistant · Lofi house · 120 BPM/);
   expect(txt).toMatch(/^Grupo A · pad 7 → sonido \d+ · .+$/m);
   expect(txt).toMatch(/^Grupo B · pad 7 → sonido 403 · .+$/m);
   expect(txt).toContain('mantén SOUND, escribe el número, pulsa ENTER');
@@ -168,4 +168,48 @@ test('cada género y cada grupo se pintan sin errores de JS, también en celular
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);   // sin scroll horizontal
   expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('indica género y BPM a la vista y los sigue al cambiarlos', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await page.selectOption('#ksGenero', 'Lofi house');
+  await expect(page.locator('#ksBanda')).toContainText('Lofi house');
+  await expect(page.locator('#ksBanda')).toContainText('120 BPM');
+  await expect(page.locator('#ksBanda')).toContainText('1 tiempo = 0,5 s');
+  await page.fill('#ksBpm', '90');
+  await expect(page.locator('#ksBanda')).toContainText('90 BPM');
+  await expect(page.locator('#ksIluSvg')).toContainText('90');          // la pantalla del esquema también
+  await expect(page.locator('#ksIluSvg')).toContainText('Lofi house');
+});
+
+test('el esquema del aparato muestra los grupos y el slot de cada tecla, y se puede tocar', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await page.selectOption('#ksGenero', 'Lofi house'); await page.fill('#ksBpm', '120');
+  await expect(page.locator('#ksIluSvg [data-ilu=grupo]')).toHaveCount(4);
+  await expect(page.locator('#ksIluSvg [data-ilu=pad]')).toHaveCount(12);
+  const delEsquema = await page.locator('#ksIluSvg [data-pad="A:7"] text').nth(1).textContent();
+  expect(Number(delEsquema)).toBe(await slotDe(page, 'A:7'));            // el número del esquema es el de la cuadrícula
+  await page.locator('#ksIluSvg [data-grupo="B"]').click();              // tocar el grupo B en el esquema cambia de grupo
+  await expect(page.locator('#tabB')).toHaveAttribute('aria-selected', 'true');
+  await expect(pad(page, 'B:7')).toBeVisible();
+  await page.locator('#ksIluSvg [data-pad="B:7"]').click();              // y tocar una tecla abre su detalle
+  await expect(page.locator('#ksDetalle')).toBeVisible();
+  await expect(page.locator('#ksDetalle h2')).toContainText('403');
+});
+
+test('la lista por grupo reúne todos los sonidos del plan y lleva a cada pad', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await page.selectOption('#ksGenero', 'Lofi house');
+  await expect(page.locator('#ksListaTit')).toHaveText('Lista de sonidos por grupo');
+  await expect(page.locator('#ksLista details.ks-gl')).toHaveCount(4);
+  for (const g of ['A', 'B', 'C', 'D']) {                                // la lista de cada grupo coincide con sus pads
+    await page.click('#tab' + g);
+    const enPads = await page.locator('button.ks-pad').count();
+    await expect(page.locator(`#ksLista details[data-grupo="${g}"] button.ks-li`)).toHaveCount(enPads);
+  }
+  const fila = page.locator('#ksLista details[data-grupo="B"] button.ks-li').first();
+  const nombre = await fila.locator('.n').evaluate(n => n.firstChild.textContent);
+  await fila.click();                                                    // tocar una fila abre ese pad en su grupo
+  await expect(page.locator('#tabB')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#ksDetalle h2')).toContainText(nombre);
 });
