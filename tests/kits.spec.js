@@ -316,3 +316,130 @@ test('los fijos son de cada género', async ({ page }) => {
   await page.selectOption('#ksGenero', 'Synth pop'); await page.click('#tabC');
   expect(await slotDe(page, 'C:7')).toBe(254);                                               // al volver, sigue ahí
 });
+
+// ── Audio local: la biblioteca se carga desde el computador de Rolando y se guarda en su navegador ──
+const zlib = require('zlib');
+const wav = (seg = 0.3, hz = 440, sr = 46875) => {
+  const n = Math.round(sr * seg), b = Buffer.alloc(44 + n * 2);
+  b.write('RIFF', 0); b.writeUInt32LE(36 + n * 2, 4); b.write('WAVEfmt ', 8); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22);
+  b.writeUInt32LE(sr, 24); b.writeUInt32LE(sr * 2, 28); b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write('data', 36); b.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i++) b.writeInt16LE(Math.round(Math.sin(2 * Math.PI * hz * i / sr) * 12000), 44 + i * 2);
+  return b;
+};
+const crc32 = buf => { let crc = 0xFFFFFFFF; for (const byte of buf) { crc ^= byte; for (let k = 0; k < 8; k++) crc = (crc >>> 1) ^ (0xEDB88320 & -(crc & 1)); } return (~crc) >>> 0; };
+const zip = entradas => {                                                  // zip mínimo: método 8 (deflate) o 0 (sin comprimir)
+  const locales = [], centrales = []; let pos = 0;
+  for (const { nombre, datos, metodo = 8 } of entradas) {
+    const comp = metodo === 8 ? zlib.deflateRawSync(datos) : datos, nom = Buffer.from(nombre), crc = crc32(datos);
+    const l = Buffer.alloc(30); l.writeUInt32LE(0x04034b50, 0); l.writeUInt16LE(20, 4); l.writeUInt16LE(metodo, 8); l.writeUInt32LE(crc, 14); l.writeUInt32LE(comp.length, 18); l.writeUInt32LE(datos.length, 22); l.writeUInt16LE(nom.length, 26);
+    const c = Buffer.alloc(46); c.writeUInt32LE(0x02014b50, 0); c.writeUInt16LE(20, 4); c.writeUInt16LE(20, 6); c.writeUInt16LE(metodo, 10); c.writeUInt32LE(crc, 16); c.writeUInt32LE(comp.length, 20); c.writeUInt32LE(datos.length, 24); c.writeUInt16LE(nom.length, 28); c.writeUInt32LE(pos, 42);
+    locales.push(l, nom, comp); centrales.push(c, nom); pos += 30 + nom.length + comp.length;
+  }
+  const cd = Buffer.concat(centrales), fin = Buffer.alloc(22); fin.writeUInt32LE(0x06054b50, 0); fin.writeUInt16LE(entradas.length, 8); fin.writeUInt16LE(entradas.length, 10); fin.writeUInt32LE(cd.length, 12); fin.writeUInt32LE(pos, 16);
+  return Buffer.concat([...locales, cd, fin]);
+};
+const subirAudio = (page, archivos) => page.setInputFiles('#ksAudioInArchivos', archivos.map(([name, buffer]) => ({ name, mimeType: name.endsWith('.pak') ? 'application/zip' : 'audio/wav', buffer })));
+const sonando = page => page.locator('body');
+
+test('sin biblioteca de audio no hay botones de escuchar y el resumen invita a cargarla', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await expect(page.locator('#ksAudioResumen')).toContainText('Sin audio');
+  await expect(page.locator('.ks-play')).toHaveCount(0);
+  await pad(page, 'A:7').click();
+  await expect(page.locator('#ksSinAudio')).toBeVisible(); await expect(page.locator('#ksPlay')).toHaveCount(0);
+});
+
+test('los archivos se asocian por nombre o, si no tienen nombre, por número a los sonidos estimados; el resto se informa', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await subirAudio(page, [['001 micro kick.wav', wav()], ['kick dirt.wav', wav()], ['254 sample.wav', wav()], ['023 sample.wav', wav()], ['cualquier cosa.wav', wav()], ['notas.txt', Buffer.from('x')]]);
+  await expect(page.locator('#ksAudioInfo')).toContainText('3 con audio nuevo');
+  await expect(page.locator('#ksAudioInfo')).toContainText('2 archivos sin coincidencia');      // «cualquier cosa» y «023 sample»; el .txt ni se mira
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 3 de 501');
+  await page.fill('#ksBuscar', 'micro kick'); await expect(page.locator('.ks-play[data-nombre="micro kick"]')).toHaveCount(1);   // por nombre, con el número del paquete delante
+  await page.fill('#ksBuscar', 'synth keys bm7 254'); await expect(page.locator('.ks-play[data-nombre="synth keys bm7 254"]')).toHaveCount(1);   // por número: estimado
+  await page.fill('#ksBuscar', 'nt alt kick c'); await expect(page.locator('#ksResultados .ks-rs').filter({ hasText: 'nt alt kick c' }).first()).toBeVisible();
+  await expect(page.locator('#ksResultados .ks-play')).toHaveCount(0);                          // el «023 sample» NO se pegó al slot 23: podría ser otro sonido
+});
+
+test('un sonido con audio se escucha desde la lista, el buscador y el detalle, y se puede parar', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await page.selectOption('#ksGenero', 'Lofi house');
+  await pad(page, 'A:7').click(); const nombre = (await pad(page, 'A:7').locator('.nom').textContent()).trim();
+  await subirAudio(page, [[`${nombre}.wav`, wav(2)]]);
+  await expect(page.locator('#ksPlay')).toHaveText('▶ Escuchar');                                // el detalle abierto se repinta solo
+  await expect(page.locator(`#ksLista .ks-play[data-nombre="${nombre}"]`)).toHaveCount(1);       // y la lista del plan
+  await page.click('#ksPlay');
+  await expect(sonando(page)).toHaveAttribute('data-sonando', nombre);
+  await expect(page.locator('#ksPlay')).toHaveText('■ Parar');
+  await page.click('#ksPlay');                                                                   // parar
+  await expect(sonando(page)).not.toHaveAttribute('data-sonando', /./);
+  await page.fill('#ksBuscar', nombre); await page.locator(`#ksResultados .ks-play[data-nombre="${nombre}"]`).click();   // desde el buscador
+  await expect(sonando(page)).toHaveAttribute('data-sonando', nombre);
+  await expect(page.locator(`#ksResultados .ks-play[data-nombre="${nombre}"]`)).toHaveText('■');
+});
+
+test('al terminar el sonido el botón vuelve a ▶ solo', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await subirAudio(page, [['micro kick.wav', wav(0.4)]]); await page.fill('#ksBuscar', 'micro kick');
+  await page.locator('.ks-play[data-nombre="micro kick"]').click();
+  await expect(sonando(page)).toHaveAttribute('data-sonando', 'micro kick');
+  await expect(sonando(page)).not.toHaveAttribute('data-sonando', /./, { timeout: 5000 });
+  await expect(page.locator('.ks-play[data-nombre="micro kick"]')).toHaveText('▶');
+});
+
+test('la biblioteca sobrevive a recargar, se puede ampliar sin perder lo anterior y se borra en dos pasos', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await subirAudio(page, [['micro kick.wav', wav(1)]]);
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 1 de 501');
+  await page.reload();
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 1 de 501');            // sigue ahí
+  await page.fill('#ksBuscar', 'micro kick'); await page.locator('.ks-play[data-nombre="micro kick"]').click();
+  await expect(sonando(page)).toHaveAttribute('data-sonando', 'micro kick');                    // y suena tras recargar
+  await subirAudio(page, [['micro kick.wav', wav(1, 880)], ['nt kick.wav', wav(1)]]);          // uno actualizado y uno nuevo
+  await expect(page.locator('#ksAudioInfo')).toContainText('1 con audio nuevo, 1 actualizados');
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2 de 501');
+  await page.locator('#ksAudioCaja > summary').click();
+  await page.click('#ksAudioBorrar'); await expect(page.locator('#ksAudioBorrar')).toHaveText('¿Seguro? Pulsa otra vez');
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2');                    // con un solo clic no se borra
+  await page.click('#ksAudioBorrar');
+  await expect(page.locator('#ksAudioResumen')).toContainText('Sin audio');
+  await expect(page.locator('.ks-play')).toHaveCount(0);
+});
+
+test('un .pak (zip) se lee por dentro: sólo entran los audios que coinciden con la base', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  const pak = zip([{ nombre: '/sounds/002 nt kick.wav', datos: wav(0.2) }, { nombre: '/sounds/003 nt kick b.wav', datos: wav(0.2), metodo: 0 },
+    { nombre: '/sounds/999 no existe.wav', datos: wav(0.2) }, { nombre: '/projects/P01.tar', datos: Buffer.from('basura') }]);
+  await subirAudio(page, [['ep-133-factory.pak', pak]]);
+  await expect(page.locator('#ksAudioInfo')).toContainText('2 con audio nuevo');                // deflate y sin comprimir
+  await expect(page.locator('#ksAudioInfo')).toContainText('1 archivo sin coincidencia');       // «999 no existe»; el .tar ni se mira
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2 de 501');
+});
+
+test('un audio dañado no rompe nada: avisa y sigue funcionando', async ({ page }) => {
+  const errs = []; page.on('pageerror', e => errs.push(String(e)));
+  await rolando(page); await page.goto('/kits.html');
+  await subirAudio(page, [['micro kick.wav', Buffer.from('esto no es un wav de verdad')]]);
+  await page.fill('#ksBuscar', 'micro kick'); await page.locator('.ks-play[data-nombre="micro kick"]').click();
+  await expect(page.locator('#ksEstado')).toContainText('No se pudo reproducir «micro kick»');
+  await expect(sonando(page)).not.toHaveAttribute('data-sonando', /./);
+  await page.fill('#ksBuscar', 'nt kick'); await expect(page.locator('#ksResultados .ks-rs').first()).toBeVisible();
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+const aiff = (seg = 1, hz = 440, sr = 44100) => {                           // AIFF sin comprimir, 16 bits, mono, con la frecuencia en 80 bits
+  const n = Math.round(sr * seg), b = Buffer.alloc(54 + n * 2), e2 = Math.floor(Math.log2(sr));
+  b.write('FORM', 0); b.writeUInt32BE(46 + n * 2, 4); b.write('AIFF', 8); b.write('COMM', 12); b.writeUInt32BE(18, 16); b.writeInt16BE(1, 20); b.writeUInt32BE(n, 22); b.writeInt16BE(16, 26);
+  b.writeUInt16BE(e2 + 16383, 28); b.writeBigUInt64BE(BigInt(sr) << BigInt(63 - e2), 30); b.write('SSND', 38); b.writeUInt32BE(8 + n * 2, 42);
+  for (let i = 0; i < n; i++) b.writeInt16BE(Math.round(Math.sin(2 * Math.PI * hz * i / sr) * 12000), 54 + i * 2);
+  return b;
+};
+test('un .aiff también suena (Chrome no lo decodifica solo)', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await page.setInputFiles('#ksAudioInArchivos', [{ name: 'ht synth.aiff', mimeType: 'audio/aiff', buffer: aiff(1.5) }]);
+  await expect(page.locator('#ksAudioInfo')).toContainText('1 con audio nuevo');
+  await page.uncheck('#ksSolo');                                                               // «ht synth» es un sample por cargar: sólo aparece con el interruptor apagado
+  await page.fill('#ksBuscar', 'ht synth'); await page.locator('.ks-play[data-nombre="ht synth"]').click();
+  await expect(sonando(page)).toHaveAttribute('data-sonando', 'ht synth');
+  await expect(page.locator('#ksEstado')).not.toContainText('No se pudo reproducir');
+});

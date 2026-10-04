@@ -126,10 +126,17 @@
   .ks-rs .n small { display: block; color: var(--muted); font-size: 11.5px; }
   .ks-rs .ks-fijar { font-size: 12px; padding: 5px 9px; white-space: nowrap; }
   .ks-pad .tecla { white-space: nowrap; }
+  .ks-audio { max-width: 540px; margin: 14px 0 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  .ks-audio > summary { cursor: pointer; padding: 10px 14px; font-size: 14px; }
+  .ks-audio-cuerpo { padding: 0 14px 14px; display: grid; gap: 8px; }
+  .ks-lirow, .ks-oprow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px; align-items: center; }
+  .ks-rs { grid-template-columns: 50px minmax(0, 1fr) auto auto; }
+  .ks-play { font: inherit; font-size: 12px; width: 34px; height: 30px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface-2); color: var(--accent); cursor: pointer; }
+  .ks-play:hover, .ks-play[aria-pressed=true] { border-color: var(--accent); }
   .ks-print { display: none; }
   @media print {
     body.pag-kits .wrap > *:not(.ks-print) { display: none !important; }
-    .ks-lista, .ks-ilu, .ks-buscar { display: none !important; }
+    .ks-lista, .ks-ilu, .ks-buscar, .ks-audio { display: none !important; }
     body.pag-kits .wrap { max-width: none; padding: 0; }
     .ks-print { display: block; color: #000; background: #fff; font-size: 11pt; }
     .ks-print h1 { font-size: 16pt; margin: 0 0 2pt; }
@@ -185,6 +192,21 @@
       <label class="ks-switch"><input type="checkbox" id="ksSolo" checked> Sólo lo que ya está cargado en mi K.O. II</label>
     </div>
 
+    <details class="ks-audio" id="ksAudioCaja">
+      <summary id="ksAudioResumen">🔇 Sin audio: carga tu biblioteca para poder escucharlos</summary>
+      <div class="ks-audio-cuerpo">
+        <p class="ks-hint">Para escuchar los sonidos aquí no hace falta el aparato: carga la carpeta de tus samples y/o el paquete de fábrica (<code>.pak</code>). El audio es tuyo y se queda en este navegador (no se sube a ningún sitio); funciona sin conexión. Cuando tengas sonidos nuevos, vuelve a cargarlos: se suman y actualizan.</p>
+        <div class="ks-acciones">
+          <button type="button" class="ks-btn" id="ksAudioCarpeta">Elegir carpeta…</button>
+          <button type="button" class="ks-btn" id="ksAudioArchivos">Elegir archivos o .pak…</button>
+          <button type="button" class="ks-btn ghost" id="ksAudioBorrar">Borrar mi biblioteca</button>
+        </div>
+        <input type="file" id="ksAudioInCarpeta" webkitdirectory multiple hidden aria-label="Carpeta con tus sonidos">
+        <input type="file" id="ksAudioInArchivos" multiple accept=".wav,.aif,.aiff,.flac,.mp3,.ogg,.pak,.zip,audio/*" hidden aria-label="Archivos de audio o paquete .pak">
+        <p class="ks-estado" id="ksAudioInfo" role="status" aria-live="polite"></p>
+      </div>
+    </details>
+
     <p class="ks-banda" id="ksBanda" aria-live="polite"></p>
 
     <figure class="ks-ilu" id="ksIlu">
@@ -217,7 +239,7 @@
     <p class="ks-base" id="ksBase"></p>
   </section>
 
-  <p class="ks-aviso">Los puntajes de encaje son una <b>sugerencia hecha por código, sin escuchar el audio</b>: confírmalo de oído. La máquina de origen sale sólo del nombre del archivo (inferido). Escuchar los sonidos desde esta página requeriría conectarse al aparato, y eso todavía no está incluido.</p>
+  <p class="ks-aviso">Los puntajes de encaje son una <b>sugerencia hecha por código, sin escuchar el audio</b>: confírmalo de oído. La máquina de origen sale sólo del nombre del archivo (inferido). Para escuchar los sonidos, carga tu propia biblioteca de audio en «Audio»: se queda en este navegador y no se sube a ningún sitio.</p>
 
   <section class="ks-print" id="ksImpresion" aria-hidden="true"></section>
 </div>
@@ -284,7 +306,7 @@
     $('ksCarga').hidden = true; $('ksApp').hidden = false;
     if (!base.generos.some(g => g.id === est.genero)) { est.genero = base.generos[0].id; est.bpm = null; est.alt = {}; }
     if (est.bpm == null) est.bpm = genero().bpm_default;
-    pintarTodo();
+    pintarTodo(); refrescarAudio();
   }
   const genero = () => base.generos.find(g => g.id === est.genero);
   const sonidosEf = () => base.sonidos.map(s => { const o = ov[s.nombre]; return o && o.cargado ? { ...s, cargado: true, slot: o.slot, _ov: true } : s; });
@@ -399,7 +421,7 @@
       const b = el('button', { type: 'button', class: 'ks-btn ghost ks-fijar', 'data-fijar': x.nombre }, !sel ? 'Abre un pad para fijarlo' : yaAqui ? 'Fijado aquí' : `Fijar en ${sel.replace(':', ' · pad ')}`);
       b.disabled = !sel || yaAqui; b.addEventListener('click', () => fijar(x.nombre));
       ol.append(el('li', { class: 'ks-rs' }, el('span', { class: 's' }, x.cargado ? String(x.slot) : '★'),
-        el('span', { class: 'n' }, x.nombre, el('small', {}, `${x.rol} · encaje ${encTxt(x)}${x.acorde ? ' · ' + x.acorde : ''}${x.cargado ? '' : ' · por cargar'}${donde ? ' · 📌 fijado en ' + donde.replace(':', ' · pad ') : ''}`)), b));
+        el('span', { class: 'n' }, x.nombre, el('small', {}, `${x.rol} · encaje ${encTxt(x)}${x.acorde ? ' · ' + x.acorde : ''}${x.cargado ? '' : ' · por cargar'}${donde ? ' · 📌 fijado en ' + donde.replace(':', ' · pad ') : ''}`)), botonPlay(x), b));
     }
     cu.append(ol);
   }
@@ -510,7 +532,7 @@
           el('span', { class: 'p' }, 'PAD ' + pad + (f.fijo ? ' 📌' : '')), el('span', { class: 's' }, s.cargado ? String(s.slot) : '★ por cargar'),
           el('span', { class: 'n' }, s.nombre, el('small', {}, `${s.rol} · encaje ${encTxt(s)}`)));
         b.addEventListener('click', () => irAPad(gr, pad));
-        ol.append(el('li', {}, b));
+        ol.append(el('li', { class: 'ks-lirow' }, b, botonPlay(s)));
       }
       d.append(ol); cu.append(d);
     }
@@ -553,6 +575,10 @@
     const pin = el('button', { type: 'button', class: 'ks-btn ghost', id: f.fijo ? 'ksQuitarFijo' : 'ksFijar' }, f.fijo ? 'Quitar el fijo' : '📌 Fijar este sonido aquí');
     pin.addEventListener('click', () => (f.fijo ? quitarFijo(sel) : fijar(s.nombre)));
     acc.append(pin);
+    if (audioSet.has(s.nombre)) {
+      const pl = el('button', { type: 'button', class: 'ks-btn', id: 'ksPlay', 'data-nombre': s.nombre }, sonando === s.nombre ? '■ Parar' : '▶ Escuchar');
+      pl.addEventListener('click', () => alternar(s.nombre)); acc.insertBefore(pl, acc.firstChild);
+    } else acc.append(el('span', { class: 'ks-hint', id: 'ksSinAudio' }, 'Sin audio local de este sonido: carga tu biblioteca en «Audio», arriba.'));
     if (s._ov) {
       const q = el('button', { type: 'button', class: 'ks-btn ghost', id: 'ksQuitar' }, 'Quitar la marca «cargado»');
       q.addEventListener('click', () => { delete ov[s.nombre]; guardar(CLAVE_OV, ov); recalcular(); });
@@ -568,7 +594,7 @@
         const b = el('button', { type: 'button', class: 'ks-op', 'data-op': String(i), 'aria-current': String(i === f.alt) },
           el('span', { class: 's' }, o.cargado ? String(o.slot) : '★'), el('span', { class: 'n' }, o.nombre, el('small', {}, `${o.rol} · encaje ${encTxt(o)}`)));
         b.addEventListener('click', () => { est.alt[sel] = i; recalcular(); });
-        ol.append(el('li', {}, b));
+        ol.append(el('li', { class: 'ks-oprow' }, b, botonPlay(o)));
       });
       d.append(ol); box.append(d);
       const actual = ol.querySelector('[aria-current="true"]'); if (actual && d.open) ol.scrollTop = Math.max(0, actual.offsetTop - 40);   // abre la lista ya en la opción elegida
@@ -652,6 +678,140 @@
   }
   $('ksImprimir').addEventListener('click', () => { construirImpresion(); window.print(); });
   window.addEventListener('beforeprint', construirImpresion);
+
+  // ───────── Audio local: tu propia biblioteca, guardada en este navegador (nada se sube a ningún sitio) ─────────
+  // El audio de fábrica (teenage engineering) y el de tus packs no se publican con la página: cada quien carga el suyo.
+  const AUDIO_EXT = new Set(['wav', 'aif', 'aiff', 'flac', 'mp3', 'ogg']);
+  const memoriaAudio = new Map();        // respaldo si el navegador no deja usar IndexedDB (p. ej. en una ventana privada)
+  let dbPromesa = null, audioSet = new Set(), ctxAudio = null, fuente = null, sonando = null, turnoAudio = 0;
+  const buffers = new Map();
+  const abrirDB = () => dbPromesa || (dbPromesa = new Promise(ok => {
+    try { const r = indexedDB.open('denavilab-kits-audio', 1); r.onupgradeneeded = () => r.result.createObjectStore('audio', { keyPath: 'nombre' }); r.onsuccess = () => ok(r.result); r.onerror = r.onblocked = () => ok(null); } catch (e) { ok(null); }
+  }));
+  async function idb(modo, f) {
+    const db = await abrirDB(); if (!db) return null;
+    return new Promise(ok => { try { const t = db.transaction('audio', modo), q = f(t.objectStore('audio')); t.oncomplete = () => ok('result' in q ? q.result : true); t.onerror = t.onabort = () => ok(null); } catch (e) { ok(null); } });
+  }
+  const audioPoner = async rec => { if ((await idb('readwrite', st => st.put(rec))) === null) memoriaAudio.set(rec.nombre, rec); else memoriaAudio.delete(rec.nombre); };
+  const audioLeer = async nombre => memoriaAudio.get(nombre) || (await idb('readonly', st => st.get(nombre))) || null;
+  const audioClaves = async () => new Set([...((await idb('readonly', st => st.getAllKeys())) || []), ...memoriaAudio.keys()]);
+  const conAudio = () => (base ? base.sonidos.filter(x => audioSet.has(x.nombre)).length : 0);
+
+  async function refrescarAudio() {
+    audioSet = await audioClaves(); const n = conAudio();
+    $('ksAudioResumen').textContent = n ? `🔊 Audio de ${n} de ${base.sonidos.length} sonidos` : '🔇 Sin audio: carga tu biblioteca para poder escucharlos';
+    if (base) { pintarDetalle(); pintarLista(); }
+  }
+
+  // Chrome no decodifica AIFF: se lee a mano (PCM de 8/16/24/32 bits; AIFC sólo «NONE», «twos» y «sowt»).
+  function decodificarAiff(bytes, ctx) {
+    const dv = new DataView(bytes), tag = n => String.fromCharCode(dv.getUint8(n), dv.getUint8(n + 1), dv.getUint8(n + 2), dv.getUint8(n + 3));
+    if (tag(0) !== 'FORM') throw new Error('no es un AIFF');
+    const aifc = tag(8) === 'AIFC'; let pos = 12, ch = 0, frames = 0, bits = 0, sr = 0, little = false, ini = -1, fin = 0;
+    while (pos + 8 <= bytes.byteLength) {
+      const id = tag(pos), tam = dv.getUint32(pos + 4);
+      if (id === 'COMM') {
+        ch = dv.getInt16(pos + 8); frames = dv.getUint32(pos + 10); bits = dv.getInt16(pos + 14);
+        sr = (dv.getUint32(pos + 18) * 4294967296 + dv.getUint32(pos + 22)) * Math.pow(2, (dv.getUint16(pos + 16) & 0x7fff) - 16383 - 63);   // número de 80 bits
+        if (aifc) { const comp = tag(pos + 26); if (comp === 'sowt') little = true; else if (comp !== 'NONE' && comp !== 'twos') throw new Error(`AIFF comprimido (${comp}) no soportado`); }
+      } else if (id === 'SSND') { ini = pos + 16 + dv.getUint32(pos + 8); fin = Math.min(pos + 8 + tam, bytes.byteLength); }
+      pos += 8 + tam + (tam & 1);
+    }
+    if (!ch || ini < 0 || !sr) throw new Error('AIFF incompleto');
+    const ancho = bits >> 3, n = Math.min(frames, Math.floor((fin - ini) / (ancho * ch))), buf = ctx.createBuffer(ch, n, sr);
+    for (let c = 0; c < ch; c++) {
+      const d = buf.getChannelData(c);
+      for (let i = 0; i < n; i++) {
+        const o = ini + (i * ch + c) * ancho;
+        if (ancho === 2) d[i] = dv.getInt16(o, little) / 32768;
+        else if (ancho === 1) d[i] = dv.getInt8(o) / 128;
+        else if (ancho === 3) { let x = little ? dv.getUint8(o) | dv.getUint8(o + 1) << 8 | dv.getUint8(o + 2) << 16 : dv.getUint8(o) << 16 | dv.getUint8(o + 1) << 8 | dv.getUint8(o + 2); if (x & 0x800000) x -= 0x1000000; d[i] = x / 8388608; }
+        else d[i] = dv.getInt32(o, little) / 2147483648;
+      }
+    }
+    return buf;
+  }
+  const esAiff = bytes => bytes.byteLength > 12 && String.fromCharCode(...new Uint8Array(bytes, 0, 4)) === 'FORM';
+
+  function marcarSonando(nombre) {
+    sonando = nombre; if (nombre) document.body.dataset.sonando = nombre; else delete document.body.dataset.sonando;
+    document.querySelectorAll('.ks-play').forEach(b => { const on = b.dataset.nombre === nombre; b.textContent = on ? '■' : '▶'; b.setAttribute('aria-pressed', String(on)); });
+    const g = $('ksPlay'); if (g) g.textContent = sonando === g.dataset.nombre ? '■ Parar' : '▶ Escuchar';
+  }
+  function parar() { turnoAudio++; if (fuente) { try { fuente.onended = null; fuente.stop(); } catch (e) {} fuente = null; } marcarSonando(null); }
+  async function alternar(nombre) {
+    if (sonando === nombre) { parar(); return; }
+    parar(); const turno = turnoAudio;
+    try {
+      ctxAudio = ctxAudio || new (window.AudioContext || window.webkitAudioContext)(); if (ctxAudio.state === 'suspended') await ctxAudio.resume();
+      let buf = buffers.get(nombre);
+      if (!buf) { const rec = await audioLeer(nombre); if (!rec) throw new Error('no hay audio guardado'); buf = esAiff(rec.bytes) ? decodificarAiff(rec.bytes, ctxAudio) : await ctxAudio.decodeAudioData(rec.bytes.slice(0)); buffers.set(nombre, buf); }
+      if (turno !== turnoAudio) return;                       // mientras tanto pidió otro sonido o paró
+      const src = ctxAudio.createBufferSource(); src.buffer = buf; src.connect(ctxAudio.destination); fuente = src;
+      src.onended = () => { if (fuente === src) { fuente = null; marcarSonando(null); } };
+      src.start(); marcarSonando(nombre); $('ksEstado').textContent = '';
+    } catch (e) { marcarSonando(null); $('ksEstado').textContent = `No se pudo reproducir «${nombre}»: ${e.message || 'el archivo no es un audio válido'}.`; }
+  }
+  function botonPlay(x) {
+    if (!audioSet.has(x.nombre)) return null;
+    const b = el('button', { type: 'button', class: 'ks-play', 'data-nombre': x.nombre, 'aria-label': 'Escuchar ' + x.nombre, 'aria-pressed': String(sonando === x.nombre), title: 'Escuchar' }, sonando === x.nombre ? '■' : '▶');
+    b.addEventListener('click', e => { e.stopPropagation(); alternar(x.nombre); }); return b;
+  }
+
+  // Un .pak (o .zip) es un zip: se lee su directorio y se descomprimen sólo los audios.
+  async function leerZip(buf) {
+    const dv = new DataView(buf), u8 = new Uint8Array(buf); let eocd = -1;
+    for (let i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 65557); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    if (eocd < 0) throw new Error('no es un zip');
+    const n = dv.getUint16(eocd + 10, true); let p = dv.getUint32(eocd + 16, true); const salida = [];
+    for (let k = 0; k < n && dv.getUint32(p, true) === 0x02014b50; k++) {
+      const metodo = dv.getUint16(p + 10, true), tam = dv.getUint32(p + 20, true), ln = dv.getUint16(p + 28, true), le = dv.getUint16(p + 30, true), lc = dv.getUint16(p + 32, true), off = dv.getUint32(p + 42, true);
+      const nombre = new TextDecoder().decode(u8.subarray(p + 46, p + 46 + ln)); p += 46 + ln + le + lc;
+      if (nombre.endsWith('/') || !AUDIO_EXT.has(nombre.split('.').pop().toLowerCase())) continue;
+      const ini = off + 30 + dv.getUint16(off + 26, true) + dv.getUint16(off + 28, true), datos = u8.subarray(ini, ini + tam);
+      if (metodo === 0) salida.push({ nombre: nombre.split('/').pop(), bytes: datos.slice().buffer });
+      else if (metodo === 8) salida.push({ nombre: nombre.split('/').pop(), bytes: await new Response(new Blob([datos]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer() });
+    }
+    return salida;
+  }
+
+  // Cada archivo se asocia a un sonido de la base por su nombre («kick dirt.wav», «001 micro kick.wav» del paquete de fábrica).
+  // «NNN sample.wav» (lo que baja del aparato sin nombre) sólo se asocia por número a los sonidos «estimados»: en el resto de los
+  // slots podría ser otra cosa distinta de la que dice la base, y sonaría un sonido equivocado.
+  async function importarAudio(lista) {
+    const info = $('ksAudioInfo'); info.textContent = 'Leyendo…';
+    const indice = new Map(), porSlotEstimado = new Map();
+    for (const x of base.sonidos) { indice.set(norm(x.nombre), x); if (x.estimado && x.slot != null) porSlotEstimado.set(x.slot, x); }
+    const entradas = []; let ilegibles = 0;
+    for (const f of lista) {
+      const ext = f.name.split('.').pop().toLowerCase();
+      if (ext === 'pak' || ext === 'zip') { try { entradas.push(...(await leerZip(await f.arrayBuffer()))); } catch (e) { ilegibles++; } }
+      else if (AUDIO_EXT.has(ext)) entradas.push({ nombre: f.name, archivo: f });
+    }
+    const previos = await audioClaves(), hechos = new Set(); let nuevos = 0, repuestos = 0, sin = 0;
+    for (const en of entradas) {
+      const stem = en.nombre.replace(/\.[^.]+$/, ''), m = stem.match(/^(\d{1,3})\s+(.*)$/), cola = m ? m[2] : stem;
+      const x = (m && norm(cola) === 'sample' && porSlotEstimado.get(+m[1])) || indice.get(norm(stem)) || indice.get(norm(cola));
+      if (!x) { sin++; continue; } if (hechos.has(x.nombre)) continue; hechos.add(x.nombre);
+      const bytes = en.bytes || await en.archivo.arrayBuffer();
+      await audioPoner({ nombre: x.nombre, archivo: en.nombre, tam: bytes.byteLength, bytes }); buffers.delete(x.nombre);
+      if (previos.has(x.nombre)) repuestos++; else nuevos++;
+      if ((nuevos + repuestos) % 25 === 0) info.textContent = `Guardando… ${nuevos + repuestos}`;
+    }
+    await refrescarAudio();
+    info.textContent = `Listo: ${nuevos} con audio nuevo${repuestos ? `, ${repuestos} actualizados` : ''}; ${sin} archivo${sin === 1 ? '' : 's'} sin coincidencia en la base${ilegibles ? `; ${ilegibles} paquete${ilegibles === 1 ? '' : 's'} ilegible${ilegibles === 1 ? '' : 's'}` : ''}. Hay audio de ${conAudio()} de ${base.sonidos.length} sonidos.`;
+  }
+  const alElegir = async e => { const lista = [...e.target.files]; e.target.value = ''; if (lista.length) await importarAudio(lista); };
+  $('ksAudioInCarpeta').addEventListener('change', alElegir); $('ksAudioInArchivos').addEventListener('change', alElegir);
+  $('ksAudioCarpeta').addEventListener('click', () => $('ksAudioInCarpeta').click());
+  $('ksAudioArchivos').addEventListener('click', () => $('ksAudioInArchivos').click());
+  let borrando = null;
+  $('ksAudioBorrar').addEventListener('click', async e => {            // dos pasos, sin ventanas emergentes
+    const b = e.currentTarget;
+    if (!borrando) { b.textContent = '¿Seguro? Pulsa otra vez'; borrando = setTimeout(() => { borrando = null; b.textContent = 'Borrar mi biblioteca'; }, 4000); return; }
+    clearTimeout(borrando); borrando = null; b.textContent = 'Borrar mi biblioteca';
+    parar(); buffers.clear(); await idb('readwrite', st => st.clear()); memoriaAudio.clear(); await refrescarAudio(); $('ksAudioInfo').textContent = 'Biblioteca borrada de este navegador.';
+  });
 
   // ───────── Arranque ─────────
   const guardada = leer(CLAVE_BASE, null), incluida = baseIncluida();
