@@ -3,6 +3,13 @@
   {
    "fecha": "2026-10-06",
    "items": [
+    "Synth pop afinado: el grupo A prefiere las baterías Behringer RD-6 y RD-8 (se añadieron 48 sonidos de tus carpetas RD, marcados «por cargar» con encaje estimado); los bajos analógicos (sierra/cuadrada, Moog, Prophet, sub, pluck) suben en el grupo B; y en C y D los pads suaves y armónicos (ataque lento, 2 s o más, poco brillo) tienen su propio cupo, así que ya entran, p. ej. «Classic Analog Pad» (slot 460).",
+    "El detalle de cada pad en Synth pop explica cada punto del ajuste (RD, bajo analógico, pad suave) y su tope."
+   ]
+  },
+  {
+   "fecha": "2026-10-06",
+   "items": [
     "EP-133 Beatmaking Assistant: la base pasa a 512 sonidos (13 nuevos medidos del aparato: bajos 461–464, bombos 40–42, cajas 156 y 158, platillo 264, melódicos 560–562). Los que el generador original no midió llevan «~» y su error típico en puntos.",
     "Análisis a fondo de cada archivo: frecuencia de muestreo, techo en kHz, ancho de banda, tipo de onda (seno, triangular, cuadrada, sierra, compleja, polifónica; en percusión: seno con barrido, bombo con clic, ruido metálico…), etiquetas sacadas del nombre y afinidad de carpeta/pack con cada género.",
     "Ajuste espectral por género (acotado a ±6 puntos): el lo-fi prefiere hats y claps con menos agudos, techno y synth pop los quieren abiertos, el bajo prefiere seno/triangular o sierra según el género. El detalle del pad explica cada punto.",

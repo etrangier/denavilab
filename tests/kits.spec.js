@@ -225,7 +225,7 @@ test('los samples 254–257 (de fábrica, antes sin inventariar) están en la ba
   expect(nuevos.map(s => s.dur_s)).toEqual([0.26, 0.26, 0.39, 0.14]);        // medidas con el método de la base
   expect(nuevos.slice(0, 3).map(s => s.acorde)).toEqual(['≈ B m7', '≈ B m7', '≈ B m7']);
   expect(nuevos[3].acorde).toBe('');                                          // el 257 no se pudo clasificar con seguridad
-  expect(base.sonidos).toHaveLength(512);
+  expect(base.sonidos).toHaveLength(560);
 });
 
 test('los samples 254–257 se pueden elegir desde las mejores opciones de un pad y avisan su nivel y su encaje estimado', async ({ page }) => {
@@ -356,7 +356,7 @@ test('los archivos se asocian por nombre o, si no tienen nombre, por número a l
   await subirAudio(page, [['001 micro kick.wav', wav()], ['kick dirt.wav', wav()], ['254 sample.wav', wav()], ['023 sample.wav', wav()], ['cualquier cosa.wav', wav()], ['notas.txt', Buffer.from('x')]]);
   await expect(page.locator('#ksAudioInfo')).toContainText('3 con audio nuevo');
   await expect(page.locator('#ksAudioInfo')).toContainText('2 archivos sin coincidencia');      // «cualquier cosa» y «023 sample»; el .txt ni se mira
-  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 3 de 512');
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 3 de 560');
   await page.fill('#ksBuscar', 'micro kick'); await expect(page.locator('.ks-play[data-nombre="micro kick"]')).toHaveCount(1);   // por nombre, con el número del paquete delante
   await page.fill('#ksBuscar', 'synth keys bm7 254'); await expect(page.locator('.ks-play[data-nombre="synth keys bm7 254"]')).toHaveCount(1);   // por número: estimado
   await page.fill('#ksBuscar', 'nt alt kick c'); await expect(page.locator('#ksResultados .ks-rs').filter({ hasText: 'nt alt kick c' }).first()).toBeVisible();
@@ -392,14 +392,14 @@ test('al terminar el sonido el botón vuelve a ▶ solo', async ({ page }) => {
 test('la biblioteca sobrevive a recargar, se puede ampliar sin perder lo anterior y se borra en dos pasos', async ({ page }) => {
   await rolando(page); await page.goto('/kits.html');
   await subirAudio(page, [['micro kick.wav', wav(1)]]);
-  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 1 de 512');
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 1 de 560');
   await page.reload();
-  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 1 de 512');            // sigue ahí
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 1 de 560');            // sigue ahí
   await page.fill('#ksBuscar', 'micro kick'); await page.locator('.ks-play[data-nombre="micro kick"]').click();
   await expect(sonando(page)).toHaveAttribute('data-sonando', 'micro kick');                    // y suena tras recargar
   await subirAudio(page, [['micro kick.wav', wav(1, 880)], ['nt kick.wav', wav(1)]]);          // uno actualizado y uno nuevo
   await expect(page.locator('#ksAudioInfo')).toContainText('1 con audio nuevo, 1 actualizados');
-  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2 de 512');
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2 de 560');
   await page.locator('#ksAudioCaja > summary').click();
   await page.click('#ksAudioBorrar'); await expect(page.locator('#ksAudioBorrar')).toHaveText('¿Seguro? Pulsa otra vez');
   await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2');                    // con un solo clic no se borra
@@ -415,7 +415,7 @@ test('un .pak (zip) se lee por dentro: sólo entran los audios que coinciden con
   await subirAudio(page, [['ep-133-factory.pak', pak]]);
   await expect(page.locator('#ksAudioInfo')).toContainText('2 con audio nuevo');                // deflate y sin comprimir
   await expect(page.locator('#ksAudioInfo')).toContainText('1 archivo sin coincidencia');       // «999 no existe»; el .tar ni se mira
-  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2 de 512');
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2 de 560');
 });
 
 test('un audio dañado no rompe nada: avisa y sigue funcionando', async ({ page }) => {
@@ -495,4 +495,25 @@ test('el ajuste espectral prefiere el techo y la onda del género, está acotado
   await pad(page, 'B:7').click();
   await expect(page.locator('#ksDetalle')).toContainText('ajuste espectral +2');
   await expect(page.locator('#ksDetalle')).toContainText('onda seno');
+});
+
+test('Synth pop: baterías Behringer RD en el grupo A, bajos analógicos y pads suaves en C y D', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await page.selectOption('#ksGenero', 'Synth pop');
+  const nombres = async t => { await page.click('#tab' + t); return page.locator('button.ks-pad .nom').allTextContents(); };
+  // Con lo ya cargado: el bombo es un RD-8 (hay 3 RD en el aparato).
+  expect((await nombres('A'))[0]).toMatch(/RD-?8/i);
+  // Mirando también lo que falta cargar, el grupo A se llena de RD (606 y 808): al menos 6 de 12.
+  await page.locator('#ksSolo').setChecked(false);
+  const a = await nombres('A'); expect(a.filter(n => /\bRD-?[689]\b/i.test(n)).length).toBeGreaterThanOrEqual(6);
+  await page.locator('#ksSolo').setChecked(true);
+  expect(await nombres('B')).toContain('Bajo_Moog70s_Pluck_C2');                                    // bajo analógico (sierra, Moog)
+  const d = await nombres('D'); expect(d).toContain('Classic Analog Pad');                          // el pad del slot 460 ya entra
+  const c = await nombres('C'); expect(c).toEqual(expect.arrayContaining(['Pad_Suave_Cuerdas_Cm9', 'Celestial Voices']));
+  await page.click('#tabD'); await page.locator('button.ks-pad', { hasText: 'Classic Analog Pad' }).click();
+  await expect(page.locator('#ksDetalle')).toContainText('pad con ataque lento');
+  // Los otros géneros no cambian: el bombo de Lofi house sigue sin forzar RD.
+  await page.selectOption('#ksGenero', 'Lofi house'); await page.click('#tabA');
+  expect([2, 1, 35]).toContain(await slotDe(page, 'A:7'));                                          // igual que la prueba de aceptación
+  expect(await page.locator('button.ks-pad .nom').first().textContent()).not.toMatch(/RD/);
 });
