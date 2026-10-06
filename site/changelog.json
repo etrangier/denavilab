@@ -3,6 +3,13 @@
   {
    "fecha": "2026-10-06",
    "items": [
+    "Inventario real del K.O. II: se leyeron los 360 sonidos del aparato (sólo lectura, con la sonda) y la base ahora coincide con él: los 360 slots cargados son los reales, con su nombre, canales, frecuencia y modo del aparato.",
+    "Corregidos 19 slots: 18 sonidos tenían otro número en el aparato que en el paquete de fábrica (p. ej. «agogo» está en el 321, no en el 325; «crunch hat 2» en el 217, no en el 216), y «CP SD RD6 1» está cargado en el 157."
+   ]
+  },
+  {
+   "fecha": "2026-10-06",
+   "items": [
     "El BPM ahora mueve el ranking (±4 puntos): un bombo, caja o clap con la cola más larga que un tiempo pierde, un hat cerrado de cola corta gana, y un hat abierto, ride o crash cuya cola respira hasta el siguiente tiempo sube. El detalle del pad explica el ajuste.",
     "«Me gusta» / «No me gusta» por sonido y género (se guardan sólo en este navegador): suben o bajan ese sonido en el ranking de ese género, y se pueden olvidar por género.",
     "Comparar A/B en cada pad: eliges un sonido B entre las mejores opciones, alternas A y B con un clic y puedes usar B en el pad. «Igualar volumen» lleva cada sonido al mismo nivel para que decida el timbre y no la fuerza."
