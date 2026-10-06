@@ -85,8 +85,10 @@ test('reglas: variantes, grave, «por cargar», avisos de cola y compases', asyn
   await expect(pad(page, 'A:7').locator('.nom')).toHaveText('boom dry');
   await expect(pad(page, 'A:0').locator('.nom')).toHaveText('sub kick');
   await expect(pad(page, 'A:ENTER')).toHaveCount(0);               // no es caja: sin sonido, no hay botón
-  const nombresA = await page.locator('button.ks-pad .nom').allTextContents();
-  expect(nombresA).not.toContain('boom wet');
+  // «boom wet» es variante de «boom dry»: no entra en su pad, pero sí completa un pad que si no quedaría vacío (y el detalle lo dice)
+  await expect(pad(page, 'A:8').locator('.nom')).toHaveText('boom wet');
+  await pad(page, 'A:8').click(); await expect(page.locator('#ksDetalle')).toContainText('Pad completado');
+  await expect(page.locator('#ksDetalle')).toContainText('sonido afín al grupo');
 
   await pad(page, 'A:7').click();
   await expect(page.locator('#ksDetalle')).toContainText('supera 1 tiempo');   // cola 0.7 s > 0.5 s
@@ -223,7 +225,7 @@ test('los samples 254–257 (de fábrica, antes sin inventariar) están en la ba
   expect(nuevos.map(s => s.dur_s)).toEqual([0.26, 0.26, 0.39, 0.14]);        // medidas con el método de la base
   expect(nuevos.slice(0, 3).map(s => s.acorde)).toEqual(['≈ B m7', '≈ B m7', '≈ B m7']);
   expect(nuevos[3].acorde).toBe('');                                          // el 257 no se pudo clasificar con seguridad
-  expect(base.sonidos).toHaveLength(501);
+  expect(base.sonidos).toHaveLength(512);
 });
 
 test('los samples 254–257 se pueden elegir desde las mejores opciones de un pad y avisan su nivel y su encaje estimado', async ({ page }) => {
@@ -354,7 +356,7 @@ test('los archivos se asocian por nombre o, si no tienen nombre, por número a l
   await subirAudio(page, [['001 micro kick.wav', wav()], ['kick dirt.wav', wav()], ['254 sample.wav', wav()], ['023 sample.wav', wav()], ['cualquier cosa.wav', wav()], ['notas.txt', Buffer.from('x')]]);
   await expect(page.locator('#ksAudioInfo')).toContainText('3 con audio nuevo');
   await expect(page.locator('#ksAudioInfo')).toContainText('2 archivos sin coincidencia');      // «cualquier cosa» y «023 sample»; el .txt ni se mira
-  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 3 de 501');
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 3 de 512');
   await page.fill('#ksBuscar', 'micro kick'); await expect(page.locator('.ks-play[data-nombre="micro kick"]')).toHaveCount(1);   // por nombre, con el número del paquete delante
   await page.fill('#ksBuscar', 'synth keys bm7 254'); await expect(page.locator('.ks-play[data-nombre="synth keys bm7 254"]')).toHaveCount(1);   // por número: estimado
   await page.fill('#ksBuscar', 'nt alt kick c'); await expect(page.locator('#ksResultados .ks-rs').filter({ hasText: 'nt alt kick c' }).first()).toBeVisible();
@@ -390,14 +392,14 @@ test('al terminar el sonido el botón vuelve a ▶ solo', async ({ page }) => {
 test('la biblioteca sobrevive a recargar, se puede ampliar sin perder lo anterior y se borra en dos pasos', async ({ page }) => {
   await rolando(page); await page.goto('/kits.html');
   await subirAudio(page, [['micro kick.wav', wav(1)]]);
-  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 1 de 501');
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 1 de 512');
   await page.reload();
-  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 1 de 501');            // sigue ahí
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 1 de 512');            // sigue ahí
   await page.fill('#ksBuscar', 'micro kick'); await page.locator('.ks-play[data-nombre="micro kick"]').click();
   await expect(sonando(page)).toHaveAttribute('data-sonando', 'micro kick');                    // y suena tras recargar
   await subirAudio(page, [['micro kick.wav', wav(1, 880)], ['nt kick.wav', wav(1)]]);          // uno actualizado y uno nuevo
   await expect(page.locator('#ksAudioInfo')).toContainText('1 con audio nuevo, 1 actualizados');
-  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2 de 501');
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2 de 512');
   await page.locator('#ksAudioCaja > summary').click();
   await page.click('#ksAudioBorrar'); await expect(page.locator('#ksAudioBorrar')).toHaveText('¿Seguro? Pulsa otra vez');
   await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2');                    // con un solo clic no se borra
@@ -413,7 +415,7 @@ test('un .pak (zip) se lee por dentro: sólo entran los audios que coinciden con
   await subirAudio(page, [['ep-133-factory.pak', pak]]);
   await expect(page.locator('#ksAudioInfo')).toContainText('2 con audio nuevo');                // deflate y sin comprimir
   await expect(page.locator('#ksAudioInfo')).toContainText('1 archivo sin coincidencia');       // «999 no existe»; el .tar ni se mira
-  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2 de 501');
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2 de 512');
 });
 
 test('un audio dañado no rompe nada: avisa y sigue funcionando', async ({ page }) => {
@@ -442,4 +444,55 @@ test('un .aiff también suena (Chrome no lo decodifica solo)', async ({ page }) 
   await page.fill('#ksBuscar', 'ht synth'); await page.locator('.ks-play[data-nombre="ht synth"]').click();
   await expect(sonando(page)).toHaveAttribute('data-sonando', 'ht synth');
   await expect(page.locator('#ksEstado')).not.toContainText('No se pudo reproducir');
+});
+
+test('ningún pad queda vacío: 9 géneros × 4 grupos, con y sin el interruptor «sólo lo cargado»', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  const generos = await page.locator('#ksGenero option').evaluateAll(os => os.map(o => o.value));
+  for (const solo of [true, false]) {
+    if (solo) await page.check('#ksSolo'); else await page.uncheck('#ksSolo');
+    for (const g of generos) {
+      await page.selectOption('#ksGenero', g);
+      for (const gr of ['A', 'B', 'C', 'D']) {
+        await page.click('#tab' + gr);
+        expect(await page.locator('button.ks-pad').count(), `${g} · grupo ${gr} · sólo cargados=${solo}`).toBe(12);   // los 12 pads con sonido
+      }
+    }
+  }
+});
+
+test('el grupo B trae 12 bajos distintos, uno por pad', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await page.selectOption('#ksGenero', 'Lofi house'); await page.click('#tabB');
+  const roles = await page.locator('button.ks-pad .rol').allTextContents(); const nombres = await page.locator('button.ks-pad .nom').allTextContents();
+  expect(roles).toHaveLength(12); expect(new Set(roles)).toEqual(new Set(['Bajo']));
+  expect(new Set(nombres).size).toBe(12);
+  expect(await slotDe(page, 'B:7')).toBe(403);                                                       // el mejor sigue primero
+});
+
+test('sin sonidos para un rol, el pad se completa con uno afín y lo dice; sin nada afín queda vacío', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await subirBase(page, SINTETICA); await page.fill('#ksBpm', '120');
+  await page.locator('#ksGrid button.ks-pad').first().click();                                    // abre un pad cualquiera para ver que el motor no se rompe
+  await pad(page, 'A:9').click();                                                                  // «clap»: no hay ninguno en la base de prueba
+  await expect(page.locator('#ksDetalle')).toContainText('Pad completado para que no quede vacío');
+  await expect(page.locator('#ksDetalle')).toContainText('afín al grupo');
+  await expect(page.locator('#ksGrid .ks-pad.libre').first()).toBeVisible();                       // con sólo 9 sonidos no alcanza para los 12 pads: «en lo posible»
+});
+
+test('el ajuste espectral prefiere el techo y la onda del género, está acotado y se explica', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  const base = { ...SINTETICA, sonidos: [
+    snd('hat oscuro', 'Hat cerrado', 60, { slot: 5, techo_khz: 11 }),          // techo ideal de Prueba: 12 kHz (ver BRILLO) → no aplica a un género inventado
+    snd('bajo sierra', 'Bajo', 70, { slot: 20, onda: 'diente de sierra', pico_grave_hz: 60 }),
+    snd('bajo seno', 'Bajo', 70, { slot: 21, onda: 'seno', pico_grave_hz: 60 }),
+  ] };
+  base.generos = [{ id: 'Lofi house', bpm_min: 100, bpm_max: 130, bpm_default: 120, rasgos: '', fuente: '' }];
+  base.sonidos.forEach(s => { s.encaje = { 'Lofi house': s.encaje.Prueba }; });
+  await subirBase(page, base); await page.fill('#ksBpm', '120');
+  await page.click('#tabB');
+  expect(await slotDe(page, 'B:7')).toBe(21);                                  // empatan en 70: el seno gana por +2 de onda
+  await pad(page, 'B:7').click();
+  await expect(page.locator('#ksDetalle')).toContainText('ajuste espectral +2');
+  await expect(page.locator('#ksDetalle')).toContainText('onda seno');
 });

@@ -1,6 +1,15 @@
 {
  "changelog": [
   {
+   "fecha": "2026-10-06",
+   "items": [
+    "EP-133 Beatmaking Assistant: la base pasa a 512 sonidos (13 nuevos medidos del aparato: bajos 461–464, bombos 40–42, cajas 156 y 158, platillo 264, melódicos 560–562). Los que el generador original no midió llevan «~» y su error típico en puntos.",
+    "Análisis a fondo de cada archivo: frecuencia de muestreo, techo en kHz, ancho de banda, tipo de onda (seno, triangular, cuadrada, sierra, compleja, polifónica; en percusión: seno con barrido, bombo con clic, ruido metálico…), etiquetas sacadas del nombre y afinidad de carpeta/pack con cada género.",
+    "Ajuste espectral por género (acotado a ±6 puntos): el lo-fi prefiere hats y claps con menos agudos, techno y synth pop los quieren abiertos, el bajo prefiere seno/triangular o sierra según el género. El detalle del pad explica cada punto.",
+    "Ningún pad queda vacío: el grupo B ahora llena sus 12 pads con bajos distintos y, si un rol se agota, el pad se completa con una variante o un sonido afín del grupo (y lo dice)."
+   ]
+  },
+  {
    "fecha": "2026-10-04",
    "items": [
     "Escuchar los sonidos en el navegador, sin conectar el aparato: una sección «Audio» donde cargas tu propia biblioteca —la carpeta de tus samples, el paquete de fábrica (.pak) o archivos sueltos— y desde entonces cada sonido con audio tiene un botón ▶ en el detalle del pad, en la lista del plan, en las opciones de cada pad y en el buscador (■ para parar). El audio se queda en este navegador (unos 52 MB para los 501 sonidos), no se sube a ningún sitio y funciona sin conexión; no se publica con la página porque es de teenage engineering y de tus packs. Cada archivo se asocia a un sonido por su nombre (también con el número del paquete de fábrica delante), y los «NNN sample.wav» que baja el aparato sin nombre sólo se asocian por número a los cuatro sonidos estimados, para no pegar un audio equivocado a otro slot. Cuando haya sonidos nuevos, se vuelven a cargar: los nuevos se suman y los repetidos se actualizan. Entiende WAV (también de coma flotante), AIFF —que Chrome no abre solo—, FLAC, MP3 y OGG, y avisa sin romperse si un archivo está dañado. Con tus archivos reales quedan los 501 sonidos con audio.",
