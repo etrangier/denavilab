@@ -81,26 +81,28 @@ test('reglas: variantes, grave, «por cargar», avisos de cola y compases', asyn
   await expect(page.locator('#ksBase')).toContainText('cargada por ti');
   await page.fill('#ksBpm', '120');
 
-  // bombo: «boom dry» gana (90); «sub kick» (95 − 8 = 87) queda detrás; «boom wet» es variante de «boom dry» y no entra
-  await expect(pad(page, 'A:7').locator('.nom')).toHaveText('boom dry');
+  // bombo a 120 BPM: la cola de «boom dry» (0.7 s) pasa de 1 tiempo (0.5 s) y pierde 4 puntos (86), así que gana su variante «boom wet» (89);
+  // «sub kick» (95 − 8 = 87) queda detrás
+  await expect(pad(page, 'A:7').locator('.nom')).toHaveText('boom wet');
   await expect(pad(page, 'A:0').locator('.nom')).toHaveText('sub kick');
   await expect(pad(page, 'A:ENTER')).toHaveCount(0);               // no es caja: sin sonido, no hay botón
-  // «boom wet» es variante de «boom dry»: no entra en su pad, pero sí completa un pad que si no quedaría vacío (y el detalle lo dice)
-  await expect(pad(page, 'A:8').locator('.nom')).toHaveText('boom wet');
+  // «boom dry» es variante de «boom wet»: no entra en su pad, pero sí completa un pad que si no quedaría vacío (y el detalle lo dice)
+  await expect(pad(page, 'A:8').locator('.nom')).toHaveText('boom dry');
   await pad(page, 'A:8').click(); await expect(page.locator('#ksDetalle')).toContainText('Pad completado');
   await expect(page.locator('#ksDetalle')).toContainText('sonido afín al grupo');
 
-  await pad(page, 'A:7').click();
-  await expect(page.locator('#ksDetalle')).toContainText('supera 1 tiempo');   // cola 0.7 s > 0.5 s
+  await expect(page.locator('#ksDetalle')).toContainText('supera 1 tiempo');   // (el pad A:8 sigue abierto)   // cola 0.7 s > 0.5 s
   await pad(page, 'A:0').click();
   await expect(page.locator('#ksDetalle')).toContainText('casi inaudible');
   await expect(page.locator('#ksDetalle')).toContainText('menos 8 puntos');
   await pad(page, 'A:4').click();
   await expect(page.locator('#ksDetalle')).toContainText('supera medio tiempo');   // cola 0.3 s > 0.25 s
 
-  await page.fill('#ksBpm', '60');                                  // a 60 BPM un tiempo dura 1 s: ya no hay aviso para el bombo
+  await page.fill('#ksBpm', '60');                                  // a 60 BPM un tiempo dura 1 s: ya no hay aviso ni castigo, y «boom dry» (90) vuelve a ganar
+  await expect(pad(page, 'A:7').locator('.nom')).toHaveText('boom dry');
   await pad(page, 'A:7').click();
   await expect(page.locator('#ksDetalle')).not.toContainText('supera 1 tiempo');
+  await expect(page.locator('#ksDetalle')).not.toContainText('ajuste por BPM');
 
   await page.fill('#ksBpm', '120');
   await page.click('#tabC'); await pad(page, 'C:7').click();
@@ -111,7 +113,7 @@ test('reglas: variantes, grave, «por cargar», avisos de cola y compases', asyn
   await expect(pad(page, 'A:7').locator('.nom')).toHaveText('ghost kick');
   await expect(pad(page, 'A:7').locator('.slot')).toHaveText('★ por cargar');
   await page.check('#ksSolo');
-  await expect(pad(page, 'A:7').locator('.nom')).toHaveText('boom dry');
+  await expect(pad(page, 'A:7').locator('.nom')).toHaveText('boom wet');           // a 120 BPM «boom dry» pierde por su cola
 });
 
 test('siguiente alternativa cambia el sonido sin repetir los de otros pads', async ({ page }) => {
@@ -516,4 +518,67 @@ test('Synth pop: baterías Behringer RD en el grupo A, bajos analógicos y pads 
   await page.selectOption('#ksGenero', 'Lofi house'); await page.click('#tabA');
   expect([2, 1, 35]).toContain(await slotDe(page, 'A:7'));                                          // igual que la prueba de aceptación
   expect(await page.locator('button.ks-pad .nom').first().textContent()).not.toMatch(/RD/);
+});
+
+test('el BPM mueve el ranking: a más tempo, los hats abiertos de cola larga pierden y los cortos ganan', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  const base = { ...SINTETICA, sonidos: [
+    snd('open largo', 'Hat abierto', 80, { slot: 5, cola20_s: 0.9 }),
+    snd('open medio', 'Hat abierto', 76, { slot: 6, cola20_s: 0.3 }),
+    snd('open otro', 'Hat abierto', 60, { slot: 7, cola20_s: 0.3 }),
+  ] };
+  await subirBase(page, base);
+  await page.fill('#ksBpm', '60');                                  // 1 tiempo = 1 s: «open largo» (0.9 s) cabe y respira (+2 = 82)
+  await expect(pad(page, 'A:5').locator('.nom')).toHaveText('open largo');
+  await page.fill('#ksBpm', '128');                                 // 1 tiempo = 0.47 s: 0.9 s lo pasa (−3 = 77) y «open medio» (76 + 2 = 78) gana
+  await expect(pad(page, 'A:5').locator('.nom')).toHaveText('open medio');
+  await pad(page, 'A:5').click(); await expect(page.locator('#ksDetalle')).toContainText('respira hasta el siguiente tiempo');
+});
+
+test('«me gusta» y «no me gusta» mueven el ranking de ese género, sobreviven a recargar y se olvidan', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await page.selectOption('#ksGenero', 'Lofi house'); await page.click('#tabB');
+  const primero = (await page.locator('button.ks-pad .nom').allTextContents())[0];
+  await pad(page, 'B:7').click();
+  await page.click('#ksNoGusta');                                   // −25: ya no es el primero
+  const despues = (await page.locator('button.ks-pad .nom').allTextContents());
+  expect(despues[0]).not.toBe(primero); expect(despues).not.toContain(primero);
+  await page.reload(); await page.selectOption('#ksGenero', 'Lofi house'); await page.click('#tabB');
+  expect(await page.locator('button.ks-pad .nom').allTextContents()).not.toContain(primero);   // se acuerda
+  await page.selectOption('#ksGenero', 'Synth pop'); await page.click('#tabB');
+  const sp = await page.locator('button.ks-pad .nom').allTextContents();                       // otro género: sin efecto
+  await pad(page, 'B:7').click(); await page.click('#ksMeGusta');
+  await expect(page.locator('#ksDetalle')).toContainText('te gustó en Synth pop');
+  await page.selectOption('#ksGenero', 'Lofi house'); await page.click('#tabB'); await pad(page, 'B:7').click();
+  await page.click('#ksOlvidarGustos');                              // olvida las marcas de Lofi house
+  await expect(pad(page, 'B:7').locator('.nom')).toHaveText(primero);
+  expect(sp.length).toBe(12);
+});
+
+test('comparar A/B: B por defecto es la siguiente opción, alterna, igualar volumen y «usar B»', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await page.selectOption('#ksGenero', 'Lofi house'); await pad(page, 'A:7').click();
+  await expect(page.locator('#ksAB')).toBeVisible();
+  const a = await pad(page, 'A:7').locator('.nom').textContent();
+  const b = await page.locator('#ksAbSel').inputValue(); expect(b).not.toBe(a);
+  await expect(page.locator('#ksAbHint')).toContainText('necesitas el audio');          // sin biblioteca: botones apagados
+  await expect(page.locator('#ksAbAlt')).toBeVisible(); await expect(page.locator('#ksAbA')).toBeDisabled();
+  await page.click('#ksAbUsar');
+  await expect(pad(page, 'A:7').locator('.nom')).toHaveText(b);
+  await expect(page.locator('#ksIgualar')).toBeChecked();
+  await page.uncheck('#ksIgualar'); await page.reload(); await page.selectOption('#ksGenero', 'Lofi house'); await pad(page, 'A:7').click();
+  await expect(page.locator('#ksIgualar')).not.toBeChecked();                            // se acuerda
+});
+
+test('igualar volumen: un sonido fuerte y uno bajito suenan al mismo nivel; apagado, sin cambios', async ({ page }) => {
+  const escalar = (b, k) => { const c = Buffer.from(b); for (let i = 44; i < c.length; i += 2) c.writeInt16LE(Math.round(c.readInt16LE(i) * k), i); return c; };
+  await rolando(page); await page.goto('/kits.html');
+  await subirAudio(page, [['micro kick.wav', wav(0.5)], ['nt kick.wav', escalar(wav(0.5), 0.2)]]);   // el segundo, 14 dB más bajo
+  const ganancia = async nombre => {
+    await page.fill('#ksBuscar', nombre); await page.locator(`#ksResultados .ks-play[data-nombre="${nombre}"]`).click();
+    await expect(page.locator('body')).toHaveAttribute('data-sonando', nombre);
+    return Number(await page.locator('body').getAttribute('data-ganancia'));
+  };
+  const fuerte = await ganancia('micro kick'), bajo = await ganancia('nt kick');
+  expect(bajo / fuerte).toBeGreaterThan(4.5); expect(bajo / fuerte).toBeLessThan(5.5);                 // 1 / 0.2 = 5: lo bajito sube 14 dB respecto al fuerte
 });
