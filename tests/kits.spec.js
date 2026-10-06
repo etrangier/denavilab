@@ -56,7 +56,7 @@ test('aceptación: Lofi house, 120 BPM, sólo cargados', async ({ page }) => {
   await expect(page.locator('#ksSolo')).toBeChecked();
   expect([2, 1, 35]).toContain(await slotDe(page, 'A:7'));          // bombo
   expect(await slotDe(page, 'A:9')).toBe(307);                       // clap
-  expect([216, 202]).toContain(await slotDe(page, 'A:4'));           // hat cerrado
+  expect([217, 202]).toContain(await slotDe(page, 'A:4'));           // hat cerrado: «crunch hat 2» está en el 217 del aparato real (el paquete de fábrica lo numeraba 216)
   await page.click('#tabB');
   expect(await slotDe(page, 'B:7')).toBe(403);                       // bajo
   await page.click('#tabC');
