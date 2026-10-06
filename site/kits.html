@@ -69,6 +69,12 @@
   .ks-avisos { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 13px; }
   .ks-avisos li { padding: 6px 10px; border-left: 3px solid #e0795f; background: var(--surface-2); border-radius: 0 6px 6px 0; }
   .ks-avisos li.info { border-left-color: var(--accent); }
+  .ks-ab { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 10px 0; display: grid; gap: 8px; }
+  .ks-ab h3 { margin: 0; font-size: 14px; }
+  .ks-ab .fila { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .ks-ab select { font: inherit; max-width: 100%; min-width: 0; }
+  .ks-ab .lado { font-family: var(--mono); font-weight: 700; color: var(--accent); }
+  .ks-gusto[aria-pressed=true] { background: var(--surface-2); box-shadow: inset 0 0 0 2px var(--accent); }
   .ks-acciones { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .ks-btn { font: inherit; font-weight: 600; font-size: 13.5px; background: var(--accent); color: var(--accent-ink); border: 1px solid var(--accent); border-radius: 6px; padding: 7px 13px; cursor: pointer; }
   .ks-btn.ghost { background: transparent; color: var(--text); border-color: var(--line); font-weight: 400; }
@@ -406,7 +412,39 @@
     if (t0 !== pts) razones.push(`(tope ±${g === 'Synth pop' ? AJUSTE_MAX_SYNTHPOP : AJUSTE_MAX})`);
     return { pts: t, razones };
   }
-  const puntaje = (s, g) => encaje(s, g) + ajusteEspectral(s, g).pts - (esGrave(s) ? PENAL_GRAVE : 0);
+  // ───────── Ajuste por BPM ─────────
+  // Lo que importa a cada tempo es si la cola cabe antes del golpe siguiente (1 tiempo = 60 / BPM s). Acotado a ±AJUSTE_BPM_MAX.
+  const AJUSTE_BPM_MAX = 4;
+  function ajusteBpm(s, bpm) {
+    const razones = []; let pts = 0; const t = 60 / bpm, c = s.cola20_s;
+    if (c == null || !(t > 0)) return { pts: 0, razones };
+    const suma = (v, x) => { pts += v; razones.push(`${v > 0 ? '+' : ''}${v} ${x}`); };
+    const ms = n => nf(Math.round(n * 1000) / 1000) + ' s';
+    if (['Bombo', 'Caja', 'Clap'].includes(s.rol)) {
+      if (c > t) suma(-4, `su cola (${ms(c)}) pasa de 1 tiempo (${ms(t)}) a ${bpm} BPM y se pisa con el golpe siguiente`);
+      else if (c > 0.75 * t) suma(-2, `su cola (${ms(c)}) casi llena el tiempo (${ms(t)}) a ${bpm} BPM`);
+    } else if (s.rol === 'Hat cerrado') {
+      if (c > t / 2) suma(-3, `su cola (${ms(c)}) pasa de medio tiempo (${ms(t / 2)}) a ${bpm} BPM: un hat cerrado debe cortarse antes`);
+      else if (c <= t / 4) suma(1, `su cola corta (${ms(c)}) encaja en la semicorchea a ${bpm} BPM`);
+    } else if (['Hat abierto', 'Ride / campana', 'Crash / splash'].includes(s.rol)) {
+      if (c > t) suma(-3, `su cola (${ms(c)}) pasa de 1 tiempo (${ms(t)}) a ${bpm} BPM y tapa el siguiente golpe`);
+      else if (c >= 0.35 * t) suma(2, `su cola (${ms(c)}) respira hasta el siguiente tiempo (${ms(t)}) a ${bpm} BPM`);
+    }
+    return { pts: Math.max(-AJUSTE_BPM_MAX, Math.min(AJUSTE_BPM_MAX, pts)), razones };
+  }
+
+  // ───────── Mis gustos ─────────
+  // Por sonido y género: 1 = me gusta, -1 = no me gusta. Sólo vive en este navegador. Se nota en el ranking de ese género.
+  const CLAVE_GUSTOS = 'denavilab.kits.gustos.rolando', GUSTO_SUBE = 8, GUSTO_BAJA = 25;
+  let gustos = leer(CLAVE_GUSTOS, {}); if (!gustos || typeof gustos !== 'object' || Array.isArray(gustos)) gustos = {};
+  const gustoDe = (s, g) => ((gustos[g] || {})[s.nombre]) || 0;
+  function fijarGusto(s, v) {
+    const g = est.genero; gustos[g] = gustos[g] || {};
+    if (!v || gustos[g][s.nombre] === v) delete gustos[g][s.nombre]; else gustos[g][s.nombre] = v;
+    if (!Object.keys(gustos[g]).length) delete gustos[g];
+    guardar(CLAVE_GUSTOS, gustos); recalcular();
+  }
+  const puntaje = (s, g) => encaje(s, g) + ajusteEspectral(s, g).pts + ajusteBpm(s, est.bpm).pts + gustoDe(s, g) * (gustoDe(s, g) > 0 ? GUSTO_SUBE : GUSTO_BAJA) - (esGrave(s) ? PENAL_GRAVE : 0);
 
   function calcular() {
     const g = est.genero;
@@ -628,6 +666,11 @@
     const g = est.genero, partes = [`Encaje ${encaje(s, g)}% para ${g}`];
     const aj = ajusteEspectral(s, g);
     if (aj.razones.length) partes.push(`ajuste espectral ${aj.pts >= 0 ? '+' : ''}${aj.pts} (${aj.razones.join('; ')})`);
+    const ab = ajusteBpm(s, est.bpm);
+    if (ab.razones.length) partes.push(`ajuste por BPM ${ab.pts >= 0 ? '+' : ''}${ab.pts} (${ab.razones.join('; ')})`);
+    const gu = gustoDe(s, g);
+    if (gu > 0) partes.push(`+${GUSTO_SUBE} porque te gustó en ${g}`);
+    if (gu < 0) partes.push(`−${GUSTO_BAJA} porque marcaste que no te gusta en ${g}`);
     if (esGrave(s)) partes.push(`menos ${PENAL_GRAVE} puntos por tener el pico grave bajo ${GRAVE_HZ} Hz`);
     partes.push(`es la opción ${f.alt + 1} de ${f.n} disponibles para ${f.roles.join(' / ')}`);
     if (!s.cargado) partes.push('todavía no está en el aparato');
@@ -635,6 +678,7 @@
     return partes.join(' · ') + '. Sugerencia, confírmalo de oído.';
   }
 
+  const abB = new Map();                                   // pad → sonido B elegido para comparar
   function pintarDetalle() {
     pintarBusqueda();
     const box = $('ksDetalle');
@@ -671,7 +715,38 @@
       q.addEventListener('click', () => { delete ov[s.nombre]; guardar(CLAVE_OV, ov); recalcular(); });
       acc.append(q);
     }
+    const gu = gustoDe(s, est.genero);
+    const bg = el('button', { type: 'button', class: 'ks-btn ghost ks-gusto', id: 'ksMeGusta', 'aria-pressed': String(gu > 0), title: `Sube este sonido en ${est.genero}` }, '👍 Me gusta');
+    const bn = el('button', { type: 'button', class: 'ks-btn ghost ks-gusto', id: 'ksNoGusta', 'aria-pressed': String(gu < 0), title: `Baja este sonido en ${est.genero}` }, '👎 No me gusta');
+    bg.addEventListener('click', () => fijarGusto(s, 1)); bn.addEventListener('click', () => fijarGusto(s, -1));
+    acc.append(bg, bn);
+    const nGustos = Object.keys(gustos[est.genero] || {}).length;
+    if (nGustos) {
+      const olv = el('button', { type: 'button', class: 'ks-btn ghost', id: 'ksOlvidarGustos' }, `Olvidar mis ${nGustos} marca${nGustos === 1 ? '' : 's'} en ${est.genero}`);
+      olv.addEventListener('click', () => { delete gustos[est.genero]; guardar(CLAVE_GUSTOS, gustos); recalcular(); });
+      acc.append(olv);
+    }
     box.append(acc);
+    if (f.opciones.length > 1) {
+      const otros = f.opciones.filter(o => o.nombre !== s.nombre);
+      let bNom = abB.get(sel); if (!otros.some(o => o.nombre === bNom)) bNom = (f.opciones[(f.alt + 1) % f.opciones.length]).nombre; abB.set(sel, bNom);
+      const selB = el('select', { id: 'ksAbSel', 'aria-label': 'Sonido B para comparar' }, ...otros.map(o => { const op = el('option', { value: o.nombre }, `${o.cargado ? o.slot : '★'} · ${o.nombre} · ${encTxt(o)}`); if (o.nombre === bNom) op.selected = true; return op; }));
+      const mk = (lado, nombre, id) => { const b = el('button', { type: 'button', class: 'ks-btn ks-abbtn', id, 'data-lado': lado, 'data-nombre': nombre, 'aria-pressed': String(sonando === nombre) }, sonando === nombre ? '■ ' + lado : '▶ ' + lado); if (!audioSet.has(nombre)) b.disabled = true; b.addEventListener('click', () => alternar(b.dataset.nombre)); return b; };
+      const bA = mk('A', s.nombre, 'ksAbA'), bB = mk('B', bNom, 'ksAbB');
+      selB.addEventListener('change', () => { abB.set(sel, selB.value); bB.dataset.nombre = selB.value; bB.disabled = !audioSet.has(selB.value); });
+      const alt = el('button', { type: 'button', class: 'ks-btn', id: 'ksAbAlt' }, '⇄ Alternar A/B');
+      alt.addEventListener('click', () => { const a = s.nombre, b = bB.dataset.nombre; alternar(sonando === a ? b : a); });
+      const usar = el('button', { type: 'button', class: 'ks-btn ghost', id: 'ksAbUsar' }, 'Usar B en este pad');
+      usar.addEventListener('click', () => { const i = f.opciones.findIndex(o => o.nombre === bB.dataset.nombre); if (i >= 0) { est.alt[sel] = i; recalcular(); } });
+      const ig = el('input', { type: 'checkbox', id: 'ksIgualar' }); ig.checked = igualar;
+      ig.addEventListener('change', () => { igualar = ig.checked; guardar(CLAVE_IGUALAR, igualar); });
+      const hayAudio = audioSet.has(s.nombre) && audioSet.has(bNom);
+      box.append(el('div', { class: 'ks-ab', id: 'ksAB' }, el('h3', {}, 'Comparar A/B'),
+        el('div', { class: 'fila' }, el('span', { class: 'lado' }, 'A'), el('span', {}, s.nombre), bA),
+        el('div', { class: 'fila' }, el('span', { class: 'lado' }, 'B'), selB, bB),
+        el('div', { class: 'fila' }, alt, usar, el('label', {}, ig, ' Igualar volumen')),
+        el('p', { class: 'ks-hint', id: 'ksAbHint' }, hayAudio ? 'Alterna sin cortes de nivel: cada sonido se lleva al mismo volumen para que decida el timbre, no la fuerza.' : 'Para comparar de oído necesitas el audio de ambos: carga tu biblioteca en «Audio», arriba.')));
+    }
     if (f.opciones.length > 1) {
       const d = el('details', { class: 'ks-ops' }); d.open = opcionesAbiertas;
       d.addEventListener('toggle', () => { opcionesAbiertas = d.open; });
@@ -770,6 +845,16 @@
   // El audio de fábrica (teenage engineering) y el de tus packs no se publican con la página: cada quien carga el suyo.
   const AUDIO_EXT = new Set(['wav', 'aif', 'aiff', 'flac', 'mp3', 'ogg']);
   const memoriaAudio = new Map();        // respaldo si el navegador no deja usar IndexedDB (p. ej. en una ventana privada)
+  const CLAVE_IGUALAR = 'denavilab.kits.igualar'; let igualar = leer(CLAVE_IGUALAR, true) !== false;
+  const gananciaDe = new WeakMap();
+  // Volumen igualado: se lleva la parte activa (el primer segundo) a −20 dBFS de RMS, sin pasar de +12 dB ni dejar el pico sobre −0,4 dBFS.
+  function ganancia(buf) {
+    if (gananciaDe.has(buf)) return gananciaDe.get(buf);
+    const d = buf.getChannelData(0), n = Math.min(d.length, Math.round(buf.sampleRate)); let ss = 0, pico = 0;
+    for (let i = 0; i < n; i++) ss += d[i] * d[i]; for (let i = 0; i < d.length; i++) pico = Math.max(pico, Math.abs(d[i]));
+    const rms = Math.sqrt(ss / Math.max(1, n)); let g = rms > 1e-5 ? 0.1 / rms : 1; g = Math.min(g, 4, pico > 0 ? 0.95 / pico : 4);
+    g = Math.max(g, 0.05); gananciaDe.set(buf, g); return g;
+  }
   let dbPromesa = null, audioSet = new Set(), ctxAudio = null, fuente = null, sonando = null, turnoAudio = 0;
   const buffers = new Map();
   const abrirDB = () => dbPromesa || (dbPromesa = new Promise(ok => {
@@ -823,6 +908,7 @@
   function marcarSonando(nombre) {
     sonando = nombre; if (nombre) document.body.dataset.sonando = nombre; else delete document.body.dataset.sonando;
     document.querySelectorAll('.ks-play').forEach(b => { const on = b.dataset.nombre === nombre; b.textContent = on ? '■' : '▶'; b.setAttribute('aria-pressed', String(on)); });
+    document.querySelectorAll('.ks-abbtn').forEach(b => { const on = b.dataset.nombre === nombre; b.textContent = (b.dataset.lado === 'A' ? '▶ A' : '▶ B').replace('▶', on ? '■' : '▶'); b.setAttribute('aria-pressed', String(on)); });
     const g = $('ksPlay'); if (g) g.textContent = sonando === g.dataset.nombre ? '■ Parar' : '▶ Escuchar';
   }
   function parar() { turnoAudio++; if (fuente) { try { fuente.onended = null; fuente.stop(); } catch (e) {} fuente = null; } marcarSonando(null); }
@@ -834,7 +920,8 @@
       let buf = buffers.get(nombre);
       if (!buf) { const rec = await audioLeer(nombre); if (!rec) throw new Error('no hay audio guardado'); buf = esAiff(rec.bytes) ? decodificarAiff(rec.bytes, ctxAudio) : await ctxAudio.decodeAudioData(rec.bytes.slice(0)); buffers.set(nombre, buf); }
       if (turno !== turnoAudio) return;                       // mientras tanto pidió otro sonido o paró
-      const src = ctxAudio.createBufferSource(); src.buffer = buf; src.connect(ctxAudio.destination); fuente = src;
+      const src = ctxAudio.createBufferSource(); src.buffer = buf; fuente = src;
+      const gn = ctxAudio.createGain(); gn.gain.value = igualar ? ganancia(buf) : 1; src.connect(gn); gn.connect(ctxAudio.destination); document.body.dataset.ganancia = String(Math.round(gn.gain.value * 1000) / 1000);
       src.onended = () => { if (fuente === src) { fuente = null; marcarSonando(null); } };
       src.start(); marcarSonando(nombre); $('ksEstado').textContent = '';
     } catch (e) { marcarSonando(null); $('ksEstado').textContent = `No se pudo reproducir «${nombre}»: ${e.message || 'el archivo no es un audio válido'}.`; }

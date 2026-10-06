@@ -3,6 +3,14 @@
   {
    "fecha": "2026-10-06",
    "items": [
+    "El BPM ahora mueve el ranking (±4 puntos): un bombo, caja o clap con la cola más larga que un tiempo pierde, un hat cerrado de cola corta gana, y un hat abierto, ride o crash cuya cola respira hasta el siguiente tiempo sube. El detalle del pad explica el ajuste.",
+    "«Me gusta» / «No me gusta» por sonido y género (se guardan sólo en este navegador): suben o bajan ese sonido en el ranking de ese género, y se pueden olvidar por género.",
+    "Comparar A/B en cada pad: eliges un sonido B entre las mejores opciones, alternas A y B con un clic y puedes usar B en el pad. «Igualar volumen» lleva cada sonido al mismo nivel para que decida el timbre y no la fuerza."
+   ]
+  },
+  {
+   "fecha": "2026-10-06",
+   "items": [
     "Synth pop afinado: el grupo A prefiere las baterías Behringer RD-6 y RD-8 (se añadieron 48 sonidos de tus carpetas RD, marcados «por cargar» con encaje estimado); los bajos analógicos (sierra/cuadrada, Moog, Prophet, sub, pluck) suben en el grupo B; y en C y D los pads suaves y armónicos (ataque lento, 2 s o más, poco brillo) tienen su propio cupo, así que ya entran, p. ej. «Classic Analog Pad» (slot 460).",
     "El detalle de cada pad en Synth pop explica cada punto del ajuste (RD, bajo analógico, pad suave) y su tope."
    ]
