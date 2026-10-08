@@ -196,6 +196,7 @@
         <span class="ks-hint" id="ksBpmHint"></span>
       </div>
       <label class="ks-switch"><input type="checkbox" id="ksSolo" checked> Sólo lo que ya está cargado en mi K.O. II</label>
+      <label class="ks-switch"><input type="checkbox" id="ksSonarPad" checked> 🔊 Que suene 1 s al tocar un pad</label>
     </div>
 
     <details class="ks-audio" id="ksAudioCaja">
@@ -207,6 +208,12 @@
           <button type="button" class="ks-btn" id="ksAudioArchivos">Elegir archivos o .pak…</button>
           <button type="button" class="ks-btn ghost" id="ksAudioBorrar">Borrar mi biblioteca</button>
         </div>
+        <div class="ks-acciones">
+          <button type="button" class="ks-btn" id="ksKoConectar">🔌 Leer del aparato (sólo lectura)</button>
+          <button type="button" class="ks-btn ghost" id="ksKoSoltar" hidden>Dejar de leer del aparato</button>
+        </div>
+        <p class="ks-hint">Opcional. Necesita Chrome o Edge de escritorio, el K.O. II conectado por USB y el EP Sample Tool cerrado. <b>Sólo lee</b>: no sube, no borra, no mueve ni escribe nada en el aparato, y el audio se lee a la memoria para escucharlo (no se guarda en tu disco ni en el navegador). Al conectar, sus sonidos tienen ▶ aunque no hayas cargado tus carpetas.</p>
+        <p class="ks-estado" id="ksKoInfo" role="status" aria-live="polite"></p>
         <input type="file" id="ksAudioInCarpeta" webkitdirectory multiple hidden aria-label="Carpeta con tus sonidos">
         <input type="file" id="ksAudioInArchivos" multiple accept=".wav,.aif,.aiff,.flac,.mp3,.ogg,.pak,.zip,audio/*" hidden aria-label="Archivos de audio o paquete .pak">
         <p class="ks-estado" id="ksAudioInfo" role="status" aria-live="polite"></p>
@@ -566,7 +573,10 @@
 
   // El grupo elegido, el pad abierto y los saltos desde la ilustración y desde la lista: un solo lugar para los tres.
   function fijarGrupo(gr) { est.grupo = gr; sel = null; pintarTabs(); pintarGrid(); pintarDetalle(); persistir(); }
-  function abrirPad(key) { sel = sel === key ? null : key; pintarGrid(); pintarDetalle(); if (sel) $('ksDetalle').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+  // Al tocar un pad suena una vista previa de 1 s (con fundido), si hay audio y el interruptor está encendido. No hace falta pulsar ▶.
+  const CLAVE_SONARPAD = 'denavilab.kits.sonarpad'; let sonarPad = leer(CLAVE_SONARPAD, true) !== false;
+  function sonarPadActual(key) { const [gr, pad] = key.split(':'), f = plan[gr] && plan[gr][pad]; if (sonarPad && f && f.sonido && tieneAudio(f.sonido.nombre)) alternar(f.sonido.nombre, true); }
+  function abrirPad(key) { sel = sel === key ? null : key; pintarGrid(); pintarDetalle(); if (sel) $('ksDetalle').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); sonarPadActual(key); }
   // Un sonido va en un solo pad por género: fijarlo en otro lo saca del anterior.
   function fijar(nombre) {
     if (!sel) return;
@@ -605,7 +615,7 @@
   }
   $('ksBuscar').addEventListener('input', pintarBusqueda);
 
-  function irAPad(gr, pad) { est.grupo = gr; sel = gr + ':' + pad; pintarTabs(); pintarGrid(); pintarDetalle(); persistir(); $('ksDetalle').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+  function irAPad(gr, pad) { est.grupo = gr; sel = gr + ':' + pad; pintarTabs(); pintarGrid(); pintarDetalle(); persistir(); $('ksDetalle').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); sonarPadActual(gr + ':' + pad); }
 
   // Género y BPM a la vista, con lo que significan en segundos.
   function pintarBanda() {
@@ -765,7 +775,7 @@
     const pin = el('button', { type: 'button', class: 'ks-btn ghost', id: f.fijo ? 'ksQuitarFijo' : 'ksFijar' }, f.fijo ? 'Quitar el fijo' : '📌 Fijar este sonido aquí');
     pin.addEventListener('click', () => (f.fijo ? quitarFijo(sel) : fijar(s.nombre)));
     acc.append(pin);
-    if (audioSet.has(s.nombre)) {
+    if (tieneAudio(s.nombre)) {
       const pl = el('button', { type: 'button', class: 'ks-btn', id: 'ksPlay', 'data-nombre': s.nombre }, sonando === s.nombre ? '■ Parar' : '▶ Escuchar');
       pl.addEventListener('click', () => alternar(s.nombre)); acc.insertBefore(pl, acc.firstChild);
     } else acc.append(el('span', { class: 'ks-hint', id: 'ksSinAudio' }, 'Sin audio local de este sonido: carga tu biblioteca en «Audio», arriba.'));
@@ -790,16 +800,16 @@
       const otros = f.opciones.filter(o => o.nombre !== s.nombre);
       let bNom = abB.get(sel); if (!otros.some(o => o.nombre === bNom)) bNom = (f.opciones[(f.alt + 1) % f.opciones.length]).nombre; abB.set(sel, bNom);
       const selB = el('select', { id: 'ksAbSel', 'aria-label': 'Sonido B para comparar' }, ...otros.map(o => { const op = el('option', { value: o.nombre }, `${o.cargado ? o.slot : '★'} · ${o.nombre} · ${encTxt(o)}`); if (o.nombre === bNom) op.selected = true; return op; }));
-      const mk = (lado, nombre, id) => { const b = el('button', { type: 'button', class: 'ks-btn ks-abbtn', id, 'data-lado': lado, 'data-nombre': nombre, 'aria-pressed': String(sonando === nombre) }, sonando === nombre ? '■ ' + lado : '▶ ' + lado); if (!audioSet.has(nombre)) b.disabled = true; b.addEventListener('click', () => alternar(b.dataset.nombre)); return b; };
+      const mk = (lado, nombre, id) => { const b = el('button', { type: 'button', class: 'ks-btn ks-abbtn', id, 'data-lado': lado, 'data-nombre': nombre, 'aria-pressed': String(sonando === nombre) }, sonando === nombre ? '■ ' + lado : '▶ ' + lado); if (!tieneAudio(nombre)) b.disabled = true; b.addEventListener('click', () => alternar(b.dataset.nombre)); return b; };
       const bA = mk('A', s.nombre, 'ksAbA'), bB = mk('B', bNom, 'ksAbB');
-      selB.addEventListener('change', () => { abB.set(sel, selB.value); bB.dataset.nombre = selB.value; bB.disabled = !audioSet.has(selB.value); });
+      selB.addEventListener('change', () => { abB.set(sel, selB.value); bB.dataset.nombre = selB.value; bB.disabled = !tieneAudio(selB.value); });
       const alt = el('button', { type: 'button', class: 'ks-btn', id: 'ksAbAlt' }, '⇄ Alternar A/B');
       alt.addEventListener('click', () => { const a = s.nombre, b = bB.dataset.nombre; alternar(sonando === a ? b : a); });
       const usar = el('button', { type: 'button', class: 'ks-btn ghost', id: 'ksAbUsar' }, 'Usar B en este pad');
       usar.addEventListener('click', () => { const i = f.opciones.findIndex(o => o.nombre === bB.dataset.nombre); if (i >= 0) { est.alt[sel] = i; recalcular(); } });
       const ig = el('input', { type: 'checkbox', id: 'ksIgualar' }); ig.checked = igualar;
       ig.addEventListener('change', () => { igualar = ig.checked; guardar(CLAVE_IGUALAR, igualar); });
-      const hayAudio = audioSet.has(s.nombre) && audioSet.has(bNom);
+      const hayAudio = tieneAudio(s.nombre) && tieneAudio(bNom);
       box.append(el('div', { class: 'ks-ab', id: 'ksAB' }, el('h3', {}, 'Comparar A/B'),
         el('div', { class: 'fila' }, el('span', { class: 'lado' }, 'A'), el('span', {}, s.nombre), bA),
         el('div', { class: 'fila' }, el('span', { class: 'lado' }, 'B'), selB, bB),
@@ -856,6 +866,7 @@
   const fijarBpm = v => { const n = Math.round(Number(v)); if (!Number.isFinite(n) || n < 20 || n > 300) return; est.bpm = n; $('ksBpm').value = n; const g = genero(); $('ksBpmRango').value = Math.min(g.bpm_max, Math.max(g.bpm_min, n)); recalcular(); };
   $('ksBpmRango').addEventListener('input', e => fijarBpm(e.target.value));
   $('ksBpm').addEventListener('input', e => fijarBpm(e.target.value));
+  $('ksSonarPad').checked = sonarPad; $('ksSonarPad').addEventListener('change', e => { sonarPad = e.target.checked; guardar(CLAVE_SONARPAD, sonarPad); });
   $('ksSolo').addEventListener('change', e => { est.solo = e.target.checked; est.alt = {}; sel = null; pintarTodo(); });
 
   // ───────── Copiar e imprimir ─────────
@@ -905,7 +916,7 @@
   const AUDIO_EXT = new Set(['wav', 'aif', 'aiff', 'flac', 'mp3', 'ogg']);
   const memoriaAudio = new Map();        // respaldo si el navegador no deja usar IndexedDB (p. ej. en una ventana privada)
   const CLAVE_IGUALAR = 'denavilab.kits.igualar'; let igualar = leer(CLAVE_IGUALAR, true) !== false;
-  const gananciaDe = new WeakMap();
+  const gananciaDe = new WeakMap(), previas = new Map();
   // Volumen igualado: se lleva la parte activa (el primer segundo) a −20 dBFS de RMS, sin pasar de +12 dB ni dejar el pico sobre −0,4 dBFS.
   function ganancia(buf) {
     if (gananciaDe.has(buf)) return gananciaDe.get(buf);
@@ -926,7 +937,7 @@
   const audioPoner = async rec => { if ((await idb('readwrite', st => st.put(rec))) === null) memoriaAudio.set(rec.nombre, rec); else memoriaAudio.delete(rec.nombre); };
   const audioLeer = async nombre => memoriaAudio.get(nombre) || (await idb('readonly', st => st.get(nombre))) || null;
   const audioClaves = async () => new Set([...((await idb('readonly', st => st.getAllKeys())) || []), ...memoriaAudio.keys()]);
-  const conAudio = () => (base ? base.sonidos.filter(x => audioSet.has(x.nombre)).length : 0);
+  const conAudio = () => (base ? base.sonidos.filter(x => tieneAudio(x.nombre)).length : 0);
 
   async function refrescarAudio() {
     audioSet = await audioClaves(); const n = conAudio();
@@ -971,25 +982,152 @@
     const g = $('ksPlay'); if (g) g.textContent = sonando === g.dataset.nombre ? '■ Parar' : '▶ Escuchar';
   }
   function parar() { turnoAudio++; if (fuente) { try { fuente.onended = null; fuente.stop(); } catch (e) {} fuente = null; } marcarSonando(null); }
-  async function alternar(nombre) {
-    if (sonando === nombre) { parar(); return; }
+  async function alternar(nombre, corto) {
+    if (!corto && sonando === nombre) { parar(); return; }
     parar(); const turno = turnoAudio;
     try {
       ctxAudio = ctxAudio || new (window.AudioContext || window.webkitAudioContext)(); if (ctxAudio.state === 'suspended') await ctxAudio.resume();
-      let buf = buffers.get(nombre);
+      let buf = buffers.get(nombre) || (corto ? previas.get(nombre) : null);
+      if (!buf && !audioSet.has(nombre) && audioAparato.has(nombre)) {
+        if (corto) { buf = await koLeerSonido(nombre, true); previas.set(nombre, buf); }          // vista previa: sólo el primer segundo y pico del aparato
+        else { buf = await koLeerSonido(nombre); buffers.set(nombre, buf); }
+      }
       if (!buf) { const rec = await audioLeer(nombre); if (!rec) throw new Error('no hay audio guardado'); buf = esAiff(rec.bytes) ? decodificarAiff(rec.bytes, ctxAudio) : await ctxAudio.decodeAudioData(rec.bytes.slice(0)); buffers.set(nombre, buf); }
       if (turno !== turnoAudio) return;                       // mientras tanto pidió otro sonido o paró
       const src = ctxAudio.createBufferSource(); src.buffer = buf; fuente = src;
       const gn = ctxAudio.createGain(); gn.gain.value = igualar ? ganancia(buf) : 1; src.connect(gn); gn.connect(ctxAudio.destination); document.body.dataset.ganancia = String(Math.round(gn.gain.value * 1000) / 1000);
       src.onended = () => { if (fuente === src) { fuente = null; marcarSonando(null); } };
-      src.start(); marcarSonando(nombre); $('ksEstado').textContent = '';
+      const t0 = ctxAudio.currentTime;
+      if (corto) { const v = gn.gain.value; gn.gain.setValueAtTime(v, t0 + 0.9); gn.gain.linearRampToValueAtTime(0, t0 + 1); src.start(t0, 0, 1); }   // 1 s con fundido de 0,1 s
+      else src.start();
+      marcarSonando(nombre); $('ksEstado').textContent = '';
     } catch (e) { marcarSonando(null); $('ksEstado').textContent = `No se pudo reproducir «${nombre}»: ${e.message || 'el archivo no es un audio válido'}.`; }
   }
   function botonPlay(x) {
-    if (!audioSet.has(x.nombre)) return null;
+    if (!tieneAudio(x.nombre)) return null;
     const b = el('button', { type: 'button', class: 'ks-play', 'data-nombre': x.nombre, 'aria-label': 'Escuchar ' + x.nombre, 'aria-pressed': String(sonando === x.nombre), title: 'Escuchar' }, sonando === x.nombre ? '■' : '▶');
     b.addEventListener('click', e => { e.stopPropagation(); alternar(x.nombre); }); return b;
   }
+
+  // ───────── Leer del aparato (sólo lectura) ─────────
+  // Web MIDI con SysEx (Chrome / Edge de escritorio). Sólo salen estas órdenes de archivo: INIT, LIST, INFO, METADATA_GET y GET. Nada que suba, escriba, borre o mueva,
+  // ni siquiera PLAYBACK. El audio se lee a la memoria (AudioBuffer) para escucharlo: no se guarda. El protocolo se dedujo de lo que el propio aparato contestó a la sonda de sólo lectura.
+  const KO_PERMITIDOS = [[1, null], [3, 0], [3, 1], [4, null], [7, 2], [11, null]];
+  const koPermitido = d => KO_PERMITIDOS.some(([a, b]) => d[0] === a && (b === null || d[1] === b));
+  const audioAparato = new Set(), tieneAudio = n => audioSet.has(n) || audioAparato.has(n);
+  const ko = { acceso: null, entrada: null, salida: null, id: null, esperando: new Map(), acumulado: [], cola: Promise.resolve(), sigId: Math.floor(Math.random() * 4000), slots: new Set(), conectado: false };
+  const koU16 = n => [(n >> 8) & 255, n & 255], koU32 = n => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+  const koCadena = (d, desde) => { let i = desde; while (i < d.length && d[i] !== 0) i++; return new TextDecoder().decode(d.subarray(desde, i)); };
+  function pack7(s) {
+    const n = s.length, out = new Uint8Array(n ? n + Math.ceil(n / 7) : 0); let o = 1, m = 0;
+    for (let j = 0; j < n; j++) { const k = j % 7; out[m] |= (s[j] >> 7) << k; out[o++] = s[j] & 127; if (k === 6 && j < n - 1) { m += 8; o++; } }
+    return out;
+  }
+  function unpack7(s) {
+    let a = 0, o = 0, k = 0, j = 1, hi = s[0];
+    while (j < s.length) { s[a] = ((hi & (1 << k)) ? 128 : 0) | (s[j] & 127); k++; j++; a++; if (k > 6) { j++; k = 0; o += 8; hi = s[o]; } }
+    return s.subarray(0, a);
+  }
+  function koAlRecibir(ev) {
+    const d = ev.data; if (!d || !d.length) return;
+    if (d[0] === 0xF0) ko.acumulado = [...d]; else if (ko.acumulado.length) ko.acumulado.push(...d); else return;
+    if (ko.acumulado[ko.acumulado.length - 1] !== 0xF7) return;
+    const m = Uint8Array.from(ko.acumulado); ko.acumulado = [];
+    if (m.length === 17 && m[1] === 0x7E && m[5] === 0 && m[6] === 0x20 && m[7] === 0x76) { const r = ko.esperando.get('identidad'); if (r) r({ id: m[2], sku: `TE${String(m[8] ^ (m[9] << 7)).padStart(3, '0')}AS${String(m[10] ^ (m[11] << 7)).padStart(3, '0')}` }); return; }
+    if (m.length >= 10 && m[1] === 0 && m[2] === 0x20 && m[3] === 0x76 && m[5] === 0x40 && !(m[6] & 0x40)) {
+      const rid = ((m[6] & 31) << 7) | (m[7] & 127), r = ko.esperando.get(rid); if (r) r({ status: m[9], datos: unpack7(m.slice(10, m.length - 1)) });
+    }
+  }
+  function koEnviar(bytes, ms = 20000) {
+    const trabajo = () => new Promise((ok, mal) => {
+      const d = Uint8Array.from(bytes);
+      if (!koPermitido(d)) return mal(new Error('orden bloqueada: esta página sólo lee del aparato'));
+      const rid = (ko.sigId = (ko.sigId + 1) % 4096), p = pack7(d), t = new Uint8Array(10 + p.length);
+      t.set([0xF0, 0, 0x20, 0x76, ko.id, 0x40, 0x60 | ((rid >> 7) & 31), rid & 127, 5]); t.set(p, 9); t[t.length - 1] = 0xF7;
+      let reloj = setTimeout(() => { ko.esperando.delete(rid); mal(new Error('el aparato no contestó en ' + ms / 1000 + ' s')); }, ms);
+      ko.esperando.set(rid, r => {
+        if (r.status === 64) { clearTimeout(reloj); reloj = setTimeout(() => { ko.esperando.delete(rid); mal(new Error('el aparato no contestó')); }, ms); return; }
+        clearTimeout(reloj); ko.esperando.delete(rid); r.status === 0 ? ok(r) : mal(new Error('el aparato respondió estado ' + r.status));
+      });
+      ko.salida.send(t);
+    });
+    const r = ko.cola.then(trabajo, trabajo); ko.cola = r.catch(() => {}); return r;
+  }
+  async function koListar(carpeta) {
+    const nodos = [];
+    for (let pagina = 0; pagina < 2000; pagina++) {
+      const d = (await koEnviar([4, ...koU16(pagina), ...koU16(carpeta)])).datos; if (d.length <= 2) break;
+      let o = 2;
+      while (o < d.length) { const id = (d[o] << 8) | d[o + 1], flags = d[o + 2], size = ((d[o + 3] << 24) | (d[o + 4] << 16) | (d[o + 5] << 8) | d[o + 6]) >>> 0, nombre = koCadena(d, o + 7); nodos.push({ id, flags, size, nombre }); o += 7 + new TextEncoder().encode(nombre).length + 1; }
+    }
+    return nodos;
+  }
+  async function koMetadatos(id) {
+    let texto = '';
+    for (let pagina = 0; pagina < 20; pagina++) { const d = (await koEnviar([7, 2, ...koU16(id), ...koU16(pagina)])).datos, t = koCadena(d, 2); if (!t) break; texto += t; if (d.length < 8) break; }
+    try { return texto ? JSON.parse(texto) : {}; } catch (e) { return {}; }
+  }
+  async function koConectar() {
+    const info = $('ksKoInfo'), say = t => { info.textContent = t; };
+    if (!navigator.requestMIDIAccess) { say('Este navegador no permite hablar con el aparato (hace falta Chrome o Edge de escritorio).'); return; }
+    $('ksKoConectar').disabled = true;
+    try {
+      say('Pidiendo permiso MIDI…');
+      ko.acceso = await navigator.requestMIDIAccess({ sysex: true });
+      const elegir = puertos => { const l = [...puertos.values()]; return l.find(x => /ep-?133|k\.?o\.? ?ii|teenage/i.test(x.name || '')) || l[0]; };
+      ko.salida = elegir(ko.acceso.outputs); ko.entrada = elegir(ko.acceso.inputs);
+      if (!ko.salida || !ko.entrada) throw new Error('no veo el aparato: conéctalo por USB-C, enciéndelo y vuelve a intentar');
+      ko.entrada.onmidimessage = koAlRecibir;
+      say('Identificando el aparato…');
+      const quien = new Promise((ok, mal) => { ko.esperando.set('identidad', ok); setTimeout(() => mal(new Error('el aparato no contestó (¿está cerrado el EP Sample Tool?)')), 5000); });
+      ko.salida.send([0xF0, 0x7E, 0x7F, 0x06, 0x01, 0xF7]);
+      const { id, sku } = await quien; ko.esperando.delete('identidad'); ko.id = id;
+      await koEnviar([1, 0, ...koU32(4 * 1024 * 1024)]);
+      say('Leyendo la lista de sonidos…');
+      const raiz = await koListar(0), carpeta = raiz.find(x => !(x.flags & 1) && x.nombre === 'sounds');
+      if (!carpeta) throw new Error('no encontré la carpeta «sounds» en el aparato');
+      const archivos = (await koListar(carpeta.id)).filter(x => x.flags & 1);
+      ko.slots = new Set(archivos.map(x => x.id)); audioAparato.clear();
+      for (const x of base.sonidos) if (x.cargado && ko.slots.has(x.slot)) audioAparato.add(x.nombre);
+      const conocidos = new Set(base.sonidos.filter(x => x.cargado).map(x => x.slot)), nuevos = [...ko.slots].filter(n => !conocidos.has(n)).sort((a, b) => a - b);
+      ko.conectado = true; $('ksKoSoltar').hidden = false;
+      say(`${sku}: ${archivos.length} sonidos en el aparato, ${audioAparato.size} con ▶ (se leen al pulsar, sólo lectura).` + (nuevos.length ? ` Hay ${nuevos.length} slots que la base no conoce: ${nuevos.slice(0, 12).join(', ')}${nuevos.length > 12 ? '…' : ''}.` : ''));
+      ko.acceso.onstatechange = () => { if (ko.conectado && ![...ko.acceso.outputs.values()].some(x => x.state !== 'disconnected')) koSoltar('El aparato se desconectó.'); };
+      await refrescarAudio();
+    } catch (e) { say('No se pudo leer del aparato: ' + (e.message || e.name || 'error desconocido') + '.'); }
+    $('ksKoConectar').disabled = false;
+  }
+  async function koSoltar(msg) {
+    ko.conectado = false; audioAparato.clear(); if (ko.entrada) ko.entrada.onmidimessage = null; ko.slots = new Set(); $('ksKoSoltar').hidden = true;
+    $('ksKoInfo').textContent = msg || 'Dejé de leer del aparato.'; parar(); await refrescarAudio();
+  }
+  // El audio crudo es PCM de 16 bits; los metadatos dicen canales y frecuencia. El orden de bytes se decide por lo suave de la onda (la mal ordenada es ruido).
+  function koABuffer(bytes, canales, hz) {
+    const n = Math.floor(bytes.length / 2 / canales), dv = new DataView(bytes.buffer, bytes.byteOffset, n * canales * 2), tramo = Math.min(n * canales, 4096);
+    let le = 0, be = 0, pl = 0, pb = 0;
+    for (let i = 0; i < tramo; i++) { const a = dv.getInt16(i * 2, true), b = dv.getInt16(i * 2, false); le += Math.abs(a - pl); be += Math.abs(b - pb); pl = a; pb = b; }
+    const little = le <= be;
+    ctxAudio = ctxAudio || new (window.AudioContext || window.webkitAudioContext)();
+    const buf = ctxAudio.createBuffer(canales, Math.max(1, n), hz);
+    for (let c = 0; c < canales; c++) { const ch = buf.getChannelData(c); for (let i = 0; i < n; i++) ch[i] = dv.getInt16((i * canales + c) * 2, little) / 32768; }
+    return buf;
+  }
+  async function koLeerSonido(nombre, previa) {
+    if (!ko.conectado) throw new Error('el aparato no está conectado');
+    const s = base.sonidos.find(x => x.nombre === nombre); if (!s || !ko.slots.has(s.slot)) throw new Error('ese sonido no está en el aparato');
+    const meta = await koMetadatos(s.slot), canales = Math.max(1, Math.min(2, Number(meta.channels) || 1)), hz = Number(meta.samplerate) || 46875;
+    const ini = (await koEnviar([3, 0, ...koU16(s.slot), ...koU32(0)])).datos, total = ((ini[3] << 24) | (ini[4] << 16) | (ini[5] << 8) | ini[6]) >>> 0;
+    const limite = previa ? Math.min(total, Math.ceil(hz * 1.2) * 2 * canales) : total, partes = []; let leidos = 0;
+    for (let pagina = 0; leidos < limite && pagina < 65535; pagina++) {
+      const trozo = (await koEnviar([3, 1, ...koU16(pagina)], 30000)).datos.slice(2); if (!trozo.length) break;
+      partes.push(trozo); leidos += trozo.length; $('ksEstado').textContent = `Leyendo «${nombre}» del aparato… ${Math.min(100, Math.round(leidos / limite * 100))} %`;
+    }
+    $('ksEstado').textContent = '';
+    const bytes = new Uint8Array(leidos); let p = 0; for (const t of partes) { bytes.set(t, p); p += t.length; }
+    return koABuffer(bytes, canales, hz);
+  }
+  $('ksKoConectar').addEventListener('click', koConectar);
+  $('ksKoSoltar').addEventListener('click', () => koSoltar());
 
   // Un .pak (o .zip) es un zip: se lee su directorio y se descomprimen sólo los audios.
   async function leerZip(buf) {

@@ -618,3 +618,88 @@ test('Synth pop: grupo A de cajas de ritmos de la época y sintes (no loops ni i
   expect(cd).toEqual(expect.arrayContaining(['Classic Analog Pad', 'synth keys bm7 254']));       // tu pad y tus sintes
   await pad(page, 'D:3').click(); await expect(page.locator('#ksDetalle')).toContainText('carácter de sintetizador');
 });
+
+test('tocar un pad suena 1 s sin pulsar ▶, y se puede apagar', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await page.selectOption('#ksGenero', 'Lofi house');
+  const nombre = await pad(page, 'A:7').locator('.nom').textContent();
+  await subirAudio(page, [[nombre + '.wav', wav(3)]]);                                   // 3 s de audio
+  await pad(page, 'A:7').click();
+  await expect(page.locator('body')).toHaveAttribute('data-sonando', nombre);              // suena al tocar
+  await expect(page.locator('body')).not.toHaveAttribute('data-sonando', nombre, { timeout: 3000 });   // se corta solo al segundo
+  await page.uncheck('#ksSonarPad');
+  await pad(page, 'A:7').click(); await pad(page, 'A:7').click();
+  await page.waitForTimeout(300);
+  await expect(page.locator('body')).not.toHaveAttribute('data-sonando', /./);             // apagado: no suena
+  await page.reload(); await expect(page.locator('#ksSonarPad')).not.toBeChecked();         // se acuerda
+});
+
+// Un K.O. II de mentira: contesta lo mismo que el real a identidad, INIT, LIST, METADATA_GET y GET, y anota cada orden que le llega.
+const KO_FALSO = () => {
+  const pack7 = s => { const n = s.length, out = new Uint8Array(n ? n + Math.ceil(n / 7) : 0); let o = 1, m = 0; for (let j = 0; j < n; j++) { const k = j % 7; out[m] |= (s[j] >> 7) << k; out[o++] = s[j] & 127; if (k === 6 && j < n - 1) { m += 8; o++; } } return out; };
+  const unpack7 = s => { let a = 0, o = 0, k = 0, j = 1, hi = s[0]; while (j < s.length) { s[a] = ((hi & (1 << k)) ? 128 : 0) | (s[j] & 127); k++; j++; a++; if (k > 6) { j++; k = 0; o += 8; hi = s[o]; } } return s.subarray(0, a); };
+  const enc = new TextEncoder(), u32 = n => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+  const pcm = (n, ch, be) => { const b = new Uint8Array(n * ch * 2), dv = new DataView(b.buffer); for (let i = 0; i < n; i++) for (let c = 0; c < ch; c++) dv.setInt16((i * ch + c) * 2, Math.round(Math.sin(i / 20) * 12000), !be); return b; };
+  const sonidos = { 1: { meta: { channels: 1, samplerate: 46875, format: 's16', name: 'micro kick' }, pcm: pcm(23000, 1) }, 460: { meta: { channels: 2, samplerate: 48000, format: 's16', name: 'classic.alog pad' }, pcm: pcm(120000, 2) }, 999: { meta: { channels: 1, samplerate: 46875 }, pcm: pcm(500, 1) } };
+  const entradas = (lista) => { const out = []; for (const [id, flags, size, nombre] of lista) out.push(id >> 8, id & 255, flags, ...u32(size), ...enc.encode(nombre), 0); return out; };
+  window.__ko = { ordenes: [], conectado: false };
+  const responder = (rid, datos, estado = 0) => { const p = pack7(Uint8Array.from(datos)), t = new Uint8Array(10 + p.length); t.set([0xF0, 0, 0x20, 0x76, 0x33, 0x40, (rid >> 7) & 31, rid & 127, 5, estado]); t.set(p, 10); t[t.length - 1] = 0xF7; return t; };
+  let desde = 0;
+  const entrada = { id: 'in', name: 'EP-133 K.O. II', manufacturer: 'teenage engineering', state: 'connected', onmidimessage: null };
+  const salida = { id: 'out', name: 'EP-133 K.O. II', manufacturer: 'teenage engineering', state: 'connected', send(d) {
+    d = Uint8Array.from(d); const resp = x => setTimeout(() => entrada.onmidimessage && entrada.onmidimessage({ data: x }), 0);
+    if (d.length === 6 && d[1] === 0x7E) { resp(Uint8Array.from([0xf0, 0x7e, 0x33, 6, 2, 0, 0x20, 0x76, 0x20, 0, 2, 0, 0, 0, 0, 0, 0xf7])); return; }
+    const rid = ((d[6] & 31) << 7) | (d[7] & 127), q = unpack7(d.slice(9, d.length - 1)); window.__ko.ordenes.push([q[0], q[1]]);
+    if (q[0] === 1) return resp(responder(rid, [0x0c, 0, 0, 2, 0]));
+    if (q[0] === 4) { const pag = (q[1] << 8) | q[2], carpeta = (q[3] << 8) | q[4];
+      if (pag > 0) return resp(responder(rid, [0, pag]));
+      const lista = carpeta === 0 ? [[1000, 14, 0, 'sounds'], [2000, 14, 0, 'projects']] : Object.keys(sonidos).map(id => [Number(id), 29, sonidos[id].pcm.length, String(id).padStart(3, '0') + '.pcm']);
+      return resp(responder(rid, [0, 0, ...entradas(lista)])); }
+    if (q[0] === 7 && q[1] === 2) { const id = (q[2] << 8) | q[3], pag = (q[4] << 8) | q[5]; return resp(responder(rid, pag === 0 ? [0, 0, ...enc.encode(JSON.stringify(sonidos[id].meta)), 0] : [0, pag])); }
+    if (q[0] === 3 && q[1] === 0) { desde = (q[2] << 8) | q[3]; return resp(responder(rid, [0, 0, 0, ...u32(sonidos[desde].pcm.length), ...enc.encode(String(desde)), 0])); }
+    if (q[0] === 3 && q[1] === 1) { const pag = (q[2] << 8) | q[3], tam = 400, trozo = sonidos[desde].pcm.slice(pag * tam, (pag + 1) * tam); return resp(responder(rid, [q[2], q[3], ...trozo])); }
+    resp(responder(rid, [], 1));
+  } };
+  navigator.requestMIDIAccess = async () => ({ inputs: new Map([['in', entrada]]), outputs: new Map([['out', salida]]), onstatechange: null });
+};
+
+test('leer del aparato: lista los sonidos, suenan con ▶ sin cargar carpetas y sólo salen órdenes de lectura', async ({ page }) => {
+  await page.addInitScript(KO_FALSO); await rolando(page); await page.goto('/kits.html');
+  await expect(page.locator('#ksAudioResumen')).toContainText('Sin audio');
+  await page.locator('#ksAudioCaja summary').click(); await page.click('#ksKoConectar');
+  await expect(page.locator('#ksKoInfo')).toContainText('TE032AS002: 3 sonidos en el aparato, 2 con ▶');
+  await expect(page.locator('#ksKoInfo')).toContainText('slots que la base no conoce: 999');
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2 de');
+  await page.fill('#ksBuscar', 'micro kick');
+  await page.locator('#ksResultados .ks-play[data-nombre="micro kick"]').click();               // lee del aparato y suena
+  await expect(page.locator('body')).toHaveAttribute('data-sonando', 'micro kick');
+  await page.fill('#ksBuscar', 'Classic Analog Pad');                                              // estéreo, 48 kHz
+  await page.locator('#ksResultados .ks-play[data-nombre="Classic Analog Pad"]').click();
+  await expect(page.locator('body')).toHaveAttribute('data-sonando', 'Classic Analog Pad', { timeout: 30000 });     // ▶ lee el archivo entero (1 200 páginas)
+  const ordenes = await page.evaluate(() => window.__ko.ordenes);
+  expect(ordenes.length).toBeGreaterThan(5);
+  const permitidas = [[1], [3, 0], [3, 1], [4], [7, 2], [11]];
+  for (const [a, b] of ordenes) expect(permitidas.some(([x, y]) => x === a && (y === undefined || y === b)), `orden no permitida ${a},${b}`).toBe(true);
+  await page.click('#ksKoSoltar');                                                                 // dejar de leer: vuelven a no tener audio
+  await expect(page.locator('#ksAudioResumen')).toContainText('Sin audio');
+});
+
+test('leer del aparato: sin Web MIDI o sin aparato avisa sin romper nada', async ({ page }) => {
+  await rolando(page);
+  await page.addInitScript(() => { navigator.requestMIDIAccess = async () => ({ inputs: new Map(), outputs: new Map() }); });
+  await page.goto('/kits.html'); await page.locator('#ksAudioCaja summary').click(); await page.click('#ksKoConectar');
+  await expect(page.locator('#ksKoInfo')).toContainText('no veo el aparato');
+  await expect(page.locator('#ksKoConectar')).toBeEnabled();
+});
+
+test('leer del aparato: al tocar un pad sólo lee el primer segundo y pico del aparato, no el archivo entero', async ({ page }) => {
+  await page.addInitScript(KO_FALSO); await rolando(page); await page.goto('/kits.html');
+  await page.selectOption('#ksGenero', 'Synth pop');
+  await page.locator('#ksAudioCaja summary').click(); await page.click('#ksKoConectar');
+  await expect(page.locator('#ksKoInfo')).toContainText('2 con ▶');
+  await page.click('#tabD');
+  await page.locator('button.ks-pad', { hasText: 'Classic Analog Pad' }).first().click();               // 480 000 bytes en el aparato (120 000 muestras estéreo)
+  await expect(page.locator('body')).toHaveAttribute('data-sonando', 'Classic Analog Pad');
+  const pags = await page.evaluate(() => window.__ko.ordenes.filter(o => o[0] === 3 && o[1] === 1).length);
+  expect(pags).toBeGreaterThan(100); expect(pags).toBeLessThan(700);                                      // el archivo entero serían 1 200 páginas
+}); 

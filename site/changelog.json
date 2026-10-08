@@ -3,6 +3,13 @@
   {
    "fecha": "2026-10-08",
    "items": [
+    "Al tocar un pad (en el esquema del aparato o en la cuadrícula) suena una vista previa de 1 segundo con fundido, sin pulsar ▶. Hay un interruptor «Que suene 1 s al tocar un pad» para apagarlo.",
+    "Leer del aparato (opcional, sólo lectura): en la sección Audio, «Leer del aparato» conecta el K.O. II (Chrome o Edge de escritorio, EP Sample Tool cerrado) y sus sonidos suenan con ▶ sin cargar tus carpetas. Sólo se envían órdenes de lectura (INIT, LIST, INFO, METADATA_GET y GET); el audio se lee a la memoria y no se guarda. Al tocar un pad se lee sólo el primer segundo; con ▶ se lee el archivo entero. Avisa si el aparato tiene slots que la base no conoce."
+   ]
+  },
+  {
+   "fecha": "2026-10-08",
+   "items": [
     "Hat típico que acompaña al bombo: el assistant ahora prefiere un hat cerrado corto y seco, de brillo propio del género, y un abierto de cola que respira a contratiempo; castiga los glitch/crunch/pedal, las colas largas y los hats con reverb, y el hat abierto hace pareja con el cerrado elegido (misma familia de máquina). En Lofi house sale «nt hh closed c» + «open hat real».",
     "Synth pop, grupo A: la batería se completa con cajas de ritmos de la época (RD, DMX, LinnDrum, Simmons, 707/808/606) y el resto del kit sigue la máquina del bombo.",
     "Synth pop, grupos C y D: colección de sintetizadores. Se sacan los loops y los instrumentos acústicos o étnicos (guzheng, sitar, cello…); D toma también los sintes que sobran de C (pads, stabs, cuerdas sintéticas, tus «synth keys»). Los loops ya no se sugieren para un pad salvo como último recurso, en todos los géneros."
