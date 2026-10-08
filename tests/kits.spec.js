@@ -582,3 +582,39 @@ test('igualar volumen: un sonido fuerte y uno bajito suenan al mismo nivel; apag
   const fuerte = await ganancia('micro kick'), bajo = await ganancia('nt kick');
   expect(bajo / fuerte).toBeGreaterThan(4.5); expect(bajo / fuerte).toBeLessThan(5.5);                 // 1 / 0.2 = 5: lo bajito sube 14 dB respecto al fuerte
 });
+
+test('hat típico: Lofi house lleva un cerrado seco y un abierto de cola típica, no el glitch/crunch ni el hat con reverb', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await page.selectOption('#ksGenero', 'Lofi house'); await page.fill('#ksBpm', '120');
+  await expect(pad(page, 'A:4').locator('.nom')).toHaveText('nt hh closed c');
+  await expect(pad(page, 'A:5').locator('.nom')).toHaveText('open hat real');
+  await pad(page, 'A:4').click(); await expect(page.locator('#ksDetalle')).toContainText('hat típico');
+  await expect(page.locator('#ksDetalle')).toContainText('tick corto y seco');
+  await page.selectOption('#ksGenero', 'Techno / tech house');
+  const nombres = await page.locator('button.ks-pad .nom').allTextContents();
+  expect(nombres.slice(3, 5).join(' ')).not.toMatch(/glitch|crunch|foot|pedal|wet/i);
+});
+
+test('el hat abierto hace pareja con el cerrado elegido (misma familia de máquina)', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  const hat = (n, rol, enc, extra) => snd(n, rol, enc, { cola20_s: 0.05, ...extra });
+  await subirBase(page, { ...SINTETICA, sonidos: [
+    hat('hat closed 9x9', 'Hat cerrado', 80, { slot: 1 }), hat('tick b', 'Hat cerrado', 78, { slot: 2 }),
+    hat('open zz', 'Hat abierto', 84, { slot: 3, cola20_s: 0.2 }), hat('hat open 9x9', 'Hat abierto', 82, { slot: 4, cola20_s: 0.2 })] });
+  await page.fill('#ksBpm', '120');
+  await expect(pad(page, 'A:4').locator('.nom')).toHaveText('hat closed 9x9');
+  await expect(pad(page, 'A:5').locator('.nom')).toHaveText('hat open 9x9');                   // 82 + pareja 3 > 84
+  await pad(page, 'A:5').click(); await expect(page.locator('#ksDetalle')).toContainText('hace pareja con el hat cerrado');
+});
+
+test('Synth pop: grupo A de cajas de ritmos de la época y sintes (no loops ni instrumentos étnicos) en C y D', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await page.selectOption('#ksGenero', 'Synth pop');
+  const a = await page.locator('button.ks-pad .nom').allTextContents();
+  expect(a.filter(n => /RD-?[689]|DMX|lnndrum|linn|707|808|7x7|8x8|6x6/i.test(n)).length).toBeGreaterThanOrEqual(5);
+  const cd = [];
+  for (const t of ['C', 'D']) { await page.click('#tab' + t); cd.push(...await page.locator('button.ks-pad .nom').allTextContents()); }
+  expect(cd.join(' | ')).not.toMatch(/loop|guzheng|sitar|exotic pluck|cello pluckz/i);
+  expect(cd).toEqual(expect.arrayContaining(['Classic Analog Pad', 'synth keys bm7 254']));       // tu pad y tus sintes
+  await pad(page, 'D:3').click(); await expect(page.locator('#ksDetalle')).toContainText('carácter de sintetizador');
+});

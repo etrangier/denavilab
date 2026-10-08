@@ -366,6 +366,9 @@
   // C y D: pads suaves y armónicos: ataque lento (≥ 300 ms), larga (≥ 2 s), poco brillo (techo ≤ 8 kHz), con armónicos claros (acorde u onda de sierra / polifónica).
   const ROLES_PAD = new Set([...ROLES_C, 'Sintes / FX / otros']);
   const RE_RD = /\bRD-?[689]\b/i, RE_BAJO_ANALOGICO = /moog|prophet|analog|mini|sub|saw|pluck|acid|sequenc|secuenc/i, RE_PAD = /pad|string|cuerda|coro|choir|voice|voz|suave|ahh?\b|oh\b|drone|swell/i;
+  const ROLES_SINTE = new Set([...ROLES_PAD, 'Lead', 'Pluck / cuerda pulsada', 'Campanas / mallets']);
+  const RE_SINTE = /synth|sinte|poly|prophet|moog|analog|\bpad\b|lead|stab|brass|metal|string|\barp|\bfm\b|juno|oberheim|jupiter|vocoder|saw|square|chord|acorde|micro funk|p\.six|cs5|pluck (hybrid|hi)|squick|sky |vox|coro|swell/i;
+  const RE_MUNDO = /guzheng|sitar|exotic|cello|trombone|trumpet|trompeta|upright|guitar|guitarra|hundobell|kaa wa/i;
   const esPadSuave = s => ROLES_PAD.has(s.rol) && s.ataque_ms != null && s.ataque_ms >= 300 && s.dur_s >= 2;
   // Cupo por grupo: en Synth pop los pads suaves cuentan aparte (hasta MAX_POR_ROL en C y otros tantos en D) para que no los desplacen los stabs ni los efectos.
   const cupo = s => (est.genero === 'Synth pop' && esPadSuave(s) ? 'Pad suave' : s.rol);
@@ -381,6 +384,11 @@
       if (RE_BAJO_ANALOGICO.test(s.nombre) || /moog|prophet/i.test((s.etiquetas || []).join(' '))) suma(2, 'nombre de bajo analógico (Moog / Prophet / analog / sub / pluck)');
     }
     if (s.rol === 'Sintes / FX / otros' && s.ataque_ms != null && !esPadSuave(s)) suma(-4, 'efecto o golpe de sinte corto, no es un pad suave');
+    if (FAMILIA.A.includes(s.rol) && MAQ_80S.has(familiaMaquina(s))) suma(3, `caja de ritmos de la época (${familiaMaquina(s)}), el sonido de batería del Synth pop`);
+    if (ROLES_SINTE.has(s.rol)) {
+      if (RE_MUNDO.test(s.nombre)) suma(-5, 'instrumento acústico o étnico: no entra en una colección de sintetizadores');
+      else if (RE_SINTE.test(s.nombre)) suma(3, 'carácter de sintetizador (poly, pad, stab, lead, cuerdas sintéticas…)');
+    }
     if (ROLES_PAD.has(s.rol) && s.ataque_ms != null) {
       const largo = esPadSuave(s);
       if (largo) suma(4, `pad con ataque lento (${nf(s.ataque_ms)} ms) y ${nf(s.dur_s)} s de duración`);
@@ -390,6 +398,41 @@
     }
     return { pts, razones, extra };
   }
+  // ── Familia de máquina (para que el kit suene a una misma caja de ritmos) ──
+  const FAM = [['RD', /\bRD-?[689]\b|behringer rd/i], ['DMX', /dmx/i], ['LinnDrum', /linn|lnndrum|lm-?1/i], ['Simmons', /simmons|sds-?v|sdsv|syndrum/i], ['707', /\b707\b/], ['808', /808|8x8/], ['606', /606|6x6/],
+    ['909', /909|9x9/], ['505', /505|5x5/], ['Drumatix', /drumatix|acidlab/i], ['DrumBrute', /drumbrute|dbidafunk|d\.dafunk/i], ['Syntakt', /syntakt|minipops/i], ['CR-78', /cr-?78/i]];
+  const familiaMaquina = s => { const t = s.nombre + ' ' + (s.maquina_inferida || ''); for (const [k, rx] of FAM) if (rx.test(t)) return k;
+    return /^nt /i.test(s.nombre) ? 'EP' : /^(closed|open) hat/i.test(s.nombre) ? 'EP-hat' : ''; };
+  const MAQ_80S = new Set(['DMX', 'LinnDrum', 'Simmons', '707', '808', '606', '909', 'CR-78', 'Drumatix', 'RD']);
+
+  // ── Hat típico: el que acompaña al bombo ──
+  // Cerrado: tick corto y seco que marca el pulso. Abierto: cola que respira y se corta con el siguiente cerrado. Brillo según el género. Acotado a ±AJUSTE_MAX_HAT.
+  const AJUSTE_MAX_HAT = 8;
+  const HAT_ATIPICO = /glitch|crunch|foot|pedal|\bair\b|brush|\bdbl\b|lucky|girth|shine|sedoso|apagado|witch|platillo/i;
+  const BRILLO_HAT = { 'Lofi house': [4000, 9000], 'Lofi hip hop': [3500, 8500], 'Boom bap (hip hop 90s)': [4500, 9500], 'Trip hop / downtempo': [3500, 9000], 'Bedroom pop / indie': [4000, 9500],
+    'House (deep / clásico)': [6000, 11000], 'Techno / tech house': [8000, 13000], 'Disco / funk': [6000, 10500], 'Synth pop': [6500, 11500] };
+  function ajusteHat(s, g) {
+    const razones = []; let pts = 0;
+    if (s.rol !== 'Hat cerrado' && s.rol !== 'Hat abierto') return { pts, razones };
+    const suma = (v, t) => { pts += v; razones.push(`${v > 0 ? '+' : ''}${v} ${t}`); };
+    if (HAT_ATIPICO.test(s.nombre)) suma(-6, 'no es el hat típico que acompaña al bombo (por su nombre: glitch, crunch, pedal, foot, air, brush…)');
+    const c = s.cola20_s;
+    if (c != null) {
+      if (s.rol === 'Hat cerrado') { if (c <= 0.08) suma(1, 'tick corto y seco que marca el pulso'); else if (c > 0.1) suma(-3, `cola de ${nf(c)} s: larga para un hat cerrado`); }
+      else { if (c >= 0.15 && c <= 0.45) suma(2, `cola de ${nf(c)} s: la de un hat abierto a contratiempo, se corta con el siguiente cerrado`); else if (c > 0.55) suma(-3, `cola de ${nf(c)} s: tapa los golpes siguientes`); }
+    }
+    if ((/wet|reverb/i.test(s.nombre) || (s.etiquetas || []).includes('con reverb')) && !['Synth pop', 'Trip hop / downtempo'].includes(g)) suma(-3, 'con reverb: se aleja del hat seco que marca el pulso');
+    const br = BRILLO_HAT[g];
+    if (br && s.centroide_hz != null) {
+      if (s.centroide_hz >= br[0] && s.centroide_hz <= br[1]) suma(3, `brillo (centroide ${nf(Math.round(s.centroide_hz / 100) / 10)} kHz) dentro de lo típico en ${g}`);
+      else if (s.centroide_hz < br[0] * 0.75 || s.centroide_hz > br[1] * 1.25) suma(-3, `brillo (centroide ${nf(Math.round(s.centroide_hz / 100) / 10)} kHz) lejos de lo típico en ${g} (${br[0] / 1000}–${br[1] / 1000} kHz)`);
+    }
+    const fam = familiaMaquina(s);
+    if (fam && !['EP', 'EP-hat'].includes(fam)) suma(['House (deep / clásico)', 'Techno / tech house'].includes(g) && ['909', '707', 'DrumBrute', 'Drumatix', 'Syntakt'].includes(fam) ? 2 : 1, `hat de caja de ritmos clásica (${fam})`);
+    return { pts: Math.max(-AJUSTE_MAX_HAT, Math.min(AJUSTE_MAX_HAT, pts)), razones };
+  }
+  const esLoop = s => (s.etiquetas || []).includes('loop') || /\bloop\d*\b/i.test(s.nombre);
+
   const tope = (x, g) => { const m = g === 'Synth pop' ? AJUSTE_MAX_SYNTHPOP : AJUSTE_MAX; return Math.max(-m, Math.min(m, x)); };
   // Devuelve { pts, razones[] }; sin análisis (base vieja o importada) no ajusta nada.
   function ajusteEspectral(s, g) {
@@ -403,6 +446,7 @@
       const i = ONDA_BAJO[g].indexOf(s.onda), v = i === 0 ? 2 : i === 1 ? 1 : (s.onda === 'polifónica' ? -2 : 0);
       if (v) { pts += v; razones.push(`${v > 0 ? '+' : ''}${v} onda ${s.onda}${v > 0 ? ' (típica de ' + g + ')' : ' (poco útil como bajo)'}`); }
     }
+    if (esLoop(s)) { pts -= 6; razones.push('-6 es un loop, no un sonido para tocar en un pad'); }
     if (Array.isArray(s.carpeta_generos) && s.carpeta_generos.includes(g)) { pts += 2; razones.push(`+2 su carpeta/pack suele usarse en ${g}`); }
     const et = (s.etiquetas || []).filter(t => (ETIQ_GENERO[g] || []).includes(t));
     if (et.length) { pts += 1; razones.push(`+1 etiqueta ${et.join(', ')}`); }
@@ -444,14 +488,14 @@
     if (!Object.keys(gustos[g]).length) delete gustos[g];
     guardar(CLAVE_GUSTOS, gustos); recalcular();
   }
-  const puntaje = (s, g) => encaje(s, g) + ajusteEspectral(s, g).pts + ajusteBpm(s, est.bpm).pts + gustoDe(s, g) * (gustoDe(s, g) > 0 ? GUSTO_SUBE : GUSTO_BAJA) - (esGrave(s) ? PENAL_GRAVE : 0);
+  const puntaje = (s, g) => encaje(s, g) + ajusteEspectral(s, g).pts + ajusteBpm(s, est.bpm).pts + ajusteHat(s, g).pts + gustoDe(s, g) * (gustoDe(s, g) > 0 ? GUSTO_SUBE : GUSTO_BAJA) - (esGrave(s) ? PENAL_GRAVE : 0);
 
   function calcular() {
     const g = est.genero;
     const todos = sonidosEf().filter(s => !est.solo || s.cargado);
-    const ranking = roles => todos.filter(s => roles.includes(s.rol))
-      .sort((a, b) => puntaje(b, g) - puntaje(a, g) || (b.cargado - a.cargado) || a.nombre.localeCompare(b.nombre));
-    const usados = new Set(), res = {};
+    const ranking = (roles, extra) => { const e = extra || (() => ({ pts: 0 })), pt = new Map(); const v = x => { if (!pt.has(x)) pt.set(x, puntaje(x, g) + e(x).pts); return pt.get(x); };
+      return todos.filter(s => roles.includes(s.rol)).sort((a, b) => v(b) - v(a) || (b.cargado - a.cargado) || a.nombre.localeCompare(b.nombre)); };
+    const usados = new Set(), res = {}, ctx = { bombo: null, cerrado: null };
     // Fijos: sonidos que Rolando eligió para un pad concreto de este género. Mandan sobre el ranking, y los otros pads no los usan.
     const fijosG = (est.fijos && est.fijos[g]) || {}, porNombre = new Map(sonidosEf().map(x => [x.nombre, x]));
     const reservados = new Set(Object.values(fijosG).filter(nom => porNombre.has(nom)));
@@ -462,12 +506,24 @@
       for (const pad of pads) {
         const roles = cfg.pads ? cfg.pads[pad] : cfg.roles;
         const fijo = porNombre.get(fijosG[gr + ':' + pad]) || null;
-        const elegibles = ranking(roles).filter(s => !usados.has(s.nombre) && !reservados.has(s.nombre) && !bases.has(nombreBase(s.nombre)) && (cfg.pads || (porRol[cupo(s)] || 0) < MAX_POR_ROL));
+        // Contexto del kit (grupo A): el hat abierto hace pareja con el cerrado ya elegido; en Synth pop el resto de la batería sigue la máquina del bombo.
+        const ctxA = gr === 'A' ? ctx : null;
+        const extraPad = ctxA ? (x => {
+          const fx = familiaMaquina(x); let pts = 0; const tx = [];
+          if (pad === '5' && ctxA.cerrado && fx && fx === familiaMaquina(ctxA.cerrado)) { pts += 3; tx.push(`+3 hace pareja con el hat cerrado del pad 4 (misma familia: ${fx})`); }
+          if (g === 'Synth pop' && pad !== '7' && pad !== '4' && pad !== '5' && ctxA.bombo && fx && fx === familiaMaquina(ctxA.bombo) && FAMILIA.A.includes(x.rol)) { pts += 3; tx.push(`+3 misma máquina que el bombo (${fx}): el kit suena coherente`); }
+          return { pts, tx };
+        }) : null;
+        // Synth pop, grupo D: además de sus roles, toma los sintes que sobran de C (pads, cuerdas, stabs de carácter sintético) antes que instrumentos acústicos o étnicos.
+        const rolesBusca = gr === 'D' && g === 'Synth pop' ? [...roles, ...ROLES_C] : roles;
+        const elegibles = ranking(rolesBusca, extraPad).filter(s => !usados.has(s.nombre) && !reservados.has(s.nombre) && !bases.has(nombreBase(s.nombre)) && !esLoop(s)
+          && (cfg.pads || (porRol[cupo(s)] || 0) < MAX_POR_ROL) && (!(gr === 'D' && g === 'Synth pop') || ROLES_D.includes(s.rol) || RE_SINTE.test(s.nombre) || esPadSuave(s)));
         const n = elegibles.length;
         const alt = n ? (est.alt[gr + ':' + pad] || 0) % n : 0;
         const s = fijo || (n ? elegibles[alt] : null);
         if (s) { usados.add(s.nombre); bases.add(nombreBase(s.nombre)); porRol[cupo(s)] = (porRol[cupo(s)] || 0) + 1; }
-        filas[pad] = { sonido: s, alt, n, roles, opciones: elegibles.slice(0, 24), fijo: !!fijo };
+        if (ctxA && s) { if (pad === '7') ctxA.bombo = s; if (pad === '4') ctxA.cerrado = s; }
+        filas[pad] = { sonido: s, alt, n, roles, opciones: elegibles.slice(0, 24), fijo: !!fijo, ctx: extraPad && s ? extraPad(s).tx : [] };
       }
       // Segunda pasada: los pads que quedaron sin sonido se completan (capa 2: el mismo rol sin evitar variantes ni el tope; capa 3: cualquier sonido afín al grupo).
       for (const pad of pads) {
@@ -666,6 +722,9 @@
     const g = est.genero, partes = [`Encaje ${encaje(s, g)}% para ${g}`];
     const aj = ajusteEspectral(s, g);
     if (aj.razones.length) partes.push(`ajuste espectral ${aj.pts >= 0 ? '+' : ''}${aj.pts} (${aj.razones.join('; ')})`);
+    const ah = ajusteHat(s, g);
+    if (ah.razones.length) partes.push(`hat típico ${ah.pts >= 0 ? '+' : ''}${ah.pts} (${ah.razones.join('; ')})`);
+    if (f.ctx && f.ctx.length) partes.push(f.ctx.join('; '));
     const ab = ajusteBpm(s, est.bpm);
     if (ab.razones.length) partes.push(`ajuste por BPM ${ab.pts >= 0 ? '+' : ''}${ab.pts} (${ab.razones.join('; ')})`);
     const gu = gustoDe(s, g);
