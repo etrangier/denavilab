@@ -1,6 +1,13 @@
 {
  "changelog": [
   {
+   "fecha": "2026-10-09",
+   "items": [
+    "Cinco pads sintéticos nuevos cargados en el aparato (slots 563 a 567), inspirados en New Order, Depeche Mode y Pet Shop Boys: Cold Poly Em9, Machine Strings Dm, Dark Choir Cm, Glass Wave Fm9 y Warm PWM Bbmaj9. Entran en la base con su análisis; su encaje es estimado (~).",
+    "Synth pop, grupos C y D: el cupo de pads suaves y armónicos sube de 4 a 6 por grupo y su bonus pesa por completo (tope 14), para que los pads nuevos puedan entrar. Con lo cargado hoy entran «Dark Choir Cm», «Machine Strings Dm» y «Warm PWM Bbmaj9»; los otros dos quedan en la lista de opciones y se pueden fijar con 📌."
+   ]
+  },
+  {
    "fecha": "2026-10-08",
    "items": [
     "Al tocar un pad (en el esquema del aparato o en la cuadrícula) suena una vista previa de 1 segundo con fundido, sin pulsar ▶. Hay un interruptor «Que suene 1 s al tocar un pad» para apagarlo.",

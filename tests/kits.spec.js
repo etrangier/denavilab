@@ -227,7 +227,7 @@ test('los samples 254–257 (de fábrica, antes sin inventariar) están en la ba
   expect(nuevos.map(s => s.dur_s)).toEqual([0.26, 0.26, 0.39, 0.14]);        // medidas con el método de la base
   expect(nuevos.slice(0, 3).map(s => s.acorde)).toEqual(['≈ B m7', '≈ B m7', '≈ B m7']);
   expect(nuevos[3].acorde).toBe('');                                          // el 257 no se pudo clasificar con seguridad
-  expect(base.sonidos).toHaveLength(571);
+  expect(base.sonidos).toHaveLength(576);
 });
 
 test('los samples 254–257 se pueden elegir desde las mejores opciones de un pad y avisan su nivel y su encaje estimado', async ({ page }) => {
@@ -358,7 +358,7 @@ test('los archivos se asocian por nombre o, si no tienen nombre, por número a l
   await subirAudio(page, [['001 micro kick.wav', wav()], ['kick dirt.wav', wav()], ['254 sample.wav', wav()], ['023 sample.wav', wav()], ['cualquier cosa.wav', wav()], ['notas.txt', Buffer.from('x')]]);
   await expect(page.locator('#ksAudioInfo')).toContainText('3 con audio nuevo');
   await expect(page.locator('#ksAudioInfo')).toContainText('2 archivos sin coincidencia');      // «cualquier cosa» y «023 sample»; el .txt ni se mira
-  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 3 de 571');
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 3 de 576');
   await page.fill('#ksBuscar', 'micro kick'); await expect(page.locator('.ks-play[data-nombre="micro kick"]')).toHaveCount(1);   // por nombre, con el número del paquete delante
   await page.fill('#ksBuscar', 'synth keys bm7 254'); await expect(page.locator('.ks-play[data-nombre="synth keys bm7 254"]')).toHaveCount(1);   // por número: estimado
   await page.fill('#ksBuscar', 'nt alt kick c'); await expect(page.locator('#ksResultados .ks-rs').filter({ hasText: 'nt alt kick c' }).first()).toBeVisible();
@@ -394,14 +394,14 @@ test('al terminar el sonido el botón vuelve a ▶ solo', async ({ page }) => {
 test('la biblioteca sobrevive a recargar, se puede ampliar sin perder lo anterior y se borra en dos pasos', async ({ page }) => {
   await rolando(page); await page.goto('/kits.html');
   await subirAudio(page, [['micro kick.wav', wav(1)]]);
-  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 1 de 571');
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 1 de 576');
   await page.reload();
-  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 1 de 571');            // sigue ahí
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 1 de 576');            // sigue ahí
   await page.fill('#ksBuscar', 'micro kick'); await page.locator('.ks-play[data-nombre="micro kick"]').click();
   await expect(sonando(page)).toHaveAttribute('data-sonando', 'micro kick');                    // y suena tras recargar
   await subirAudio(page, [['micro kick.wav', wav(1, 880)], ['nt kick.wav', wav(1)]]);          // uno actualizado y uno nuevo
   await expect(page.locator('#ksAudioInfo')).toContainText('1 con audio nuevo, 1 actualizados');
-  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2 de 571');
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2 de 576');
   await page.locator('#ksAudioCaja > summary').click();
   await page.click('#ksAudioBorrar'); await expect(page.locator('#ksAudioBorrar')).toHaveText('¿Seguro? Pulsa otra vez');
   await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2');                    // con un solo clic no se borra
@@ -417,7 +417,7 @@ test('un .pak (zip) se lee por dentro: sólo entran los audios que coinciden con
   await subirAudio(page, [['ep-133-factory.pak', pak]]);
   await expect(page.locator('#ksAudioInfo')).toContainText('2 con audio nuevo');                // deflate y sin comprimir
   await expect(page.locator('#ksAudioInfo')).toContainText('1 archivo sin coincidencia');       // «999 no existe»; el .tar ni se mira
-  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2 de 571');
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2 de 576');
 });
 
 test('un audio dañado no rompe nada: avisa y sigue funcionando', async ({ page }) => {
@@ -616,7 +616,7 @@ test('Synth pop: grupo A de cajas de ritmos de la época y sintes (no loops ni i
   for (const t of ['C', 'D']) { await page.click('#tab' + t); cd.push(...await page.locator('button.ks-pad .nom').allTextContents()); }
   expect(cd.join(' | ')).not.toMatch(/loop|guzheng|sitar|exotic pluck|cello pluckz/i);
   expect(cd).toEqual(expect.arrayContaining(['Classic Analog Pad', 'synth keys bm7 254']));       // tu pad y tus sintes
-  await pad(page, 'D:3').click(); await expect(page.locator('#ksDetalle')).toContainText('carácter de sintetizador');
+  await page.locator('button.ks-pad', { hasText: 'Classic Analog Pad' }).first().click(); await expect(page.locator('#ksDetalle')).toContainText('carácter de sintetizador');
 });
 
 test('tocar un pad suena 1 s sin pulsar ▶, y se puede apagar', async ({ page }) => {
@@ -703,3 +703,13 @@ test('leer del aparato: al tocar un pad sólo lee el primer segundo y pico del a
   const pags = await page.evaluate(() => window.__ko.ordenes.filter(o => o[0] === 3 && o[1] === 1).length);
   expect(pags).toBeGreaterThan(100); expect(pags).toBeLessThan(700);                                      // el archivo entero serían 1 200 páginas
 }); 
+
+test('Synth pop: los pads sintéticos nuevos (563–567) están en la base y los suaves entran en C y D', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  await page.selectOption('#ksGenero', 'Synth pop');
+  const todos = [];
+  for (const t of ['C', 'D']) { await page.click('#tab' + t); todos.push(...await page.locator('button.ks-pad .nom').allTextContents()); }
+  expect(todos.filter(n => ['Dark Choir Cm', 'Machine Strings Dm', 'Warm PWM Bbmaj9'].includes(n))).toHaveLength(3);
+  await page.locator('button.ks-pad', { hasText: 'Warm PWM Bbmaj9' }).first().click();
+  await expect(page.locator('#ksDetalle')).toContainText('slot 567');
+});
