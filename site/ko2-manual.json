@@ -1,0 +1,153 @@
+{
+  "version": 1,
+  "aparato": "EP-133 K.O. II (128 MB)",
+  "origen": "Guías «K.O. II desde cero» del Proyecto Bedroom pop, semanas 1 y 2 (v1.1, septiembre 2026), de Rolando. Resumidas con palabras propias; no se copia el manual oficial. Las semanas 3 y 4 y el manual de Teenage Engineering no estaban en el Drive, así que no entran.",
+  "convenciones": {
+    "botones": "SHIFT + X = mantener los dos a la vez. A → B = uno y después el otro. «Mantén» = dejar el dedo puesto. Perilla naranja = X, negra = Y. SHIFT + perilla = ajuste fino.",
+    "posicion": "La pantalla muestra compás.tiempo.paso. Con rejilla 1/16 hay 16 pasos por compás: casilla n = 1.(1+⌊(n−1)/4⌋).(1+(n−1) mod 4).",
+    "modelo": "proyecto (9) → grupos A–D (12 pads cada uno) → patrones (99 por grupo, 1 compás por defecto) → escenas (99) → canción. Convención: A batería, B bajo, C melodía, D samples propios. Proyectos 1–5 traen demos; 6–9 vienen vacíos. Todo se guarda solo."
+  },
+  "rangos_sonidos": [
+    { "de": 1,   "a": 99,  "que": "Bombos" },
+    { "de": 100, "a": 199, "que": "Cajas" },
+    { "de": 200, "a": 299, "que": "Hi-hats" },
+    { "de": 300, "a": 399, "que": "Percusión" },
+    { "de": 400, "a": 499, "que": "Bajos" },
+    { "de": 500, "a": 599, "que": "Melódicos (teclados, sintes)" },
+    { "de": 600, "a": 999, "que": "Vacías: tus samples" }
+  ],
+  "rejillas": [
+    { "rejilla": "1/4",  "pasos": 4,  "sirve_para": "Bombo a negras, notas largas" },
+    { "rejilla": "1/8",  "pasos": 8,  "sirve_para": "Hats a corcheas, bajos sencillos" },
+    { "rejilla": "1/8T", "pasos": 12, "sirve_para": "Shuffle, tresillos" },
+    { "rejilla": "1/16", "pasos": 16, "sirve_para": "De fábrica. Casi todo: batería detallada, hats, trip hop" },
+    { "rejilla": "1/16T","pasos": 24, "sirve_para": "Redobles con sabor a tresillo" },
+    { "rejilla": "1/32", "pasos": 32, "sirve_para": "Redobles muy rápidos" }
+  ],
+  "lecciones": [
+    {
+      "n": 1, "tema": "Encender y oír", "para_beats": false,
+      "idea": "Interruptor naranja arriba a la derecha; OUTPUT (izquierda) para audífonos o parlante, INPUT (naranja) para meter audio. Se puede alimentar por USB-C con un cargador de teléfono.",
+      "combos": [],
+      "error": "Conectar los audífonos en INPUT: no suena nada y parece que el aparato está malo."
+    },
+    {
+      "n": 2, "tema": "La tecla casa y los tres modos", "para_beats": true,
+      "idea": "SOUND (elegir sample por pad), MAIN (tocar, grabar, moverse por pasos; aquí se vive), TEMPO (BPM). Si no sabes dónde estás, MAIN te devuelve a casa.",
+      "combos": [["Volver a casa", "MAIN"], ["Ajustes del sistema", "SHIFT + ERASE (salir con MAIN)"]],
+      "error": "Girar perillas en SOUND «para ver qué hacen»: cambian volumen y tono del pad. Se arregla con SHIFT + B (deshacer) o dejando el tono en 0."
+    },
+    {
+      "n": 3, "tema": "Explorar los demos: proyectos, grupos, fader", "para_beats": true,
+      "idea": "Se cambia de proyecto manteniendo MAIN y tocando el pad 1–9; el cambio en vivo espera al final del compás. El fader baja el volumen del grupo elegido; FX + grupo hace solo.",
+      "combos": [["Cambiar de proyecto", "Mantén MAIN + pad 1–9"], ["Play / stop", "PLAY"], ["Solo de un grupo", "Mantén FX + grupo (sonando)"]],
+      "error": "Fader abajo en un grupo y creer que «no suena». El fader es por grupo."
+    },
+    {
+      "n": 4, "tema": "Escenas y patrones; leer la pantalla", "para_beats": true,
+      "idea": "Un patrón es lo que toca un grupo; una escena junta un patrón por grupo. La posición se lee compás.tiempo.paso: la casilla 1 es 1.1.1, la 5 es 1.2.1, la 9 es 1.3.1 y la 13 es 1.4.1.",
+      "combos": [["Cambiar de escena", "Mantén MAIN + + / −"], ["Ver patrón de un grupo", "Mantén el botón del grupo"], ["Al principio", "Mantén SHIFT + −"]],
+      "error": "Cambiar de patrón «para ver» y dejar el demo distinto. SHIFT + B deshace."
+    },
+    {
+      "n": 5, "tema": "Cargar sonidos en los pads", "para_beats": true,
+      "idea": "SOUND, grupo, pad, y + / − recorre los sonidos (SHIFT + + / − de diez en diez; mantén SOUND y escribe el número para ir directo). En SOUND la perilla naranja es el volumen del pad y la negra el tono. Un kit mínimo: bombo, caja, dos hats y una percusión en el grupo A.",
+      "combos": [["Asignar sonido", "SOUND, grupo, pad, + / −"], ["Ir directo a un número", "Mantén SOUND + número en los pads"], ["Volumen / tono del pad", "En SOUND: naranja / negra"]],
+      "error": "Llenar el grupo equivocado. Y ERASE + SOUND no «vacía el pad»: borra el sample de la memoria. Para vaciar, baja con − hasta 000."
+    },
+    {
+      "n": 6, "tema": "Tempo, tap tempo y metrónomo", "para_beats": true,
+      "idea": "El tempo es del proyecto entero. Perilla naranja en TEMPO (60–180; escribiendo, 40–399), negra = volumen del metrónomo. Tres vías: perilla, tap con TEMPO, o escribirlo.",
+      "combos": [["Tempo exacto", "Mantén TEMPO + número en los pads"], ["Ajuste fino", "SHIFT + perilla"], ["Metrónomo al grabar y reproducir", "SHIFT + ERASE, 400, ENTER"]],
+      "error": "Escribir el número sin mantener TEMPO: los pads sueltos tocan sonidos."
+    },
+    {
+      "n": 7, "tema": "Grabar a dedo, sobregrabar, borrar, deshacer", "para_beats": true,
+      "idea": "El patrón gira en bucle y lo que tocas se suma. Un patrón nuevo dura 1 compás.",
+      "combos": [
+        ["Grabar con cuenta de 4", "RECORD → PLAY"],
+        ["Grabar sin cuenta", "RECORD + PLAY"],
+        ["Sobregrabar", "Sonando: mantén RECORD + pads"],
+        ["Borrar un pad en vivo", "Sonando: mantén ERASE + pad"],
+        ["Borrar un pad de golpe", "Detenido: mantén ERASE + pad hasta TRK"],
+        ["Borrar el patrón del grupo", "Detenido: mantén ERASE + grupo hasta PTN"],
+        ["Deshacer", "SHIFT + B (con el icono del paraguas encendido)"]
+      ],
+      "error": "Soltar RECORD demasiado pronto: solo graba mientras lo mantienes."
+    },
+    {
+      "n": 8, "tema": "Cuantización, swing y repetición de nota", "para_beats": true,
+      "idea": "TIMING abre la rejilla. Naranja = rejilla, negra = swing (solo en 1/8 y 1/16), − / + alternan QNT (cuantizado) y FREE (tal como tocaste). La rejilla y el swing se aplican al grabar; para corregir después existe CORRECT.",
+      "combos": [
+        ["Repetición de nota", "Mantén TIMING + pad"],
+        ["Repetición pegada", "TIMING, luego SHIFT + pad"],
+        ["Corregir el tiempo de un pad", "SHIFT + TIMING, y el pad (detenido)"]
+      ],
+      "error": "Dejar la rejilla en 1/8 o 1/4 sin querer (se comen notas) o dejar FREE activado (queda todo torcido). Antes de grabar, mira TIMING: 16 y QNT."
+    },
+    {
+      "n": 9, "tema": "Largo del patrón: 1, 2 y 4 compases", "para_beats": true,
+      "idea": "El largo es por patrón y por grupo; los más cortos se repiten dentro del más largo.",
+      "combos": [
+        ["Alargar vacío", "Mantén RECORD + +"],
+        ["Acortar", "Mantén RECORD + −"],
+        ["Alargar copiando", "Detenido: toca RECORD (armado), luego mantén SHIFT + +"],
+        ["Moverse un compás", "SHIFT + + / SHIFT + − (detenido)"],
+        ["Copiar y pegar compás", "SHIFT + C, ir al destino, SHIFT + D (C dos veces = patrón entero)"]
+      ],
+      "error": "Alargar con RECORD + + esperando una copia: los compases nuevos quedan vacíos. Y + solo avanza un paso; SHIFT + + avanza un compás."
+    },
+    {
+      "n": 10, "tema": "Escribir por pasos", "para_beats": true,
+      "idea": "Detenido y en MAIN, + y − avanzan un paso. En cada paso, mantén RECORD y toca un pad para escribir la nota ahí. Los LEDs de los pads muestran qué hay en ese paso.",
+      "combos": [["Escribir nota en un paso", "Detenido: RECORD + pad"], ["Quitar nota de un paso", "Detenido: ERASE + pad"]],
+      "error": "Escribir con rejilla 1/8 y no poder llegar a 1.1.2: esa casilla no existe en esa rejilla. Programa siempre detenido."
+    },
+    {
+      "n": 11, "tema": "Transcribir una base real (trip hop a 77 BPM)", "para_beats": true,
+      "idea": "Base «26 ag impro»: 77 BPM, 4/4, bombo en las casillas 1, 2 y 4, caja en 5 y 13, hat en las 16 semicorcheas. Estilo trip hop: swing del hat 52–56 %, bombo grave (tono −2 o −3), hat más bajo que el resto. El hat se graba mejor con repetición de nota que casilla a casilla.",
+      "combos": [["Hat de una vuelta", "PLAY, mantén RECORD + TIMING + pad"]],
+      "error": "Confundir la «y» (casilla 3) con la «a» (casilla 4) al escribir el bombo."
+    },
+    {
+      "n": 12, "tema": "Fuerza, duración y desplazamiento", "para_beats": true,
+      "idea": "Cada nota tiene velocidad (0–127), duración y posición fina (96 ticks por tiempo; un paso de semicorchea = 24 ticks). Hats con las casillas pares más suaves suenan a persona, no a máquina. Para arrastrar la caja, pasa a FREE y retrásala 4–5 ticks; las notas movidas se quedan donde están al volver a QNT.",
+      "combos": [
+        ["Fuerza del paso", "SHIFT + naranja"],
+        ["Duración del paso", "SHIFT + negra"],
+        ["Mover una nota", "SHIFT + pad + + / −"],
+        ["Pads sensibles a la fuerza", "SHIFT + ERASE, 301 (suave) o 302 (fuerte), ENTER; 300 lo apaga"]
+      ],
+      "error": "Girar la perilla sin estar parado en el paso correcto. Y con velocidad en 301, un hat repetido tocando flojo sale casi inaudible."
+    },
+    {
+      "n": 13, "tema": "Modo KEYS y escalas", "para_beats": false,
+      "idea": "KEYS reparte un sonido en los 12 pads. Escalas por código de sistema (310 cromática, 311 mayor, 312 menor, 318/319 pentatónicas, 320–331 tonalidad). Queda fuera del asistente de patrones: es para bajo y acordes.",
+      "combos": [["Activar KEYS", "Elige un pad y toca KEYS"]],
+      "error": "Apretar KEYS sin haber elegido el pad."
+    },
+    {
+      "n": 14, "tema": "La línea de bajo", "para_beats": false,
+      "idea": "Un bajo de trip hop: pocas notas, largas. Grabado en el grupo B; la batería de 1 compás y el bajo de 4 giran juntos. Fuera del asistente de patrones.",
+      "combos": [],
+      "error": "Bajo que suena «plop»: la duración por defecto es un paso."
+    },
+    {
+      "n": 15, "tema": "Acordes y melodía", "para_beats": false,
+      "idea": "Acordes de tres pads saltando uno, con el sonido en modo KEY. Fuera del asistente de patrones.",
+      "combos": [],
+      "error": "Acordes con el sonido en ONESHOT: solo suena una nota."
+    },
+    {
+      "n": 16, "tema": "Editar el sonido: disparo, envolvente, mute group", "para_beats": true,
+      "idea": "SHIFT + SOUND abre el editor del último pad tocado; + / − cambia de página. Modos de disparo: ONESHOT (batería), KEY (acordes), LEGATO. Mute group: el hat cerrado y el abierto en el mismo grupo se cortan entre sí.",
+      "combos": [["Editar un sonido", "Toca el pad, SHIFT + SOUND, + / −"], ["Fijar los cambios", "Mantén SHIFT + SOUND dos segundos"]],
+      "error": "Subir el release de un bombo o de un sample largo: la cola se embarra con la siguiente nota. Es para teclados y pads."
+    }
+  ],
+  "codigos_sistema": [
+    { "codigo": "300 / 301 / 302", "que": "Velocidad de los pads: apagada (fábrica) / sensible / baja" },
+    { "codigo": "400 / 401 / 402", "que": "Metrónomo: al grabar y reproducir / solo al grabar / solo en la cuenta de entrada" },
+    { "codigo": "310 – 312, 318, 319, 320 – 331", "que": "Escalas y tonalidad (para KEYS)" }
+  ]
+}
