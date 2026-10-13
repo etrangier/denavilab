@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="DenaviLAB · asistente guiado de patrones: paso a paso, cómo construir un beat en el EP-133 K.O. II según el género y el BPM.">
+<title>DenaviLab · asistente de patrones</title>
+<script>
+(() => {
+  // Sólo Rolando, y sólo cuando se sirve por web (igual que kits.html). Es una cortina, no una cerradura.
+  if (!/^https?:$/.test(location.protocol)) return;
+  let quien = null;
+  try { quien = localStorage.getItem('denavilab.sesion'); } catch (e) {}
+  if (quien !== 'rolando') location.replace('index.html');
+})();
+</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="estilo.css?v=20260915e">
+<style>
+  /* ── Asistente de patrones del EP-133: pasos como el Asesor de jam, pero sólo para construir el beat. ── */
+  .pa-solo { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 3px 10px; margin: 0 0 14px; }
+  .pa-pasos { display: grid; gap: 10px; margin: 20px 0 10px; counter-reset: paso; }
+  .pa-paso { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
+  .pa-paso[open] { border-color: var(--accent); }
+  .pa-paso > summary { cursor: pointer; padding: 13px 16px; list-style: none; display: flex; align-items: center; gap: 10px; }
+  .pa-paso > summary::-webkit-details-marker { display: none; }
+  .pa-paso > summary .num { counter-increment: paso; flex: 0 0 auto; width: 22px; height: 22px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line);
+    display: grid; place-items: center; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .pa-paso > summary .num::before { content: counter(paso); }
+  .pa-paso.hecho:not([open]) > summary .num::before { content: '✓'; }
+  .pa-paso[open] > summary .num { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .pa-paso > summary .tit { font-family: var(--display); font-weight: 700; font-size: 15px; }
+  .pa-paso > summary .resumen { color: var(--muted); font-size: 13px; margin-left: auto; text-align: right; }
+  .pa-paso[open] > summary .resumen { display: none; }
+  .pa-paso .cuerpo { padding: 4px 16px 16px; display: grid; gap: 12px; }
+  .pa-paso .cuerpo p { margin: 0; font-size: 14px; }
+  .pa-sig { justify-self: start; }
+  .pa-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+  .pa-fila .lbl { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .pa-sel, .pa-num { background: var(--surface-2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; font: inherit; }
+  .pa-sel { width: 100%; max-width: 360px; }
+  .pa-num { width: 84px; font-family: var(--mono); }
+  .pa-hint { font-size: 12.5px; color: var(--muted); }
+  .pa-rasgos { font-size: 13px; color: var(--muted); border-left: 3px solid var(--accent); padding: 6px 12px; background: var(--surface-2); border-radius: 0 8px 8px 0; }
+  .pa-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pa-chip { position: relative; }
+  .pa-chip input { position: absolute; opacity: 0; inset: 0; cursor: pointer; margin: 0; }
+  .pa-chip span { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 7px 13px; font-size: 13.5px; cursor: pointer; user-select: none; }
+  .pa-chip input:checked + span { border-color: var(--accent); background: var(--surface-2); font-weight: 600; }
+  .pa-chip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  table.pa-kit { border-collapse: collapse; font-size: 13px; width: 100%; }
+  table.pa-kit th, table.pa-kit td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.pa-kit th { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 500; }
+  .pa-pad { font-family: var(--mono); color: var(--accent); }
+
+  .pa-rejilla { display: grid; gap: 4px; overflow-x: auto; padding-bottom: 4px; }
+  .pa-linea { display: grid; grid-template-columns: 92px repeat(16, minmax(22px, 1fr)); gap: 3px; align-items: center; min-width: 520px; }
+  .pa-linea .nom { font-size: 12px; font-weight: 600; }
+  .pa-linea .nom small { display: block; font-family: var(--mono); font-weight: 400; color: var(--muted); font-size: 10.5px; }
+  .pa-cas { height: 28px; border-radius: 5px; border: 1px solid var(--line); background: var(--surface-2); cursor: pointer; padding: 0; font: inherit; color: var(--accent-ink); }
+  .pa-cas.t1 { background: var(--surface); }
+  .pa-cas[aria-pressed=true] { background: var(--accent); border-color: var(--accent); }
+  .pa-cas:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .pa-cabeza { font-family: var(--mono); font-size: 10px; color: var(--muted); text-align: center; }
+  .pa-cabeza.fuerte { color: var(--text); font-weight: 500; }
+
+  ol.pa-lista { margin: 0; padding-left: 22px; display: grid; gap: 8px; font-size: 14px; }
+  ol.pa-lista li::marker { font-family: var(--mono); color: var(--accent); }
+  .pa-lista code, .pa-tip code, .pa-lista kbd { font-family: var(--mono); font-size: 12.5px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; }
+  .pa-tip { font-size: 13px; color: var(--muted); border: 1px dashed var(--line); border-radius: 8px; padding: 9px 12px; }
+  .pa-tip b { color: var(--text); }
+  .pa-error { font-size: 13px; border-left: 3px solid #e0795f; padding: 6px 12px; background: var(--surface-2); border-radius: 0 8px 8px 0; }
+  .pa-check { display: grid; gap: 8px; font-size: 14px; }
+  .pa-check label { display: flex; gap: 9px; align-items: flex-start; cursor: pointer; }
+  .pa-check input { width: 18px; height: 18px; accent-color: var(--accent); margin-top: 1px; }
+  .pa-pie { font-size: 12.5px; color: var(--muted); margin-top: 22px; }
+  .pa-pie a { color: var(--accent); }
+</style>
+</head>
+<body class="pag-patrones">
+<div class="wrap">
+
+  <nav class="navbar">
+    <button class="navlink" id="navAtras" type="button">&larr; Atrás</button>
+    <a class="navlink" href="index.html">Portada</a>
+    <a class="navlink" href="kits.html">Beatmaking Assistant</a>
+    <a class="navlink" href="app.html">Taller</a>
+    <span class="navsesion sesion" id="sesion"></span>
+  </nav>
+
+  <span class="pa-solo">Sólo Rolando</span>
+  <h1>Asistente de patrones</h1>
+  <p class="lede">Siete pasos para construir un beat en el EP-133 K.O. II, y nada más que el beat: kit, rejilla, qué casilla lleva qué pad, y la secuencia exacta de botones para escribirlo. Cambia cualquier paso y todo se recalcula. No toca el aparato; es para tener la hoja a la vista mientras lo programas.</p>
+
+  <div class="pa-pasos" id="paPasos">
+
+    <details class="pa-paso" id="pasoGenero" open>
+      <summary><span class="num"></span><span class="tit">Género y tempo</span><span class="resumen" id="resGenero"></span></summary>
+      <div class="cuerpo">
+        <div class="pa-fila">
+          <label class="lbl" for="paGenero">Género</label>
+          <select class="pa-sel" id="paGenero"></select>
+        </div>
+        <div class="pa-fila">
+          <label class="lbl" for="paBpm">BPM</label>
+          <input class="pa-num" type="number" id="paBpm" min="40" max="399" step="1" inputmode="numeric">
+          <span class="pa-hint" id="paBpmHint"></span>
+        </div>
+        <p class="pa-rasgos" id="paRasgos"></p>
+        <button type="button" class="btn pa-sig" data-next="pasoKit">Siguiente →</button>
+      </div>
+    </details>
+
+    <details class="pa-paso" id="pasoKit">
+      <summary><span class="num"></span><span class="tit">El kit del grupo A</span><span class="resumen" id="resKit"></span></summary>
+      <div class="cuerpo">
+        <p>Cinco pads bastan para un beat. Esta es la distribución y dónde buscar cada sonido en el K.O. II (las casillas de sonido son una biblioteca ordenada).</p>
+        <table class="pa-kit" id="paKit"></table>
+        <p class="pa-tip"><b>Para elegir sonidos concretos</b> según tu género y tu base de sonidos, usa el <a href="kits.html">EP-133 Beatmaking Assistant</a>. Aquí sólo importa el número de pad.</p>
+        <button type="button" class="btn pa-sig" data-next="pasoRejilla">Siguiente →</button>
+      </div>
+    </details>
+
+    <details class="pa-paso" id="pasoRejilla">
+      <summary><span class="num"></span><span class="tit">El patrón, casilla por casilla</span><span class="resumen" id="resRejilla"></span></summary>
+      <div class="cuerpo">
+        <p>Un compás son 16 casillas (rejilla 1/16). Parte de la plantilla del género y cámbiala como quieras: toca una casilla para ponerla o quitarla.</p>
+        <div class="pa-rejilla" id="paRejilla" role="group" aria-label="Rejilla de 16 casillas"></div>
+        <div class="pa-fila">
+          <label class="lbl" for="paSwing">Swing</label>
+          <input type="range" id="paSwing" min="50" max="66" step="1">
+          <output id="paSwingVal" class="pa-hint"></output>
+          <button type="button" class="btn ghost" id="paRestaurar">Volver a la plantilla</button>
+        </div>
+        <p class="pa-tip">Las plantillas son <b>puntos de partida</b> con las convenciones de cada género, no una transcripción de un disco. La única medida real es la del trip hop a 77 BPM, tomada de tu base «26 ag impro».</p>
+        <button type="button" class="btn pa-sig" data-next="pasoEscribir">Siguiente →</button>
+      </div>
+    </details>
+
+    <details class="pa-paso" id="pasoEscribir">
+      <summary><span class="num"></span><span class="tit">Escribirlo en el aparato</span><span class="resumen" id="resEscribir"></span></summary>
+      <div class="cuerpo">
+        <ol class="pa-lista" id="paSecuencia"></ol>
+        <button type="button" class="btn pa-sig" data-next="pasoVida">Siguiente →</button>
+      </div>
+    </details>
+
+    <details class="pa-paso" id="pasoVida">
+      <summary><span class="num"></span><span class="tit">Que no suene a máquina</span><span class="resumen" id="resVida"></span></summary>
+      <div class="cuerpo">
+        <ol class="pa-lista" id="paVida"></ol>
+        <button type="button" class="btn pa-sig" data-next="pasoLargo">Siguiente →</button>
+      </div>
+    </details>
+
+    <details class="pa-paso" id="pasoLargo">
+      <summary><span class="num"></span><span class="tit">Largo y relleno</span><span class="resumen" id="resLargo"></span></summary>
+      <div class="cuerpo">
+        <div class="pa-chips" id="paCompases" role="radiogroup" aria-label="Largo del patrón">
+          <label class="pa-chip"><input type="radio" name="compases" value="1"><span>1 compás</span></label>
+          <label class="pa-chip"><input type="radio" name="compases" value="2"><span>2 compases</span></label>
+          <label class="pa-chip"><input type="radio" name="compases" value="4" checked><span>4 compases</span></label>
+        </div>
+        <ol class="pa-lista" id="paLargo"></ol>
+        <button type="button" class="btn pa-sig" data-next="pasoChequeo">Siguiente →</button>
+      </div>
+    </details>
+
+    <details class="pa-paso" id="pasoChequeo">
+      <summary><span class="num"></span><span class="tit">Chequeo y errores típicos</span><span class="resumen" id="resChequeo"></span></summary>
+      <div class="cuerpo">
+        <div class="pa-check" id="paChequeo"></div>
+        <div id="paErrores" style="display:grid;gap:8px"></div>
+      </div>
+    </details>
+
+  </div>
+
+  <p class="pa-pie" id="paPie"></p>
+</div>
+
+<dialog id="puerta">
+  <form method="dialog" id="formPuerta">
+    <h2>Entrar</h2>
+    <p class="error" id="errorPuerta" role="alert"></p>
+    <label for="usuario">Nombre</label><input id="usuario" autocomplete="username">
+    <label for="clave">Clave</label><input id="clave" type="password" autocomplete="current-password">
+    <div class="acciones"><button type="button" class="btn ghost" id="cancelar">Cancelar</button><button type="submit" class="btn">Entrar</button></div>
+  </form>
+</dialog>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const el = (t, a = {}, ...k) => { const n = document.createElement(t); for (const [x, v] of Object.entries(a)) { if (x === 'class') n.className = v; else n.setAttribute(x, v); } k.forEach(c => n.append(c)); return n; };
+  const CLAVE = 'denavilab.patrones.rolando';
+
+  // Pads del grupo A: el orden de la guía (lección 5). `rango` apunta a la biblioteca de fábrica.
+  const PADS = [
+    { id: 'k', pad: 1, nombre: 'Bombo',          rango: '001 – 099', afina: 'Tono −2 o −3 para más peso (SOUND, perilla negra).' },
+    { id: 's', pad: 2, nombre: 'Caja / clap',    rango: '100 – 199', afina: 'Nivélala con el bombo (SOUND, perilla naranja).' },
+    { id: 'h', pad: 3, nombre: 'Hat cerrado',    rango: '200 – 299', afina: 'Más bajo de volumen que el resto.' },
+    { id: 'o', pad: 4, nombre: 'Hat abierto',    rango: '200 – 299', afina: 'En el mismo mute group que el cerrado (lección 16).' },
+    { id: 'p', pad: 5, nombre: 'Percusión',      rango: '300 – 399', afina: 'Rim, shaker, conga: lo que dé color sin tapar la caja.' },
+  ];
+  const TODAS = n => Array.from({ length: n }, (_, i) => i + 1);
+  const CUATRO = [1, 5, 9, 13], CONTRA = [3, 7, 11, 15], CORCHEAS = [1, 3, 5, 7, 9, 11, 13, 15], PARES = [2, 4, 6, 8, 10, 12, 14, 16];
+  // Plantillas por género. Convenciones, salvo el trip hop (tu base «26 ag impro»).
+  const GENEROS = {
+    'Trip hop / downtempo':  { bpm: [70, 100, 77],   swing: 54, k: [1, 2, 4], s: [5, 13], h: TODAS(16), o: [], p: [],
+      rasgos: 'Batería lenta y pesada. Bombo grave, hat a semicorcheas y más bajo que el resto, un poco de swing. Medida sobre tu base «26 ag impro» a 77 BPM.' },
+    'Lofi hip hop':          { bpm: [70, 90, 80],    swing: 58, k: [1, 8, 11], s: [5, 13], h: CORCHEAS, o: [], p: [],
+      rasgos: 'Boom bap suave: bombo y caja con un poco de polvo, hats a corcheas con swing marcado y timing flojo a propósito.' },
+    'Boom bap (hip hop 90s)':{ bpm: [85, 95, 90],    swing: 57, k: [1, 7, 11], s: [5, 13], h: CORCHEAS, o: [], p: [],
+      rasgos: 'Bombo duro en los tiempos fuertes, caja seca en 2 y 4, hats con swing de MPC.' },
+    'Bedroom pop / indie':   { bpm: [85, 120, 100],  swing: 52, k: [1, 11], s: [5, 13], h: CORCHEAS, o: [], p: [],
+      rasgos: 'Batería discreta: bombo escaso, rim o snap en 2 y 4, hats suaves. Deja espacio para la voz y la guitarra.' },
+    'Lofi house':            { bpm: [115, 124, 120], swing: 58, k: CUATRO, s: [5, 13], h: CORCHEAS, o: [], p: [8, 16],
+      rasgos: 'House de cuatro tiempos con bombo con peso pero sin clic, clap en 2 y 4, hat corto, perc sincopada y swing alto.' },
+    'House (deep / clásico)':{ bpm: [120, 124, 122], swing: 52, k: CUATRO, s: [5, 13], h: CONTRA, o: [], p: PARES,
+      rasgos: 'Referencia 909: bombo en cada negra, clap en 2 y 4, hat en los contratiempos y shaker rellenando las semicorcheas.' },
+    'Techno / tech house':   { bpm: [124, 135, 128], swing: 50, k: CUATRO, s: [5, 13], h: TODAS(16).filter(n => !CONTRA.includes(n)), o: CONTRA, p: [],
+      rasgos: 'Bombo largo y duro en cada negra, clap seco, hat abierto en el contratiempo y cerrado rellenando.' },
+    'Disco / funk':          { bpm: [100, 125, 115], swing: 52, k: CUATRO, s: [5, 13], h: TODAS(16).filter(n => !CONTRA.includes(n)), o: CONTRA, p: [],
+      rasgos: 'Bombo en negras, clap «disco» en 2 y 4, hat abierto al contratiempo con cerrado de semicorcheas alrededor.' },
+    'Synth pop':             { bpm: [100, 130, 115], swing: 50, k: CUATRO, s: [5, 13], h: CORCHEAS, o: [], p: [],
+      rasgos: 'Batería electrónica nítida y recta: bombo en negras, caja fuerte en 2 y 4 (con reverb gated), hat a corcheas, sin swing.' },
+  };
+  const NOMBRES_GEN = Object.keys(GENEROS);
+
+  const pos = n => { const i = n - 1; return `1.${Math.floor(i / 4) + 1}.${(i % 4) + 1}`; };
+  const posEn = (compas, n) => pos(n).replace(/^1/, String(compas));
+  const lista = arr => arr.map(pos).join(', ');
+
+  // ───────── Estado ─────────
+  let estado = { genero: 'Trip hop / downtempo', bpm: 77, swing: 54, rejilla: null, compases: 4, chequeo: {} };
+  const plantilla = g => { const G = GENEROS[g]; return { k: [...G.k], s: [...G.s], h: [...G.h], o: [...G.o], p: [...G.p] }; };
+  try { const g = JSON.parse(localStorage.getItem(CLAVE) || 'null'); if (g && GENEROS[g.genero] && g.rejilla) estado = { ...estado, ...g }; } catch (e) {}
+  if (!estado.rejilla) estado.rejilla = plantilla(estado.genero);
+  const guardar = () => { try { localStorage.setItem(CLAVE, JSON.stringify(estado)); } catch (e) {} };
+
+  // ───────── Manual del K.O. II (importado de las guías) ─────────
+  let MAN = null;
+  const leccion = n => MAN && MAN.lecciones.find(l => l.n === n);
+  const combo = (n, quiero) => { const l = leccion(n); const c = l && l.combos.find(x => x[0] === quiero); return c ? c[1] : ''; };
+  const errorDe = n => { const l = leccion(n); return l ? l.error : ''; };
+
+  // ───────── Pintar ─────────
+  function pintarGenero() {
+    const sel = $('paGenero'); sel.innerHTML = '';
+    NOMBRES_GEN.forEach(g => sel.append(el('option', { value: g }, g)));
+    sel.value = estado.genero;
+  }
+  function pintarKit() {
+    const t = $('paKit'); t.innerHTML = '';
+    t.append(el('tr', {}, el('th', {}, 'Pad'), el('th', {}, 'Rol'), el('th', {}, 'Casillas de sonido'), el('th', {}, 'Ojo con…')));
+    PADS.forEach(p => {
+      const usa = estado.rejilla[p.id].length > 0;
+      const fila = el('tr', {}, el('td', { class: 'pa-pad' }, String(p.pad)), el('td', {}, p.nombre + (usa ? '' : ' (no lo usa este patrón)')), el('td', {}, p.rango), el('td', {}, p.afina));
+      if (!usa) fila.style.opacity = '.5';
+      t.append(fila);
+    });
+  }
+  function pintarRejilla() {
+    const c = $('paRejilla'); c.innerHTML = '';
+    const cab = el('div', { class: 'pa-linea' }, el('span'));
+    for (let n = 1; n <= 16; n++) cab.append(el('span', { class: 'pa-cabeza' + ((n - 1) % 4 === 0 ? ' fuerte' : '') }, (n - 1) % 4 === 0 ? String((n - 1) / 4 + 1) : ['', 'e', 'y', 'a'][(n - 1) % 4]));
+    c.append(cab);
+    PADS.forEach(p => {
+      const f = el('div', { class: 'pa-linea' }, el('span', { class: 'nom' }, p.nombre, el('small', {}, 'pad ' + p.pad)));
+      for (let n = 1; n <= 16; n++) {
+        const on = estado.rejilla[p.id].includes(n);
+        const b = el('button', { type: 'button', class: 'pa-cas' + ((n - 1) % 4 === 0 ? ' t1' : ''), 'aria-pressed': String(on), 'data-pad': p.id, 'data-cas': String(n),
+          'aria-label': `${p.nombre}, casilla ${n} (${pos(n)})` });
+        b.addEventListener('click', () => {
+          const a = estado.rejilla[p.id], i = a.indexOf(n);
+          if (i >= 0) a.splice(i, 1); else { a.push(n); a.sort((x, y) => x - y); }
+          guardar(); render();
+        });
+        f.append(b);
+      }
+      c.append(f);
+    });
+  }
+  const hatCompleto = () => { const h = estado.rejilla.h; return h.length === 16 || (h.length === 8 && h.every(n => n % 2 === 1)) || (h.length === 8 && h.every(n => n % 2 === 0)); };
+  const hatRejilla = () => (estado.rejilla.h.length === 16 ? 16 : 8);
+
+  function pintarSecuencia() {
+    const R = estado.rejilla, ol = $('paSecuencia'); ol.innerHTML = '';
+    const li = (...k) => ol.append(el('li', {}, ...k));
+    const code = t => el('code', {}, t);
+    li('Con el aparato detenido, ', code('MAIN'), `. Elige el proyecto vacío: ${combo(3, 'Cambiar de proyecto') || 'mantén MAIN + pad 1–9'} (el 6 al 9 vienen vacíos). Grupo `, code('A'), '.');
+    li(`Tempo ${estado.bpm}: ${combo(6, 'Tempo exacto') || 'mantén TEMPO + número'}. `, `Escribe `, code(String(estado.bpm).split('').join(' ')), ' con los pads, sin soltar TEMPO.');
+    li('Carga el kit: ', code('SOUND'), ', grupo A, y por cada pad ', code('+ / −'), ' hasta el sonido (rangos del paso 2). Nivela volúmenes con la naranja; el bombo, tono −2 o −3 con la negra.');
+    li('Limpia el patrón: detenido, mantén ', code('ERASE + A'), ' hasta que parpadee PTN. Deja el largo en 1 compás por ahora (', code('RECORD + −'), ' si hace falta, hasta LEN 1).');
+    li('Revisa la rejilla: ', code('TIMING'), ' y que diga ', code('16'), ' y ', code('QNT'), '. ', code('MAIN'), ', y al principio con ', code('SHIFT + −'), ' hasta ver 1.1.1.');
+    let n = 6;
+    const porPasos = p => {
+      const a = R[p.id];
+      if (!a.length) return;
+      li(`${p.nombre} (pad ${p.pad}), por pasos en ${lista(a)}. En cada una: mantén `, code('RECORD'), ' y toca el pad ', code(String(p.pad)), '; avanza con ', code('+'), ' (un paso por toque). Si te pasas, ', code('ERASE + pad'), ' quita la nota de esa casilla.');
+    };
+    PADS.filter(p => !['h', 'o'].includes(p.id)).forEach(porPasos);
+    if (R.h.length) {
+      if (hatCompleto()) {
+        const r = hatRejilla();
+        li(`Hat cerrado (pad 3): ${r === 16 ? 'semicorcheas completas' : 'corcheas'}. En vez de escribirlo, usa la repetición de nota: `, code('TIMING'), ` con la rejilla en ${r}, `, code('PLAY'), ', y mantén ', code('RECORD + TIMING + pad 3'), ' durante una vuelta exacta. Si dobló alguna nota, no importa.');
+      } else porPasos(PADS[2]);
+    }
+    if (R.o.length) porPasos(PADS[3]);
+    li(`Swing ${estado.swing} %: `, code('TIMING'), ' y la perilla negra hasta ', code(String(estado.swing)), '. Solo actúa en rejillas 1/8 y 1/16 y se aplica al grabar, no a lo ya escrito (para eso, ', code('SHIFT + TIMING'), ' y el pad).');
+    li('Escucha con ', code('PLAY'), '. Algo fuera de sitio: ', code('ERASE + pad'), ' en esa casilla (detenido) y vuelve a escribirlo. ', code('SHIFT + B'), ' deshace lo último.');
+  }
+  function pintarVida() {
+    const R = estado.rejilla, ol = $('paVida'); ol.innerHTML = '';
+    const code = t => el('code', {}, t);
+    const li = (...k) => ol.append(el('li', {}, ...k));
+    if (R.h.length >= 8) li('Acentos del hat: casillas impares fuertes, pares suaves. Detenido, ve a cada casilla par (', code('+'), ') y con ', code('SHIFT'), ' girando la naranja bájalas a unos 70. Es el ajuste más barato y efectivo.');
+    if (R.s.length) li('Caja arrastrada: ', code('TIMING'), ' → ', code('FREE'), ' (', code('+'), '); parado en la caja, ', code('SHIFT + pad 2 + + / −'), ' la mueve de tick en tick. Retrásala 4 o 5 ticks y vuelve a ', code('QNT'), ' (lo movido se queda).');
+    if (R.h.length && R.o.length) li('Hat cerrado y abierto en el mismo grupo de silencio: pad, ', code('SHIFT + SOUND'), ', ', code('+'), ' hasta MUTE GROUP, toca el 3 y el 4. Así el abierto corta al cerrado y al revés.');
+    li('Pads sensibles a la fuerza (opcional): ', code('SHIFT + ERASE'), ', ', code('301'), ', ', code('ENTER'), '. Si graba hats con repetición de nota tocando flojo salen casi inaudibles: toca firme o vuelve a ', code('300'), '.');
+    ol.append(el('li', {}, 'Release alto sólo en teclados y pads, no en bombos: la cola se embarra con la siguiente nota.'));
+  }
+  function pintarLargo() {
+    const nC = estado.compases, ol = $('paLargo'); ol.innerHTML = '';
+    const code = t => el('code', {}, t);
+    const li = (...k) => ol.append(el('li', {}, ...k));
+    if (nC === 1) { li('Déjalo en 1 compás: el patrón de 1 compás sirve de loop. Pasa al chequeo.'); return; }
+    li('Duplica copiando: detenido, toca ', code('RECORD'), ' (queda armado) y mantén ', code('SHIFT + +'), `. ${nC === 4 ? 'Repítelo para llegar a LEN 4.' : 'La pantalla debe mostrar LEN 2.'} Toca `, code('RECORD'), ' otra vez para desarmar.');
+    li('No uses ', code('RECORD + +'), ' para eso: alarga con compases vacíos y el beat se cae en el compás 2.');
+    const fin = posEn(nC, 15), fin2 = posEn(nC, 16);
+    li(`Relleno en el último compás (${nC}): con el beat sonando, mantén `, code('RECORD'), ` y toca la caja (pad 2) en ${fin} y ${fin2}; o por pasos, parado en esas posiciones con `, code('SHIFT + +'), ' para cambiar de compás y ', code('+'), ' para los pasos.');
+    li('Antes de sobregrabar mira el primer número de la pantalla: es el compás. Con ', code('SHIFT + − '), 'vuelves a 1.1.1.');
+    if (nC === 4) li('Variación a mitad de frase: copia el compás 1 al 3 con ', code('SHIFT + C'), ' en el origen y ', code('SHIFT + D'), ' en el destino. Cuidado: pegar pisa lo que hubiera en el destino (', code('SHIFT + B'), ' lo deshace).');
+  }
+  function pintarChequeo() {
+    const R = estado.rejilla, c = $('paChequeo'); c.innerHTML = '';
+    const items = [
+      `El tempo dice ${estado.bpm} y el kit del grupo A suena parejo (nada tapa a nada).`,
+      'La rejilla dice 16 y QNT antes de grabar (a menos que quieras otra a propósito).',
+      `El patrón tiene ${R.k.length} golpes de bombo y ${R.s.length} de caja, en las casillas que marca el paso 3.`,
+    ];
+    if (R.h.length) items.push(`El hat tiene acentos (pares más suaves) y swing ${estado.swing} %.`);
+    if (estado.compases > 1) items.push(`LEN ${estado.compases} y el relleno suena al final de la vuelta.`);
+    items.push('Apagué y encendí el aparato y el beat sigue ahí (se guarda solo).');
+    items.forEach((t, i) => {
+      const k = 'c' + i;
+      const inp = el('input', { type: 'checkbox' });
+      inp.checked = !!estado.chequeo[k];
+      inp.addEventListener('change', () => { estado.chequeo[k] = inp.checked; guardar(); });
+      c.append(el('label', {}, inp, el('span', {}, t)));
+    });
+    const e = $('paErrores'); e.innerHTML = '';
+    [8, 10, 7, 9, 12].forEach(n => { const t = errorDe(n); if (t) e.append(el('p', { class: 'pa-error' }, el('b', {}, `Lección ${n}: `), t)); });
+  }
+  function resumir() {
+    const R = estado.rejilla, tot = PADS.reduce((a, p) => a + R[p.id].length, 0);
+    $('resGenero').textContent = `${estado.genero} · ${estado.bpm} BPM`;
+    $('resKit').textContent = PADS.filter(p => R[p.id].length).map(p => p.nombre).join(' · ');
+    $('resRejilla').textContent = `${tot} golpes · swing ${estado.swing} %`;
+    $('resEscribir').textContent = 'secuencia de botones';
+    $('resVida').textContent = 'acentos y arrastre';
+    $('resLargo').textContent = `${estado.compases} compás${estado.compases > 1 ? 'es' : ''}`;
+    $('resChequeo').textContent = '';
+  }
+  function pintarGeneroInfo() {
+    const G = GENEROS[estado.genero];
+    $('paRasgos').textContent = G.rasgos;
+    $('paBpmHint').textContent = `rango del género: ${G.bpm[0]}–${G.bpm[1]} BPM`;
+    $('paBpm').value = estado.bpm;
+    $('paSwing').value = estado.swing; $('paSwingVal').textContent = estado.swing + ' %';
+  }
+  function render() { pintarGeneroInfo(); pintarKit(); pintarRejilla(); pintarSecuencia(); pintarVida(); pintarLargo(); pintarChequeo(); resumir(); }
+
+  // ───────── Eventos ─────────
+  $('paGenero').addEventListener('change', e => {
+    estado.genero = e.target.value; const G = GENEROS[estado.genero];
+    estado.bpm = G.bpm[2]; estado.swing = G.swing; estado.rejilla = plantilla(estado.genero); estado.chequeo = {};
+    guardar(); render();
+  });
+  $('paBpm').addEventListener('input', e => { const v = Math.round(Number(e.target.value)); if (v >= 40 && v <= 399) { estado.bpm = v; guardar(); pintarSecuencia(); pintarChequeo(); resumir(); } });
+  $('paSwing').addEventListener('input', e => { estado.swing = Number(e.target.value); $('paSwingVal').textContent = estado.swing + ' %'; guardar(); pintarSecuencia(); pintarChequeo(); resumir(); });
+  $('paRestaurar').addEventListener('click', () => { const G = GENEROS[estado.genero]; estado.rejilla = plantilla(estado.genero); estado.swing = G.swing; guardar(); render(); });
+  document.querySelectorAll('input[name=compases]').forEach(r => { r.checked = Number(r.value) === estado.compases; r.addEventListener('change', () => { estado.compases = Number(r.value); guardar(); pintarLargo(); pintarChequeo(); resumir(); }); });
+  document.querySelectorAll('.pa-sig[data-next]').forEach(b => b.addEventListener('click', () => {
+    const sig = $(b.dataset.next); b.closest('.pa-paso').classList.add('hecho');
+    document.querySelectorAll('.pa-paso').forEach(p => { p.open = p === sig; });
+    sig.scrollIntoView({ block: 'nearest' });
+  }));
+  document.querySelectorAll('.pa-paso').forEach(p => p.addEventListener('toggle', () => { if (p.open) p.classList.remove('hecho'); }));
+
+  pintarGenero(); render();
+  fetch('ko2-manual.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => {
+    if (!j) return; MAN = j; render();
+    $('paPie').innerHTML = 'Fuente: ' + j.origen.replace(/&/g, '&amp;').replace(/</g, '&lt;') + ' Ver también el <a href="kits.html">Beatmaking Assistant</a>.';
+  }).catch(() => {});
+})();
+</script>
+<script src="acceso.js?v=20260915f" defer></script>
+</body>
+</html>
