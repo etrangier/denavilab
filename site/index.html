@@ -33,6 +33,8 @@
   @media (prefers-reduced-motion: reduce) { .eq i { animation: none; transform: scaleY(.55); } }
   .abierto { font-family: var(--mono, monospace); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ok, #6fbf9a); }
   .oye a svg { width: 15px; height: 15px; vertical-align: -3px; margin-right: 7px; }
+  .login-barra { display: flex; justify-content: flex-end; margin: 0 0 10px; }
+  .login-barra[hidden] { display: none; }
   .cl-portada { margin: 22px 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
   .cl-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
   .cl-portada h2 { margin: 0 0 4px; }
@@ -48,6 +50,8 @@
 </head>
 <body>
 <div class="wrap">
+
+  <div class="login-barra"><button type="button" class="btn" id="btnLogin">Iniciar sesión</button></div>
 
   <div class="mark">
     <h1>DenaviLab</h1>
@@ -243,6 +247,6 @@
   }).catch(() => {});
 })();
 </script>
-<script src="acceso.js?v=20260915d" defer></script>
+<script src="acceso.js?v=20260915f" defer></script>
 </body>
 </html>

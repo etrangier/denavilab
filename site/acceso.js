@@ -23,6 +23,8 @@
   let destino = null;
 
   function pintarSesion() {
+    const barra = document.querySelector('.login-barra');
+    if (barra) barra.hidden = dentro();
     if (!sesionEl) return;
     const u = leerSesion();
     if (dentro()) {
@@ -33,7 +35,7 @@
       salir.type = 'button'; salir.textContent = enPortada ? 'salir' : 'cambiar sesión';
       salir.addEventListener('click', () => {
         try { localStorage.removeItem(CLAVE_SESION); } catch (e) {}
-        if (enPortada) pintarSesion(); else location.href = 'index.html';
+        if (enPortada) location.reload(); else location.href = 'index.html';
       });
       sesionEl.append(salir);
     } else {
@@ -46,6 +48,14 @@
     if (!enlace || dentro() || !puerta) return;
     e.preventDefault();
     destino = enlace.getAttribute('href');
+    errorEl.textContent = ''; $('usuario').value = ''; $('clave').value = '';
+    puerta.showModal();
+    $('usuario').focus();
+  });
+
+  const btnLogin = $('btnLogin');
+  if (btnLogin && puerta) btnLogin.addEventListener('click', () => {
+    destino = null;
     errorEl.textContent = ''; $('usuario').value = ''; $('clave').value = '';
     puerta.showModal();
     $('usuario').focus();
@@ -81,6 +91,7 @@
       puerta.close();
       pintarSesion();
       if (destino) location.href = destino;
+      else if (/(^|\/)(index\.html)?$/.test(location.pathname)) location.reload();
     });
   }
 
