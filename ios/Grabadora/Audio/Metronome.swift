@@ -105,7 +105,7 @@ final class Metronome: ObservableObject {
     // MARK: Puro (probado)
 
     /// Un compás: `beats` clics, el primero más agudo y fuerte (en 6 pulsos, el cuarto con acento medio).
-    static func barSamples(bpm: Double, beats: Int, sampleRate: Int) -> [Float] {
+    nonisolated static func barSamples(bpm: Double, beats: Int, sampleRate: Int) -> [Float] {
         let beatLen = Int((Double(sampleRate) * 60 / bpm).rounded())
         var out = [Float](repeating: 0, count: beatLen * max(beats, 1))
         let clickLen = min(beatLen, Int(Double(sampleRate) * 0.02))
@@ -119,7 +119,7 @@ final class Metronome: ObservableObject {
     }
 
     /// Muestras de una toma de `bars` compases; nil si no hay límite.
-    static func samples(bars: Int, beats: Int, bpm: Double, rate: Int) -> Int? {
+    nonisolated static func samples(bars: Int, beats: Int, bpm: Double, rate: Int) -> Int? {
         bars > 0 ? Int((Double(bars * beats) * 60 / bpm * Double(rate)).rounded()) : nil
     }
 
