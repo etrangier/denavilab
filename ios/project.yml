@@ -23,6 +23,7 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UIFileSharingEnabled: true
+        UIAppFonts: [Fonts/Ubuntu-Regular.ttf, Fonts/Ubuntu-Medium.ttf, Fonts/Ubuntu-Bold.ttf]
         LSSupportsOpeningDocumentsInPlace: true
   GrabadoraTests:
     type: bundle.unit-test

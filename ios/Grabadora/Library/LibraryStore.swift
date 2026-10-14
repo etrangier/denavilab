@@ -3,7 +3,7 @@ import Foundation
 struct Sample: Identifiable, Codable, Equatable {
     var id = UUID()
     var name: String
-    var folder: String = "Sin carpeta"
+    var folder: String = "Sin clasificar"
     var tags: [String] = []
     var slot: Int?                    // 1...999 en el K.O. II (rango por confirmar)
     var sampleRate: Int
@@ -16,6 +16,16 @@ struct Sample: Identifiable, Codable, Equatable {
 /// Biblioteca local: audio original en Documents/Samples + índice JSON (los efectos no tocan el original).
 @MainActor
 final class LibraryStore: ObservableObject {
+    nonisolated static let unsorted = "Sin clasificar"
+    static let folderInfo: [(name: String, detail: String)] = [
+        ("Música", "Ambient · Soul · Hip hop · Electrónica"),
+        ("Naturaleza", "Viento · Mar · Lluvia · Animales · Bosque"),
+        ("Cine y TV", "Diálogos · Banda sonora · Efectos"),
+        ("Voz", "Habla · Canto · Tarareo"),
+        ("Ciudad y objetos", "Calle · Máquinas · Hogar"),
+        (unsorted, "Por revisar"),
+    ]
+
     @Published private(set) var samples: [Sample] = []
     @Published var query = ""
     @Published var errorMessage: String?
@@ -31,7 +41,9 @@ final class LibraryStore: ObservableObject {
            let s = try? JSONDecoder().decode([Sample].self, from: d) { samples = s }
     }
 
-    var folders: [String] { Array(Set(samples.map(\.folder))).sorted() }
+    /// Carpeta efectiva: las que no están en la lista caen en «Sin clasificar».
+    func folder(of s: Sample) -> String { Self.folderInfo.contains { $0.name == s.folder } ? s.folder : Self.unsorted }
+    func samples(in folder: String) -> [Sample] { filtered.filter { self.folder(of: $0) == folder } }
 
     var filtered: [Sample] {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()

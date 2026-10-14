@@ -18,11 +18,11 @@ enum Exporter {
     }
 
     /// Exporta un kit (varios samples) para compartir por AirDrop o Archivos.
-    static func exportKit(_ samples: [Sample], store: @MainActor (Sample) -> [Float]) async throws -> [URL] {
+    static func exportKit(_ samples: [Sample], targetRate: Int = 46_875, store: @MainActor (Sample) -> [Float]) async throws -> [URL] {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("Kit-\(Int(Date().timeIntervalSince1970))")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         var urls: [URL] = []
-        for s in samples { urls.append(try export(s, audio: await store(s), into: dir)) }
+        for s in samples { urls.append(try export(s, audio: await store(s), targetRate: targetRate, into: dir)) }
         return urls
     }
 }

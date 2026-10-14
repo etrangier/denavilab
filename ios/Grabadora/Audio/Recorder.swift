@@ -11,6 +11,9 @@ final class Recorder: ObservableObject {
     @Published var errorMessage: String?
     @Published var retroSeconds: Double = 30
     @Published var monitoring = false
+    @Published var liveWave: [Float] = []   // últimos picos para dibujar
+    @Published var elapsed: Double = 0
+    @Published var bufferedSeconds: Double = 0
 
     private let engine = AVAudioEngine()
     private var ring = RingBuffer(capacity: 48_000 * 30)
@@ -59,7 +62,7 @@ final class Recorder: ObservableObject {
         state = .idle; level = 0
     }
 
-    func startRecording() { take = []; clipped = false; state = .recording }
+    func startRecording() { take = []; elapsed = 0; clipped = false; state = .recording }
 
     /// Termina la toma y la devuelve.
     func stopRecording() -> [Float] {
@@ -69,6 +72,9 @@ final class Recorder: ObservableObject {
 
     /// Los últimos `retroSeconds` segundos escuchados, sin haber pulsado grabar.
     func captureRetro() -> [Float] { ring.last(Int(retroSeconds) * sampleRate) }
+
+    /// Últimas `n` muestras del búfer (para dibujar la captura retroactiva).
+    func lastSamples(_ n: Int) -> [Float] { ring.last(n) }
 
     func setMonitoring(_ on: Bool) {
         monitoring = on
@@ -94,7 +100,10 @@ final class Recorder: ObservableObject {
 
     private func ingest(_ s: [Float], peak: Float) {
         ring.write(s)
-        if state == .recording { take.append(contentsOf: s) }
+        bufferedSeconds = Double(ring.count) / Double(sampleRate)
+        liveWave.append(peak)
+        if liveWave.count > 48 { liveWave.removeFirst(liveWave.count - 48) }
+        if state == .recording { take.append(contentsOf: s); elapsed = Double(take.count) / Double(sampleRate) }
         level = max(peak, level * 0.85)
         if peak >= 0.99 { clipped = true }
     }
