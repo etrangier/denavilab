@@ -13,11 +13,16 @@ final class Recorder: ObservableObject {
     @Published var monitoring = false
     @Published var liveWave: [Float] = []   // últimos picos para dibujar
     @Published var elapsed: Double = 0
+    @Published var countInRemaining: Double = 0   // segundos hasta que empieza la toma
+    @Published var completedTake: [Float]?         // toma terminada sola (límite de compases)
     @Published var bufferedSeconds: Double = 0
 
     private let engine = AVAudioEngine()
     private var ring = RingBuffer(capacity: 48_000 * 30)
     private var take: [Float] = []
+    private var totalIngested = 0
+    private var pendingStart = 0
+    private var maxSamples: Int?
     private(set) var sampleRate: Int = 48_000
     private var observers: [NSObjectProtocol] = []
 
@@ -62,11 +67,19 @@ final class Recorder: ObservableObject {
         state = .idle; level = 0
     }
 
-    func startRecording() { take = []; elapsed = 0; clipped = false; state = .recording }
+    /// Empieza la toma `afterSamples` muestras más tarde (cuenta de entrada) y, si se indica, la corta sola en `maxSamples`.
+    func startRecording(afterSamples: Int = 0, maxSamples: Int? = nil) {
+        take = []; elapsed = 0; clipped = false
+        pendingStart = totalIngested + afterSamples
+        self.maxSamples = maxSamples
+        completedTake = nil
+        state = .recording
+    }
 
     /// Termina la toma y la devuelve.
     func stopRecording() -> [Float] {
         state = .listening
+        maxSamples = nil; countInRemaining = 0
         return take
     }
 
@@ -103,7 +116,22 @@ final class Recorder: ObservableObject {
         bufferedSeconds = Double(ring.count) / Double(sampleRate)
         liveWave.append(peak)
         if liveWave.count > 48 { liveWave.removeFirst(liveWave.count - 48) }
-        if state == .recording { take.append(contentsOf: s); elapsed = Double(take.count) / Double(sampleRate) }
+        let base = totalIngested
+        totalIngested += s.count
+        if state == .recording {
+            let skip = max(0, pendingStart - base)
+            countInRemaining = max(0, Double(pendingStart - base) / Double(sampleRate))
+            if skip < s.count {
+                take.append(contentsOf: s[skip...])
+                elapsed = Double(take.count) / Double(sampleRate)
+                if let m = maxSamples, take.count >= m {
+                    take.removeLast(take.count - m)
+                    maxSamples = nil; countInRemaining = 0
+                    state = .listening
+                    completedTake = take
+                }
+            }
+        }
         level = max(peak, level * 0.85)
         if peak >= 0.99 { clipped = true }
     }

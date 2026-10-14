@@ -118,4 +118,17 @@ final class LogicTests: XCTestCase {
             if let sub = s.sub { XCTAssertTrue(info?.subs.contains(sub) == true, "subcarpeta inexistente: \(sub)") }
         }
     }
+
+    func testMetronomeBar() {
+        let x = Metronome.barSamples(bpm: 120, beats: 4, sampleRate: 44_100)
+        XCTAssertEqual(x.count, 4 * 22_050)                                   // 4 tiempos de 0,5 s
+        let peak = { (r: Range<Int>) in x[r].map(abs).max() ?? 0 }
+        XCTAssertGreaterThan(peak(0..<882), peak(22_050..<(22_050 + 882)))     // acento en el tiempo 1
+        XCTAssertEqual(x[10_000], 0)                                           // silencio entre clics
+    }
+
+    func testRecordingLengthByBars() {
+        XCTAssertEqual(Metronome.samples(bars: 2, beats: 4, bpm: 120, rate: 48_000), 192_000)  // 8 tiempos × 0,5 s
+        XCTAssertNil(Metronome.samples(bars: 0, beats: 4, bpm: 120, rate: 48_000))
+    }
 }

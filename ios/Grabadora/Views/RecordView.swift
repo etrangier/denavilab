@@ -29,7 +29,7 @@ struct RecordView: View {
                     Text("Grabar sample").font(Theme.font(28, weight: .bold)).foregroundColor(Theme.text)
                     Spacer()
                     Button { showMetro = true } label: {
-                        Text("\(Int(met.bpm)) BPM").font(Theme.font(13, weight: .bold)).foregroundColor(Theme.amber)
+                        Text(met.mode == .bar ? "Con compás · \(Int(met.bpm)) BPM" : "Libre").font(Theme.font(13, weight: .bold)).foregroundColor(Theme.amber)
                             .padding(.horizontal, 12).frame(minHeight: 32)
                             .overlay(Capsule().stroke(Theme.amber, lineWidth: 1.5))
                     }
@@ -38,8 +38,10 @@ struct RecordView: View {
                     Text("Entrada · Micrófono del iPhone").font(Theme.font(14, weight: .medium)).foregroundColor(Theme.text).card()
                     levelCard
                     waveCard
-                    Text(stamp(rec.elapsed)).font(Theme.font(44, weight: .bold)).foregroundColor(recording ? Theme.text : Theme.muted)
+                    Text(timerText).font(Theme.font(44, weight: .bold)).foregroundColor(recording ? Theme.text : Theme.muted)
                         .monospacedDigit()
+                    if met.running && met.mode == .bar { beatDots }
+                    if let n = met.notice, met.mode == .bar { Text(n).font(Theme.font(12)).foregroundColor(Theme.muted).multilineTextAlignment(.center) }
                     Text(bufferText).font(Theme.font(13)).foregroundColor(Theme.muted)
                     controls
                     Text("WAV · 16 bit · mono · 46 875 Hz").font(Theme.font(14, weight: .bold)).foregroundColor(Theme.amber)
@@ -52,6 +54,12 @@ struct RecordView: View {
             }
         }
         .task { await rec.startListening() }
+        .onChange(of: rec.completedTake) { new in
+            guard let a = new else { return }
+            rec.completedTake = nil
+            met.stop()
+            finish(a)
+        }
         .sheet(item: $take) { t in SaveSheet(take: t) }
         .sheet(isPresented: $showRetro) {
             RetroSheet { audio in
@@ -82,6 +90,28 @@ struct RecordView: View {
             try? await Task.sleep(nanoseconds: 5_000_000_000)
             savedNote = nil
         }
+    }
+
+    private var timerText: String {
+        guard rec.countInRemaining > 0 else { return stamp(rec.elapsed) }
+        return "\(max(1, Int(ceil(rec.countInRemaining / (60 / met.bpm)))))"
+    }
+
+    private var beatDots: some View {
+        HStack(spacing: 10) {
+            ForEach(0..<met.beatsPerBar, id: \.self) { i in
+                Circle().fill(i == met.beat ? Theme.amber : Theme.surface2).frame(width: 12, height: 12)
+            }
+        }.accessibilityHidden(true)
+    }
+
+    /// Con compás: arranca el metrónomo, la cuenta de entrada y el límite de compases; Libre: graba directamente.
+    private func begin() {
+        guard met.mode == .bar else { rec.startRecording(); return }
+        let beat = 60 / met.bpm, rate = Double(rec.sampleRate)
+        let lead = met.countIn ? Int(Double(met.beatsPerBar) * beat * rate) : 0
+        met.start(forRecording: true)
+        rec.startRecording(afterSamples: lead, maxSamples: Metronome.samples(bars: met.bars, beats: met.beatsPerBar, bpm: met.bpm, rate: rec.sampleRate))
     }
 
     private var bufferText: String {
@@ -138,7 +168,7 @@ struct RecordView: View {
         }
         .frame(maxWidth: .infinity).frame(height: 170)
         .background(Theme.surface)
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.line, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(met.flash ? Theme.amber : Theme.line, lineWidth: met.flash ? 3 : 1))
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
@@ -147,8 +177,8 @@ struct RecordView: View {
             sideButton("Escuchar", icon: rec.monitoring ? "ear.fill" : "ear", on: rec.monitoring) { rec.setMonitoring(!rec.monitoring) }
             Spacer()
             Button {
-                if recording { finish(rec.stopRecording()) }
-                else { rec.startRecording() }
+                if recording { met.stop(); finish(rec.stopRecording()) }
+                else { begin() }
             } label: {
                 ZStack {
                     Circle().stroke(Theme.amber, lineWidth: 4).frame(width: 96, height: 96)
@@ -324,36 +354,74 @@ struct SaveSheet: View {
     }
 }
 
-// MARK: Metrónomo (pantalla 10, simplificada)
+// MARK: Metrónomo (pantalla 10)
 
 struct MetronomeSheet: View {
     @EnvironmentObject var met: Metronome
     @Environment(\.dismiss) private var dismiss
+
     var body: some View {
         ZStack {
             Theme.bg.ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 16) {
-                ScreenTitle(title: "Metrónomo", trailing: AnyView(TextLink(title: "Listo") { dismiss() }))
-                VStack(spacing: 10) {
-                    HStack {
-                        SectionLabel("Tempo"); Spacer()
-                        TextLink(title: "Marcar con toques") { met.tap() }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    ScreenTitle(title: "Metrónomo", trailing: AnyView(TextLink(title: "Listo") { met.stop(); dismiss() }))
+                    HStack(spacing: 8) {
+                        Button("Libre") { met.mode = .free }.buttonStyle(OutlineButton(selected: met.mode == .free))
+                        Button("Con compás") { met.mode = .bar }.buttonStyle(OutlineButton(selected: met.mode == .bar))
                     }
-                    HStack {
-                        stepper("minus") { met.bpm = max(30, met.bpm - 1) }
-                        Spacer()
-                        Text("\(Int(met.bpm))").font(Theme.font(56, weight: .bold)).foregroundColor(Theme.text).monospacedDigit()
-                        Spacer()
-                        stepper("plus") { met.bpm = min(300, met.bpm + 1) }
-                    }
-                    Text("BPM · como en el K.O. II").font(Theme.font(13)).foregroundColor(Theme.muted)
-                    Slider(value: $met.bpm, in: 30...300, step: 1).tint(Theme.amber)
-                }.card()
-                Button(met.running ? "Parar" : "Iniciar") { met.running ? met.stop() : met.start() }.buttonStyle(AmberButton())
-                Text("El pulso suena por el altavoz o los auriculares.").font(Theme.font(13)).foregroundColor(Theme.muted)
-                    .frame(maxWidth: .infinity, alignment: .center)
+                    Text(met.mode == .bar
+                         ? "Con compás, el metrónomo marca el tiempo 1 y la grabación empieza ahí. Libre graba tal como suena."
+                         : "Libre graba tal como suena, sin metrónomo.")
+                        .font(Theme.font(13)).foregroundColor(Theme.muted)
+                    tempoCard
+                    if met.mode == .bar { barCard; options }
+                    Button(met.running ? "Parar prueba" : "Probar el pulso") { met.running ? met.stop() : met.start() }
+                        .buttonStyle(OutlineButton(selected: met.running))
+                    Button("Listo") { met.stop(); dismiss() }.buttonStyle(AmberButton())
+                    Text("Los cambios valen para la próxima grabación.").font(Theme.font(13)).foregroundColor(Theme.muted)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }.padding(16)
+            }
+        }
+    }
+
+    private var tempoCard: some View {
+        VStack(spacing: 10) {
+            HStack { SectionLabel("Tempo"); Spacer(); TextLink(title: "Marcar con toques") { met.tap() } }
+            HStack {
+                stepper("minus") { met.bpm = max(30, met.bpm - 1) }
                 Spacer()
-            }.padding(16)
+                Text("\(Int(met.bpm))").font(Theme.font(56, weight: .bold)).foregroundColor(Theme.text).monospacedDigit()
+                Spacer()
+                stepper("plus") { met.bpm = min(300, met.bpm + 1) }
+            }
+            Text("BPM · como en el K.O. II").font(Theme.font(13)).foregroundColor(Theme.muted)
+        }.card()
+    }
+
+    private var barCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionLabel("Compás")
+            HStack(spacing: 8) {
+                ForEach([(2, "2/4"), (3, "3/4"), (4, "4/4"), (6, "6/8")], id: \.0) { b in
+                    Chip(title: b.1, selected: met.beatsPerBar == b.0) { met.beatsPerBar = b.0 }
+                }
+            }
+            SectionLabel("Cuántos compases").padding(.top, 4)
+            HStack(spacing: 8) {
+                ForEach([(1, "1"), (2, "2"), (4, "4"), (8, "8"), (0, "Sin límite")], id: \.0) { b in
+                    Chip(title: b.1, selected: met.bars == b.0) { met.bars = b.0 }
+                }
+            }
+        }.card()
+    }
+
+    private var options: some View {
+        VStack(spacing: 10) {
+            ToggleRow(title: "Cuenta de entrada", subtitle: "\(met.beatsPerBar) clics antes de grabar", isOn: $met.countIn)
+            ToggleRow(title: "Metrónomo en los audífonos", subtitle: "No queda dentro del audio", isOn: $met.headphonesOnly)
+            ToggleRow(title: "Aviso visual", subtitle: "La pantalla late en cada tiempo", isOn: $met.visualFlash)
         }
     }
 
