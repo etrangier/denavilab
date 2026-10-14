@@ -5,7 +5,8 @@ struct EditorView: View {
     @EnvironmentObject var lib: LibraryStore
     @State var sample: Sample
     @State private var audio: [Float] = []
-    @State private var start = 0.0, end = 1.0      // fracciones de la onda
+    @State private var start = 0.0      // fracción de la onda
+    @State private var end = 1.0
     @State private var fadeMs = 10.0
     @State private var zoom = 1.0
     @State private var sharing: [URL] = []
@@ -13,6 +14,8 @@ struct EditorView: View {
     @State private var tagText = ""
     @State private var player: AVAudioPlayer?
     @State private var error: String?
+
+    init(sample: Sample) { _sample = State(initialValue: sample) }
 
     var body: some View {
         ZStack {
