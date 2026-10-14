@@ -7,12 +7,13 @@ enum QuickSave {
         var trim = true
         var fades = true
         var normalize = false
+        var suggest = true
         var thresholdDB = -48.0
 
         static func load(_ d: UserDefaults = .standard) -> Settings {
             func flag(_ k: String, _ def: Bool) -> Bool { d.object(forKey: k) == nil ? def : d.bool(forKey: k) }
             return Settings(enabled: flag("qsEnabled", false), trim: flag("qsTrim", true), fades: flag("qsFades", true),
-                            normalize: flag("qsNormalize", false),
+                            normalize: flag("qsNormalize", false), suggest: flag("qsSuggest", true),
                             thresholdDB: d.object(forKey: "qsThreshold") == nil ? -48 : d.double(forKey: "qsThreshold"))
         }
     }

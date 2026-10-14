@@ -95,7 +95,7 @@ struct SampleRow: View {
         HStack {
             VStack(alignment: .leading, spacing: 3) {
                 Text(sample.name).font(Theme.font(15, weight: .bold)).foregroundColor(Theme.text).lineLimit(1)
-                Text("\(sample.folder) · \(stamp(sample.duration))" + (sample.tags.isEmpty ? "" : " · " + sample.tags.joined(separator: ", ")))
+                Text(([sample.folder, sample.subfolder].compactMap { $0 }.joined(separator: " › ")) + " · \(stamp(sample.duration))" + (sample.tags.isEmpty ? "" : " · " + sample.tags.joined(separator: ", ")))
                     .font(Theme.font(12)).foregroundColor(Theme.muted).lineLimit(1)
             }
             Spacer()

@@ -93,4 +93,29 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(y.first, 0); XCTAssertEqual(y.last, 0)
         XCTAssertEqual(QuickSave.autoName(count: 13), "grabacion_014")
     }
+
+    func testFolderMapperBestMappedLabel() {
+        let s = FolderMapper.suggest(from: [Score(label: "ocean", confidence: 0.82), Score(label: "music", confidence: 0.2)])
+        XCTAssertEqual(s?.folder, "Naturaleza"); XCTAssertEqual(s?.sub, "Mar y agua")
+        XCTAssertEqual(s?.title, "Naturaleza › Mar y agua")
+        XCTAssertEqual(FolderMapper.suggest(from: [Score(label: "Speech", confidence: 0.9)])?.folder, "Voz")
+        XCTAssertEqual(FolderMapper.suggest(from: [Score(label: "rain", confidence: 0.4), Score(label: "wind", confidence: 0.7)])?.sub, "Viento")
+    }
+
+    func testFolderMapperIgnoresLowConfidenceAndUnknown() {
+        XCTAssertNil(FolderMapper.suggest(from: [Score(label: "ocean", confidence: 0.1)]))
+        XCTAssertNil(FolderMapper.suggest(from: [Score(label: "zzz_unknown", confidence: 0.9)]))
+        XCTAssertNil(FolderMapper.suggest(from: []))
+    }
+
+    func testFolderMapperTargetsExist() {
+        let labels = ["humming", "singing", "speech", "applause", "wind", "rain", "ocean", "dog", "forest", "fire",
+                      "car", "engine", "door", "electronic", "hip_hop", "soul", "ambient", "guitar"]
+        for l in labels {
+            guard let s = FolderMapper.suggest(from: [Score(label: l, confidence: 0.9)]) else { return XCTFail("sin regla para \(l)") }
+            let info = LibraryStore.folderInfo.first { $0.name == s.folder }
+            XCTAssertNotNil(info, "carpeta inexistente: \(s.folder)")
+            if let sub = s.sub { XCTAssertTrue(info?.subs.contains(sub) == true, "subcarpeta inexistente: \(sub)") }
+        }
+    }
 }

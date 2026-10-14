@@ -1,9 +1,16 @@
 import Foundation
 
+struct FolderInfo: Sendable, Hashable {
+    let name: String
+    let subs: [String]
+    var detail: String { subs.isEmpty ? "Por revisar" : subs.joined(separator: " · ") }
+}
+
 struct Sample: Identifiable, Codable, Equatable {
     var id = UUID()
     var name: String
     var folder: String = "Sin clasificar"
+    var subfolder: String?
     var tags: [String] = []
     var slot: Int?                    // 1...999 en el K.O. II (rango por confirmar)
     var sampleRate: Int
@@ -17,13 +24,13 @@ struct Sample: Identifiable, Codable, Equatable {
 @MainActor
 final class LibraryStore: ObservableObject {
     nonisolated static let unsorted = "Sin clasificar"
-    static let folderInfo: [(name: String, detail: String)] = [
-        ("Música", "Ambient · Soul · Hip hop · Electrónica"),
-        ("Naturaleza", "Viento · Mar · Lluvia · Animales · Bosque"),
-        ("Cine y TV", "Diálogos · Banda sonora · Efectos"),
-        ("Voz", "Habla · Canto · Tarareo"),
-        ("Ciudad y objetos", "Calle · Máquinas · Hogar"),
-        (unsorted, "Por revisar"),
+    nonisolated static let folderInfo: [FolderInfo] = [
+        FolderInfo(name: "Música", subs: ["Ambient", "Soul", "Hip hop", "Electrónica"]),
+        FolderInfo(name: "Naturaleza", subs: ["Viento", "Mar y agua", "Lluvia", "Animales", "Bosque", "Otro"]),
+        FolderInfo(name: "Cine y TV", subs: ["Diálogos", "Banda sonora", "Efectos"]),
+        FolderInfo(name: "Voz", subs: ["Habla", "Canto", "Tarareo"]),
+        FolderInfo(name: "Ciudad y objetos", subs: ["Calle", "Máquinas", "Hogar"]),
+        FolderInfo(name: unsorted, subs: []),
     ]
 
     @Published private(set) var samples: [Sample] = []

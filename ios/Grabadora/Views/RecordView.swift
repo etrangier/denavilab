@@ -70,9 +70,17 @@ struct RecordView: View {
         guard s.enabled else { take = Take(audio: a, rate: rec.sampleRate); return }
         let out = QuickSave.process(a, rate: rec.sampleRate, s)
         let name = QuickSave.autoName(count: lib.samples.count)
-        if lib.add(name: name, audio: out, sampleRate: rec.sampleRate) != nil {
-            savedNote = "Guardada: \(name) · \(stamp(Double(a.count) / Double(rec.sampleRate))) → \(stamp(Double(out.count) / Double(rec.sampleRate)))"
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { savedNote = nil }
+        let rate = rec.sampleRate
+        let before = Double(a.count) / Double(rate), after = Double(out.count) / Double(rate)
+        Task {
+            var sug: Suggestion?
+            if s.suggest { sug = FolderMapper.suggest(from: await SoundClassifier.classify(out, rate: rate)) }
+            guard var x = lib.add(name: name, audio: out, sampleRate: rate) else { return }
+            x.folder = sug?.folder ?? LibraryStore.unsorted; x.subfolder = sug?.sub
+            lib.update(x)
+            savedNote = "Guardada: \(name) · \(stamp(before)) → \(stamp(after))" + (sug.map { " · \($0.title)" } ?? "")
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            savedNote = nil
         }
     }
 
@@ -223,21 +231,26 @@ struct RetroSheet: View {
     }
 }
 
-// MARK: Guardar grabación (pantalla 21, sin sugerencia automática)
+// MARK: Guardar grabación (pantalla 21)
 
 struct SaveSheet: View {
     let take: Take
     @EnvironmentObject var lib: LibraryStore
-    @EnvironmentObject var state: AppState
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var folder = LibraryStore.unsorted
+    @State private var sub: String?
+    @State private var suggestion: Suggestion?
+    @State private var analyzing = true
+    @State private var showSuggestion = true
 
     private var seconds: Double { Double(take.audio.count) / Double(take.rate) }
     private var defaultName: String {
         let f = DateFormatter(); f.locale = Locale(identifier: "es_ES"); f.dateFormat = "d MMM · HH:mm"
         return "Grabación " + f.string(from: Date())
     }
+    private var subs: [String] { LibraryStore.folderInfo.first { $0.name == folder }?.subs ?? [] }
+    private var destination: String { sub.map { "\(folder) › \($0)" } ?? folder }
 
     var body: some View {
         ZStack {
@@ -247,29 +260,67 @@ struct SaveSheet: View {
                     ScreenTitle(title: "Guardar grabación", trailing: AnyView(TextLink(title: "Cancelar") { dismiss() }))
                     VStack(alignment: .leading, spacing: 6) {
                         Text(name.isEmpty ? defaultName : name).font(Theme.font(15, weight: .bold)).foregroundColor(Theme.text)
-                        Text("\(stamp(seconds)) · WAV mono · \(take.rate) Hz")
-                            .font(Theme.font(12)).foregroundColor(Theme.muted)
+                        Text("\(stamp(seconds)) · WAV mono · \(take.rate) Hz").font(Theme.font(12)).foregroundColor(Theme.muted)
                         WaveBars(peaks: Editing.peaks(take.audio, buckets: 40)).frame(height: 50)
                     }.card()
+                    suggestionCard
                     SectionLabel("Nombre")
                     TextField(defaultName, text: $name).font(Theme.font(15)).foregroundColor(Theme.text).card()
                     SectionLabel("Carpeta")
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
                         ForEach(LibraryStore.folderInfo, id: \.name) { f in
-                            Button(f.name) { folder = f.name }.buttonStyle(OutlineButton(selected: folder == f.name))
+                            Button(f.name) { folder = f.name; sub = nil }.buttonStyle(OutlineButton(selected: folder == f.name))
                                 .font(Theme.font(13))
                         }
                     }
-                    Button("Guardar en \(folder)") {
-                        var s = lib.add(name: name.isEmpty ? defaultName : name, audio: QuickSave.process(take.audio, rate: take.rate, QuickSave.Settings.load()), sampleRate: take.rate)
-                        if var x = s { x.folder = folder; lib.update(x); s = x }
-                        dismiss()
-                    }.buttonStyle(AmberButton()).padding(.top, 6)
-                    Text("Puedes cambiar nombre, carpeta y recorte después, sin perder la toma original.")
+                    if !subs.isEmpty {
+                        SectionLabel("Subcarpeta")
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 90), spacing: 8, alignment: .leading)], alignment: .leading, spacing: 8) {
+                            ForEach(subs, id: \.self) { s in Chip(title: s, selected: sub == s) { sub = (sub == s) ? nil : s } }
+                        }
+                    }
+                    Button("Guardar en \(destination)") { save() }.buttonStyle(AmberButton()).padding(.top, 6)
+                    Text("La sugerencia es automática y puede fallar; siempre puedes cambiarla. Sin clasificar la deja en la bandeja.")
                         .font(Theme.font(13)).foregroundColor(Theme.muted).frame(maxWidth: .infinity, alignment: .center)
                 }.padding(16)
             }
         }
+        .task {
+            let scores = await SoundClassifier.classify(take.audio, rate: take.rate)
+            suggestion = FolderMapper.suggest(from: scores)
+            analyzing = false
+        }
+    }
+
+    @ViewBuilder private var suggestionCard: some View {
+        if analyzing {
+            Text("Analizando el sonido…").font(Theme.font(13)).foregroundColor(Theme.muted).card()
+        } else if let s = suggestion, showSuggestion {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("SUGERENCIA AUTOMÁTICA").font(Theme.font(12, weight: .medium)).foregroundColor(Theme.amber).tracking(0.8)
+                HStack {
+                    Text(s.title).font(Theme.font(20, weight: .bold)).foregroundColor(Theme.text)
+                    Spacer()
+                    Text("\(Int((s.confidence * 100).rounded())) %").font(Theme.font(12, weight: .bold)).foregroundColor(Theme.amber)
+                        .padding(.horizontal, 10).frame(minHeight: 28).background(Theme.surface2).clipShape(Capsule())
+                }
+                HStack(spacing: 8) {
+                    Button("Aceptar") { folder = s.folder; sub = s.sub; showSuggestion = false }.buttonStyle(AmberButton())
+                    Button("Cambiar") { showSuggestion = false }.buttonStyle(OutlineButton())
+                }
+            }.card(highlight: true)
+        } else if suggestion == nil {
+            Text("Sin sugerencia: no reconozco el sonido con seguridad. Elige una carpeta o déjala en Sin clasificar.")
+                .font(Theme.font(13)).foregroundColor(Theme.muted).card()
+        }
+    }
+
+    private func save() {
+        guard var x = lib.add(name: name.isEmpty ? defaultName : name,
+                              audio: QuickSave.process(take.audio, rate: take.rate, QuickSave.Settings.load()), sampleRate: take.rate) else { return }
+        x.folder = folder; x.subfolder = sub
+        lib.update(x)
+        dismiss()
     }
 }
 
