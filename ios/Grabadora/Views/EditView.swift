@@ -43,6 +43,7 @@ struct EditorBody: View {
     @State private var playhead: Double?
     @State private var loop = false
     @State private var showEffects = false
+    @State private var showChop = false
     @State private var confirmDelete = false
     @State private var message: String?
     private let tick = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
@@ -77,6 +78,7 @@ struct EditorBody: View {
                     Button("Fundido") { apply { Editing.fade($0, inSamples: fadeSamples, outSamples: fadeSamples) } }
                     Button("Efectos") { showEffects = true }.buttonStyle(OutlineButton(selected: !sample.effects.isNeutral))
                 }.buttonStyle(OutlineButton()).font(Theme.font(13))
+                Button("Chop en pads") { showChop = true }.buttonStyle(OutlineButton())
                 SliderRow(title: "Fundido", valueText: "\(Int(fadeMs)) ms", value: $fadeMs, range: 0...200)
                 SectionLabel("¿Qué hacemos con esta toma?")
                 HStack(spacing: 8) {
@@ -98,6 +100,7 @@ struct EditorBody: View {
         }
         .onDisappear { player?.stop(); lib.update(sample) }
         .onReceive(tick) { _ in updatePlayhead() }
+        .sheet(isPresented: $showChop) { ChopSheet(sample: sample, audio: audio).presentationDetents([.large]) }
         .sheet(isPresented: $showEffects) { EffectsSheet(sample: $sample).presentationDetents([.large]) }
         .confirmationDialog("¿Borrar esta grabación?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Borrar", role: .destructive) { player?.stop(); lib.delete(sample); state.selectedID = nil; state.tab = .biblioteca }

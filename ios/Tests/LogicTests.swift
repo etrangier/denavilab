@@ -61,4 +61,36 @@ final class LogicTests: XCTestCase {
         var s = Sample(name: "Mi bombo!", sampleRate: 48_000); s.slot = 7
         XCTAssertEqual(Exporter.fileName(for: s), "007_Mi_bombo_.wav")
     }
+
+    func testTrimSilence() {
+        let x = [Float](repeating: 0, count: 100) + [0.5, -0.4, 0.3] + [Float](repeating: 0, count: 100)
+        XCTAssertEqual(Editing.trimSilence(x, thresholdDB: -48), [0.5, -0.4, 0.3])
+        XCTAssertEqual(Editing.trimSilence([0, 0, 0]).count, 3)   // todo silencio: no toca nada
+    }
+
+    func testTransientsFindsBursts() {
+        let rate = 44_100
+        var x = [Float](repeating: 0, count: rate)
+        let starts = [4_410, 17_640, 30_870]
+        for s in starts { for j in 0..<2_000 { x[s + j] = 0.8 * Float(sin(2 * .pi * 220 * Double(j) / Double(rate))) * (1 - Float(j) / 2_000) } }
+        let found = Editing.transients(x, sensitivity: 0.5, minGapSamples: rate / 10)
+        XCTAssertEqual(found.count, 3)
+        for (f, s) in zip(found, starts) { XCTAssertLessThan(abs(f - s), 1_500) }
+    }
+
+    func testEvenSlices() {
+        let x = [Float](repeating: 0.1, count: 8_000)
+        let r = Editing.slices(starts: Editing.evenSlices(x, count: 8), total: x.count)
+        XCTAssertEqual(r.count, 8)
+        XCTAssertEqual(r.first?.lowerBound, 0); XCTAssertEqual(r.last?.upperBound, 8_000)
+    }
+
+    func testQuickSaveProcess() {
+        var s = QuickSave.Settings(); s.trim = true; s.fades = true; s.normalize = false
+        let x = [Float](repeating: 0, count: 2_000) + [Float](repeating: 0.5, count: 4_000) + [Float](repeating: 0, count: 2_000)
+        let y = QuickSave.process(x, rate: 48_000, s)
+        XCTAssertLessThan(y.count, x.count)
+        XCTAssertEqual(y.first, 0); XCTAssertEqual(y.last, 0)
+        XCTAssertEqual(QuickSave.autoName(count: 13), "grabacion_014")
+    }
 }

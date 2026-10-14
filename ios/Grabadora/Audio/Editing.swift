@@ -50,4 +50,55 @@ enum Editing {
         let p = x.map(abs).max() ?? 0
         return p > 0 ? 20 * log10(p) : -120
     }
+
+    // MARK: Guardado rápido y chop
+
+    /// Quita el silencio del principio y del final (umbral en dBFS). Si todo es silencio, no toca nada.
+    static func trimSilence(_ x: [Float], thresholdDB: Float = -48, pad: Int = 0) -> [Float] {
+        let th = pow(10, thresholdDB / 20)
+        guard let a = x.firstIndex(where: { abs($0) > th }), let b = x.lastIndex(where: { abs($0) > th }) else { return x }
+        return Array(x[max(0, a - pad)..<min(x.count, b + 1 + pad)])
+    }
+
+    /// Inicios de golpes por subida de energía. `sensitivity` 0...1: más alta, más cortes.
+    static func transients(_ x: [Float], sensitivity: Double, minGapSamples: Int, maxCount: Int = 12) -> [Int] {
+        let hop = 512
+        guard x.count > hop * 4 else { return [] }
+        let n = x.count / hop
+        var e = [Float](repeating: 0, count: n)
+        for i in 0..<n {
+            var s: Float = 0
+            for j in (i * hop)..<((i + 1) * hop) { s += x[j] * x[j] }
+            e[i] = (s / Float(hop)).squareRoot()
+        }
+        var flux = [Float](repeating: 0, count: n)
+        for i in 1..<n { flux[i] = max(0, e[i] - e[i - 1]) }
+        let mean = flux.reduce(0, +) / Float(n)
+        let sd = (flux.map { ($0 - mean) * ($0 - mean) }.reduce(0, +) / Float(n)).squareRoot()
+        let k = Float(4 - 3.5 * min(max(sensitivity, 0), 1))
+        let thr = mean + k * sd
+        var picks: [(i: Int, f: Float)] = []
+        for i in 1..<n where flux[i] > thr && flux[i] >= flux[i - 1] && flux[i] >= (i + 1 < n ? flux[i + 1] : 0) {
+            picks.append((i, flux[i]))
+        }
+        let gap = max(1, minGapSamples / hop)
+        var chosen: [Int] = []
+        for p in picks.sorted(by: { $0.f > $1.f }) where chosen.allSatisfy({ abs($0 - p.i) >= gap }) { chosen.append(p.i) }
+        return Array(chosen.prefix(maxCount)).sorted().map { nearestZeroCross(x, to: max(0, $0 * hop - hop), window: 256) }
+    }
+
+    /// `count` inicios repartidos por igual, ajustados a cruce por cero.
+    static func evenSlices(_ x: [Float], count: Int) -> [Int] {
+        guard !x.isEmpty, count > 0 else { return [] }
+        return (0..<count).map { $0 == 0 ? 0 : nearestZeroCross(x, to: x.count * $0 / count, window: 256) }
+    }
+
+    /// Tramos entre inicios; descarta los de menos de 64 muestras.
+    static func slices(starts: [Int], total: Int) -> [Range<Int>] {
+        let s = Array(Set([0] + starts.filter { $0 > 0 && $0 < total })).sorted()
+        return s.enumerated().compactMap { i, a in
+            let b = i + 1 < s.count ? s[i + 1] : total
+            return b - a >= 64 ? a..<b : nil
+        }
+    }
 }

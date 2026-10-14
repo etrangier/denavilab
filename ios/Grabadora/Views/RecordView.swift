@@ -15,6 +15,8 @@ struct RecordView: View {
     @State private var take: Take?
     @State private var showRetro = false
     @State private var showMetro = false
+    @State private var showQuick = false
+    @State private var savedNote: String?
 
     private var recording: Bool { rec.state == .recording }
     private var db: Double { rec.level > 0.0001 ? Double(20 * log10(rec.level)) : -60 }
@@ -46,6 +48,7 @@ struct RecordView: View {
                     if rec.clipped { Text("Clip: baja la ganancia de entrada").font(Theme.font(13)).foregroundColor(Theme.error) }
                 }
                 if let m = rec.errorMessage { Text(m).font(Theme.font(13)).foregroundColor(Theme.error) }
+                if let n = savedNote { Text(n).font(Theme.font(13)).foregroundColor(Theme.amber).multilineTextAlignment(.center) }
             }
         }
         .task { await rec.startListening() }
@@ -57,6 +60,20 @@ struct RecordView: View {
             }.presentationDetents([.large])
         }
         .sheet(isPresented: $showMetro) { MetronomeSheet().presentationDetents([.large]) }
+        .sheet(isPresented: $showQuick) { QuickSaveSheet().presentationDetents([.large]) }
+    }
+
+    /// Al parar: guardado rápido si está activo; si no, hoja para elegir nombre y carpeta.
+    private func finish(_ a: [Float]) {
+        guard !a.isEmpty else { return }
+        let s = QuickSave.Settings.load()
+        guard s.enabled else { take = Take(audio: a, rate: rec.sampleRate); return }
+        let out = QuickSave.process(a, rate: rec.sampleRate, s)
+        let name = QuickSave.autoName(count: lib.samples.count)
+        if lib.add(name: name, audio: out, sampleRate: rec.sampleRate) != nil {
+            savedNote = "Guardada: \(name) · \(stamp(Double(a.count) / Double(rec.sampleRate))) → \(stamp(Double(out.count) / Double(rec.sampleRate)))"
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { savedNote = nil }
+        }
     }
 
     private var bufferText: String {
@@ -70,6 +87,10 @@ struct RecordView: View {
                 Text("DenaviLab").font(Theme.font(16, weight: .bold)).foregroundColor(Theme.text)
             }
             Spacer()
+            Button { showQuick = true } label: {
+                Image(systemName: "bolt.fill").font(.system(size: 14)).foregroundColor(Theme.amber)
+                    .frame(width: 44, height: 44)
+            }.accessibilityLabel("Guardado rápido")
             Button { state.tab = .exportar } label: {
                 Text("→ K.O. II").font(Theme.font(13, weight: .bold)).foregroundColor(Theme.amber)
                     .padding(.horizontal, 12).frame(minHeight: 32)
@@ -118,7 +139,7 @@ struct RecordView: View {
             sideButton("Escuchar", icon: rec.monitoring ? "ear.fill" : "ear", on: rec.monitoring) { rec.setMonitoring(!rec.monitoring) }
             Spacer()
             Button {
-                if recording { let a = rec.stopRecording(); if !a.isEmpty { take = Take(audio: a, rate: rec.sampleRate) } }
+                if recording { finish(rec.stopRecording()) }
                 else { rec.startRecording() }
             } label: {
                 ZStack {
@@ -240,7 +261,7 @@ struct SaveSheet: View {
                         }
                     }
                     Button("Guardar en \(folder)") {
-                        var s = lib.add(name: name.isEmpty ? defaultName : name, audio: Editing.normalize(take.audio), sampleRate: take.rate)
+                        var s = lib.add(name: name.isEmpty ? defaultName : name, audio: QuickSave.process(take.audio, rate: take.rate, QuickSave.Settings.load()), sampleRate: take.rate)
                         if var x = s { x.folder = folder; lib.update(x); s = x }
                         dismiss()
                     }.buttonStyle(AmberButton()).padding(.top, 6)
