@@ -45,9 +45,7 @@ final class Metronome: ObservableObject {
     func start(forRecording: Bool = false) {
         guard !running else { return }
         do {
-            let s = AVAudioSession.sharedInstance()
-            if s.category != .playAndRecord { try s.setCategory(.playAndRecord, options: [.defaultToSpeaker, .allowBluetooth]) }
-            try s.setActive(true)
+            try AudioSessionConfig.activate()
             let rate = 44_100
             let fmt = AVAudioFormat(standardFormatWithSampleRate: Double(rate), channels: 1)!
             if !engine.attachedNodes.contains(player) {

@@ -34,6 +34,7 @@ struct EditorBody: View {
     @EnvironmentObject var state: AppState
     @State var sample: Sample
     @State private var audio: [Float] = []
+    @State private var peaks: [Float] = []
     @State private var undo: [[Float]] = []
     @State private var redo: [[Float]] = []
     @State private var start = 0.0
@@ -96,7 +97,7 @@ struct EditorBody: View {
         }
         .onAppear {
             if let s = lib.samples.first(where: { $0.id == sample.id }) { sample = s }
-            if undo.isEmpty { audio = lib.audio(for: sample) }
+            if undo.isEmpty { audio = lib.audio(for: sample); refreshPeaks() }
         }
         .onDisappear { player?.stop(); lib.update(sample) }
         .onReceive(tick) { _ in updatePlayhead() }
@@ -114,7 +115,7 @@ struct EditorBody: View {
     private var waveEditor: some View {
         GeometryReader { g in
             ZStack(alignment: .leading) {
-                WaveBars(peaks: Editing.peaks(audio, buckets: 56), range: start...end, playhead: playhead)
+                WaveBars(peaks: peaks, range: start...end, playhead: playhead)
                 handle(at: start, width: g.size.width) { start = min(max(0, $0), end - 0.02) }
                 handle(at: end, width: g.size.width) { end = max(min(1, $0), start + 0.02) }
             }
@@ -165,11 +166,15 @@ struct EditorBody: View {
         let out = f(audio)
         guard !out.isEmpty else { message = "La selección quedó vacía"; return }
         undo.append(audio); redo = []; audio = out; message = nil
+        refreshPeaks()
     }
+
+    private func refreshPeaks() { peaks = Editing.peaks(audio, buckets: 56) }
 
     private func step(from a: inout [[Float]], to b: inout [[Float]]) {
         guard let x = a.popLast() else { return }
         b.append(audio); audio = x
+        refreshPeaks()
     }
 
     private func save() {
@@ -183,8 +188,7 @@ struct EditorBody: View {
         let a = Int(start * Double(count)), b = Int(end * Double(count))
         guard b > a else { return }
         do {
-            try AVAudioSession.sharedInstance().setCategory(.playAndRecord, options: [.defaultToSpeaker, .allowBluetooth])
-            try AVAudioSession.sharedInstance().setActive(true)
+            try AudioSessionConfig.activate()
             let url = try Exporter.export(sample, audio: Array(audio[a..<b]), targetRate: sample.sampleRate)
             let p = try AVAudioPlayer(contentsOf: url)
             p.numberOfLoops = loop ? -1 : 0

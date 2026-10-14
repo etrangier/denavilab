@@ -131,4 +131,13 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(Metronome.samples(bars: 2, beats: 4, bpm: 120, rate: 48_000), 192_000)  // 8 tiempos × 0,5 s
         XCTAssertNil(Metronome.samples(bars: 0, beats: 4, bpm: 120, rate: 48_000))
     }
+
+    @MainActor func testReplaceAudioWorksAfterRename() {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let lib = LibraryStore(directory: dir)
+        let s = lib.add(name: "Original", audio: [Float](repeating: 0.1, count: 1_000), sampleRate: 48_000)!
+        var edited = s; edited.name = "Renombrada"; edited.effects.reverbMix = 30   // el editor guarda una copia distinta
+        lib.replaceAudio(edited, with: [Float](repeating: 0.1, count: 400))
+        XCTAssertEqual(lib.audio(for: s).count, 400)
+    }
 }

@@ -16,6 +16,7 @@ struct RecordView: View {
     @State private var showRetro = false
     @State private var showMetro = false
     @State private var showQuick = false
+    @Environment(\.scenePhase) private var scenePhase
     @State private var savedNote: String?
 
     private var recording: Bool { rec.state == .recording }
@@ -54,6 +55,9 @@ struct RecordView: View {
             }
         }
         .task { await rec.startListening() }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active { Task { await rec.startListening() } }   // p. ej. tras dar permiso en Ajustes
+        }
         .onChange(of: rec.completedTake) { new in
             guard let a = new else { return }
             rec.completedTake = nil
@@ -178,6 +182,7 @@ struct RecordView: View {
             Spacer()
             Button {
                 if recording { met.stop(); finish(rec.stopRecording()) }
+                else if rec.state == .idle { Task { await rec.startListening() } }
                 else { begin() }
             } label: {
                 ZStack {
@@ -186,7 +191,6 @@ struct RecordView: View {
                     else { Circle().fill(Theme.amber).frame(width: 72, height: 72) }
                 }
             }
-            .disabled(rec.state == .idle)
             .accessibilityLabel(recording ? "Parar grabación" : "Grabar")
             Spacer()
             sideButton("Retro", icon: "clock.arrow.circlepath", on: false) { showRetro = true }
@@ -222,6 +226,7 @@ struct RetroSheet: View {
     let onCapture: ([Float]) -> Void
     @State private var peaks: [Float] = []
     private let maxSeconds = 30.0
+    private let tick = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ZStack {
@@ -252,7 +257,7 @@ struct RetroSheet: View {
             }
         }
         .onAppear { refresh() }
-        .onChange(of: rec.bufferedSeconds) { _ in refresh() }
+        .onReceive(tick) { _ in refresh() }
     }
 
     private func refresh() {

@@ -15,11 +15,15 @@ struct ChopSheet: View {
     @State private var showShare = false
     @State private var message: String?
 
-    private var starts: [Int] {
-        mode == 0 ? Editing.transients(audio, sensitivity: sensitivity, minGapSamples: sample.sampleRate / 10, maxCount: 11)
-                  : Editing.evenSlices(audio, count: mode)
+    @State private var ranges: [Range<Int>] = []
+    @State private var peaks: [Float] = []
+
+    private func recompute() {
+        let starts = mode == 0 ? Editing.transients(audio, sensitivity: sensitivity, minGapSamples: sample.sampleRate / 10, maxCount: 11)
+                               : Editing.evenSlices(audio, count: mode)
+        ranges = Array(Editing.slices(starts: starts, total: audio.count).prefix(12))
+        if selected >= ranges.count { selected = 0 }
     }
-    private var ranges: [Range<Int>] { Array(Editing.slices(starts: starts, total: audio.count).prefix(12)) }
 
     var body: some View {
         ZStack {
@@ -58,12 +62,15 @@ struct ChopSheet: View {
             }
         }
         .sheet(isPresented: $showShare) { ShareSheet(items: sharing) }
+        .onAppear { peaks = Editing.peaks(audio, buckets: 56); recompute() }
+        .onChange(of: mode) { _ in recompute() }
+        .onChange(of: sensitivity) { _ in recompute() }
         .onDisappear { player?.stop() }
     }
 
     private var wave: some View {
         ZStack {
-            WaveBars(peaks: Editing.peaks(audio, buckets: 56), range: sliceRange).padding(12)
+            WaveBars(peaks: peaks, range: sliceRange).padding(12)
             Canvas { ctx, size in
                 for r in ranges.dropFirst() {
                     let x = size.width * CGFloat(r.lowerBound) / CGFloat(max(audio.count, 1))
@@ -90,8 +97,7 @@ struct ChopSheet: View {
 
     private func play(_ i: Int) {
         do {
-            try AVAudioSession.sharedInstance().setCategory(.playAndRecord, options: [.defaultToSpeaker, .allowBluetooth])
-            try AVAudioSession.sharedInstance().setActive(true)
+            try AudioSessionConfig.activate()
             let url = try Exporter.export(piece(i), audio: Array(audio[ranges[i]]), targetRate: sample.sampleRate)
             let p = try AVAudioPlayer(contentsOf: url); p.play(); player = p
         } catch { message = "No se pudo reproducir: \(error.localizedDescription)" }

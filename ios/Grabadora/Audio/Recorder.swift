@@ -34,14 +34,15 @@ final class Recorder: ObservableObject {
     }
 
     private func configureSession() throws {
-        let s = AVAudioSession.sharedInstance()
-        try s.setCategory(.playAndRecord, mode: .measurement, options: [.allowBluetooth, .defaultToSpeaker])
-        try s.setActive(true)
+        try AudioSessionConfig.activate()
+        guard observers.isEmpty else { return }   // una sola vez: si no, cada reinicio duplicaría los avisos
         observers.append(NotificationCenter.default.addObserver(
             forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] n in
             guard let raw = n.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
-                  AVAudioSession.InterruptionType(rawValue: raw) == .began else { return }
-            Task { @MainActor in self?.interrupted() }
+                  let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
+            Task { @MainActor in
+                if type == .began { self?.interrupted() } else { await self?.startListening() }   // termina la llamada: vuelve a escuchar
+            }
         })
         observers.append(NotificationCenter.default.addObserver(
             forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] _ in
@@ -50,8 +51,11 @@ final class Recorder: ObservableObject {
     }
 
     // MARK: Control
+    private var starting = false
+
     func startListening() async {
-        guard state == .idle else { return }
+        guard state == .idle, !starting else { return }
+        starting = true; defer { starting = false }
         guard await requestAccess() else { return }
         do {
             try configureSession()

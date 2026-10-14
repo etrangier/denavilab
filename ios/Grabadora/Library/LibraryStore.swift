@@ -80,7 +80,7 @@ final class LibraryStore: ObservableObject {
     }
 
     func replaceAudio(_ s: Sample, with audio: [Float]) {
-        guard let i = samples.firstIndex(of: s) else { return }
+        guard let i = samples.firstIndex(where: { $0.id == s.id }) else { return }
         try? WavIO.encode(audio, sampleRate: s.sampleRate).write(to: url(s), options: .atomic)
         samples[i].duration = Double(audio.count) / Double(s.sampleRate)
         save()
