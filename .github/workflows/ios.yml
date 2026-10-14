@@ -1,0 +1,60 @@
+name: iOS
+
+on:
+  push:
+    paths: ['ios/**', '.github/workflows/ios.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar XcodeGen
+        run: brew install xcodegen
+
+      - name: Generar proyecto
+        run: xcodegen generate
+
+      - name: Tests en simulador
+        run: |
+          set -o pipefail
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)['devices']
+          for rt in sorted(d, reverse=True):
+              for x in d[rt]:
+                  if x['name'].startswith('iPhone'):
+                      print(x['udid']); sys.exit()
+          ")
+          xcodebuild test -project DenaviGrabadora.xcodeproj -scheme DenaviGrabadora \
+            -destination "id=$DEVICE" CODE_SIGNING_ALLOWED=NO | tee test.log | tail -n 200
+
+      - name: Compilar .ipa sin firmar (para sideloading)
+        run: |
+          set -o pipefail
+          xcodebuild build -project DenaviGrabadora.xcodeproj -scheme DenaviGrabadora \
+            -configuration Release -sdk iphoneos -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/DenaviGrabadora.app Payload/
+          zip -qr Grabadora.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Grabadora-ipa
+          path: ios/Grabadora.ipa
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: logs
+          path: ios/test.log
