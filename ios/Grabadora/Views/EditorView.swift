@@ -14,6 +14,8 @@ struct EditorView: View {
     @State private var tagText = ""
     @State private var player: AVAudioPlayer?
     @State private var error: String?
+    @State private var confirmDelete = false
+    @Environment(\.dismiss) private var dismiss
 
     init(sample: Sample) { _sample = State(initialValue: sample) }
 
@@ -48,6 +50,8 @@ struct EditorView: View {
                     Text("Exporta WAV mono 16-bit a 46 875 Hz (formato por confirmar con el dispositivo).")
                         .font(Theme.font(13)).foregroundColor(Theme.muted)
                     Button("Exportar WAV") { exportOne() }.buttonStyle(AmberButton())
+                    Button("Borrar grabación", role: .destructive) { confirmDelete = true }
+                        .font(Theme.font(15)).foregroundColor(Theme.error)
                     if let e = error { Text(e).font(Theme.font(13)).foregroundColor(Theme.error) }
                 }.padding(16)
             }
@@ -55,6 +59,9 @@ struct EditorView: View {
         .onAppear { audio = lib.audio(for: sample) }
         .onDisappear { lib.update(sample) }
         .sheet(isPresented: $showShare) { ShareSheet(items: sharing) }
+        .confirmationDialog("¿Borrar esta grabación?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Borrar", role: .destructive) { lib.delete(sample); dismiss() }
+        }
     }
 
     private var effectsSection: some View {

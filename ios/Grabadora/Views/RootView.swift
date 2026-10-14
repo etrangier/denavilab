@@ -1,7 +1,12 @@
 import SwiftUI
 
 struct RootView: View {
+    @AppStorage("onboarded") private var onboarded = false
     var body: some View {
+        if onboarded { tabs } else { WelcomeView() }
+    }
+
+    private var tabs: some View {
         TabView {
             RecordView().tabItem { Label("Grabar", systemImage: "mic.fill") }
             LibraryView().tabItem { Label("Biblioteca", systemImage: "square.stack.fill") }

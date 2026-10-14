@@ -4,6 +4,8 @@ struct LibraryView: View {
     @EnvironmentObject var lib: LibraryStore
     @State private var sharing: [URL] = []
     @State private var showShare = false
+    @State private var toDelete: Sample?
+    @State private var confirmAll = false
 
     var body: some View {
         Screen(title: "Biblioteca") {
@@ -23,20 +25,33 @@ struct LibraryView: View {
                                         Text(String(format: "%.1f s", s.duration) + (s.tags.isEmpty ? "" : " · " + s.tags.joined(separator: ", ")))
                                             .font(Theme.font(13)).foregroundColor(Theme.muted)
                                     }
-                                }.listRowBackground(Theme.surface)
-                            }.onDelete { idx in
-                                let items = lib.filtered.filter { $0.folder == f }
-                                idx.map { items[$0] }.forEach(lib.delete)
+                                }
+                                .listRowBackground(Theme.surface)
+                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                    Button(role: .destructive) { toDelete = s } label: { Label("Borrar", systemImage: "trash") }
+                                }
+                                .contextMenu {
+                                    Button(role: .destructive) { toDelete = s } label: { Label("Borrar", systemImage: "trash") }
+                                }
                             }
                         }
                     }
                 }.scrollContentBackground(.hidden)
                 .searchable(text: $lib.query, prompt: "Buscar por nombre o etiqueta")
-                .toolbar { Button("Exportar kit") { exportKit() } }
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) { Button("Borrar todo", role: .destructive) { confirmAll = true } }
+                    ToolbarItem(placement: .topBarTrailing) { Button("Exportar kit") { exportKit() } }
+                }
                 .navigationDestination(for: Sample.self) { EditorView(sample: $0) }
             }
         }
         .sheet(isPresented: $showShare) { ShareSheet(items: sharing) }
+        .confirmationDialog("¿Borrar esta grabación?", isPresented: Binding(get: { toDelete != nil }, set: { if !$0 { toDelete = nil } }), titleVisibility: .visible) {
+            Button("Borrar", role: .destructive) { if let s = toDelete { lib.delete(s) }; toDelete = nil }
+        }
+        .confirmationDialog("¿Borrar todas las grabaciones?", isPresented: $confirmAll, titleVisibility: .visible) {
+            Button("Borrar todo", role: .destructive) { lib.samples.forEach(lib.delete) }
+        }
         .alert("Error", isPresented: Binding(get: { lib.errorMessage != nil }, set: { _ in lib.errorMessage = nil })) {
             Button("OK", role: .cancel) {}
         } message: { Text(lib.errorMessage ?? "") }
