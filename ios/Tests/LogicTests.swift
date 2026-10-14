@@ -26,7 +26,7 @@ final class LogicTests: XCTestCase {
 
     func testZeroCrossSnap() {
         let x: [Float] = [0.5, 0.4, 0.2, -0.1, -0.3, -0.2, 0.1]
-        XCTAssertEqual(Editing.nearestZeroCross(x, to: 4), 2)
+        XCTAssertEqual(Editing.nearestZeroCross(x, to: 4), 5)  // el cruce 5→6 está a 1; el 2→3 a 2
     }
 
     func testFadeEndpoints() {
