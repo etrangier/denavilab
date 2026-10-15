@@ -127,14 +127,17 @@ enum Dynamics {
         let (th, ratio) = settings(mode)
         let atk = exp(-1 / (0.010 * Double(rate))), rel = exp(-1 / (0.120 * Double(rate)))
         let makeup = Float(pow(10, -th * (1 - 1 / ratio) * 0.5 / 20))
-        var env = 0.0
-        return x.map { s in
-            let a = Double(abs(s))
+        var env: Double = 0
+        var y = x
+        for i in y.indices {
+            let a = Double(abs(x[i]))
             env = a > env ? atk * env + (1 - atk) * a : rel * env + (1 - rel) * a
-            let db = 20 * log10(max(env, 1e-6))
-            let gainDB = db > th ? (th - db) * (1 - 1 / ratio) : 0
-            return max(-1, min(1, s * Float(pow(10, gainDB / 20)) * makeup))
+            let db: Double = 20 * log10(max(env, 1e-6))
+            let gainDB: Double = db > th ? (th - db) * (1 - 1 / ratio) : 0
+            let gain = Float(pow(10.0, gainDB / 20))
+            y[i] = max(-1, min(1, x[i] * gain * makeup))
         }
+        return y
     }
 }
 
@@ -146,34 +149,68 @@ enum Grit {
         var rng = SeededRandom(seed: 0x5EED)
         var wet: [Float]
         switch style {
-        case .ninguno: return x
+        case .ninguno:
+            return x
         case .vintage:
-            wet = lowpass(highpass(x, 60, rate), 6_500, rate).map { tanh($0 * (1 + 2 * t)) }
-            wet = zip(wet, 0..<wet.count).map { $0 + rng.next() * 0.004 * t }
+            wet = lowpass(highpass(x, 60, rate), 6_500, rate)
+            wet = saturate(wet, drive: 1 + 2 * t)
+            wet = addNoise(wet, level: 0.004 * t, rng: &rng)
         case .vinilo:
             wet = lowpass(highpass(x, 40, rate), 9_000, rate)
-            for i in wet.indices {
-                wet[i] += rng.next() * 0.006 * t
-                if rng.unit() < 0.0004 * Double(t) + 0.00002 { wet[i] += (rng.next() > 0 ? 1 : -1) * 0.25 * t }
-            }
+            wet = addNoise(wet, level: 0.006 * t, rng: &rng)
+            wet = addCrackle(wet, density: 0.0004 * Double(t) + 0.00002, level: 0.25 * t, rng: &rng)
         case .radio:
-            wet = lowpass(highpass(x, 400, rate, passes: 2), 3_500, rate, passes: 2).map { tanh($0 * (1.5 + 3 * t)) }
+            wet = highpass(x, 400, rate, passes: 2)
+            wet = lowpass(wet, 3_500, rate, passes: 2)
+            wet = saturate(wet, drive: 1.5 + 3 * t)
         case .tape:
-            wet = lowpass(x, 11_000, rate).map { tanh($0 * (1 + 1.5 * t)) }
-            wet = wet.map { $0 + rng.next() * 0.003 * t }
+            wet = lowpass(x, 11_000, rate)
+            wet = saturate(wet, drive: 1 + 1.5 * t)
+            wet = addNoise(wet, level: 0.003 * t, rng: &rng)
         case .analogico:
-            wet = lowpass(x.map { $0 + 0.3 * t * $0 * abs($0) }, 12_000, rate).map { tanh($0 * (1 + t)) }
+            var even = x
+            for i in even.indices { even[i] = x[i] + 0.3 * t * x[i] * abs(x[i]) }
+            wet = lowpass(even, 12_000, rate)
+            wet = saturate(wet, drive: 1 + t)
         case .lofi:
-            let hold = 1 + Int(5 * t), levels = Float(pow(2, 8 - 4 * Double(t)))
-            wet = x.indices.map { i in
-                let s = x[i - i % hold]
-                return (s * levels).rounded() / levels
+            let hold: Int = 1 + Int(5 * t)
+            let levels = Float(pow(2.0, 8.0 - 4.0 * Double(t)))
+            wet = x
+            for i in wet.indices {
+                let s: Float = x[i - i % hold]
+                wet[i] = (s * levels).rounded() / levels
             }
         case .telefono:
-            wet = lowpass(highpass(x, 300, rate, passes: 2), 3_000, rate, passes: 2).map { max(-0.6, min(0.6, $0 * (2 + 4 * t))) }
+            wet = highpass(x, 300, rate, passes: 2)
+            wet = lowpass(wet, 3_000, rate, passes: 2)
+            let gain: Float = 2 + 4 * t
+            for i in wet.indices { wet[i] = max(-0.6, min(0.6, wet[i] * gain)) }
         }
-        let mix = min(1, 0.35 + 0.65 * t)
-        return zip(x, wet).map { max(-1, min(1, $0 * (1 - mix) + $1 * mix)) }
+        let mix: Float = min(1, 0.35 + 0.65 * t)
+        var out = x
+        for i in out.indices { out[i] = max(-1, min(1, x[i] * (1 - mix) + wet[i] * mix)) }
+        return out
+    }
+
+    nonisolated static func saturate(_ x: [Float], drive: Float) -> [Float] {
+        var y = x
+        for i in y.indices { y[i] = tanh(x[i] * drive) }
+        return y
+    }
+
+    nonisolated static func addNoise(_ x: [Float], level: Float, rng: inout SeededRandom) -> [Float] {
+        var y = x
+        for i in y.indices { y[i] = x[i] + rng.next() * level }
+        return y
+    }
+
+    nonisolated static func addCrackle(_ x: [Float], density: Double, level: Float, rng: inout SeededRandom) -> [Float] {
+        var y = x
+        for i in y.indices where rng.unit() < density {
+            let sign: Float = rng.next() > 0 ? 1 : -1
+            y[i] += sign * level
+        }
+        return y
     }
 
     nonisolated static func lowpass(_ x: [Float], _ fc: Double, _ rate: Int, passes: Int = 1) -> [Float] {
