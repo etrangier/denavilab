@@ -11,6 +11,7 @@ struct Sample: Identifiable, Codable, Equatable {
     var name: String
     var folder: String = "Sin clasificar"
     var subfolder: String?
+    var bpm: Double?
     var tags: [String] = []
     var slot: Int?                    // 1...999 en el K.O. II (rango por confirmar)
     var sampleRate: Int

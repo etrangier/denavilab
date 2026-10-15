@@ -284,7 +284,6 @@ struct SaveSheet: View {
         let f = DateFormatter(); f.locale = Locale(identifier: "es_ES"); f.dateFormat = "d MMM · HH:mm"
         return "Grabación " + f.string(from: Date())
     }
-    private var subs: [String] { LibraryStore.folderInfo.first { $0.name == folder }?.subs ?? [] }
     private var destination: String { sub.map { "\(folder) › \($0)" } ?? folder }
 
     var body: some View {
@@ -301,19 +300,7 @@ struct SaveSheet: View {
                     suggestionCard
                     SectionLabel("Nombre")
                     TextField(defaultName, text: $name).font(Theme.font(15)).foregroundColor(Theme.text).card()
-                    SectionLabel("Carpeta")
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-                        ForEach(LibraryStore.folderInfo, id: \.name) { f in
-                            Button(f.name) { folder = f.name; sub = nil }.buttonStyle(OutlineButton(selected: folder == f.name))
-                                .font(Theme.font(13))
-                        }
-                    }
-                    if !subs.isEmpty {
-                        SectionLabel("Subcarpeta")
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 90), spacing: 8, alignment: .leading)], alignment: .leading, spacing: 8) {
-                            ForEach(subs, id: \.self) { s in Chip(title: s, selected: sub == s) { sub = (sub == s) ? nil : s } }
-                        }
-                    }
+                    FolderPicker(folder: $folder, sub: $sub)
                     Button("Guardar en \(destination)") { save() }.buttonStyle(AmberButton()).padding(.top, 6)
                     Text("La sugerencia es automática y puede fallar; siempre puedes cambiarla. Sin clasificar la deja en la bandeja.")
                         .font(Theme.font(13)).foregroundColor(Theme.muted).frame(maxWidth: .infinity, alignment: .center)

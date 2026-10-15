@@ -140,4 +140,60 @@ final class LogicTests: XCTestCase {
         lib.replaceAudio(edited, with: [Float](repeating: 0.1, count: 400))
         XCTAssertEqual(lib.audio(for: s).count, 400)
     }
+
+    private func clickTrack(bpm: Double, seconds: Double, rate: Int = 44_100) -> [Float] {
+        var x = [Float](repeating: 0, count: Int(seconds * Double(rate)))
+        let period = 60 / bpm
+        var t = 0.1
+        while t < seconds - 0.1 {
+            let s = Int(t * Double(rate))
+            for j in 0..<2_000 where s + j < x.count { x[s + j] = 0.8 * Float(sin(2 * .pi * 220 * Double(j) / Double(rate))) * (1 - Float(j) / 2_000) }
+            t += period
+        }
+        return x
+    }
+
+    func testEstimateBPM() {
+        for target in [100.0, 120.0] {
+            let r = Editing.estimateBPM(clickTrack(bpm: target, seconds: 10), rate: 44_100)
+            XCTAssertNotNil(r)
+            XCTAssertEqual(r?.bpm ?? 0, target, accuracy: 3)
+        }
+        XCTAssertNil(Editing.estimateBPM([Float](repeating: 0, count: 100_000), rate: 44_100))   // silencio
+        XCTAssertNil(Editing.estimateBPM([Float](repeating: 0.1, count: 1_000), rate: 44_100))   // demasiado corto
+    }
+
+    func testSnapToGrid() {
+        XCTAssertEqual(Editing.snapToGrid([0, 1_020, 2_450, 2_500], step: 1_000), [0, 1_000, 2_000, 3_000])
+        XCTAssertEqual(Editing.snapToGrid([10, 20], step: 1_000), [0])                              // sin repetidos
+    }
+
+    func testCompressorReducesDynamicRange() {
+        let rate = 44_100
+        let quiet = [Float](repeating: 0.05, count: rate / 2), loud = [Float](repeating: 0.8, count: rate / 2)
+        let y = Dynamics.compress(quiet + loud, rate: rate, mode: 2)
+        let before = 0.8 / 0.05
+        let after = Double(y[rate / 2 + rate / 4 ..< y.count].map(abs).max()!) / Double(y[rate / 4 ..< rate / 2].map(abs).max()!)
+        XCTAssertLessThan(after, before / 2)
+    }
+
+    func testGritStylesAreSafeAndDeterministic() {
+        let x = (0..<20_000).map { Float(sin(2 * .pi * 440 * Double($0) / 44_100)) * 0.7 }
+        for style in GritStyle.allCases {
+            let a = Grit.apply(x, rate: 44_100, style: style, amount: 0.6), b = Grit.apply(x, rate: 44_100, style: style, amount: 0.6)
+            XCTAssertEqual(a, b, "\(style) no es determinista")
+            XCTAssertEqual(a.count, x.count)
+            XCTAssertTrue(a.allSatisfy { $0.isFinite && abs($0) <= 1 }, "\(style) fuera de rango")
+            if style == .ninguno { XCTAssertEqual(a, x) } else { XCTAssertNotEqual(a, x, "\(style) no cambia nada") }
+        }
+    }
+
+    func testEffectParamsDecodeOldLibrary() throws {
+        let old = #"{"eqLowGain":0,"eqHighGain":2,"lowpassHz":20000,"reverbMix":0,"pitchCents":0,"compress":true}"#
+        let p = try JSONDecoder().decode(EffectParams.self, from: Data(old.utf8))
+        XCTAssertTrue(p.compress); XCTAssertEqual(p.eqHighGain, 2)
+        XCTAssertEqual(p.grit, .ninguno); XCTAssertEqual(p.compressMode, 1)
+        XCTAssertTrue(EffectParams().isNeutral)
+        var q = EffectParams(); q.grit = .lofi; XCTAssertFalse(q.isNeutral)
+    }
 }

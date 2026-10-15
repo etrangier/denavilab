@@ -101,4 +101,48 @@ enum Editing {
             return b - a >= 64 ? a..<b : nil
         }
     }
+
+    /// Tempo estimado por autocorrelación de la subida de energía. nil si hay menos de 2 s o no hay pulso claro.
+    nonisolated static func estimateBPM(_ x: [Float], rate: Int, range: ClosedRange<Double> = 70...160) -> (bpm: Double, confidence: Double)? {
+        let hop = 512
+        guard x.count > rate * 2 else { return nil }
+        let n = x.count / hop
+        var e = [Float](repeating: 0, count: n)
+        for i in 0..<n {
+            var s: Float = 0
+            for j in (i * hop)..<((i + 1) * hop) { s += x[j] * x[j] }
+            e[i] = (s / Float(hop)).squareRoot()
+        }
+        var flux = [Float](repeating: 0, count: n)
+        for i in 1..<n { flux[i] = max(0, e[i] - e[i - 1]) }
+        let mean = flux.reduce(0, +) / Float(n)
+        flux = flux.map { $0 - mean }
+        let hopRate = Double(rate) / Double(hop)
+        let minLag = max(2, Int(hopRate * 60 / range.upperBound)), maxLag = Int(hopRate * 60 / range.lowerBound)
+        guard n > maxLag * 2 else { return nil }
+        func r(_ l: Int) -> Double {
+            var s = 0.0
+            for i in 0..<(n - l) { s += Double(flux[i] * flux[i + l]) }
+            return s / Double(n - l)
+        }
+        let r0 = r(0)
+        guard r0 > 1e-12 else { return nil }
+        var best = minLag, bestV = -Double.infinity
+        for l in minLag...maxLag { let v = r(l); if v > bestV { bestV = v; best = l } }
+        var lag = Double(best)
+        if best > minLag, best < maxLag {                // interpolación parabólica del pico
+            let y0 = r(best - 1), y1 = bestV, y2 = r(best + 1)
+            let den = y0 - 2 * y1 + y2
+            if abs(den) > 1e-15 { lag += 0.5 * (y0 - y2) / den }
+        }
+        let conf = min(1, max(0, bestV / r0))
+        return conf > 0.05 ? (60 * hopRate / lag, conf) : nil
+    }
+
+    /// Ajusta cada inicio a la rejilla (`step` muestras desde `origin`); sin repetidos.
+    nonisolated static func snapToGrid(_ starts: [Int], step: Double, origin: Int = 0) -> [Int] {
+        guard step >= 1 else { return starts }
+        let snapped = starts.map { origin + Int((Double($0 - origin) / step).rounded()) * Int(step.rounded()) }
+        return Array(Set(snapped.map { max(0, $0) })).sorted()
+    }
 }

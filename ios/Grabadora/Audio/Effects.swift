@@ -1,5 +1,22 @@
 import AVFoundation
 
+/// Estilos de «grit» (carácter del sonido), pantalla 16 del diseño.
+enum GritStyle: String, Codable, CaseIterable {
+    case ninguno, vintage, vinilo, radio, tape, analogico, lofi, telefono
+    var title: String {
+        switch self {
+        case .ninguno: return "Ninguno"
+        case .vintage: return "Vintage"
+        case .vinilo: return "Vinilo"
+        case .radio: return "Radio"
+        case .tape: return "Tape"
+        case .analogico: return "Analógico"
+        case .lofi: return "Lo-fi"
+        case .telefono: return "Teléfono"
+        }
+    }
+}
+
 /// Efectos no destructivos: se guarda el original + parámetros y se renderiza al exportar.
 struct EffectParams: Codable, Equatable {
     var eqLowGain: Float = 0        // dB, shelf 100 Hz
@@ -7,14 +24,56 @@ struct EffectParams: Codable, Equatable {
     var lowpassHz: Float = 20_000
     var reverbMix: Float = 0        // 0...100
     var pitchCents: Float = 0       // -1200...1200 (calidad por validar)
-    var compress: Bool = false
-    var isNeutral: Bool { self == EffectParams() }
+    var compress = false
+    var compressMode = 1            // 0 suave, 1 medio, 2 fuerte
+    var grit = GritStyle.ninguno
+    var gritAmount: Float = 40      // 0...100
+
+    init() {}
+
+    /// Lee también biblioteca guardada con versiones anteriores (campos nuevos con su valor por defecto).
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        let d = EffectParams()
+        eqLowGain = try c.decodeIfPresent(Float.self, forKey: .eqLowGain) ?? d.eqLowGain
+        eqHighGain = try c.decodeIfPresent(Float.self, forKey: .eqHighGain) ?? d.eqHighGain
+        lowpassHz = try c.decodeIfPresent(Float.self, forKey: .lowpassHz) ?? d.lowpassHz
+        reverbMix = try c.decodeIfPresent(Float.self, forKey: .reverbMix) ?? d.reverbMix
+        pitchCents = try c.decodeIfPresent(Float.self, forKey: .pitchCents) ?? d.pitchCents
+        compress = try c.decodeIfPresent(Bool.self, forKey: .compress) ?? d.compress
+        compressMode = try c.decodeIfPresent(Int.self, forKey: .compressMode) ?? d.compressMode
+        grit = try c.decodeIfPresent(GritStyle.self, forKey: .grit) ?? d.grit
+        gritAmount = try c.decodeIfPresent(Float.self, forKey: .gritAmount) ?? d.gritAmount
+    }
+
+    private enum Keys: String, CodingKey {
+        case eqLowGain, eqHighGain, lowpassHz, reverbMix, pitchCents, compress, compressMode, grit, gritAmount
+    }
+
+    /// Sin efectos audibles: el estilo «grit» no cuenta si es «ninguno» (la cantidad sola no hace nada).
+    var isNeutral: Bool {
+        eqLowGain == 0 && eqHighGain == 0 && lowpassHz >= 20_000 && reverbMix == 0 && pitchCents == 0 && !compress && grit == .ninguno
+    }
+    var needsEngine: Bool { eqLowGain != 0 || eqHighGain != 0 || lowpassHz < 20_000 || reverbMix > 0 || pitchCents != 0 }
 }
 
 enum EffectRenderer {
-    /// Render offline con audio units del sistema.
+    /// Cadena completa: audio units del sistema (EQ, tono, reverb) y después compresor y carácter.
     static func render(_ x: [Float], sampleRate: Int, params p: EffectParams) throws -> [Float] {
         if p.isNeutral || x.isEmpty { return x }
+        let wet = p.needsEngine ? try engineRender(x, sampleRate: sampleRate, params: p) : x
+        return postProcess(wet, rate: sampleRate, params: p)
+    }
+
+    /// Compresor y carácter. Puro y determinista.
+    nonisolated static func postProcess(_ x: [Float], rate: Int, params p: EffectParams) -> [Float] {
+        var y = x
+        if p.compress { y = Dynamics.compress(y, rate: rate, mode: p.compressMode) }
+        if p.grit != .ninguno { y = Grit.apply(y, rate: rate, style: p.grit, amount: Double(p.gritAmount) / 100) }
+        return y
+    }
+
+    private static func engineRender(_ x: [Float], sampleRate: Int, params p: EffectParams) throws -> [Float] {
         let engine = AVAudioEngine()
         let player = AVAudioPlayerNode()
         let eq = AVAudioUnitEQ(numberOfBands: 3)
@@ -53,14 +112,89 @@ enum EffectRenderer {
             result.append(contentsOf: UnsafeBufferPointer(start: out.floatChannelData![0], count: Int(out.frameLength)))
         }
         engine.stop()
-        return p.compress ? Dynamics.softCompress(result) : result
+        return result
     }
 }
 
 enum Dynamics {
-    /// Compresor simple de pico (tanh) con ganancia de compensación.
-    static func softCompress(_ x: [Float], drive: Float = 2) -> [Float] {
-        let k = tanh(drive)
-        return x.map { tanh($0 * drive) / k }
+    /// (umbral dB, relación) de Suave, Medio y Fuerte.
+    nonisolated static func settings(_ mode: Int) -> (threshold: Double, ratio: Double) {
+        switch mode { case 0: return (-18, 2); case 2: return (-24, 8); default: return (-18, 4) }
     }
+
+    /// Compresor con seguidor de nivel (ataque 10 ms, relajación 120 ms) y media ganancia de compensación.
+    nonisolated static func compress(_ x: [Float], rate: Int, mode: Int) -> [Float] {
+        let (th, ratio) = settings(mode)
+        let atk = exp(-1 / (0.010 * Double(rate))), rel = exp(-1 / (0.120 * Double(rate)))
+        let makeup = Float(pow(10, -th * (1 - 1 / ratio) * 0.5 / 20))
+        var env = 0.0
+        return x.map { s in
+            let a = Double(abs(s))
+            env = a > env ? atk * env + (1 - atk) * a : rel * env + (1 - rel) * a
+            let db = 20 * log10(max(env, 1e-6))
+            let gainDB = db > th ? (th - db) * (1 - 1 / ratio) : 0
+            return max(-1, min(1, s * Float(pow(10, gainDB / 20)) * makeup))
+        }
+    }
+}
+
+/// Carácter del sonido con filtros simples, saturación y ruido determinista (misma entrada, misma salida).
+enum Grit {
+    nonisolated static func apply(_ x: [Float], rate: Int, style: GritStyle, amount: Double) -> [Float] {
+        guard style != .ninguno, !x.isEmpty else { return x }
+        let t = Float(min(max(amount, 0), 1))
+        var rng = SeededRandom(seed: 0x5EED)
+        var wet: [Float]
+        switch style {
+        case .ninguno: return x
+        case .vintage:
+            wet = lowpass(highpass(x, 60, rate), 6_500, rate).map { tanh($0 * (1 + 2 * t)) }
+            wet = zip(wet, 0..<wet.count).map { $0 + rng.next() * 0.004 * t }
+        case .vinilo:
+            wet = lowpass(highpass(x, 40, rate), 9_000, rate)
+            for i in wet.indices {
+                wet[i] += rng.next() * 0.006 * t
+                if rng.unit() < 0.0004 * Double(t) + 0.00002 { wet[i] += (rng.next() > 0 ? 1 : -1) * 0.25 * t }
+            }
+        case .radio:
+            wet = lowpass(highpass(x, 400, rate, passes: 2), 3_500, rate, passes: 2).map { tanh($0 * (1.5 + 3 * t)) }
+        case .tape:
+            wet = lowpass(x, 11_000, rate).map { tanh($0 * (1 + 1.5 * t)) }
+            wet = wet.map { $0 + rng.next() * 0.003 * t }
+        case .analogico:
+            wet = lowpass(x.map { $0 + 0.3 * t * $0 * abs($0) }, 12_000, rate).map { tanh($0 * (1 + t)) }
+        case .lofi:
+            let hold = 1 + Int(5 * t), levels = Float(pow(2, 8 - 4 * Double(t)))
+            wet = x.indices.map { i in
+                let s = x[i - i % hold]
+                return (s * levels).rounded() / levels
+            }
+        case .telefono:
+            wet = lowpass(highpass(x, 300, rate, passes: 2), 3_000, rate, passes: 2).map { max(-0.6, min(0.6, $0 * (2 + 4 * t))) }
+        }
+        let mix = min(1, 0.35 + 0.65 * t)
+        return zip(x, wet).map { max(-1, min(1, $0 * (1 - mix) + $1 * mix)) }
+    }
+
+    nonisolated static func lowpass(_ x: [Float], _ fc: Double, _ rate: Int, passes: Int = 1) -> [Float] {
+        let a = Float(1 - exp(-2 * .pi * fc / Double(rate)))
+        var y = x
+        for _ in 0..<passes { var s: Float = 0; for i in y.indices { s += a * (y[i] - s); y[i] = s } }
+        return y
+    }
+
+    nonisolated static func highpass(_ x: [Float], _ fc: Double, _ rate: Int, passes: Int = 1) -> [Float] {
+        let low = lowpass(x, fc, rate, passes: passes)
+        return zip(x, low).map { $0 - $1 }
+    }
+}
+
+struct SeededRandom {
+    private var state: UInt64
+    init(seed: UInt64) { state = seed | 1 }
+    mutating func unit() -> Double {                 // 0..<1
+        state ^= state << 13; state ^= state >> 7; state ^= state << 17
+        return Double(state % 1_000_000) / 1_000_000
+    }
+    mutating func next() -> Float { Float(unit() * 2 - 1) }   // -1..<1
 }

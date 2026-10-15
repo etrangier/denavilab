@@ -17,10 +17,13 @@ struct ChopSheet: View {
 
     @State private var ranges: [Range<Int>] = []
     @State private var peaks: [Float] = []
+    @State private var grid = false
+    @State private var bpm: Double?
 
     private func recompute() {
-        let starts = mode == 0 ? Editing.transients(audio, sensitivity: sensitivity, minGapSamples: sample.sampleRate / 10, maxCount: 11)
+        var starts = mode == 0 ? Editing.transients(audio, sensitivity: sensitivity, minGapSamples: sample.sampleRate / 10, maxCount: 11)
                                : Editing.evenSlices(audio, count: mode)
+        if grid, let b = bpm { starts = Editing.snapToGrid(starts, step: Double(sample.sampleRate) * 60 / b / 4) }
         ranges = Array(Editing.slices(starts: starts, total: audio.count).prefix(12))
         if selected >= ranges.count { selected = 0 }
     }
@@ -41,6 +44,16 @@ struct ChopSheet: View {
                     if mode == 0 {
                         SliderRow(title: "Sensibilidad de golpes", valueText: sensitivity < 0.34 ? "Baja" : sensitivity < 0.67 ? "Media" : "Alta", value: $sensitivity)
                     }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle(isOn: $grid) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Ajustar a la cuadrícula").font(Theme.font(15, weight: .medium)).foregroundColor(Theme.text)
+                                Text(bpm.map { "\(Int($0.rounded())) BPM · 1/16" } ?? "BPM sin detectar: usa Detectar BPM en Editar")
+                                    .font(Theme.font(12)).foregroundColor(Theme.muted)
+                            }
+                        }.tint(Theme.amber).disabled(bpm == nil)
+                        Text("Funciona mejor si grabaste con compás.").font(Theme.font(12)).foregroundColor(Theme.muted)
+                    }.card()
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
                         ForEach(0..<12, id: \.self) { i in
                             let live = i < ranges.count
@@ -62,7 +75,8 @@ struct ChopSheet: View {
             }
         }
         .sheet(isPresented: $showShare) { ShareSheet(items: sharing) }
-        .onAppear { peaks = Editing.peaks(audio, buckets: 56); recompute() }
+        .onAppear { peaks = Editing.peaks(audio, buckets: 56); bpm = sample.bpm ?? Editing.estimateBPM(audio, rate: sample.sampleRate)?.bpm; recompute() }
+        .onChange(of: grid) { _ in recompute() }
         .onChange(of: mode) { _ in recompute() }
         .onChange(of: sensitivity) { _ in recompute() }
         .onDisappear { player?.stop() }

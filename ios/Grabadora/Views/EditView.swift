@@ -32,6 +32,7 @@ private func floatBinding(_ b: Binding<Float>) -> Binding<Double> {
 struct EditorBody: View {
     @EnvironmentObject var lib: LibraryStore
     @EnvironmentObject var state: AppState
+    @EnvironmentObject var met: Metronome
     @State var sample: Sample
     @State private var audio: [Float] = []
     @State private var peaks: [Float] = []
@@ -81,6 +82,11 @@ struct EditorBody: View {
                 }.buttonStyle(OutlineButton()).font(Theme.font(13))
                 Button("Chop en pads") { showChop = true }.buttonStyle(OutlineButton())
                 SliderRow(title: "Fundido", valueText: "\(Int(fadeMs)) ms", value: $fadeMs, range: 0...200)
+                bpmCard
+                FolderPicker(
+                    folder: Binding(get: { sample.folder }, set: { sample.folder = $0; lib.update(sample) }),
+                    sub: Binding(get: { sample.subfolder }, set: { sample.subfolder = $0; lib.update(sample) }))
+                Button("Sugerir carpeta") { suggestFolder() }.buttonStyle(OutlineButton())
                 SectionLabel("¿Qué hacemos con esta toma?")
                 HStack(spacing: 8) {
                     Button("Descartar") { confirmDelete = true }.buttonStyle(OutlineButton(danger: true))
@@ -102,9 +108,47 @@ struct EditorBody: View {
         .onDisappear { player?.stop(); lib.update(sample) }
         .onReceive(tick) { _ in updatePlayhead() }
         .sheet(isPresented: $showChop) { ChopSheet(sample: sample, audio: audio).presentationDetents([.large]) }
-        .sheet(isPresented: $showEffects) { EffectsSheet(sample: $sample).presentationDetents([.large]) }
+        .sheet(isPresented: $showEffects, onDismiss: { lib.update(sample) }) { EffectsSheet(sample: $sample, audio: audio).presentationDetents([.large]) }
         .confirmationDialog("¿Borrar esta grabación?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Borrar", role: .destructive) { player?.stop(); lib.delete(sample); state.selectedID = nil; state.tab = .biblioteca }
+        }
+    }
+
+    private var bpmCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Tempo").font(Theme.font(15, weight: .medium)).foregroundColor(Theme.text)
+                Spacer()
+                Text(sample.bpm.map { "≈ \(Int($0.rounded())) BPM" } ?? "sin detectar").font(Theme.font(14)).foregroundColor(sample.bpm == nil ? Theme.muted : Theme.amber)
+            }
+            HStack(spacing: 8) {
+                Button("Detectar BPM") { detectBPM() }.buttonStyle(OutlineButton())
+                if let b = sample.bpm {
+                    Button("Usar en el metrónomo") { met.bpm = min(300, max(30, b.rounded())); message = "Metrónomo a \(Int(b.rounded())) BPM" }
+                        .buttonStyle(OutlineButton(selected: true))
+                }
+            }.font(Theme.font(13))
+            Text("Funciona mejor con pulso claro y al menos 2 segundos.").font(Theme.font(12)).foregroundColor(Theme.muted)
+        }.card()
+    }
+
+    private func detectBPM() {
+        guard let r = Editing.estimateBPM(audio, rate: sample.sampleRate) else {
+            message = "No encuentro un pulso claro en esta toma"; return
+        }
+        sample.bpm = r.bpm; lib.update(sample)
+        message = String(format: "≈ %.0f BPM · confianza %.0f %%", r.bpm, r.confidence * 100)
+    }
+
+    private func suggestFolder() {
+        message = "Analizando el sonido…"
+        let a = audio, rate = sample.sampleRate
+        Task {
+            guard let s = FolderMapper.suggest(from: await SoundClassifier.classify(a, rate: rate)) else {
+                message = "Sin sugerencia clara: elige la carpeta a mano"; return
+            }
+            sample.folder = s.folder; sample.subfolder = s.sub; lib.update(sample)
+            message = "Sugerida: \(s.title)"
         }
     }
 
@@ -203,11 +247,15 @@ struct EditorBody: View {
     }
 }
 
-// MARK: Efectos (pantallas 14 y 16, con lo que ya renderiza la app)
+// MARK: Efectos (pantallas 14 y 16)
 
 struct EffectsSheet: View {
     @Binding var sample: Sample
+    let audio: [Float]
     @Environment(\.dismiss) private var dismiss
+    @State private var tab = 0
+    @State private var player: AVAudioPlayer?
+    @State private var message: String?
 
     var body: some View {
         ZStack {
@@ -215,18 +263,73 @@ struct EffectsSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     ScreenTitle(title: "Efectos", trailing: AnyView(TextLink(title: "Restaurar") { sample.effects = EffectParams() }))
-                    SliderRow(title: "Tono", valueText: String(format: "%+.0f semitonos", Double(sample.effects.pitchCents) / 100),
-                              value: Binding(get: { Double(sample.effects.pitchCents) / 100 }, set: { sample.effects.pitchCents = Float($0.rounded() * 100) }), range: -12...12)
-                    Text("Calidad del cambio de tono por validar.").font(Theme.font(12)).foregroundColor(Theme.muted)
-                    SliderRow(title: "Graves", valueText: String(format: "%+.0f dB", Double(sample.effects.eqLowGain)), value: floatBinding($sample.effects.eqLowGain), range: -12...12)
-                    SliderRow(title: "Agudos", valueText: String(format: "%+.0f dB", Double(sample.effects.eqHighGain)), value: floatBinding($sample.effects.eqHighGain), range: -12...12)
-                    SliderRow(title: "Reverb corta", valueText: "\(Int(sample.effects.reverbMix)) %", value: floatBinding($sample.effects.reverbMix), range: 0...100)
-                    ToggleRow(title: "Compresor", subtitle: "Aplana los picos y sube el cuerpo", isOn: $sample.effects.compress)
+                    HStack(spacing: 8) {
+                        Button("Tono y EQ") { tab = 0 }.buttonStyle(OutlineButton(selected: tab == 0))
+                        Button("Carácter") { tab = 1 }.buttonStyle(OutlineButton(selected: tab == 1))
+                    }
+                    if tab == 0 { toneTab } else { characterTab }
+                    HStack(spacing: 8) {
+                        Button("Escuchar original") { play(original: true) }.buttonStyle(OutlineButton())
+                        Button("Escuchar con efectos") { play(original: false) }.buttonStyle(OutlineButton(selected: true))
+                    }.font(Theme.font(13))
+                    if let m = message { Text(m).font(Theme.font(12)).foregroundColor(Theme.muted) }
                     Text("El original nunca se modifica.").font(Theme.font(13)).foregroundColor(Theme.muted).frame(maxWidth: .infinity, alignment: .center)
                     TextLink(title: "Volver al original") { sample.effects = EffectParams() }.frame(maxWidth: .infinity)
-                    Button("Listo") { dismiss() }.buttonStyle(AmberButton())
+                    Button("Listo") { player?.stop(); dismiss() }.buttonStyle(AmberButton())
                 }.padding(16)
             }
         }
+        .onDisappear { player?.stop() }
+    }
+
+    @ViewBuilder private var toneTab: some View {
+        SliderRow(title: "Tono", valueText: String(format: "%+.0f semitonos", Double(sample.effects.pitchCents) / 100),
+                  value: Binding(get: { Double(sample.effects.pitchCents) / 100 }, set: { sample.effects.pitchCents = Float($0.rounded() * 100) }), range: -12...12)
+        Text("Calidad del cambio de tono por validar.").font(Theme.font(12)).foregroundColor(Theme.muted)
+        SliderRow(title: "Graves", valueText: String(format: "%+.0f dB", Double(sample.effects.eqLowGain)), value: floatBinding($sample.effects.eqLowGain), range: -12...12)
+        SliderRow(title: "Agudos", valueText: String(format: "%+.0f dB", Double(sample.effects.eqHighGain)), value: floatBinding($sample.effects.eqHighGain), range: -12...12)
+        SliderRow(title: "Reverb corta", valueText: "\(Int(sample.effects.reverbMix)) %", value: floatBinding($sample.effects.reverbMix), range: 0...100)
+    }
+
+    @ViewBuilder private var characterTab: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Toggle(isOn: $sample.effects.compress) {
+                Text("Compresor").font(Theme.font(15, weight: .bold)).foregroundColor(Theme.text)
+            }.tint(Theme.amber)
+            if sample.effects.compress {
+                HStack(spacing: 8) {
+                    ForEach([(0, "Suave"), (1, "Medio"), (2, "Fuerte")], id: \.0) { m in
+                        Chip(title: m.1, selected: sample.effects.compressMode == m.0) { sample.effects.compressMode = m.0 }
+                    }
+                }
+                let s = Dynamics.settings(sample.effects.compressMode)
+                Text("Umbral \(Int(s.threshold)) dB · relación \(Int(s.ratio)):1").font(Theme.font(12)).foregroundColor(Theme.muted)
+            }
+        }.card()
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Grit · estilo del sonido").font(Theme.font(15, weight: .bold)).foregroundColor(Theme.text)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+                ForEach(GritStyle.allCases, id: \.self) { g in
+                    Button(g.title) { sample.effects.grit = g }.buttonStyle(OutlineButton(selected: sample.effects.grit == g)).font(Theme.font(13))
+                }
+            }
+            if sample.effects.grit != .ninguno {
+                Text("Cantidad  \(Int(sample.effects.gritAmount)) %").font(Theme.font(13)).foregroundColor(Theme.amber)
+                Slider(value: floatBinding($sample.effects.gritAmount), in: 0...100).tint(Theme.amber)
+            }
+        }.card()
+    }
+
+    /// Primeros 8 s, con o sin efectos, para juzgar el resultado.
+    private func play(original: Bool) {
+        guard !audio.isEmpty else { return }
+        do {
+            try AudioSessionConfig.activate()
+            var s = sample
+            if original { s.effects = EffectParams() }
+            let url = try Exporter.export(s, audio: Array(audio.prefix(sample.sampleRate * 8)), targetRate: sample.sampleRate)
+            let p = try AVAudioPlayer(contentsOf: url); p.play(); player = p
+            message = nil
+        } catch { message = "No se pudo reproducir: \(error.localizedDescription)" }
     }
 }
