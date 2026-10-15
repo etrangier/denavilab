@@ -62,3 +62,8 @@ Por eso este repositorio **no debería ser público**.
 Si en algún momento hace falta control de acceso de verdad, hay que mover el sitio a algo
 con servidor delante (Cloudflare Access, Netlify con contraseña, un hosting con
 autenticación básica). Neocities por sí solo no puede darlo.
+
+
+## App iOS (beta)
+
+En [`ios/`](ios/README.md): Grabadora, app nativa iOS para grabar samples y exportarlos al EP-133 K.O. II.
