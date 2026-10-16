@@ -272,3 +272,24 @@ export function highlightRanges(ranges, total, selected) {
   if (total <= 0) return [];
   return [...selected].sort((a, b) => a - b).filter(i => i >= 0 && i < ranges.length).map(i => [ranges[i][0] / total, ranges[i][1] / total]);
 }
+
+/** Línea de tiempo de «Escuchar selección»: cada corte elegido, en su orden original, separado por un hueco corto.
+ *  Devuelve [{i, start, end}] en muestras de la secuencia (sin hueco al final). */
+export function previewSegments(ranges, selected, rate, gap = 0.15) {
+  const g = Math.round(gap * rate), out = [];
+  let pos = 0;
+  for (const i of [...selected].sort((a, b) => a - b).filter(i => i >= 0 && i < ranges.length)) {
+    const len = ranges[i][1] - ranges[i][0];
+    out.push({ i, start: pos, end: pos + len }); pos += len + g;
+  }
+  return out;
+}
+
+/** El audio de esa secuencia (con 2 ms de fundido en cada corte para que no haya clics al saltar entre cortes lejanos). */
+export function previewAudio(audio, ranges, selected, rate, gap = 0.15) {
+  const seg = previewSegments(ranges, selected, rate, gap);
+  if (!seg.length) return new Float32Array(0);
+  const out = new Float32Array(seg[seg.length - 1].end), f = Math.round(rate * 0.002);
+  for (const s of seg) out.set(fade(audio.slice(ranges[s.i][0], ranges[s.i][1]), f, f), s.start);
+  return out;
+}

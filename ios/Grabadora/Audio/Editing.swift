@@ -171,4 +171,28 @@ enum Editing {
             return (Double(ranges[i].lowerBound) / Double(total))...(Double(ranges[i].upperBound) / Double(total))
         }
     }
+
+    /// Línea de tiempo de «Escuchar selección»: cada corte elegido, en su orden original, con un hueco corto entre ellos.
+    nonisolated static func previewSegments(_ ranges: [Range<Int>], selected: Set<Int>, rate: Int, gap: Double = 0.15) -> [(index: Int, start: Int, end: Int)] {
+        let g = Int((gap * Double(rate)).rounded())
+        var pos = 0, out: [(index: Int, start: Int, end: Int)] = []
+        for i in selected.sorted() where i >= 0 && i < ranges.count {
+            let len = ranges[i].count
+            out.append((i, pos, pos + len)); pos += len + g
+        }
+        return out
+    }
+
+    /// El audio de esa secuencia, con 2 ms de fundido en cada corte para que no haya clics al saltar entre cortes lejanos.
+    nonisolated static func previewAudio(_ x: [Float], ranges: [Range<Int>], selected: Set<Int>, rate: Int, gap: Double = 0.15) -> [Float] {
+        let seg = previewSegments(ranges, selected: selected, rate: rate, gap: gap)
+        guard let last = seg.last else { return [] }
+        var out = [Float](repeating: 0, count: last.end)
+        let f = Int(Double(rate) * 0.002)
+        for s in seg {
+            let piece = fade(Array(x[ranges[s.index]]), inSamples: f, outSamples: f)
+            for (k, v) in piece.enumerated() { out[s.start + k] = v }
+        }
+        return out
+    }
 }

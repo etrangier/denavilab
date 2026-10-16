@@ -11,6 +11,10 @@ struct ChopSheet: View {
     @State private var sensitivity = 0.5
     @State private var selected: Set<Int> = []     // cortes elegidos (0 = el primero)
     @State private var player: AVAudioPlayer?
+    @State private var previewing = false                  // suena «Escuchar selección»
+    @State private var playingIndex: Int?                  // corte que suena ahora (nil en los huecos)
+    @State private var plan: [(index: Int, start: Int, end: Int)] = []
+    private let tick = Timer.publish(every: 0.04, on: .main, in: .common).autoconnect()
     @State private var sharing: [URL] = []
     @State private var showShare = false
     @State private var message: String?
@@ -25,6 +29,7 @@ struct ChopSheet: View {
                                : Editing.evenSlices(audio, count: mode)
         if grid, let b = bpm { starts = Editing.snapToGrid(starts, step: Double(sample.sampleRate) * 60 / b / 4) }
         ranges = Array(Editing.slices(starts: starts, total: audio.count).prefix(12))
+        stopPreview()
         selected = []                                   // al cambiar los cortes, los números ya no significan lo mismo
     }
 
@@ -34,7 +39,7 @@ struct ChopSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     ScreenTitle(title: "Chop en pads", subtitle: "\(ranges.count) cortes · \(selected.count) seleccionado\(selected.count == 1 ? "" : "s")",
-                                trailing: AnyView(TextLink(title: "Cerrar") { player?.stop(); dismiss() }))
+                                trailing: AnyView(TextLink(title: "Cerrar") { stopPreview(); dismiss() }))
                     wave
                     HStack(spacing: 8) {
                         ForEach([4, 8, 12, 0], id: \.self) { m in
@@ -57,22 +62,23 @@ struct ChopSheet: View {
                     Text("Toca los pads que quieras quedarte: se escuchan y se marcan. Puedes elegir los que quieras, juntos o no (por ejemplo, el 1 y el 3).")
                         .font(Theme.font(12)).foregroundColor(Theme.muted)
                     HStack(spacing: 8) {
-                        Button("Todos") { selected = Set(ranges.indices) }.buttonStyle(OutlineButton()).disabled(selected.count == ranges.count)
-                        Button("Ninguno") { selected = [] }.buttonStyle(OutlineButton()).disabled(selected.isEmpty)
+                        Button("Todos") { stopPreview(); selected = Set(ranges.indices) }.buttonStyle(OutlineButton()).disabled(selected.count == ranges.count)
+                        Button("Ninguno") { stopPreview(); selected = [] }.buttonStyle(OutlineButton()).disabled(selected.isEmpty)
                     }.font(Theme.font(13))
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
                         ForEach(0..<12, id: \.self) { i in
                             let live = i < ranges.count, on = selected.contains(i)
                             Button {
                                 guard live else { return }
+                                stopPreview()
                                 if on { selected.remove(i) } else { selected.insert(i) }
                                 play(i)
                             } label: {
                                 Text("\(i + 1)").font(Theme.font(20, weight: .bold))
                                     .foregroundColor(!live ? Theme.line : (on ? Theme.amber : Theme.text))
                                     .frame(maxWidth: .infinity, minHeight: 64)
-                                    .background(on ? Theme.surface2 : Theme.surface)
-                                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(on && live ? Theme.amber : Theme.line, lineWidth: 1.5))
+                                    .background(playingIndex == i ? Theme.amber.opacity(0.28) : (on ? Theme.surface2 : Theme.surface))
+                                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(on && live ? Theme.amber : Theme.line, lineWidth: playingIndex == i ? 3 : 1.5))
                                     .clipShape(RoundedRectangle(cornerRadius: 14))
                             }
                             .disabled(!live)
@@ -81,6 +87,11 @@ struct ChopSheet: View {
                         }
                     }
                     if ranges.count < 12 { Text("Pads \(ranges.count + 1)–12 libres").font(Theme.font(12)).foregroundColor(Theme.muted).frame(maxWidth: .infinity, alignment: .center) }
+                    Button(previewing ? "Parar" : (selected.isEmpty ? "Escuchar selección" : "Escuchar selección · \(previewSeconds)")) {
+                        if previewing { stopPreview() } else { startPreview() }
+                    }
+                    .buttonStyle(OutlineButton(selected: previewing)).disabled(selected.isEmpty).opacity(selected.isEmpty ? 0.4 : 1)
+                    .accessibilityLabel(previewing ? "Parar la escucha de la selección" : "Escuchar selección")
                     Button(selected.isEmpty ? "Elige al menos un corte" : "Guardar \(selected.count) en la Biblioteca") { saveSelected() }
                         .buttonStyle(AmberButton()).disabled(selected.isEmpty).opacity(selected.isEmpty ? 0.4 : 1)
                     Button(selected.isEmpty ? "Exportar cortes" : "Exportar \(selected.count) para el K.O. II") { exportSelected() }
@@ -94,7 +105,8 @@ struct ChopSheet: View {
         .onChange(of: grid) { _ in recompute() }
         .onChange(of: mode) { _ in recompute() }
         .onChange(of: sensitivity) { _ in recompute() }
-        .onDisappear { player?.stop() }
+        .onReceive(tick) { _ in updatePreview() }
+        .onDisappear { stopPreview() }
     }
 
     private var wave: some View {
@@ -110,6 +122,39 @@ struct ChopSheet: View {
         .frame(height: 120)
         .background(Theme.surface).overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.line, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    /// Duración de la escucha de la selección, p. ej. «2,2 s».
+    private var previewSeconds: String {
+        let seg = Editing.previewSegments(ranges, selected: selected, rate: sample.sampleRate)
+        let secs = Double(seg.last?.end ?? 0) / Double(sample.sampleRate)
+        return String(format: "%.1f s", secs).replacingOccurrences(of: ".", with: ",")
+    }
+
+    /// Escuchar la selección: los cortes elegidos uno tras otro, en su orden original; el pad que suena se ilumina.
+    private func startPreview() {
+        stopPreview()
+        let pre = Editing.previewAudio(audio, ranges: ranges, selected: selected, rate: sample.sampleRate)
+        guard !pre.isEmpty else { return }
+        plan = Editing.previewSegments(ranges, selected: selected, rate: sample.sampleRate)
+        do {
+            try AudioSessionConfig.activate()
+            var s = sample; s.id = UUID(); s.slot = nil; s.effects = EffectParams(); s.name = "seleccion_\(sample.name)"
+            let url = try Exporter.export(s, audio: pre, targetRate: sample.sampleRate)
+            let p = try AVAudioPlayer(contentsOf: url); p.play(); player = p
+            previewing = true
+        } catch { message = "No se pudo reproducir: \(error.localizedDescription)" }
+    }
+
+    private func stopPreview() {
+        player?.stop(); previewing = false; playingIndex = nil
+    }
+
+    private func updatePreview() {
+        guard previewing else { return }
+        guard let p = player, p.isPlaying else { previewing = false; playingIndex = nil; return }   // terminó solo
+        let pos = Int(p.currentTime * Double(sample.sampleRate))
+        playingIndex = plan.first { pos >= $0.start && pos < $0.end }?.index                       // en un hueco: ninguno
     }
 
     private func piece(_ i: Int) -> Sample {
