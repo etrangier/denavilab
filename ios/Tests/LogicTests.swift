@@ -287,4 +287,19 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(lib.samples.map(\.id), [c.id])
         XCTAssertFalse(FileManager.default.fileExists(atPath: lib.url(a).path))
     }
+
+    func testChopPieceNamesKeepOriginalNumber() {
+        XCTAssertEqual([0, 2].map { Editing.pieceName($0, base: "toma") }, ["corte01_toma", "corte03_toma"])   // el 1 y el 3, sin renumerar
+        XCTAssertEqual(Editing.pieceName(11, base: "x"), "corte12_x")
+    }
+
+    func testHighlightRangesOnlyForSelectedPieces() {
+        let ranges: [Range<Int>] = [0..<100, 100..<250, 250..<400, 400..<1_000]
+        let h = Editing.highlightRanges(ranges, total: 1_000, selected: [3, 0])
+        XCTAssertEqual(h.count, 2)
+        XCTAssertEqual(h[0], 0...0.1); XCTAssertEqual(h[1], 0.4...1.0)                 // ordenados, sólo los elegidos
+        XCTAssertTrue(Editing.highlightRanges(ranges, total: 1_000, selected: []).isEmpty)
+        XCTAssertEqual(Editing.highlightRanges(ranges, total: 1_000, selected: [9]).count, 0)   // índice que ya no existe
+        XCTAssertTrue(Editing.highlightRanges(ranges, total: 0, selected: [0]).isEmpty)
+    }
 }

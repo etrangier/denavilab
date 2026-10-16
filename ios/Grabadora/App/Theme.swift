@@ -161,6 +161,8 @@ struct WaveBars: View {
     let peaks: [Float]
     var range: ClosedRange<Double> = 0...1
     var playhead: Double? = nil
+    /// Si se da, sólo estos tramos van en ámbar (p. ej. los cortes elegidos); si no, el de `range`.
+    var highlights: [ClosedRange<Double>]? = nil
     var body: some View {
         Canvas { ctx, size in
             guard !peaks.isEmpty else { return }
@@ -171,7 +173,7 @@ struct WaveBars: View {
                 let f = Double(i) / Double(n)
                 let h = max(3, CGFloat(min(1, p)) * size.height * 0.9)
                 let r = CGRect(x: CGFloat(i) * step + (step - w) / 2, y: mid - h / 2, width: w, height: h)
-                ctx.fill(Path(roundedRect: r, cornerRadius: w / 2), with: .color(range.contains(f) ? Theme.amber : Theme.line))
+                ctx.fill(Path(roundedRect: r, cornerRadius: w / 2), with: .color(isLit(f) ? Theme.amber : Theme.line))
             }
             if let ph = playhead {
                 let x = size.width * CGFloat(ph)
@@ -179,5 +181,10 @@ struct WaveBars: View {
             }
         }
         .accessibilityLabel("Forma de onda")
+    }
+
+    private func isLit(_ f: Double) -> Bool {
+        if let hs = highlights { return hs.contains { $0.contains(f) } }
+        return range.contains(f)
     }
 }
