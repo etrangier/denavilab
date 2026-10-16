@@ -1,4 +1,6 @@
-# DenaviLab Grabadora (beta 0.1, alcance «verde»)
+# DenaviLab: Sounds (beta 0.1)
+
+_Capturador de sonidos para sampling._
 
 App nativa iOS (SwiftUI + AVAudioEngine) para grabar samples y exportarlos al EP-133 K.O. II.
 Diseño: Canva DAHX-TlarCw. Estilo oscuro y ámbar (ver `Grabadora/App/Theme.swift`).

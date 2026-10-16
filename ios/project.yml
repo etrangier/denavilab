@@ -17,8 +17,8 @@ targets:
     info:
       path: Grabadora/Info.plist
       properties:
-        CFBundleDisplayName: Grabadora
-        NSMicrophoneUsageDescription: "Grabadora necesita el micrófono para grabar tus samples."
+        CFBundleDisplayName: "DenaviLab: Sounds"
+        NSMicrophoneUsageDescription: "DenaviLab: Sounds necesita el micrófono para grabar tus samples."
         UIBackgroundModes: [audio]
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]

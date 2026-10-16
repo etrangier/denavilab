@@ -244,4 +244,12 @@ final class LogicTests: XCTestCase {
         let y = QuickSave.process(x, rate: 48_000, QuickSave.Settings())
         XCTAssertGreaterThan(y.map(abs).max() ?? 0, 0.5)
     }
+
+    @MainActor func testAppOpensOnHome() {
+        let s = AppState()
+        XCTAssertEqual(s.tab, .inicio)
+        let sample = Sample(name: "x", sampleRate: 48_000)
+        s.open(sample)
+        XCTAssertEqual(s.tab, .editar); XCTAssertEqual(s.selectedID, sample.id)
+    }
 }

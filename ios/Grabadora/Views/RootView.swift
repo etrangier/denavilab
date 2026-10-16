@@ -9,6 +9,7 @@ struct RootView: View {
 
     private var tabs: some View {
         TabView(selection: $state.tab) {
+            HomeView().tabItem { Label("Inicio", systemImage: "house.fill") }.tag(AppState.Tab.inicio)
             RecordView().tabItem { Label("Grabar", systemImage: "mic.fill") }.tag(AppState.Tab.grabar)
             LibraryView().tabItem { Label("Biblioteca", systemImage: "square.stack.fill") }.tag(AppState.Tab.biblioteca)
             EditView().tabItem { Label("Editar", systemImage: "scissors") }.tag(AppState.Tab.editar)

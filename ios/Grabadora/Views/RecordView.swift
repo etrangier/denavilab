@@ -144,10 +144,12 @@ struct RecordView: View {
 
     private var header: some View {
         HStack {
-            HStack(spacing: 8) {
-                LogoView(size: 26)
-                Text("DenaviLab").font(Theme.font(16, weight: .bold)).foregroundColor(Theme.text)
-            }
+            Button { state.tab = .inicio } label: {
+                HStack(spacing: 8) {
+                    LogoView(size: 26)
+                    Text("DenaviLab: Sounds").font(Theme.font(15, weight: .bold)).foregroundColor(Theme.text).lineLimit(1).minimumScaleFactor(0.8)
+                }.frame(minHeight: 44)
+            }.accessibilityLabel("Ir al inicio")
             Spacer()
             Button { showQuick = true } label: {
                 Image(systemName: "bolt.fill").font(.system(size: 14)).foregroundColor(Theme.amber)
@@ -231,7 +233,7 @@ struct RecordView: View {
     private var deniedCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Sin acceso al micrófono").font(Theme.font(16, weight: .bold)).foregroundColor(Theme.error)
-            Text("Actívalo en Ajustes › Grabadora para poder grabar.").font(Theme.font(14)).foregroundColor(Theme.muted)
+            Text("Actívalo en Ajustes › DenaviLab: Sounds para poder grabar.").font(Theme.font(14)).foregroundColor(Theme.muted)
             Button("Abrir Ajustes") {
                 if let u = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(u) }
             }.buttonStyle(AmberButton())

@@ -30,8 +30,8 @@ struct WelcomeView: View {
     private var welcome: some View {
         VStack(spacing: 14) {
             badge { LogoView(size: 70) }
-            Text("DenaviLab").font(Theme.font(32, weight: .bold)).foregroundColor(Theme.text).padding(.top, 12)
-            Text("Samplea con tu iPhone y manda al K.O. II").font(Theme.font(15)).foregroundColor(Theme.muted).multilineTextAlignment(.center)
+            Text("DenaviLab: Sounds").font(Theme.font(32, weight: .bold)).foregroundColor(Theme.text).padding(.top, 12).multilineTextAlignment(.center)
+            Text("capturador de sonidos para sampling").font(Theme.font(13)).foregroundColor(Theme.muted).multilineTextAlignment(.center)
             VStack(spacing: 0) {
                 ForEach(Array(["Graba con el micrófono", "Corta y dale carácter", "Envíalo al K.O. II"].enumerated()), id: \.offset) { i, s in
                     HStack(spacing: 16) {
@@ -65,7 +65,7 @@ struct WelcomeView: View {
                 }
             }.padding(.top, 16)
             if rec.micDenied {
-                Text("Sin acceso. Puedes activarlo luego en Ajustes › Grabadora.").font(Theme.font(13)).foregroundColor(Theme.error).multilineTextAlignment(.center)
+                Text("Sin acceso. Puedes activarlo luego en Ajustes › DenaviLab: Sounds.").font(Theme.font(13)).foregroundColor(Theme.error).multilineTextAlignment(.center)
             }
             Button("Permitir micrófono") { Task { _ = await rec.requestAccess(); onboarded = true } }
                 .buttonStyle(AmberButton()).padding(.top, 20)
