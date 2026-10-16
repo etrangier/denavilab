@@ -36,6 +36,7 @@ struct EditorBody: View {
     @State var sample: Sample
     @State private var audio: [Float] = []
     @State private var peaks: [Float] = []
+    @State private var peakDB: Float = 0
     @State private var undo: [[Float]] = []
     @State private var redo: [[Float]] = []
     @State private var start = 0.0
@@ -63,7 +64,8 @@ struct EditorBody: View {
                 ScreenTitle(title: "Escuchar y editar")
                 VStack(alignment: .leading, spacing: 2) {
                     TextField("Nombre", text: $sample.name).font(Theme.font(16, weight: .bold)).foregroundColor(Theme.text)
-                    Text("\(stamp(total)) · mono · \(sample.sampleRate) Hz").font(Theme.font(12)).foregroundColor(Theme.muted)
+                    Text("\(stamp(total)) · mono · \(sample.sampleRate) Hz · pico \(Int(peakDB)) dB").font(Theme.font(12)).foregroundColor(Theme.muted)
+                    if peakDB < -30 && !audio.isEmpty { Text("Nivel muy bajo: usa Normalizar para oírla bien.").font(Theme.font(12)).foregroundColor(Theme.amber) }
                 }
                 waveEditor
                 HStack {
@@ -221,7 +223,7 @@ struct EditorBody: View {
         refreshPeaks()
     }
 
-    private func refreshPeaks() { peaks = Editing.peaks(audio, buckets: 56) }
+    private func refreshPeaks() { peaks = Editing.peaks(audio, buckets: 56); peakDB = Editing.peakDB(audio) }
 
     private func step(from a: inout [[Float]], to b: inout [[Float]]) {
         guard let x = a.popLast() else { return }

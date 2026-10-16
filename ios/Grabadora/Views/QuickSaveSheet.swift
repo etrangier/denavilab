@@ -5,7 +5,7 @@ struct QuickSaveSheet: View {
     @AppStorage("qsEnabled") private var enabled = false
     @AppStorage("qsTrim") private var trim = true
     @AppStorage("qsFades") private var fades = true
-    @AppStorage("qsNormalize") private var normalize = false
+    @AppStorage("qsNormalize") private var normalize = true
     @AppStorage("qsSuggest") private var suggest = true
     @AppStorage("qsThreshold") private var threshold = -48.0
 

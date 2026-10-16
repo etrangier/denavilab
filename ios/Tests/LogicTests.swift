@@ -221,4 +221,26 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(Set(terms).count, terms.count)
         XCTAssertTrue(ManualContent.all.flatMap(\.entries).allSatisfy { !$0.term.isEmpty && !$0.text.isEmpty })
     }
+
+    func testQuietTakeIsNotEmptiedByTrimming() {
+        // Ambiente de exterior muy bajo (≈ −54 dB) con un pico aislado: el umbral fijo de −48 dB lo dejaba en unas pocas muestras.
+        var x = (0..<144_000).map { i in 0.002 * Float(sin(Double(i) * 0.37)) }
+        x[70_000] = 0.01
+        var s = QuickSave.Settings(); s.trim = true; s.fades = false; s.normalize = false; s.thresholdDB = -48
+        let y = QuickSave.process(x, rate: 48_000, s)
+        XCTAssertGreaterThan(y.count, x.count * 9 / 10)
+    }
+
+    func testTrimNeverLeavesLessThanTenthOfASecond() {
+        var x = [Float](repeating: 0, count: 48_000)
+        x[24_000] = 0.5                                     // un solo clic en un segundo de silencio
+        var s = QuickSave.Settings(); s.trim = true; s.fades = false; s.normalize = false
+        XCTAssertEqual(QuickSave.process(x, rate: 48_000, s).count, x.count)
+    }
+
+    func testQuietTakeIsNormalizedByDefault() {
+        let x = [Float](repeating: 0.004, count: 48_000)    // ≈ −48 dB
+        let y = QuickSave.process(x, rate: 48_000, QuickSave.Settings())
+        XCTAssertGreaterThan(y.map(abs).max() ?? 0, 0.5)
+    }
 }
