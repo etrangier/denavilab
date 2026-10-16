@@ -171,29 +171,35 @@ export function gate(x, rate, thresholdDB, floorDB, holdMs = 60, releaseMs = 120
 }
 
 export const NOISE_LEVELS = {
-  soft:   { hz: 100, margin: 10, floorDB: -15 },
-  strong: { hz: 160, margin: 16, floorDB: -35 },
+  soft:   { hz: 100, margin: 10, floorDB: -15, spectral: 0 },
+  strong: { hz: 160, margin: 16, floorDB: -35, spectral: 1.5 },    // Fuerte suma la resta espectral (si hay una parte tranquila de la que aprender)
 };
-/** Reducir ruido rápido: pasa-altos + compuerta. El umbral sale del propio fondo de la toma, nunca cerca de su pico. */
+/** Reducir ruido rápido: pasa-altos, resta espectral (sólo Fuerte) y compuerta. El umbral sale del fondo de la propia toma, nunca cerca de su pico. */
 export function cleanNoise(x, rate, level) {
   const L = NOISE_LEVELS[level]; if (!L || x.length < rate / 10) return x;
-  const y = highpass(x, rate, L.hz), th = Math.min(noiseFloorDB(y, rate) + L.margin, peakDB(y) - 20);
+  let y = highpass(x, rate, L.hz);
+  if (L.spectral) { const w = quietestWindows(y, rate); if (w.length) y = denoise(y, w.map(([a, b]) => y.slice(a, b)), L.spectral); }
+  const th = Math.min(noiseFloorDB(y, rate) + L.margin, peakDB(y) - 20);
   return gate(y, rate, th, L.floorDB);
 }
 
-/** La parte más tranquila de la toma (`seconds` seguidos) para usarla de muestra de ruido; null si no hay una parte clara. */
-export function quietestWindow(x, rate, seconds = 0.3) {
+/** Hasta `count` partes tranquilas de la toma (`seconds` seguidos, sin solaparse) para aprender el ruido; [] si no hay una parte clara. */
+export function quietestWindows(x, rate, seconds = 0.3, count = 3) {
   const { blk, rms } = blockRMS(x, rate), w = Math.max(2, Math.round(seconds / NOISE_BLOCK));
-  if (rms.length < w * 2) return null;
-  let best = 0, bestE = Infinity, e = 0;
-  for (let b = 0; b < rms.length; b++) {
-    e += rms[b] * rms[b]; if (b >= w) e -= rms[b - w] * rms[b - w];
-    if (b >= w - 1 && e < bestE) { bestE = e; best = b - w + 1; }
+  if (rms.length < w * 2) return [];
+  const e = [];                                              // energía de cada ventana que empieza en el bloque b
+  let acc = 0;
+  for (let b = 0; b < rms.length; b++) { acc += rms[b] * rms[b]; if (b >= w) acc -= rms[b - w] * rms[b - w]; if (b >= w - 1) e.push([Math.max(0, acc), b - w + 1]); }
+  e.sort((p, q) => p[0] - q[0]);
+  if (peakDB(x) - toDB(Math.sqrt(e[0][0] / w)) < 10) return [];     // no hay una parte tranquila: todo suena parecido
+  const out = [];
+  for (const [en, st] of e) {
+    if (out.length >= count || en > e[0][0] * 4 + 1e-12) break;      // sólo partes casi tan tranquilas como la mejor (≤ 6 dB más)
+    if (out.every(o => Math.abs(o - st) >= w)) out.push(st);
   }
-  const noiseDB = toDB(Math.sqrt(bestE / w));
-  if (peakDB(x) - noiseDB < 10) return null;           // no hay una parte tranquila: todo suena parecido
-  return [best * blk, (best + w) * blk];
+  return out.sort((p, q) => p - q).map(st => [st * blk, (st + w) * blk]);
 }
+export const quietestWindow = (x, rate, seconds = 0.3) => quietestWindows(x, rate, seconds, 1)[0] || null;
 
 function fftInPlace(re, im, inverse) {
   const n = re.length;
@@ -215,45 +221,134 @@ function fftInPlace(re, im, inverse) {
   if (inverse) for (let i = 0; i < n; i++) { re[i] /= n; im[i] /= n; }
 }
 
-export const DENOISE_N = 2048, DENOISE_HOP = 512;
+export const DENOISE_N = 2048, DENOISE_HOP = 512, DENOISE_AMOUNT = 1.5;
 const hann = new Float64Array(DENOISE_N).map((_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / DENOISE_N));
 
-/** Magnitud media por bin de una muestra de ruido (la muestra debe tener al menos una ventana). */
+/** Potencia media por bin de una o varias muestras de ruido (suavizada entre bins vecinos); frames = 0 si ninguna cabe en una ventana. */
 export function noiseProfile(noise) {
-  const N = DENOISE_N, mag = new Float64Array(N / 2 + 1), re = new Float64Array(N), im = new Float64Array(N);
+  const N = DENOISE_N, list = noise instanceof Float32Array ? [noise] : noise;
+  const pow = new Float64Array(N / 2 + 1), re = new Float64Array(N), im = new Float64Array(N);
   let frames = 0;
-  for (let s = 0; s + N <= noise.length; s += DENOISE_HOP) {
-    for (let i = 0; i < N; i++) { re[i] = noise[s + i] * hann[i]; im[i] = 0; }
+  for (const nz of list) for (let s = 0; s + N <= nz.length; s += DENOISE_HOP) {
+    for (let i = 0; i < N; i++) { re[i] = nz[s + i] * hann[i]; im[i] = 0; }
     fftInPlace(re, im, false);
-    for (let k = 0; k <= N / 2; k++) mag[k] += Math.hypot(re[k], im[k]);
+    for (let k = 0; k <= N / 2; k++) pow[k] += re[k] * re[k] + im[k] * im[k];
     frames++;
   }
-  if (frames) for (let k = 0; k < mag.length; k++) mag[k] /= frames;
-  return { mag, frames };
+  if (!frames) return { pow, frames };
+  for (let k = 0; k < pow.length; k++) pow[k] /= frames;
+  const sm = new Float64Array(pow.length);                      // 5 bins: el promedio de pocas ventanas es ruidoso; así el filtro no sigue sus altibajos
+  for (let k = 0; k < pow.length; k++) { let a = 0, c = 0; for (let d = -2; d <= 2; d++) { const j = k + d; if (j >= 0 && j < pow.length) { a += pow[j]; c++; } } sm[k] = a / c; }
+  return { pow: sm, frames };
 }
 
-/** Resta espectral: quita de toda la toma el ruido de fondo aprendido de `noise`. `amount` 1 = normal, más = más agresivo. */
-export function denoise(x, noise, amount = 1) {
-  const N = DENOISE_N, H = DENOISE_HOP, prof = noiseProfile(noise);
+/**
+ * Resta espectral con estimación «dirigida por la decisión» (Wiener): la ganancia de cada bin sale de la relación señal/ruido
+ * que había en la ventana anterior, así el ruido que queda no «burbujea». `noise`: una muestra o una lista de muestras.
+ * `amount` 1,5 = normal; más = más agresivo (y más riesgo de apagar colas suaves).
+ */
+export function denoise(x, noise, amount = DENOISE_AMOUNT) {
+  const N = DENOISE_N, H = DENOISE_HOP, half = N / 2, prof = noiseProfile(noise);
   if (!prof.frames || x.length < N) return x;
-  const alpha = 1.6 * amount, floor = 0.12, pad = N, len = x.length + 2 * pad;
+  const mu = Math.max(0.2, amount), floor = Math.max(0.03, 0.12 / mu), beta = 0.95, pad = N, len = x.length + 2 * pad;
   const src = new Float64Array(len + N); for (let i = 0; i < x.length; i++) src[pad + i] = x[i];
   const out = new Float64Array(len + N), re = new Float64Array(N), im = new Float64Array(N);
-  const prev = new Float64Array(N / 2 + 1).fill(1), g = new Float64Array(N / 2 + 1), sm = new Float64Array(N / 2 + 1);
+  const aprev = new Float64Array(half + 1), g = new Float64Array(half + 1), sm = new Float64Array(half + 1);
   for (let s = 0; s < len; s += H) {
     for (let i = 0; i < N; i++) { re[i] = src[s + i] * hann[i]; im[i] = 0; }
     fftInPlace(re, im, false);
-    for (let k = 0; k <= N / 2; k++) { const m = Math.hypot(re[k], im[k]); g[k] = m > 1e-9 ? Math.max(floor, 1 - alpha * prof.mag[k] / m) : 1; }
-    for (let k = 0; k <= N / 2; k++) {
-      const a = g[Math.max(0, k - 1)], c = g[Math.min(N / 2, k + 1)];
-      sm[k] = 0.5 * (0.25 * a + 0.5 * g[k] + 0.25 * c) + 0.5 * prev[k];     // suaviza en frecuencia y en el tiempo: menos «burbujeo»
+    for (let k = 0; k <= half; k++) {
+      const p = re[k] * re[k] + im[k] * im[k], sig = prof.pow[k];
+      if (p < 1e-18 || sig < 1e-18) { g[k] = 1; aprev[k] = sig < 1e-18 ? 1e6 : 0; continue; }     // silencio digital o sin ruido que quitar: no se toca
+      const gamma = p / sig, xi = beta * aprev[k] + (1 - beta) * Math.max(gamma - 1, 0);
+      g[k] = Math.max(floor, xi / (xi + mu));
+      aprev[k] = g[k] * g[k] * gamma;
     }
-    for (let k = 0; k <= N / 2; k++) { re[k] *= sm[k]; im[k] *= sm[k]; if (k > 0 && k < N / 2) { re[N - k] *= sm[k]; im[N - k] *= sm[k]; } prev[k] = sm[k]; }
+    for (let k = 0; k <= half; k++) sm[k] = 0.25 * g[Math.max(0, k - 1)] + 0.5 * g[k] + 0.25 * g[Math.min(half, k + 1)];
+    for (let k = 0; k <= half; k++) { re[k] *= sm[k]; im[k] *= sm[k]; if (k > 0 && k < half) { re[N - k] *= sm[k]; im[N - k] *= sm[k]; } }
     fftInPlace(re, im, true);
     for (let i = 0; i < N; i++) out[s + i] += re[i] * hann[i] / 1.5;
   }
   const y = new Float32Array(x.length); for (let i = 0; i < x.length; i++) y[i] = out[pad + i];
   return y;
+}
+
+// ---------- Armonizar: que un corte no suene «cortado» ----------
+
+/** Quita el desvío de continua: un corte con la onda descentrada suena a «clic» aunque empiece en cero. */
+export function removeDC(x) {
+  if (!x.length) return x;
+  let m = 0; for (let i = 0; i < x.length; i++) m += x[i];
+  m /= x.length; const y = new Float32Array(x.length);
+  for (let i = 0; i < x.length; i++) y[i] = x[i] - m;
+  return y;
+}
+const peakOf = x => { let p = 0; for (let i = 0; i < x.length; i++) p = Math.max(p, Math.abs(x[i])); return p; };
+const rmsOf = (x, a, b) => { let e = 0; for (let i = a; i < b; i++) e += x[i] * x[i]; return Math.sqrt(e / Math.max(1, b - a)); };
+
+/** Nivel de un borde (5 ms) respecto al pico de la pieza, en dB (≤ 0): cerca de 0 = se cortó en pleno sonido. */
+export function edgeLevelDB(x, rate, atEnd) {
+  const w = Math.min(x.length, Math.max(8, Math.round(rate * 0.005))), a = atEnd ? x.length - w : 0;
+  return toDB(rmsOf(x, a, a + w)) - toDB(peakOf(x));
+}
+/** Fundido de salida a medida: 3 ms si la pieza ya acaba suave, hasta 30 ms si se cortó en pleno sonido (y nunca más de un cuarto de la pieza). */
+export function endFadeSamples(x, rate) {
+  const rel = edgeLevelDB(x, rate, true), ms = 3 + 27 * Math.min(1, Math.max(0, (rel + 40) / 40));
+  return Math.min(Math.round(ms * rate / 1000), Math.floor(x.length / 4));
+}
+/** Fundido con curva de coseno (suave en los dos extremos, a diferencia del lineal). */
+export function cosFade(x, inS, outS) {
+  const y = Float32Array.from(x), fi = Math.min(inS, y.length), fo = Math.min(outS, y.length);
+  for (let i = 0; i < fi; i++) y[i] *= 0.5 - 0.5 * Math.cos(Math.PI * i / fi);
+  for (let i = 0; i < fo; i++) y[y.length - 1 - i] *= 0.5 - 0.5 * Math.cos(Math.PI * i / fo);
+  return y;
+}
+/** Armoniza una pieza: sin desvío de continua, entrada de 3 ms (no se come el ataque) y salida a medida. */
+export function harmonize(x, rate) {
+  if (x.length < 16) return x;
+  const y = removeDC(x);
+  return cosFade(y, Math.min(Math.round(rate * 0.003), y.length >> 2), endFadeSamples(y, rate));
+}
+/** Volumen típico de una pieza: la energía de sus partes activas (a menos de 30 dB de su pico), para no dejarse engañar por colas en silencio. */
+export function activeRMS(x, rate) {
+  const blk = Math.max(8, Math.round(rate * 0.01)), th = peakOf(x) * 0.0316; let e = 0, c = 0;
+  for (let i = 0; i + blk <= x.length; i += blk) { const r = rmsOf(x, i, i + blk); if (r > th) { e += r * r; c++; } }
+  return c ? Math.sqrt(e / c) : 0;
+}
+
+/**
+ * Une piezas en un solo audio, sin saltos: iguala el volumen (hasta ±6 dB hacia el típico del grupo) y en cada empalme
+ * funde por coseno. Si la pieza que entra arranca en pleno golpe, la anterior se apaga justo antes (el ataque queda intacto);
+ * si arranca suave, se cruzan con potencia constante.
+ */
+export function joinPieces(pieces, rate, { crossfadeMs = 12, match = true } = {}) {
+  let ps = pieces.filter(p => p.length > 0).map(removeDC);
+  if (!ps.length) return new Float32Array(0);
+  if (match && ps.length > 1) {
+    const db = ps.map(p => toDB(activeRMS(p, rate))), live = db.filter(v => v > -90).sort((a, b) => a - b);
+    if (live.length) {
+      const med = live[Math.floor(live.length / 2)];
+      ps = ps.map((p, i) => {
+        if (db[i] <= -90) return p;
+        let g = Math.pow(10, Math.max(-6, Math.min(6, med - db[i])) / 20); const pk = peakOf(p) * g; if (pk > 0.99) g *= 0.99 / pk;
+        return p.map(v => v * g);
+      });
+    }
+  }
+  let out = ps[0];
+  for (let i = 1; i < ps.length; i++) {
+    const p = ps[i], hf = Math.min(Math.round(rate * 0.003), p.length >> 2);
+    if (edgeLevelDB(p, rate, false) > -20) {                         // entra con un golpe: la anterior se apaga y el ataque queda entero
+      const F = Math.min(Math.round(crossfadeMs / 1000 * rate), out.length >> 1), a = cosFade(out, 0, F), b = cosFade(p, hf, 0);
+      const r = new Float32Array(a.length + b.length); r.set(a); r.set(b, a.length); out = r;
+    } else {                                                         // entra suave: cruce de potencia constante
+      const L = Math.min(Math.round(crossfadeMs / 1000 * rate), out.length >> 1, p.length >> 1), r = new Float32Array(out.length + p.length - L);
+      r.set(out); const o = out.length - L;
+      for (let k = 0; k < L; k++) { const th = Math.PI / 2 * (k + 0.5) / L; r[o + k] = out[o + k] * Math.cos(th) + p[k] * Math.sin(th); }
+      r.set(p.subarray(L), out.length); out = r;
+    }
+  }
+  return cosFade(out, Math.min(Math.round(rate * 0.003), out.length >> 2), endFadeSamples(out, rate));
 }
 
 /** Guardado rápido: recorte relativo al nivel, fundidos cortos y normalizado. */

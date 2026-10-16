@@ -23,6 +23,7 @@ struct ChopSheet: View {
     @State private var peaks: [Float] = []
     @State private var grid = false
     @State private var bpm: Double?
+    @State private var harmonize = true                   // centra la onda, suaviza bordes y, al unir, iguala el volumen
 
     private func recompute() {
         var starts = mode == 0 ? Editing.transients(audio, sensitivity: sensitivity, minGapSamples: sample.sampleRate / 10, maxCount: 11)
@@ -59,6 +60,7 @@ struct ChopSheet: View {
                         }.tint(Theme.amber).disabled(bpm == nil)
                         Text("Funciona mejor si grabaste con compás.").font(Theme.font(12)).foregroundColor(Theme.muted)
                     }.card()
+                    ToggleRow(title: "Armonizar cortes", subtitle: "Centra la onda y suaviza bordes, y al unir iguala el volumen: sin clics ni saltos", isOn: $harmonize)
                     Text("Toca los pads que quieras quedarte: se escuchan y se marcan. Puedes elegir los que quieras, juntos o no (por ejemplo, el 1 y el 3).")
                         .font(Theme.font(12)).foregroundColor(Theme.muted)
                     HStack(spacing: 8) {
@@ -94,6 +96,8 @@ struct ChopSheet: View {
                     .accessibilityLabel(previewing ? "Parar la escucha de la selección" : "Escuchar selección")
                     Button(selected.isEmpty ? "Elige al menos un corte" : "Guardar \(selected.count) en la Biblioteca") { saveSelected() }
                         .buttonStyle(AmberButton()).disabled(selected.isEmpty).opacity(selected.isEmpty ? 0.4 : 1)
+                    Button("Guardar unidos en un solo sonido") { saveJoined() }
+                        .buttonStyle(OutlineButton(selected: true)).disabled(selected.count < 2).opacity(selected.count < 2 ? 0.4 : 1)
                     Button(selected.isEmpty ? "Exportar cortes" : "Exportar \(selected.count) para el K.O. II") { exportSelected() }
                         .buttonStyle(OutlineButton(selected: true)).disabled(selected.isEmpty).opacity(selected.isEmpty ? 0.4 : 1)
                     if let m = message { Text(m).font(Theme.font(13)).foregroundColor(Theme.muted).frame(maxWidth: .infinity, alignment: .center) }
@@ -171,10 +175,29 @@ struct ChopSheet: View {
         } catch { message = "No se pudo reproducir: \(error.localizedDescription)" }
     }
 
+    /// El audio de un corte, armonizado si el interruptor está encendido.
+    private func pieceAudio(_ i: Int) -> [Float] {
+        let x = Array(audio[ranges[i]])
+        return harmonize ? Harmonize.harmonize(x, rate: sample.sampleRate) : x
+    }
+
+    /// Los cortes elegidos, en su orden original, pegados en un solo sonido nuevo.
+    private func saveJoined() {
+        let chosen = selected.sorted().filter { $0 < ranges.count }
+        guard chosen.count >= 2 else { return }
+        let raw = chosen.map { Array(audio[ranges[$0]]) }
+        let joined = harmonize ? Harmonize.join(raw, rate: sample.sampleRate) : raw.flatMap { $0 }
+        let name = "\(sample.name) · " + chosen.map { String($0 + 1) }.joined(separator: "+")
+        if var x = lib.add(name: name, audio: joined, sampleRate: sample.sampleRate) {
+            x.folder = lib.folder(of: sample); x.subfolder = sample.subfolder; lib.update(x)
+            message = String(format: "%d cortes unidos en un sonido nuevo (%.1f s)", chosen.count, Double(joined.count) / Double(sample.sampleRate)).replacingOccurrences(of: ".", with: ",")
+        }
+    }
+
     private func saveSelected() {
         let chosen = selected.sorted().filter { $0 < ranges.count }
         for i in chosen {
-            if var x = lib.add(name: "\(sample.name) · corte \(i + 1)", audio: Array(audio[ranges[i]]), sampleRate: sample.sampleRate) {
+            if var x = lib.add(name: "\(sample.name) · corte \(i + 1)", audio: pieceAudio(i), sampleRate: sample.sampleRate) {
                 x.folder = lib.folder(of: sample); x.subfolder = sample.subfolder; lib.update(x)
             }
         }
@@ -185,7 +208,7 @@ struct ChopSheet: View {
         let chosen = selected.sorted().filter { $0 < ranges.count }
         let pieces = chosen.map { piece($0) }
         var audioByID: [UUID: [Float]] = [:]
-        for (k, i) in chosen.enumerated() { audioByID[pieces[k].id] = Array(audio[ranges[i]]) }
+        for (k, i) in chosen.enumerated() { audioByID[pieces[k].id] = pieceAudio(i) }
         Task {
             do { sharing = try await Exporter.exportKit(pieces) { audioByID[$0.id] ?? [] }; showShare = true; message = nil }
             catch { message = "No se pudo exportar: \(error.localizedDescription)" }

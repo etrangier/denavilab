@@ -141,6 +141,17 @@ test.describe('chop con selección múltiple', () => {
 
     await hoja.getByRole('button', { name: 'Guardar 2 en la Biblioteca' }).click();
     await expect(page.locator('#toast')).toContainText('2 cortes guardados en la Biblioteca');
+    // Guardar unidos: el 1 y el 3 en un solo sonido, en su orden original
+    await hoja.getByRole('button', { name: 'Guardar unidos en un solo sonido' }).click();
+    await expect(page.locator('#toast')).toContainText('2 cortes unidos en un sonido nuevo');
+    const unido = await page.evaluate(async () => {
+      const st = await import('/sounds/store.js'), m = (await st.listSamples()).find(x => x.name === 'Percusión · 1+3'), a = m && await st.getAudio(m.id);
+      return m ? { dur: a.length / m.rate, ini: Math.abs(a[0]), fin: Math.abs(a[a.length - 1]) } : null;
+    });
+    expect(unido).not.toBeNull(); expect(unido.dur).toBeGreaterThan(1.9); expect(unido.dur).toBeLessThanOrEqual(2.001);
+    expect(unido.ini).toBeLessThan(1e-3); expect(unido.fin).toBeLessThan(1e-3);
+    await hoja.getByRole('button', { name: 'Pad 3, seleccionado' }).click();                       // con un solo corte no hay nada que unir
+    await expect(hoja.getByRole('button', { name: 'Guardar unidos en un solo sonido' })).toBeDisabled();
     await hoja.getByRole('button', { name: 'Cerrar' }).click();
     await tab(page, 'biblioteca');                                   // la Biblioteca recuerda que seguías dentro de la carpeta
     const carpeta = page.locator('.folder', { hasText: 'Sin clasificar' }); if (await carpeta.count()) await carpeta.click();
@@ -373,6 +384,62 @@ test.describe('móvil y PWA', () => {
     expect(sw).toBe(true);
     const caches = await page.evaluate(async () => (await caches.keys()));
     expect(caches.some(k => k.startsWith('sounds-'))).toBe(true);
+  });
+});
+
+test.describe('armonizar y unir cortes', () => {
+  test('armonizar quita el desvío y suaviza bordes; unir iguala el volumen y no deja saltos', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async () => {
+      const d = await import('/sounds/dsp.js'), rate = 48000;
+      const tono = (f, sec, amp, dc = 0) => new Float32Array(Math.round(sec * rate)).map((_, i) => amp * Math.sin(2 * Math.PI * f * i / rate) + dc);
+      const golpe = amp => new Float32Array(rate / 4).map((_, i) => amp * Math.sin(i * 0.2) * Math.exp(-i / 4000));
+      const suave = new Float32Array(rate / 4).map((_, i) => 0.3 * Math.sin(i * 0.05) * Math.min(1, i / 3000));
+      const a = tono(300, 0.5, 0.5, 0.1), h = d.harmonize(a, rate), cola = new Float32Array(rate / 2).map((_, i) => 0.5 * Math.sin(i * 0.04) * Math.exp(-i / 3000));
+      const j = d.joinPieces([golpe(0.8), golpe(0.2), suave], rate);
+      let salto = 0, pico = 0; for (let i = 1; i < j.length; i++) { salto = Math.max(salto, Math.abs(j[i] - j[i - 1])); pico = Math.max(pico, Math.abs(j[i])); }
+      const crudo = d.joinPieces([golpe(0.8), golpe(0.2)], rate, { match: false });
+      const rmsAct = x => 20 * Math.log10(d.activeRMS(x, rate));
+      const mitad = j.subarray(0, 12000), seg = j.subarray(12000 - 100, 24000);
+      return { ini: Math.abs(h[0]), fin: Math.abs(h[h.length - 1]), dc: Math.abs(h.reduce((s, v) => s + v, 0) / h.length), fadeLargo: d.endFadeSamples(d.removeDC(a), rate) / rate * 1000,
+        fadeCorto: d.endFadeSamples(cola, rate) / rate * 1000, largo: j.length, suma: 36000, pico, salto, igual: crudo.length === 24000,
+        nivel: [rmsAct(golpe(0.8)), rmsAct(golpe(0.2))], vacio: d.joinPieces([], rate).length, una: d.joinPieces([golpe(0.5)], rate).length,
+        ataque: Math.max(...j.subarray(12000, 12400).map(Math.abs)) };
+    });
+    expect(r.ini).toBeLessThan(1e-3); expect(r.fin).toBeLessThan(1e-3);
+    expect(r.dc).toBeLessThan(1e-3);
+    expect(r.fadeLargo).toBeGreaterThan(20);        // cortada en pleno sonido: salida larga
+    expect(r.fadeCorto).toBeLessThan(5);            // ya acaba suave: casi no se toca
+    expect(r.largo).toBeGreaterThan(r.suma - 1500); expect(r.largo).toBeLessThanOrEqual(r.suma);
+    expect(r.pico).toBeLessThan(0.99);
+    expect(r.salto).toBeLessThan(0.2);              // sin escalones entre muestras vecinas
+    expect(r.igual).toBe(true);
+    expect(r.nivel[0] - r.nivel[1]).toBeGreaterThan(10);   // las entradas difieren ~12 dB
+    expect(r.vacio).toBe(0); expect(r.una).toBe(12000);
+    expect(r.ataque).toBeGreaterThan(0.1);          // el golpe que entra conserva su ataque
+  });
+
+  test('Editar: «Armonizar bordes» deja el inicio y el final en cero y se puede deshacer', async ({ page }) => {
+    await abrir(page, 'schair');
+    await page.evaluate(async () => {
+      const st = await import('/sounds/store.js'), rate = 48000, a = new Float32Array(rate).map((_, i) => 0.5 * Math.sin(i * 0.05) + 0.1);
+      await st.putSample(st.newSample('Cortada', a, rate), a);
+    });
+    await page.reload();
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Cortada' }).click();
+    await page.getByRole('button', { name: 'Armonizar bordes (sin clics)' }).click();
+    await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+    await expect(page.locator('#toast')).toContainText('Guardado');
+    const ext = () => page.evaluate(async () => {
+      const st = await import('/sounds/store.js'), s = (await st.listSamples()).find(m => m.name === 'Cortada'), a = await st.getAudio(s.id);
+      return [Math.abs(a[0]), Math.abs(a[a.length - 1])];
+    });
+    const [i, f] = await ext(); expect(i).toBeLessThan(1e-3); expect(f).toBeLessThan(1e-3);
+    await page.getByRole('button', { name: 'Deshacer' }).click();
+    await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+    await expect(page.locator('#toast')).toContainText('Guardado');
+    const [i2] = await ext(); expect(i2).toBeGreaterThan(0.05);
   });
 });
 

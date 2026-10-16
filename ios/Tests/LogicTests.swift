@@ -375,4 +375,39 @@ final class LogicTests: XCTestCase {
         XCTAssertLessThan(clean.count, plain.count / 2)
         XCTAssertGreaterThan(clean.count, 43200)
     }
+
+    // MARK: armonizar y unir
+
+    private func hit(_ amp: Float, rate: Int = 48000) -> [Float] {
+        (0..<(rate / 4)).map { amp * Float(sin(Double($0) * 0.2) * exp(-Double($0) / 4000)) }
+    }
+
+    func testHarmonizeCentersAndSoftensEdges() {
+        let rate = 48000
+        let a: [Float] = (0..<(rate / 2)).map { 0.5 * Float(sin(2 * Double.pi * 300 * Double($0) / Double(rate))) + 0.1 }
+        let h = Harmonize.harmonize(a, rate: rate)
+        XCTAssertEqual(h.count, a.count)
+        XCTAssertLessThan(abs(h[0]), 1e-3)
+        XCTAssertLessThan(abs(h[h.count - 1]), 1e-3)
+        XCTAssertLessThan(abs(h.reduce(0, +) / Float(h.count)), 1e-3)
+        XCTAssertGreaterThan(Double(Harmonize.endFadeSamples(Harmonize.removeDC(a), rate: rate)) / Double(rate) * 1000, 20)   // cortada en pleno sonido
+        let tail: [Float] = (0..<(rate / 2)).map { 0.5 * Float(sin(Double($0) * 0.04) * exp(-Double($0) / 3000)) }
+        XCTAssertLessThan(Double(Harmonize.endFadeSamples(tail, rate: rate)) / Double(rate) * 1000, 5)                     // ya acaba suave
+    }
+
+    func testJoinMatchesLevelAndHasNoJumps() {
+        let rate = 48000
+        let soft: [Float] = (0..<(rate / 4)).map { 0.3 * Float(sin(Double($0) * 0.05)) * min(1, Float($0) / 3000) }
+        let j = Harmonize.join([hit(0.8), hit(0.2), soft], rate: rate)
+        XCTAssertGreaterThan(j.count, 36000 - 1500); XCTAssertLessThanOrEqual(j.count, 36000)
+        XCTAssertLessThan(j.map(abs).max() ?? 1, 0.99)
+        var jump: Float = 0
+        for i in 1..<j.count { jump = max(jump, abs(j[i] - j[i - 1])) }
+        XCTAssertLessThan(jump, 0.2)
+        XCTAssertEqual(Harmonize.join([hit(0.8), hit(0.2)], rate: rate, match: false).count, 24000)
+        XCTAssertGreaterThan(j[12000..<12400].map(abs).max() ?? 0, 0.1)                       // el golpe que entra conserva su ataque
+        XCTAssertTrue(Harmonize.join([], rate: rate).isEmpty)
+        XCTAssertEqual(Harmonize.join([hit(0.5)], rate: rate).count, 12000)
+        XCTAssertGreaterThan(20 * log10(Harmonize.activeRMS(hit(0.8), rate: rate)) - 20 * log10(Harmonize.activeRMS(hit(0.2), rate: rate)), 10)
+    }
 }

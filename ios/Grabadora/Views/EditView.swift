@@ -42,6 +42,7 @@ struct EditorBody: View {
     @State private var start = 0.0
     @State private var end = 1.0
     @State private var fadeMs = 10.0
+    @State private var noiseAmount = NoiseReduction.defaultAmount
     @State private var player: AVAudioPlayer?
     @State private var playhead: Double?
     @State private var loop = false
@@ -85,6 +86,9 @@ struct EditorBody: View {
                 }.buttonStyle(OutlineButton()).font(Theme.font(13))
                 Button("Edición precisa (zoom)") { showPrecise = true }.buttonStyle(OutlineButton(selected: true))
                 Button("Chop en pads") { showChop = true }.buttonStyle(OutlineButton())
+                Button("Armonizar bordes (sin clics)") { apply { Harmonize.harmonize($0, rate: sample.sampleRate) } }.buttonStyle(OutlineButton()).font(Theme.font(13))
+                Text("Centra la onda y suaviza el inicio y el final a medida, para que un recorte no suene «cortado». Puedes deshacer.")
+                    .font(Theme.font(12)).foregroundColor(Theme.muted)
                 noiseTools
                 SliderRow(title: "Fundido", valueText: "\(Int(fadeMs)) ms", value: $fadeMs, range: 0...200)
                 bpmCard
@@ -136,24 +140,27 @@ struct EditorBody: View {
                 Button("Quitar ruido de fondo") { denoiseAuto() }
                 Button("Con la selección") { denoiseSelection() }
             }.buttonStyle(OutlineButton()).font(Theme.font(13))
+            SliderRow(title: "Intensidad", valueText: noiseAmount < 1.2 ? "Suave" : noiseAmount < 2.2 ? "Normal" : "Fuerte", value: $noiseAmount, range: 0.5...3)
             Text("Suave y Fuerte cortan graves (respiración, soplidos) y apagan lo que suena bajito entre sonidos. «Quitar ruido de fondo» aprende el ruido de la parte más tranquila; «Con la selección» lo aprende de lo que marques. Puedes deshacer.")
                 .font(Theme.font(12)).foregroundColor(Theme.muted)
         }
     }
 
     private func denoiseAuto() {
-        guard let w = NoiseReduction.quietestWindow(audio, rate: sample.sampleRate) else {
+        let w = NoiseReduction.quietestWindows(audio, rate: sample.sampleRate)
+        guard !w.isEmpty else {
             message = "No hay una parte tranquila: marca una con los marcadores y usa «Con la selección»"; return
         }
-        let noise = Array(audio[w])
-        apply { NoiseReduction.denoise($0, noise: noise) }
+        let noises = w.map { Array(audio[$0]) }, amount = noiseAmount
+        apply { NoiseReduction.denoise($0, noises: noises, amount: amount) }
     }
 
     private func denoiseSelection() {
         let a = Int(start * Double(audio.count)), b = Int(end * Double(audio.count))
         guard b - a >= sample.sampleRate / 10 else { message = "Marca una parte de solo ruido de al menos 0,1 s"; return }
         let noise = Array(audio[a..<b])
-        apply { NoiseReduction.denoise($0, noise: noise) }
+        let amount = noiseAmount
+        apply { NoiseReduction.denoise($0, noise: noise, amount: amount) }
     }
 
     private var bpmCard: some View {

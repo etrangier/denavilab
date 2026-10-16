@@ -1,6 +1,6 @@
 // Service worker de DenaviLab: Sounds. Primero la red (así cada publicación llega sola) y, sin conexión, lo guardado.
 // Sube VERSION en cada publicación para renovar los archivos guardados.
-const VERSION = 'sounds-v6';
+const VERSION = 'sounds-v7';
 const CORE = ['./', 'index.html', 'app.css', 'main.js', 'state.js', 'ui.js', 'screens.js', 'editor.js', 'chop.js', 'dsp.js', 'audio.js', 'metronome.js',
   'store.js', 'zip.js', 'folders.js', 'manual.js', 'profile.js', 'worklet.js', 'manifest.json',
   'fonts/Ubuntu-Regular.ttf', 'fonts/Ubuntu-Medium.ttf', 'fonts/Ubuntu-Bold.ttf',

@@ -14,7 +14,7 @@ function playSlice(audio, rate, [a, b]) {
 
 export function openChop(sample, audio) {
   const pads = app.ko2 ? 'pads' : 'cortes';
-  const S = { mode: 8, sens: 0.5, grid: false, ranges: [], selected: new Set(), bpm: sample.bpm || (dsp.estimateBPM(audio, sample.rate) || {}).bpm || null };
+  const S = { mode: 8, sens: 0.5, grid: false, harm: true, ranges: [], selected: new Set(), bpm: sample.bpm || (dsp.estimateBPM(audio, sample.rate) || {}).bpm || null };
   const peaks = dsp.peaks(audio, 56);
   const padEls = [];                       // botones de los pads, para iluminar el que está sonando
   let preview = null;                      // { src, raf } mientras suena «Escuchar selección»
@@ -38,10 +38,20 @@ export function openChop(sample, audio) {
       const ids = chosen();
       try {
         for (const i of ids) {
-          const piece = audio.slice(S.ranges[i][0], S.ranges[i][1]);
+          const piece = harmonized(audio.slice(S.ranges[i][0], S.ranges[i][1]));
           await putSample(newSample(`${sample.name} · corte ${i + 1}`, piece, sample.rate, { folder: sample.folder, subfolder: sample.subfolder }), piece);
         }
         await refreshSamples(); toast(ids.length === 1 ? '1 corte guardado en la Biblioteca' : `${ids.length} cortes guardados en la Biblioteca`);
+      } catch (e) { toast('No se pudo guardar (¿poco espacio en el dispositivo?)'); }
+    };
+    const harmonized = x => S.harm ? dsp.harmonize(x, sample.rate) : x;
+    /** Los cortes elegidos, en su orden original, pegados en un solo sonido nuevo. */
+    const saveJoined = async () => {
+      const ids = chosen(), pieces = ids.map(i => audio.slice(S.ranges[i][0], S.ranges[i][1]));
+      const joined = S.harm ? dsp.joinPieces(pieces, sample.rate) : pieces.reduce((a, p) => { const r = new Float32Array(a.length + p.length); r.set(a); r.set(p, a.length); return r; }, new Float32Array(0));
+      try {
+        await putSample(newSample(`${sample.name} · ${ids.map(i => i + 1).join('+')}`, joined, sample.rate, { folder: sample.folder, subfolder: sample.subfolder }), joined);
+        await refreshSamples(); toast(`${ids.length} cortes unidos en un sonido nuevo (${dsp.stamp(joined.length / sample.rate)})`);
       } catch (e) { toast('No se pudo guardar (¿poco espacio en el dispositivo?)'); }
     };
     /** Escuchar la selección: los cortes elegidos uno tras otro, en su orden original; el pad que suena se ilumina. */
@@ -65,7 +75,7 @@ export function openChop(sample, audio) {
     };
 
     const exportSelected = async () => {
-      const ids = chosen(), files = ids.map(i => wavFromAudio(dsp.pieceName(i, sample.name), audio.slice(S.ranges[i][0], S.ranges[i][1]), sample.rate));
+      const ids = chosen(), files = ids.map(i => wavFromAudio(dsp.pieceName(i, sample.name), harmonized(audio.slice(S.ranges[i][0], S.ranges[i][1])), sample.rate));
       if (files.length === 1) return deliver(files[0]);
       const zip = files.length ? await Promise.all(files.map(async f => ({ name: f.name, data: new Uint8Array(await f.arrayBuffer()) }))) : [];
       await deliver(new File([zipFiles(zip)], 'denavilab-cortes.zip', { type: 'application/zip' }));
@@ -81,6 +91,7 @@ export function openChop(sample, audio) {
         h('div', { class: 'wrap' }, [[4, '4'], [8, '8'], [12, '12'], [0, 'Auto']].map(([m, t]) => chip(t, S.mode === m, () => { S.mode = m; recompute(); paint(); }))),
         S.mode === 0 ? sliderRow('Sensibilidad de golpes', { min: 0, max: 1, step: 0.01, value: S.sens, fmt: v => v < 0.34 ? 'Baja' : v < 0.67 ? 'Media' : 'Alta', onInput: v => { S.sens = v; }, onChange: () => { recompute(); paint(); } }) : null,
         toggleRow('Ajustar a la cuadrícula', S.bpm ? `${Math.round(S.bpm)} BPM · 1/16 · funciona mejor si grabaste con compás` : 'BPM sin detectar: usa «Detectar BPM» en Editar', S.grid, v => { if (!S.bpm) return paint(); S.grid = v; recompute(); paint(); }),
+        toggleRow('Armonizar cortes', 'Centra la onda y suaviza bordes, y al unir iguala el volumen: sin clics ni saltos', S.harm, v => { S.harm = v; paint(); }),
         muted(`Toca los ${pads} que quieras quedarte: se escuchan y se marcan. Puedes elegir los que quieras, juntos o no (por ejemplo, el 1 y el 3).`, 'small'),
         h('div', { class: 'row2' }, btn('Todos', { small: true, disabled: n === total, onclick: () => { stopPreview(); S.selected = new Set(S.ranges.keys()); paint(); } }), btn('Ninguno', { small: true, disabled: !n, onclick: () => { stopPreview(); S.selected = new Set(); paint(); } })),
         h('div', { class: 'padgrid' }, Array.from({ length: 12 }, (_, i) => {
@@ -93,6 +104,7 @@ export function openChop(sample, audio) {
         btn(preview ? 'Parar' : (n ? `Escuchar selección · ${secs.toFixed(1).replace('.', ',')} s` : 'Escuchar selección'), { sel: !!preview, disabled: !n, aria: preview ? 'Parar la escucha de la selección' : null,
           onclick: () => { if (preview) { stopPreview(); paint(); } else { startPreview(); paint(); } } }),
         btn(n ? `Guardar ${n} en la Biblioteca` : 'Elige al menos un corte', { kind: 'amber', disabled: !n, onclick: async () => { await saveSelected(); paint(); app.render(); } }),
+        btn('Guardar unidos en un solo sonido', { sel: true, disabled: n < 2, onclick: async () => { await saveJoined(); paint(); app.render(); } }),
         btn(n ? (app.ko2 ? `Exportar ${n} para el K.O. II` : `Exportar ${n}`) : 'Exportar cortes', { sel: true, disabled: !n, onclick: exportSelected }));
       requestAnimationFrame(drawWave);
     };

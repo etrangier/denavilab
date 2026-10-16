@@ -9,6 +9,8 @@ enum NoiseReduction {
         nonisolated var highpassHz: Double { self == .strong ? 160 : 100 }
         nonisolated var margin: Float { self == .strong ? 16 : 10 }
         nonisolated var floorDB: Float { self == .strong ? -35 : -15 }
+        /// Fuerte suma la resta espectral (si hay una parte tranquila de la que aprender).
+        nonisolated var spectral: Double { self == .strong ? 1.5 : 0 }
     }
 
     nonisolated private static let blockSeconds = 0.02
@@ -79,28 +81,43 @@ enum NoiseReduction {
         return y
     }
 
-    /// Reducir ruido rápido: pasa-altos + compuerta, con el umbral sacado del fondo de la propia toma.
+    /// Reducir ruido rápido: pasa-altos, resta espectral (sólo Fuerte) y compuerta, con el umbral sacado del fondo de la propia toma.
     nonisolated static func clean(_ x: [Float], rate: Int, level: Level) -> [Float] {
         guard level != .off, x.count >= rate / 10 else { return x }
-        let y = highpass(x, rate: rate, hz: level.highpassHz)
+        var y = highpass(x, rate: rate, hz: level.highpassHz)
+        if level.spectral > 0 {
+            let w = quietestWindows(y, rate: rate)
+            if !w.isEmpty { y = denoise(y, noises: w.map { Array(y[$0]) }, amount: level.spectral) }
+        }
         let th = min(noiseFloorDB(y, rate: rate) + level.margin, Editing.peakDB(y) - 20)
         return gate(y, rate: rate, thresholdDB: th, floorDB: level.floorDB)
     }
 
-    /// La parte más tranquila (`seconds` seguidos) como muestra de ruido; nil si no hay una parte clara.
-    nonisolated static func quietestWindow(_ x: [Float], rate: Int, seconds: Double = 0.3) -> Range<Int>? {
+    /// Hasta `count` partes tranquilas (`seconds` seguidos, sin solaparse) para aprender el ruido; vacío si no hay una parte clara.
+    nonisolated static func quietestWindows(_ x: [Float], rate: Int, seconds: Double = 0.3, count: Int = 3) -> [Range<Int>] {
         let (blk, rms) = blockRMS(x, rate: rate)
         let w = max(2, Int((seconds / blockSeconds).rounded()))
-        guard rms.count >= w * 2 else { return nil }
-        var best = 0, bestE = Float.infinity, e: Float = 0
+        guard rms.count >= w * 2 else { return [] }
+        var e: [(en: Float, st: Int)] = []
+        var acc: Float = 0
         for b in 0..<rms.count {
-            e += rms[b] * rms[b]
-            if b >= w { e -= rms[b - w] * rms[b - w] }
-            if b >= w - 1 && e < bestE { bestE = e; best = b - w + 1 }
+            acc += rms[b] * rms[b]
+            if b >= w { acc -= rms[b - w] * rms[b - w] }
+            if b >= w - 1 { e.append((max(0, acc), b - w + 1)) }
         }
-        let noiseDB = toDB((max(bestE, 0) / Float(w)).squareRoot())
-        if Editing.peakDB(x) - noiseDB < 10 { return nil }
-        return (best * blk)..<((best + w) * blk)
+        e.sort { $0.en < $1.en }
+        guard let best = e.first else { return [] }
+        if Editing.peakDB(x) - toDB((best.en / Float(w)).squareRoot()) < 10 { return [] }
+        var out: [Int] = []
+        for c in e {
+            if out.count >= count || c.en > best.en * 4 + 1e-12 { break }              // sólo partes casi tan tranquilas como la mejor (≤ 6 dB más)
+            if out.allSatisfy({ abs($0 - c.st) >= w }) { out.append(c.st) }
+        }
+        return out.sorted().map { ($0 * blk)..<(($0 + w) * blk) }
+    }
+
+    nonisolated static func quietestWindow(_ x: [Float], rate: Int, seconds: Double = 0.3) -> Range<Int>? {
+        quietestWindows(x, rate: rate, seconds: seconds, count: 1).first
     }
 
     // MARK: resta espectral
@@ -140,55 +157,74 @@ enum NoiseReduction {
         if inverse { for i in 0..<n { re[i] /= Double(n); im[i] /= Double(n) } }
     }
 
-    /// Magnitud media por bin de una muestra de ruido; `frames` 0 si la muestra es más corta que una ventana.
-    nonisolated static func noiseProfile(_ noise: [Float]) -> (mag: [Double], frames: Int) {
+    /// Potencia media por bin de una o varias muestras de ruido (suavizada entre bins vecinos); `frames` 0 si ninguna cabe en una ventana.
+    nonisolated static func noiseProfile(_ noises: [[Float]]) -> (pow: [Double], frames: Int) {
         let n = frame
-        var mag = [Double](repeating: 0, count: n / 2 + 1)
+        var pw = [Double](repeating: 0, count: n / 2 + 1)
         var re = [Double](repeating: 0, count: n), im = [Double](repeating: 0, count: n)
-        var frames = 0, s = 0
-        while s + n <= noise.count {
-            for i in 0..<n { re[i] = Double(noise[s + i]) * hann[i]; im[i] = 0 }
-            fft(&re, &im, inverse: false)
-            for k in 0...(n / 2) { mag[k] += (re[k] * re[k] + im[k] * im[k]).squareRoot() }
-            frames += 1
-            s += hop
+        var frames = 0
+        for nz in noises {
+            var s = 0
+            while s + n <= nz.count {
+                for i in 0..<n { re[i] = Double(nz[s + i]) * hann[i]; im[i] = 0 }
+                fft(&re, &im, inverse: false)
+                for k in 0...(n / 2) { pw[k] += re[k] * re[k] + im[k] * im[k] }
+                frames += 1
+                s += hop
+            }
         }
-        if frames > 0 { for k in 0..<mag.count { mag[k] /= Double(frames) } }
-        return (mag, frames)
+        guard frames > 0 else { return (pw, 0) }
+        for k in 0..<pw.count { pw[k] /= Double(frames) }
+        var sm = [Double](repeating: 0, count: pw.count)
+        for k in 0..<pw.count {                         // 5 bins: el promedio de pocas ventanas es ruidoso
+            var a = 0.0, c = 0.0
+            for d in -2...2 { let j = k + d; if j >= 0 && j < pw.count { a += pw[j]; c += 1 } }
+            sm[k] = a / c
+        }
+        return (sm, frames)
     }
 
-    /// Quita de toda la toma el ruido de fondo aprendido de `noise`. `amount` 1 = normal.
-    nonisolated static func denoise(_ x: [Float], noise: [Float], amount: Double = 1) -> [Float] {
+    nonisolated static let defaultAmount = 1.5
+
+    /// Resta espectral con estimación «dirigida por la decisión» (Wiener): la ganancia de cada bin sale de la relación
+    /// señal/ruido de la ventana anterior, así el ruido que queda no «burbujea». `amount` 1,5 = normal; más = más agresivo.
+    nonisolated static func denoise(_ x: [Float], noises: [[Float]], amount: Double = defaultAmount) -> [Float] {
         let n = frame, half = n / 2
-        let prof = noiseProfile(noise)
+        let prof = noiseProfile(noises)
         guard prof.frames > 0, x.count >= n else { return x }
-        let alpha = 1.6 * amount, floor = 0.12, pad = n, len = x.count + 2 * pad
+        let mu = max(0.2, amount), floor = max(0.03, 0.12 / mu), beta = 0.95, pad = n, len = x.count + 2 * pad
         var src = [Double](repeating: 0, count: len + n)
         for i in 0..<x.count { src[pad + i] = Double(x[i]) }
         var out = [Double](repeating: 0, count: len + n)
         var re = [Double](repeating: 0, count: n), im = [Double](repeating: 0, count: n)
-        var prev = [Double](repeating: 1, count: half + 1), g = [Double](repeating: 1, count: half + 1), sm = [Double](repeating: 1, count: half + 1)
+        var aprev = [Double](repeating: 0, count: half + 1), g = [Double](repeating: 1, count: half + 1), sm = [Double](repeating: 1, count: half + 1)
         var s = 0
         while s < len {
             for i in 0..<n { re[i] = src[s + i] * hann[i]; im[i] = 0 }
             fft(&re, &im, inverse: false)
             for k in 0...half {
-                let m = (re[k] * re[k] + im[k] * im[k]).squareRoot()
-                g[k] = m > 1e-9 ? max(floor, 1 - alpha * prof.mag[k] / m) : 1
+                let p = re[k] * re[k] + im[k] * im[k], sig = prof.pow[k]
+                if p < 1e-18 || sig < 1e-18 {          // silencio digital o sin ruido que quitar: no se toca
+                    g[k] = 1; aprev[k] = sig < 1e-18 ? 1e6 : 0; continue
+                }
+                let gamma = p / sig
+                let xi = beta * aprev[k] + (1 - beta) * max(gamma - 1, 0)
+                g[k] = max(floor, xi / (xi + mu))
+                aprev[k] = g[k] * g[k] * gamma
             }
-            for k in 0...half {
-                let a = g[max(0, k - 1)], c = g[min(half, k + 1)]
-                sm[k] = 0.5 * (0.25 * a + 0.5 * g[k] + 0.25 * c) + 0.5 * prev[k]
-            }
+            for k in 0...half { sm[k] = 0.25 * g[max(0, k - 1)] + 0.5 * g[k] + 0.25 * g[min(half, k + 1)] }
             for k in 0...half {
                 re[k] *= sm[k]; im[k] *= sm[k]
                 if k > 0 && k < half { re[n - k] *= sm[k]; im[n - k] *= sm[k] }
-                prev[k] = sm[k]
             }
             fft(&re, &im, inverse: true)
             for i in 0..<n { out[s + i] += re[i] * hann[i] / 1.5 }
             s += hop
         }
         return (0..<x.count).map { Float(out[pad + $0]) }
+    }
+
+    nonisolated static func denoise(_ x: [Float], noise: [Float], amount: Double = defaultAmount) -> [Float] {
+        denoise(x, noises: [noise], amount: amount)
     }
 }
