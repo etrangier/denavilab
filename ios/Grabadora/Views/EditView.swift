@@ -36,6 +36,7 @@ struct EditorBody: View {
     @State var sample: Sample
     @State private var audio: [Float] = []
     @State private var peaks: [Float] = []
+    @State private var peakDB: Float = 0
     @State private var undo: [[Float]] = []
     @State private var redo: [[Float]] = []
     @State private var start = 0.0
@@ -46,6 +47,7 @@ struct EditorBody: View {
     @State private var loop = false
     @State private var showEffects = false
     @State private var showChop = false
+    @State private var showPrecise = false
     @State private var confirmDelete = false
     @State private var message: String?
     private let tick = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
@@ -62,7 +64,8 @@ struct EditorBody: View {
                 ScreenTitle(title: "Escuchar y editar")
                 VStack(alignment: .leading, spacing: 2) {
                     TextField("Nombre", text: $sample.name).font(Theme.font(16, weight: .bold)).foregroundColor(Theme.text)
-                    Text("\(stamp(total)) · mono · \(sample.sampleRate) Hz").font(Theme.font(12)).foregroundColor(Theme.muted)
+                    Text("\(stamp(total)) · mono · \(sample.sampleRate) Hz · pico \(Int(peakDB)) dB").font(Theme.font(12)).foregroundColor(Theme.muted)
+                    if peakDB < -30 && !audio.isEmpty { Text("Nivel muy bajo: usa Normalizar para oírla bien.").font(Theme.font(12)).foregroundColor(Theme.amber) }
                 }
                 waveEditor
                 HStack {
@@ -80,6 +83,7 @@ struct EditorBody: View {
                     Button("Fundido") { apply { Editing.fade($0, inSamples: fadeSamples, outSamples: fadeSamples) } }
                     Button("Efectos") { showEffects = true }.buttonStyle(OutlineButton(selected: !sample.effects.isNeutral))
                 }.buttonStyle(OutlineButton()).font(Theme.font(13))
+                Button("Edición precisa (zoom)") { showPrecise = true }.buttonStyle(OutlineButton(selected: true))
                 Button("Chop en pads") { showChop = true }.buttonStyle(OutlineButton())
                 SliderRow(title: "Fundido", valueText: "\(Int(fadeMs)) ms", value: $fadeMs, range: 0...200)
                 bpmCard
@@ -107,6 +111,12 @@ struct EditorBody: View {
         }
         .onDisappear { player?.stop(); lib.update(sample) }
         .onReceive(tick) { _ in updatePlayhead() }
+        .sheet(isPresented: $showPrecise) {
+            PreciseEditSheet(audio: audio, rate: sample.sampleRate, start: Int(start * Double(count)), end: Int(end * Double(count))) { range, fadeIn, fadeOut in
+                apply { Editing.fade(Array($0[range]), inSamples: fadeIn, outSamples: fadeOut) }
+                start = 0; end = 1
+            }.presentationDetents([.large])
+        }
         .sheet(isPresented: $showChop) { ChopSheet(sample: sample, audio: audio).presentationDetents([.large]) }
         .sheet(isPresented: $showEffects, onDismiss: { lib.update(sample) }) { EffectsSheet(sample: $sample, audio: audio).presentationDetents([.large]) }
         .confirmationDialog("¿Borrar esta grabación?", isPresented: $confirmDelete, titleVisibility: .visible) {
@@ -213,7 +223,7 @@ struct EditorBody: View {
         refreshPeaks()
     }
 
-    private func refreshPeaks() { peaks = Editing.peaks(audio, buckets: 56) }
+    private func refreshPeaks() { peaks = Editing.peaks(audio, buckets: 56); peakDB = Editing.peakDB(audio) }
 
     private func step(from a: inout [[Float]], to b: inout [[Float]]) {
         guard let x = a.popLast() else { return }
@@ -252,8 +262,10 @@ struct EditorBody: View {
 struct EffectsSheet: View {
     @Binding var sample: Sample
     let audio: [Float]
+    @EnvironmentObject var lib: LibraryStore
     @Environment(\.dismiss) private var dismiss
     @State private var tab = 0
+    @State private var after = true          // Después (con efectos) / Antes (original)
     @State private var player: AVAudioPlayer?
     @State private var message: String?
 
@@ -264,20 +276,28 @@ struct EffectsSheet: View {
                 VStack(alignment: .leading, spacing: 12) {
                     ScreenTitle(title: "Efectos", trailing: AnyView(TextLink(title: "Restaurar") { sample.effects = EffectParams() }))
                     HStack(spacing: 8) {
+                        Button("Antes") { after = false }.buttonStyle(OutlineButton(selected: !after))
+                        Button("Después") { after = true }.buttonStyle(OutlineButton(selected: after))
+                    }
+                    Button(player?.isPlaying == true ? "Parar" : (after ? "Escuchar con efectos" : "Escuchar el original")) { togglePlay() }
+                        .buttonStyle(AmberButton())
+                    Text("Cambia entre Antes y Después mientras suena para comparar. Se oyen los primeros 8 segundos.")
+                        .font(Theme.font(12)).foregroundColor(Theme.muted)
+                    HStack(spacing: 8) {
                         Button("Tono y EQ") { tab = 0 }.buttonStyle(OutlineButton(selected: tab == 0))
                         Button("Carácter") { tab = 1 }.buttonStyle(OutlineButton(selected: tab == 1))
                     }
                     if tab == 0 { toneTab } else { characterTab }
-                    HStack(spacing: 8) {
-                        Button("Escuchar original") { play(original: true) }.buttonStyle(OutlineButton())
-                        Button("Escuchar con efectos") { play(original: false) }.buttonStyle(OutlineButton(selected: true))
-                    }.font(Theme.font(13))
                     if let m = message { Text(m).font(Theme.font(12)).foregroundColor(Theme.muted) }
                     Text("El original nunca se modifica.").font(Theme.font(13)).foregroundColor(Theme.muted).frame(maxWidth: .infinity, alignment: .center)
                     TextLink(title: "Volver al original") { sample.effects = EffectParams() }.frame(maxWidth: .infinity)
-                    Button("Listo") { player?.stop(); dismiss() }.buttonStyle(AmberButton())
+                    Button("Guardar como copia") { saveCopy() }.buttonStyle(OutlineButton(selected: true)).disabled(sample.effects.isNeutral)
+                    Button("Listo") { player?.stop(); dismiss() }.buttonStyle(OutlineButton())
                 }.padding(16)
             }
+        }
+        .onChange(of: after) { _ in
+            if player?.isPlaying == true { start(at: player?.currentTime ?? 0) }   // A/B sin perder el punto
         }
         .onDisappear { player?.stop() }
     }
@@ -320,16 +340,37 @@ struct EffectsSheet: View {
         }.card()
     }
 
-    /// Primeros 8 s, con o sin efectos, para juzgar el resultado.
-    private func play(original: Bool) {
+    private func togglePlay() {
+        if player?.isPlaying == true { player?.stop(); player = nil } else { start(at: 0) }
+    }
+
+    /// Primeros 8 s, con o sin efectos, desde el punto indicado.
+    private func start(at t: TimeInterval) {
         guard !audio.isEmpty else { return }
         do {
             try AudioSessionConfig.activate()
             var s = sample
-            if original { s.effects = EffectParams() }
+            if !after { s.effects = EffectParams() }
             let url = try Exporter.export(s, audio: Array(audio.prefix(sample.sampleRate * 8)), targetRate: sample.sampleRate)
-            let p = try AVAudioPlayer(contentsOf: url); p.play(); player = p
+            let p = try AVAudioPlayer(contentsOf: url)
+            p.currentTime = min(t, max(0, p.duration - 0.05))
+            p.play(); player = p
             message = nil
         } catch { message = "No se pudo reproducir: \(error.localizedDescription)" }
+    }
+
+    /// Renderiza la toma entera con los efectos y la guarda como grabación nueva; el original no cambia.
+    private func saveCopy() {
+        let a = audio, rate = sample.sampleRate, params = sample.effects
+        let name = sample.name + " (copia)", folder = sample.folder, sub = sample.subfolder
+        message = "Creando la copia…"
+        Task {
+            do {
+                let out = try await Task.detached { try EffectRenderer.render(a, sampleRate: rate, params: params) }.value
+                guard var x = lib.add(name: name, audio: out, sampleRate: rate) else { message = "No se pudo guardar la copia"; return }
+                x.folder = folder; x.subfolder = sub; lib.update(x)
+                message = "Copia guardada en la Biblioteca"
+            } catch { message = "No se pudo crear la copia: \(error.localizedDescription)" }
+        }
     }
 }

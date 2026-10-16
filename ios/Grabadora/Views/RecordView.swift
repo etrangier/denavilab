@@ -16,6 +16,8 @@ struct RecordView: View {
     @State private var showRetro = false
     @State private var showMetro = false
     @State private var showQuick = false
+    @State private var showManual = false
+    @AppStorage("firstTakeDismissed") private var firstTakeDismissed = false
     @Environment(\.scenePhase) private var scenePhase
     @State private var savedNote: String?
 
@@ -44,13 +46,17 @@ struct RecordView: View {
                     if met.running && met.mode == .bar { beatDots }
                     if let n = met.notice, met.mode == .bar { Text(n).font(Theme.font(12)).foregroundColor(Theme.muted).multilineTextAlignment(.center) }
                     Text(bufferText).font(Theme.font(13)).foregroundColor(Theme.muted)
+                    if firstTime { Text("↓ Empieza aquí").font(Theme.font(13, weight: .bold)).foregroundColor(Theme.amber)
+                        .padding(.horizontal, 14).frame(minHeight: 32).overlay(Capsule().stroke(Theme.amber, lineWidth: 1.5)) }
                     controls
+                    TextLink(title: "Manual técnico") { showManual = true }.frame(maxWidth: .infinity)
                     Text("WAV · 16 bit · mono · 46 875 Hz").font(Theme.font(14, weight: .bold)).foregroundColor(Theme.amber)
                         .frame(maxWidth: .infinity, minHeight: 48)
                         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.amber, lineWidth: 1.5))
                     if rec.clipped { Text("Clip: baja la ganancia de entrada").font(Theme.font(13)).foregroundColor(Theme.error) }
                 }
                 if let m = rec.errorMessage { Text(m).font(Theme.font(13)).foregroundColor(Theme.error) }
+                if lib.samples.count == 1 && !firstTakeDismissed && rec.state != .recording { firstTakeCard }
                 if let n = savedNote { Text(n).font(Theme.font(13)).foregroundColor(Theme.amber).multilineTextAlignment(.center) }
             }
         }
@@ -72,6 +78,7 @@ struct RecordView: View {
             }.presentationDetents([.large])
         }
         .sheet(isPresented: $showMetro) { MetronomeSheet().presentationDetents([.large]) }
+        .sheet(isPresented: $showManual) { ManualView().presentationDetents([.large]) }
         .sheet(isPresented: $showQuick) { QuickSaveSheet().presentationDetents([.large]) }
     }
 
@@ -94,6 +101,19 @@ struct RecordView: View {
             try? await Task.sleep(nanoseconds: 5_000_000_000)
             savedNote = nil
         }
+    }
+
+    /// Aún no hay ninguna grabación: el diseño pide la burbuja y el halo del botón.
+    private var firstTime: Bool { lib.samples.isEmpty && !recording && !rec.micDenied && rec.state != .idle }
+
+    private var firstTakeCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Primera toma guardada").font(Theme.font(16, weight: .bold)).foregroundColor(Theme.text)
+            Text("La encuentras en la Biblioteca. Desde ahí la recortas, le das carácter y la mandas al K.O. II.")
+                .font(Theme.font(14)).foregroundColor(Theme.muted)
+            Button("Ver la Biblioteca") { firstTakeDismissed = true; state.tab = .biblioteca }.buttonStyle(AmberButton())
+            TextLink(title: "Entendido") { firstTakeDismissed = true }
+        }.card(highlight: true)
     }
 
     private var timerText: String {
@@ -186,6 +206,7 @@ struct RecordView: View {
                 else { begin() }
             } label: {
                 ZStack {
+                    if firstTime { Circle().stroke(Theme.amber.opacity(0.25), lineWidth: 10).frame(width: 112, height: 112) }
                     Circle().stroke(Theme.amber, lineWidth: 4).frame(width: 96, height: 96)
                     if recording { RoundedRectangle(cornerRadius: 10).fill(Theme.amber).frame(width: 40, height: 40) }
                     else { Circle().fill(Theme.amber).frame(width: 72, height: 72) }

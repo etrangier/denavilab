@@ -87,7 +87,8 @@ final class LogicTests: XCTestCase {
 
     func testQuickSaveProcess() {
         var s = QuickSave.Settings(); s.trim = true; s.fades = true; s.normalize = false
-        let x = [Float](repeating: 0, count: 2_000) + [Float](repeating: 0.5, count: 4_000) + [Float](repeating: 0, count: 2_000)
+        // 1 s de silencio, 1 s de sonido, 1 s de silencio: debe quedar más o menos el sonido
+        let x = [Float](repeating: 0, count: 48_000) + [Float](repeating: 0.5, count: 48_000) + [Float](repeating: 0, count: 48_000)
         let y = QuickSave.process(x, rate: 48_000, s)
         XCTAssertLessThan(y.count, x.count)
         XCTAssertEqual(y.first, 0); XCTAssertEqual(y.last, 0)
@@ -195,5 +196,52 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(p.grit, .ninguno); XCTAssertEqual(p.compressMode, 1)
         XCTAssertTrue(EffectParams().isNeutral)
         var q = EffectParams(); q.grit = .lofi; XCTAssertFalse(q.isNeutral)
+    }
+
+    func testZoomWindow() {
+        XCTAssertEqual(Editing.window(count: 1_000, width: 250, center: 500), 375..<625)
+        XCTAssertEqual(Editing.window(count: 1_000, width: 250, center: 10), 0..<250)          // pegada al principio
+        XCTAssertEqual(Editing.window(count: 1_000, width: 250, center: 990), 750..<1_000)      // pegada al final
+        XCTAssertEqual(Editing.window(count: 1_000, width: 5_000, center: 500), 0..<1_000)      // nunca más que el audio
+        XCTAssertEqual(Editing.window(count: 100, width: 0, center: 50).count, 2)               // mínimo 2 muestras
+        XCTAssertTrue(Editing.window(count: 0, width: 10, center: 0).isEmpty)
+    }
+
+    func testSnapMarker() {
+        let x: [Float] = [0.5, 0.4, 0.2, -0.1, -0.3, -0.2, 0.1]
+        XCTAssertEqual(Editing.snapMarker(x, to: 4, zeroCross: false), 4)
+        XCTAssertEqual(Editing.snapMarker(x, to: 4, zeroCross: true), 5)
+        XCTAssertEqual(Editing.snapMarker(x, to: 99, zeroCross: false), 6)    // dentro del audio
+        XCTAssertEqual(Editing.snapMarker(x, to: -5, zeroCross: false), 0)
+    }
+
+    func testManualHasAllTermsOnce() {
+        let terms = ManualContent.all.flatMap { $0.entries.map(\.term) }
+        XCTAssertEqual(ManualContent.all.count, 3)
+        XCTAssertEqual(terms.count, 27)
+        XCTAssertEqual(Set(terms).count, terms.count)
+        XCTAssertTrue(ManualContent.all.flatMap(\.entries).allSatisfy { !$0.term.isEmpty && !$0.text.isEmpty })
+    }
+
+    func testQuietTakeIsNotEmptiedByTrimming() {
+        // Ambiente de exterior muy bajo (≈ −54 dB) con un pico aislado: el umbral fijo de −48 dB lo dejaba en unas pocas muestras.
+        var x = (0..<144_000).map { i in 0.002 * Float(sin(Double(i) * 0.37)) }
+        x[70_000] = 0.01
+        var s = QuickSave.Settings(); s.trim = true; s.fades = false; s.normalize = false; s.thresholdDB = -48
+        let y = QuickSave.process(x, rate: 48_000, s)
+        XCTAssertGreaterThan(y.count, x.count * 9 / 10)
+    }
+
+    func testTrimNeverLeavesLessThanTenthOfASecond() {
+        var x = [Float](repeating: 0, count: 48_000)
+        x[24_000] = 0.5                                     // un solo clic en un segundo de silencio
+        var s = QuickSave.Settings(); s.trim = true; s.fades = false; s.normalize = false
+        XCTAssertEqual(QuickSave.process(x, rate: 48_000, s).count, x.count)
+    }
+
+    func testQuietTakeIsNormalizedByDefault() {
+        let x = [Float](repeating: 0.004, count: 48_000)    // ≈ −48 dB
+        let y = QuickSave.process(x, rate: 48_000, QuickSave.Settings())
+        XCTAssertGreaterThan(y.map(abs).max() ?? 0, 0.5)
     }
 }

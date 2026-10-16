@@ -5,6 +5,7 @@ struct WelcomeView: View {
     @EnvironmentObject var rec: Recorder
     @AppStorage("onboarded") private var onboarded = false
     @State private var step = 0
+    @State private var showManual = false
 
     var body: some View {
         ZStack {
@@ -15,6 +16,7 @@ struct WelcomeView: View {
                 Spacer(minLength: 24)
             }.padding(.horizontal, 20)
         }
+        .sheet(isPresented: $showManual) { ManualView().presentationDetents([.large]) }
     }
 
     private func badge<C: View>(@ViewBuilder _ c: () -> C, round: Bool = false) -> some View {
@@ -42,6 +44,7 @@ struct WelcomeView: View {
             }.padding(.top, 20)
             Text("Rescata lo que acabas de tocar y mándalo al K.O. II.").font(Theme.font(13)).foregroundColor(Theme.muted).multilineTextAlignment(.center)
             Button("Empezar") { step = 1 }.buttonStyle(AmberButton())
+            TextLink(title: "Ver el manual") { showManual = true }
         }
     }
 
