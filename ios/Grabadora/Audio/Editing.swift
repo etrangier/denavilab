@@ -145,4 +145,18 @@ enum Editing {
         let snapped = starts.map { origin + Int((Double($0 - origin) / step).rounded()) * Int(step.rounded()) }
         return Array(Set(snapped.map { max(0, $0) })).sorted()
     }
+
+    /// Ventana de `width` muestras centrada en `center`, sin salirse del audio.
+    nonisolated static func window(count: Int, width: Int, center: Int) -> Range<Int> {
+        guard count > 0 else { return 0..<0 }
+        let w = min(max(width, 2), count)
+        let lo = min(max(center - w / 2, 0), count - w)
+        return lo..<(lo + w)
+    }
+
+    /// Posición final de un marcador: dentro del audio y, si se pide, en el cruce por cero más cercano.
+    nonisolated static func snapMarker(_ x: [Float], to i: Int, zeroCross: Bool) -> Int {
+        let c = min(max(i, 0), max(x.count - 1, 0))
+        return zeroCross ? nearestZeroCross(x, to: c, window: 2048) : c
+    }
 }

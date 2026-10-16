@@ -196,4 +196,29 @@ final class LogicTests: XCTestCase {
         XCTAssertTrue(EffectParams().isNeutral)
         var q = EffectParams(); q.grit = .lofi; XCTAssertFalse(q.isNeutral)
     }
+
+    func testZoomWindow() {
+        XCTAssertEqual(Editing.window(count: 1_000, width: 250, center: 500), 375..<625)
+        XCTAssertEqual(Editing.window(count: 1_000, width: 250, center: 10), 0..<250)          // pegada al principio
+        XCTAssertEqual(Editing.window(count: 1_000, width: 250, center: 990), 750..<1_000)      // pegada al final
+        XCTAssertEqual(Editing.window(count: 1_000, width: 5_000, center: 500), 0..<1_000)      // nunca más que el audio
+        XCTAssertEqual(Editing.window(count: 100, width: 0, center: 50).count, 2)               // mínimo 2 muestras
+        XCTAssertTrue(Editing.window(count: 0, width: 10, center: 0).isEmpty)
+    }
+
+    func testSnapMarker() {
+        let x: [Float] = [0.5, 0.4, 0.2, -0.1, -0.3, -0.2, 0.1]
+        XCTAssertEqual(Editing.snapMarker(x, to: 4, zeroCross: false), 4)
+        XCTAssertEqual(Editing.snapMarker(x, to: 4, zeroCross: true), 5)
+        XCTAssertEqual(Editing.snapMarker(x, to: 99, zeroCross: false), 6)    // dentro del audio
+        XCTAssertEqual(Editing.snapMarker(x, to: -5, zeroCross: false), 0)
+    }
+
+    func testManualHasAllTermsOnce() {
+        let terms = ManualContent.all.flatMap { $0.entries.map(\.term) }
+        XCTAssertEqual(ManualContent.all.count, 3)
+        XCTAssertEqual(terms.count, 27)
+        XCTAssertEqual(Set(terms).count, terms.count)
+        XCTAssertTrue(ManualContent.all.flatMap(\.entries).allSatisfy { !$0.term.isEmpty && !$0.text.isEmpty })
+    }
 }
