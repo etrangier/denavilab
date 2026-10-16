@@ -56,11 +56,7 @@ struct ChopSheet: View {
                     ScreenTitle(title: "Chop en pads", subtitle: "\(ranges.count) cortes · \(selected.count) seleccionado\(selected.count == 1 ? "" : "s")",
                                 trailing: AnyView(TextLink(title: "Cerrar") { stopPreview(); dismiss() }))
                     wave
-                    HStack(spacing: 8) {
-                        ForEach(lay == nil ? [4, 8, 12, 0] : [4, 8, 12, 0, -1], id: \.self) { m in
-                            Chip(title: m == 0 ? "Auto" : (m == -1 ? "Compases" : "\(m)"), selected: mode == m) { mode = m }
-                        }
-                    }
+                    modeChips
                     if mode == 0 {
                         SliderRow(title: "Sensibilidad de golpes", valueText: sensitivity < 0.34 ? "Baja" : sensitivity < 0.67 ? "Media" : "Alta", value: $sensitivity)
                     }
@@ -84,48 +80,9 @@ struct ChopSheet: View {
                         Button("Todos") { stopPreview(); selected = Set(ranges.indices) }.buttonStyle(OutlineButton()).disabled(selected.count == ranges.count)
                         Button("Ninguno") { stopPreview(); selected = [] }.buttonStyle(OutlineButton()).disabled(selected.isEmpty)
                     }.font(Theme.font(13))
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
-                        ForEach(0..<12, id: \.self) { i in
-                            let live = i < ranges.count, on = selected.contains(i)
-                            Button {
-                                guard live else { return }
-                                stopPreview()
-                                if on { selected.remove(i) } else { selected.insert(i) }
-                                play(i)
-                            } label: {
-                                VStack(spacing: 1) {
-                                    Text("\(i + 1)").font(Theme.font(20, weight: .bold))
-                                    if live, mode == -1, let c = padChord(i) { Text(c).font(Theme.font(11)).lineLimit(1).minimumScaleFactor(0.6) }
-                                }
-                                    .foregroundColor(!live ? Theme.line : (on ? Theme.amber : Theme.text))
-                                    .frame(maxWidth: .infinity, minHeight: 64)
-                                    .background(playingIndex == i ? Theme.amber.opacity(0.28) : (on ? Theme.surface2 : Theme.surface))
-                                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(on && live ? Theme.amber : Theme.line, lineWidth: playingIndex == i ? 3 : 1.5))
-                                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                            }
-                            .disabled(!live)
-                            .accessibilityLabel("Pad \(i + 1)" + (live && mode == -1 ? ", " + (padChord(i) ?? "") : "") + (on ? ", seleccionado" : ""))
-                            .accessibilityAddTraits(on ? .isSelected : [])
-                        }
-                    }
+                    padGrid
                     if ranges.count < 12 { Text("Pads \(ranges.count + 1)–12 libres").font(Theme.font(12)).foregroundColor(Theme.muted).frame(maxWidth: .infinity, alignment: .center) }
-                    Button(previewing ? "Parar" : (selected.isEmpty ? "Escuchar selección" : "Escuchar selección · \(previewSeconds)")) {
-                        if previewing { stopPreview() } else { startPreview() }
-                    }
-                    .buttonStyle(OutlineButton(selected: previewing)).disabled(selected.isEmpty).opacity(selected.isEmpty ? 0.4 : 1)
-                    .accessibilityLabel(previewing ? "Parar la escucha de la selección" : "Escuchar selección")
-                    Button(selected.isEmpty ? "Elige al menos un corte" : "Guardar \(selected.count) en la Biblioteca") { saveSelected() }
-                        .buttonStyle(AmberButton()).disabled(selected.isEmpty).opacity(selected.isEmpty ? 0.4 : 1)
-                    if lay != nil {
-                        Button(loopPlayer != nil ? "Parar el loop" : "Escuchar loop") { toggleLoop() }
-                            .buttonStyle(OutlineButton(selected: loopPlayer != nil)).disabled(loopRange == nil).opacity(loopRange == nil ? 0.4 : 1)
-                        Button("Guardar selección como loop") { saveLoop() }
-                            .buttonStyle(OutlineButton(selected: true)).disabled(loopRange == nil).opacity(loopRange == nil ? 0.4 : 1)
-                    }
-                    Button("Guardar unidos en un solo sonido") { saveJoined() }
-                        .buttonStyle(OutlineButton(selected: true)).disabled(selected.count < 2).opacity(selected.count < 2 ? 0.4 : 1)
-                    Button(selected.isEmpty ? "Exportar cortes" : "Exportar \(selected.count) para el K.O. II") { exportSelected() }
-                        .buttonStyle(OutlineButton(selected: true)).disabled(selected.isEmpty).opacity(selected.isEmpty ? 0.4 : 1)
+                    actionButtons
                     if let m = message { Text(m).font(Theme.font(13)).foregroundColor(Theme.muted).frame(maxWidth: .infinity, alignment: .center) }
                 }.padding(16)
             }
@@ -137,6 +94,94 @@ struct ChopSheet: View {
         .onChange(of: sensitivity) { _ in recompute() }
         .onReceive(tick) { _ in updatePreview() }
         .onDisappear { stopPreview() }
+    }
+
+    private var modeChips: some View {
+        let modes: [Int] = lay == nil ? [4, 8, 12, 0] : [4, 8, 12, 0, -1]
+        return HStack(spacing: 8) {
+            ForEach(modes, id: \.self) { m in
+                Chip(title: modeTitle(m), selected: mode == m) { mode = m }
+            }
+        }
+    }
+
+    private func modeTitle(_ m: Int) -> String {
+        if m == 0 { return "Auto" }
+        if m == -1 { return "Compases" }
+        return "\(m)"
+    }
+
+    private var padGrid: some View {
+        let cols = Array(repeating: GridItem(.flexible(), spacing: 8), count: 4)
+        return LazyVGrid(columns: cols, spacing: 8) {
+            ForEach(0..<12, id: \.self) { i in padButton(i) }
+        }
+    }
+
+    private func padButton(_ i: Int) -> some View {
+        let live = i < ranges.count, on = selected.contains(i)
+        let playing = playingIndex == i
+        let chord: String? = (live && mode == -1) ? padChord(i) : nil
+        return Button {
+            guard live else { return }
+            stopPreview()
+            if on { selected.remove(i) } else { selected.insert(i) }
+            play(i)
+        } label: {
+            VStack(spacing: 1) {
+                Text("\(i + 1)").font(Theme.font(20, weight: .bold))
+                if let c = chord { Text(c).font(Theme.font(11)).lineLimit(1).minimumScaleFactor(0.6) }
+            }
+            .foregroundColor(!live ? Theme.line : (on ? Theme.amber : Theme.text))
+            .frame(maxWidth: .infinity, minHeight: 64)
+            .background(playing ? Theme.amber.opacity(0.28) : (on ? Theme.surface2 : Theme.surface))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(on && live ? Theme.amber : Theme.line, lineWidth: playing ? 3 : 1.5))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+        }
+        .disabled(!live)
+        .accessibilityLabel(padLabel(i, chord: chord, on: on))
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    private func padLabel(_ i: Int, chord: String?, on: Bool) -> String {
+        var t = "Pad \(i + 1)"
+        if let c = chord { t += ", " + c }
+        if on { t += ", seleccionado" }
+        return t
+    }
+
+    private var actionButtons: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            previewButton
+            saveButtons
+            if lay != nil { loopButtons }
+            Button("Guardar unidos en un solo sonido") { saveJoined() }
+                .buttonStyle(OutlineButton(selected: true)).disabled(selected.count < 2).opacity(selected.count < 2 ? 0.4 : 1)
+            Button(selected.isEmpty ? "Exportar cortes" : "Exportar \(selected.count) para el K.O. II") { exportSelected() }
+                .buttonStyle(OutlineButton(selected: true)).disabled(selected.isEmpty).opacity(selected.isEmpty ? 0.4 : 1)
+        }
+    }
+
+    private var previewButton: some View {
+        let title = previewing ? "Parar" : (selected.isEmpty ? "Escuchar selección" : "Escuchar selección · \(previewSeconds)")
+        return Button(title) { if previewing { stopPreview() } else { startPreview() } }
+            .buttonStyle(OutlineButton(selected: previewing)).disabled(selected.isEmpty).opacity(selected.isEmpty ? 0.4 : 1)
+            .accessibilityLabel(previewing ? "Parar la escucha de la selección" : "Escuchar selección")
+    }
+
+    private var saveButtons: some View {
+        Button(selected.isEmpty ? "Elige al menos un corte" : "Guardar \(selected.count) en la Biblioteca") { saveSelected() }
+            .buttonStyle(AmberButton()).disabled(selected.isEmpty).opacity(selected.isEmpty ? 0.4 : 1)
+    }
+
+    private var loopButtons: some View {
+        let can = loopRange != nil
+        return VStack(spacing: 14) {
+            Button(loopPlayer != nil ? "Parar el loop" : "Escuchar loop") { toggleLoop() }
+                .buttonStyle(OutlineButton(selected: loopPlayer != nil)).disabled(!can).opacity(can ? 1 : 0.4)
+            Button("Guardar selección como loop") { saveLoop() }
+                .buttonStyle(OutlineButton(selected: true)).disabled(!can).opacity(can ? 1 : 0.4)
+        }
     }
 
     private var wave: some View {
