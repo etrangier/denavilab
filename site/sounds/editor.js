@@ -101,6 +101,20 @@ export function renderEdit(root) {
       btn('Recortar', { small: true, onclick: () => { const [a, b] = sel(); apply(x => dsp.fade(dsp.trim(x, a, b), fade, fade)); } }),
       btn('Normalizar', { small: true, onclick: () => apply(x => dsp.normalize(x)) }),
       btn('Fundido', { small: true, onclick: () => apply(x => dsp.fade(x, fade, fade)) })),
+    label('Limpiar ruido'),
+    h('div', { class: 'row2' },
+      btn('Suave', { small: true, onclick: () => apply(x => dsp.cleanNoise(x, s.rate, 'soft')) }),
+      btn('Fuerte', { small: true, onclick: () => apply(x => dsp.cleanNoise(x, s.rate, 'strong')) })),
+    h('div', { class: 'row2' },
+      btn('Quitar ruido de fondo', { small: true, onclick: () => {
+        const w = dsp.quietestWindow(ed.audio, s.rate); if (!w) return toast('No hay una parte tranquila: marca una con los marcadores y usa «Con la selección»');
+        apply(x => dsp.denoise(x, x.slice(w[0], w[1])));
+      } }),
+      btn('Con la selección', { small: true, onclick: () => {
+        const [a, b] = sel(); if (b - a < s.rate / 10) return toast('Marca una parte de solo ruido de al menos 0,1 s');
+        apply(x => dsp.denoise(x, x.slice(a, b)));
+      } })),
+    muted('Suave y Fuerte cortan graves (respiración, soplidos) y apagan lo que suena bajito entre sonidos. «Quitar ruido de fondo» aprende el ruido de la parte más tranquila; «Con la selección» lo aprende de lo que marques. Puedes deshacer.', 'tiny'),
     sliderRow('Fundido', { min: 0, max: 200, step: 1, value: ed.fadeMs, fmt: v => v + ' ms', onInput: v => { ed.fadeMs = v; } }),
     h('div', { class: 'row2' }, btn('Deshacer', { small: true, disabled: !ed.undo.length, onclick: () => step(ed.undo, ed.redo) }), btn('Rehacer', { small: true, disabled: !ed.redo.length, onclick: () => step(ed.redo, ed.undo) })),
     bpmCard,

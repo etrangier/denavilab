@@ -199,6 +199,14 @@ function openRetro() {
 }
 
 // ---------- hoja: guardado rápido ----------
+function noiseRow(q, set) {
+  const box = h('div', { class: 'stack tight' });
+  const paint = () => fill(box, h('div', { class: 'between' }, h('b', {}, 'Reducir ruido al guardar'), h('span', { class: 'muted small' }, q.denoise === 'strong' ? 'Fuerte' : q.denoise === 'soft' ? 'Suave' : 'Apagado')),
+    h('div', { class: 'row3' }, ...[['off', 'Off'], ['soft', 'Suave'], ['strong', 'Fuerte']].map(([k, t]) => btn(t, { small: true, sel: (q.denoise || 'off') === k, onclick: () => { q.denoise = k; set('denoise', k); paint(); } }))),
+    muted('Corta la respiración y los graves, y apaga lo que suena bajito entre sonidos. Se aplica a toda toma que guardes.', 'tiny'));
+  paint(); return box;
+}
+
 function openQuick() {
   sheet(close => {
     const q = loadQuick(), set = (k, v) => { q[k] = v; ls.set('quick', q); };
@@ -208,6 +216,7 @@ function openQuick() {
       toggleRow('Guardado rápido', 'Un toque en parar y queda guardada', q.enabled, v => set('enabled', v)),
       toggleRow('Recortar silencios', 'Quita el vacío al inicio y al final', q.trim, v => set('trim', v)),
       toggleRow('Fundidos cortos', '5 ms al inicio y al final, sin clics', q.fades, v => set('fades', v)),
+      noiseRow(q, set),
       toggleRow('Normalizar volumen', 'Sube el nivel hasta −1 dB', q.normalize, v => set('normalize', v)),
       sliderRow('Umbral de silencio', { min: -80, max: -20, step: 1, value: q.thresholdDB, fmt: v => v + ' dB', onInput: v => set('thresholdDB', v) }),
       muted('El nombre es automático (grabacion_001…) y va a Sin clasificar. Puedes cambiar nombre, carpeta y recorte después.', 'center small'),

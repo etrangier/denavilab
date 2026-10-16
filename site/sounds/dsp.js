@@ -123,10 +123,144 @@ export function trimSilence(x, thresholdDB = -48, pad = 0) {
   return x.slice(Math.max(0, a - pad), Math.min(x.length, b + 1 + pad));
 }
 
+// ---------- Limpieza de ruido ----------
+
+/** Filtro pasa-altos de 4.º orden (dos biquads Butterworth en cascada): quita soplidos, respiración y rumor grave. */
+export function highpass(x, rate, hz) {
+  const w0 = 2 * Math.PI * hz / rate, c = Math.cos(w0), al = Math.sin(w0) / (2 * Math.SQRT1_2), a0 = 1 + al;
+  const b0 = (1 + c) / 2 / a0, b1 = -(1 + c) / a0, a1 = -2 * c / a0, a2 = (1 - al) / a0;
+  let y = Float32Array.from(x);
+  for (let pass = 0; pass < 2; pass++) {
+    let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    for (let i = 0; i < y.length; i++) {
+      const xi = y[i], yi = b0 * xi + b1 * x1 + b0 * x2 - a1 * y1 - a2 * y2;
+      x2 = x1; x1 = xi; y2 = y1; y1 = yi; y[i] = yi;
+    }
+  }
+  return y;
+}
+
+const NOISE_BLOCK = 0.02;
+function blockRMS(x, rate) {
+  const blk = Math.max(1, Math.round(rate * NOISE_BLOCK)), out = [];
+  for (let i = 0; i + blk <= x.length; i += blk) { let e = 0; for (let j = i; j < i + blk; j++) e += x[j] * x[j]; out.push(Math.sqrt(e / blk)); }
+  return { blk, rms: out };
+}
+const toDB = v => v > 1e-6 ? 20 * Math.log10(v) : -120;
+
+/** Nivel de fondo de la toma (dB): el percentil 10 de la energía por bloques de 20 ms. */
+export function noiseFloorDB(x, rate) {
+  const { rms } = blockRMS(x, rate); if (!rms.length) return -120;
+  return toDB([...rms].sort((a, b) => a - b)[Math.floor(rms.length * 0.1)]);
+}
+
+/** Compuerta: baja el volumen donde el nivel no pasa del umbral (con ataque rápido, mantenimiento y salida suave). */
+export function gate(x, rate, thresholdDB, floorDB, holdMs = 60, releaseMs = 120, attackMs = 3) {
+  const { blk, rms } = blockRMS(x, rate), th = Math.pow(10, thresholdDB / 20), floor = Math.pow(10, floorDB / 20);
+  const hold = Math.max(1, Math.round(holdMs / (NOISE_BLOCK * 1000))), open = new Array(rms.length).fill(false);
+  let left = 0;
+  for (let b = 0; b < rms.length; b++) { if (rms[b] > th) left = hold; open[b] = left > 0; if (left > 0) left--; }
+  for (let b = 0; b < rms.length - 1; b++) if (open[b + 1]) open[b] = true;   // anticipa un bloque para no comerse el ataque
+  const ca = 1 - Math.exp(-1 / (rate * attackMs / 1000)), cr = 1 - Math.exp(-1 / (rate * releaseMs / 1000));
+  const y = new Float32Array(x.length); let g = open[0] ? 1 : floor;   // arranca ya en su estado: no deja pasar el ruido del principio
+  for (let i = 0; i < x.length; i++) {
+    const b = Math.min(rms.length - 1, Math.floor(i / blk)), t = b >= 0 && open[b] ? 1 : floor;
+    g += (t - g) * (t > g ? ca : cr); y[i] = x[i] * g;
+  }
+  return y;
+}
+
+export const NOISE_LEVELS = {
+  soft:   { hz: 100, margin: 10, floorDB: -15 },
+  strong: { hz: 160, margin: 16, floorDB: -35 },
+};
+/** Reducir ruido rápido: pasa-altos + compuerta. El umbral sale del propio fondo de la toma, nunca cerca de su pico. */
+export function cleanNoise(x, rate, level) {
+  const L = NOISE_LEVELS[level]; if (!L || x.length < rate / 10) return x;
+  const y = highpass(x, rate, L.hz), th = Math.min(noiseFloorDB(y, rate) + L.margin, peakDB(y) - 20);
+  return gate(y, rate, th, L.floorDB);
+}
+
+/** La parte más tranquila de la toma (`seconds` seguidos) para usarla de muestra de ruido; null si no hay una parte clara. */
+export function quietestWindow(x, rate, seconds = 0.3) {
+  const { blk, rms } = blockRMS(x, rate), w = Math.max(2, Math.round(seconds / NOISE_BLOCK));
+  if (rms.length < w * 2) return null;
+  let best = 0, bestE = Infinity, e = 0;
+  for (let b = 0; b < rms.length; b++) {
+    e += rms[b] * rms[b]; if (b >= w) e -= rms[b - w] * rms[b - w];
+    if (b >= w - 1 && e < bestE) { bestE = e; best = b - w + 1; }
+  }
+  const noiseDB = toDB(Math.sqrt(bestE / w));
+  if (peakDB(x) - noiseDB < 10) return null;           // no hay una parte tranquila: todo suena parecido
+  return [best * blk, (best + w) * blk];
+}
+
+function fftInPlace(re, im, inverse) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit;
+    if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = 2 * Math.PI / len * (inverse ? 1 : -1), wr = Math.cos(ang), wi = Math.sin(ang);
+    for (let i = 0; i < n; i += len) {
+      let cr = 1, ci = 0;
+      for (let k = 0; k < len / 2; k++) {
+        const a = i + k, b = a + len / 2, tr = re[b] * cr - im[b] * ci, ti = re[b] * ci + im[b] * cr;
+        re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti;
+        const nr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = nr;
+      }
+    }
+  }
+  if (inverse) for (let i = 0; i < n; i++) { re[i] /= n; im[i] /= n; }
+}
+
+export const DENOISE_N = 2048, DENOISE_HOP = 512;
+const hann = new Float64Array(DENOISE_N).map((_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / DENOISE_N));
+
+/** Magnitud media por bin de una muestra de ruido (la muestra debe tener al menos una ventana). */
+export function noiseProfile(noise) {
+  const N = DENOISE_N, mag = new Float64Array(N / 2 + 1), re = new Float64Array(N), im = new Float64Array(N);
+  let frames = 0;
+  for (let s = 0; s + N <= noise.length; s += DENOISE_HOP) {
+    for (let i = 0; i < N; i++) { re[i] = noise[s + i] * hann[i]; im[i] = 0; }
+    fftInPlace(re, im, false);
+    for (let k = 0; k <= N / 2; k++) mag[k] += Math.hypot(re[k], im[k]);
+    frames++;
+  }
+  if (frames) for (let k = 0; k < mag.length; k++) mag[k] /= frames;
+  return { mag, frames };
+}
+
+/** Resta espectral: quita de toda la toma el ruido de fondo aprendido de `noise`. `amount` 1 = normal, más = más agresivo. */
+export function denoise(x, noise, amount = 1) {
+  const N = DENOISE_N, H = DENOISE_HOP, prof = noiseProfile(noise);
+  if (!prof.frames || x.length < N) return x;
+  const alpha = 1.6 * amount, floor = 0.12, pad = N, len = x.length + 2 * pad;
+  const src = new Float64Array(len + N); for (let i = 0; i < x.length; i++) src[pad + i] = x[i];
+  const out = new Float64Array(len + N), re = new Float64Array(N), im = new Float64Array(N);
+  const prev = new Float64Array(N / 2 + 1).fill(1), g = new Float64Array(N / 2 + 1), sm = new Float64Array(N / 2 + 1);
+  for (let s = 0; s < len; s += H) {
+    for (let i = 0; i < N; i++) { re[i] = src[s + i] * hann[i]; im[i] = 0; }
+    fftInPlace(re, im, false);
+    for (let k = 0; k <= N / 2; k++) { const m = Math.hypot(re[k], im[k]); g[k] = m > 1e-9 ? Math.max(floor, 1 - alpha * prof.mag[k] / m) : 1; }
+    for (let k = 0; k <= N / 2; k++) {
+      const a = g[Math.max(0, k - 1)], c = g[Math.min(N / 2, k + 1)];
+      sm[k] = 0.5 * (0.25 * a + 0.5 * g[k] + 0.25 * c) + 0.5 * prev[k];     // suaviza en frecuencia y en el tiempo: menos «burbujeo»
+    }
+    for (let k = 0; k <= N / 2; k++) { re[k] *= sm[k]; im[k] *= sm[k]; if (k > 0 && k < N / 2) { re[N - k] *= sm[k]; im[N - k] *= sm[k]; } prev[k] = sm[k]; }
+    fftInPlace(re, im, true);
+    for (let i = 0; i < N; i++) out[s + i] += re[i] * hann[i] / 1.5;
+  }
+  const y = new Float32Array(x.length); for (let i = 0; i < x.length; i++) y[i] = out[pad + i];
+  return y;
+}
+
 /** Guardado rápido: recorte relativo al nivel, fundidos cortos y normalizado. */
-export const QUICK_DEFAULTS = { enabled: false, trim: true, fades: true, normalize: true, thresholdDB: -48 };
+export const QUICK_DEFAULTS = { enabled: false, denoise: 'off', trim: true, fades: true, normalize: true, thresholdDB: -48 };
 export function quickProcess(x, rate, s = QUICK_DEFAULTS) {
   let y = x;
+  if (s.denoise && s.denoise !== 'off') y = cleanNoise(y, rate, s.denoise);
   if (s.trim) {
     // El umbral nunca queda por encima de 30 dB bajo el pico de la propia toma: una grabación baja
     // (p. ej. un ambiente de exterior) no debe quedar casi vacía por un umbral absoluto.

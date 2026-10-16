@@ -317,4 +317,62 @@ final class LogicTests: XCTestCase {
         XCTAssertTrue(Editing.previewAudio(x, ranges: ranges, selected: [], rate: 1_000).isEmpty)
         XCTAssertTrue(Editing.previewSegments(ranges, selected: [9], rate: 1_000).isEmpty)       // índice que ya no existe
     }
+
+    // MARK: limpieza de ruido
+
+    private func noisyTake(rate: Int = 48000, seconds: Int = 5) -> [Float] {
+        var seed: UInt32 = 3
+        func rnd() -> Float { seed = seed &* 1664525 &+ 1013904223; return Float(seed) / 4294967296 - 0.5 }
+        return (0..<(rate * seconds)).map { i in
+            let t = Double(i) / Double(rate)
+            let tone: Float = (t > 2 && t < 3) ? Float(0.4 * sin(2 * Double.pi * 880 * t)) : 0
+            return 0.04 * rnd() + Float(0.03 * sin(2 * Double.pi * 60 * t)) + tone
+        }
+    }
+
+    private func rmsDB(_ x: [Float], _ a: Double, _ b: Double, rate: Int = 48000) -> Float {
+        let lo = Int((a * Double(rate)).rounded()), hi = Int((b * Double(rate)).rounded())
+        var e: Float = 0
+        for i in lo..<hi { e += x[i] * x[i] }
+        return 20 * log10((e / Float(hi - lo)).squareRoot())
+    }
+
+    func testNoiseGateAndHighpass() {
+        let x = noisyTake()
+        let soft = NoiseReduction.clean(x, rate: 48000, level: .soft), strong = NoiseReduction.clean(x, rate: 48000, level: .strong)
+        XCTAssertLessThan(rmsDB(soft, 3.5, 4.5), rmsDB(x, 3.5, 4.5) - 6)
+        XCTAssertLessThan(rmsDB(strong, 3.5, 4.5), rmsDB(soft, 3.5, 4.5))
+        XCTAssertEqual(rmsDB(strong, 2.2, 2.8), rmsDB(x, 2.2, 2.8), accuracy: 1)      // el sonido real queda igual
+        XCTAssertEqual(NoiseReduction.clean(x, rate: 48000, level: .off), x)
+        XCTAssertEqual(NoiseReduction.clean(x, rate: 48000, level: .strong).count, x.count)
+    }
+
+    func testSpectralDenoise() {
+        var seed: UInt32 = 7
+        func rnd() -> Float { seed = seed &* 1664525 &+ 1013904223; return Float(seed) / 4294967296 - 0.5 }
+        let x: [Float] = (0..<240000).map { i in
+            let t = Double(i) / 48000
+            return 0.05 * rnd() + ((t > 2 && t < 3) ? Float(0.4 * sin(2 * Double.pi * 880 * t)) : 0)
+        }
+        guard let w = NoiseReduction.quietestWindow(x, rate: 48000) else { return XCTFail("debería haber una parte tranquila") }
+        let y = NoiseReduction.denoise(x, noise: Array(x[w]))
+        XCTAssertEqual(y.count, x.count)
+        XCTAssertLessThan(rmsDB(y, 3.5, 4.5), rmsDB(x, 3.5, 4.5) - 8)
+        XCTAssertEqual(rmsDB(y, 2.2, 2.8), rmsDB(x, 2.2, 2.8), accuracy: 1)
+        // una señal pareja no tiene parte tranquila, y con ruido nulo la resta no cambia nada
+        let flat: [Float] = (0..<144000).map { 0.3 * Float(sin(Double($0) * 0.1)) }
+        XCTAssertNil(NoiseReduction.quietestWindow(flat, rate: 48000))
+        let same = NoiseReduction.denoise(flat, noise: [Float](repeating: 0, count: 48000))
+        XCTAssertEqual(zip(same, flat).map { abs($0 - $1) }.max() ?? 1, 0, accuracy: 1e-5)
+    }
+
+    func testQuickSaveDenoiseTrimsNoise() {
+        let x = noisyTake()
+        var s = QuickSave.Settings(); s.normalize = false; s.fades = false
+        let plain = QuickSave.process(x, rate: 48000, s)
+        s.denoise = .strong
+        let clean = QuickSave.process(x, rate: 48000, s)
+        XCTAssertLessThan(clean.count, plain.count / 2)
+        XCTAssertGreaterThan(clean.count, 43200)
+    }
 }

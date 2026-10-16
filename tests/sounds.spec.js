@@ -375,3 +375,90 @@ test.describe('móvil y PWA', () => {
     expect(caches.some(k => k.startsWith('sounds-'))).toBe(true);
   });
 });
+
+test.describe('limpieza de ruido', () => {
+  // Un golpe de tono de 1 s a 2 s entre ruido bajo y constante.
+  const rate0 = 48000;
+  const sembrarRuidoso = page => page.evaluate(async () => {
+    const st = await import('/sounds/store.js'), rate = 48000, a = new Float32Array(rate * 5);
+    let seed = 7; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32 - 0.5; };
+    for (let i = 0; i < a.length; i++) { const t = i / rate; a[i] = 0.05 * rnd() + (t > 2 && t < 3 ? 0.4 * Math.sin(2 * Math.PI * 880 * t) : 0); }
+    await st.putSample(st.newSample('Radio', a, rate), a);
+  });
+  const niveles = page => page.evaluate(async () => {
+    const st = await import('/sounds/store.js'), s = (await st.listSamples()).find(m => m.name === 'Radio'), a = await st.getAudio(s.id), rate = s.rate;
+    const rms = (x, y) => { let e = 0; for (let i = Math.round(x * rate); i < Math.round(y * rate); i++) e += a[i] ** 2; return 20 * Math.log10(Math.sqrt(e / Math.round((y - x) * rate))); };
+    return { ruido: rms(3.5, 4.5), tono: rms(2.2, 2.8) };
+  });
+  const abrirRadio = async page => {
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Radio' }).click();
+  };
+
+  test('filtros y resta espectral: bajan el ruido y respetan el sonido', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async () => {
+      const d = await import('/sounds/dsp.js'), rate = 48000, n = rate * 5;
+      let seed = 3; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32 - 0.5; };
+      const x = new Float32Array(n);
+      for (let i = 0; i < n; i++) { const t = i / rate; x[i] = 0.04 * rnd() + 0.03 * Math.sin(2 * Math.PI * 60 * t) + (t > 2 && t < 3 ? 0.4 * Math.sin(2 * Math.PI * 880 * t) : 0); }
+      const rms = (a, p, q) => { let e = 0; const A = Math.round(p * rate), B = Math.round(q * rate); for (let i = A; i < B; i++) e += a[i] ** 2; return 20 * Math.log10(Math.sqrt(e / (B - A))); };
+      const w = d.quietestWindow(x, rate), plano = new Float32Array(rate * 3).map((_, i) => 0.3 * Math.sin(i * 0.1));
+      const sinRuido = d.denoise(plano, new Float32Array(rate)), base = { ...d.QUICK_DEFAULTS, normalize: false, fades: false };
+      return { antes: rms(x, 3.5, 4.5), suave: rms(d.cleanNoise(x, rate, 'soft'), 3.5, 4.5), fuerte: rms(d.cleanNoise(x, rate, 'strong'), 3.5, 4.5),
+        tonoFuerte: rms(d.cleanNoise(x, rate, 'strong'), 2.2, 2.8), tono: rms(x, 2.2, 2.8),
+        espectral: rms(d.denoise(x, x.subarray(w[0], w[1])), 3.5, 4.5), ventana: w[0] / rate, sinVentana: d.quietestWindow(plano, rate),
+        identidad: sinRuido.reduce((m, v, i) => Math.max(m, Math.abs(v - plano[i])), 0), largo: d.denoise(x, x.subarray(w[0], w[1])).length === n,
+        apagado: d.cleanNoise(x, rate, 'off') === x, rapido: [d.quickProcess(x, rate, base).length, d.quickProcess(x, rate, { ...base, denoise: 'strong' }).length] };
+    });
+    expect(r.suave).toBeLessThan(r.antes - 6);                 // el filtro y la compuerta bajan el fondo
+    expect(r.fuerte).toBeLessThan(r.suave);                    // Fuerte baja más que Suave
+    expect(Math.abs(r.tonoFuerte - r.tono)).toBeLessThan(1);   // el sonido de verdad queda igual
+    expect(r.espectral).toBeLessThan(r.antes - 8);
+    expect(r.ventana).not.toBeNull(); expect(r.sinVentana).toBeNull();   // una señal pareja no tiene parte tranquila
+    expect(r.identidad).toBeLessThan(1e-6); expect(r.largo).toBe(true);
+    expect(r.apagado).toBe(true);
+    expect(r.rapido[1]).toBeLessThan(r.rapido[0] * 0.5);        // con ruido fuera, el recorte de silencios sí encuentra silencio
+    expect(r.rapido[1]).toBeGreaterThan(rate0 * 0.9);   // y no se come el sonido
+  });
+
+  test('en Editar: «Quitar ruido de fondo» baja el fondo y se puede deshacer', async ({ page }) => {
+    const errores = vigilar(page);
+    await abrir(page, 'schair'); await sembrarRuidoso(page); await page.reload();
+    await abrirRadio(page);
+    await expect(page.getByText('Limpiar ruido', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Quitar ruido de fondo' }).click();
+    await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+    await expect(page.locator('#toast')).toContainText('Guardado');
+    const n = await niveles(page);
+    expect(n.ruido).toBeLessThan(-45); expect(n.tono).toBeGreaterThan(-12);
+    await page.getByRole('button', { name: 'Deshacer' }).click();
+    await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+    expect((await niveles(page)).ruido).toBeGreaterThan(-40);
+    expect(errores).toEqual([]);
+  });
+
+  test('«Con la selección» pide una parte de ruido y «Suave/Fuerte» limpian la toma', async ({ page }) => {
+    await abrir(page, 'schair'); await sembrarRuidoso(page); await page.reload();
+    await abrirRadio(page);
+    await page.getByRole('button', { name: 'Fuerte', exact: true }).click();
+    await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+    await expect(page.locator('#toast')).toContainText('Guardado');
+    expect((await niveles(page)).ruido).toBeLessThan(-55);
+    // sin marcar nada, la selección es toda la toma y no es «sólo ruido», pero sí dura más de 0,1 s: se aplica sin romper
+    await page.getByRole('button', { name: 'Con la selección' }).click();
+    await expect(page.getByRole('heading', { name: 'Escuchar y editar' })).toBeVisible();
+  });
+
+  test('Reducir ruido al guardar: se elige en el guardado rápido y se recuerda', async ({ page }) => {
+    await abrir(page, 'schair'); await tab(page, 'grabar');
+    await page.getByRole('button', { name: 'Guardado rápido' }).click();
+    const hoja = page.locator('dialog.sheet');
+    await expect(hoja).toContainText('Reducir ruido al guardar');
+    await hoja.getByRole('button', { name: 'Fuerte', exact: true }).click();
+    await expect(hoja).toContainText('Fuerte');
+    await hoja.getByRole('button', { name: 'Listo', exact: true }).last().click();
+    await page.getByRole('button', { name: 'Guardado rápido' }).click();
+    await expect(page.locator('dialog.sheet').getByRole('button', { name: 'Fuerte', exact: true })).toHaveClass(/\bsel\b/);
+  });
+});
