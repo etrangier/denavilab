@@ -87,7 +87,8 @@ final class LogicTests: XCTestCase {
 
     func testQuickSaveProcess() {
         var s = QuickSave.Settings(); s.trim = true; s.fades = true; s.normalize = false
-        let x = [Float](repeating: 0, count: 2_000) + [Float](repeating: 0.5, count: 4_000) + [Float](repeating: 0, count: 2_000)
+        // 1 s de silencio, 1 s de sonido, 1 s de silencio: debe quedar más o menos el sonido
+        let x = [Float](repeating: 0, count: 48_000) + [Float](repeating: 0.5, count: 48_000) + [Float](repeating: 0, count: 48_000)
         let y = QuickSave.process(x, rate: 48_000, s)
         XCTAssertLessThan(y.count, x.count)
         XCTAssertEqual(y.first, 0); XCTAssertEqual(y.last, 0)
