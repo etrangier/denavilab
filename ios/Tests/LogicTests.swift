@@ -244,4 +244,62 @@ final class LogicTests: XCTestCase {
         let y = QuickSave.process(x, rate: 48_000, QuickSave.Settings())
         XCTAssertGreaterThan(y.map(abs).max() ?? 0, 0.5)
     }
+
+    @MainActor func testAppOpensOnHome() {
+        let s = AppState()
+        XCTAssertEqual(s.tab, .inicio)
+        let sample = Sample(name: "x", sampleRate: 48_000)
+        s.open(sample)
+        XCTAssertEqual(s.tab, .editar); XCTAssertEqual(s.selectedID, sample.id)
+    }
+
+    func testRenameNames() {
+        XCTAssertEqual(LibraryStore.names(base: "Bombo", count: 1), ["Bombo"])
+        XCTAssertEqual(LibraryStore.names(base: "Bombo", count: 3), ["Bombo 01", "Bombo 02", "Bombo 03"])
+        XCTAssertEqual(LibraryStore.names(base: "x", count: 100).last, "x 100")        // ancho según la cantidad
+        XCTAssertTrue(LibraryStore.names(base: "x", count: 0).isEmpty)
+    }
+
+    @MainActor func testBatchRenameMoveDelete() {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let lib = LibraryStore(directory: dir)
+        let a = lib.add(name: "a", audio: [0, 0.1, 0], sampleRate: 48_000)!
+        let b = lib.add(name: "b", audio: [0, 0.1, 0], sampleRate: 48_000)!
+        let c = lib.add(name: "c", audio: [0, 0.1, 0], sampleRate: 48_000)!
+
+        lib.rename(ids: [a.id, b.id], to: "Kick")                                   // varias: numeradas, la más antigua primero
+        XCTAssertEqual(lib.samples.first { $0.id == a.id }?.name, "Kick 01")
+        XCTAssertEqual(lib.samples.first { $0.id == b.id }?.name, "Kick 02")
+        XCTAssertEqual(lib.samples.first { $0.id == c.id }?.name, "c")
+        lib.rename(ids: [c.id], to: "  Solo  ")                                      // una: tal cual, sin espacios sobrantes
+        XCTAssertEqual(lib.samples.first { $0.id == c.id }?.name, "Solo")
+        lib.rename(ids: [c.id], to: "   ")                                           // vacío: no cambia
+        XCTAssertEqual(lib.samples.first { $0.id == c.id }?.name, "Solo")
+
+        lib.move(ids: [a.id, c.id], folder: "Voz", sub: "Habla")
+        XCTAssertEqual(lib.samples(in: "Voz").count, 2)
+        XCTAssertEqual(lib.samples.first { $0.id == a.id }?.subfolder, "Habla")
+
+        let reloaded = LibraryStore(directory: dir)                                  // todo se guardó en disco
+        XCTAssertEqual(reloaded.samples.first { $0.id == b.id }?.name, "Kick 02")
+
+        lib.delete(ids: [a.id, b.id])
+        XCTAssertEqual(lib.samples.map(\.id), [c.id])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: lib.url(a).path))
+    }
+
+    func testChopPieceNamesKeepOriginalNumber() {
+        XCTAssertEqual([0, 2].map { Editing.pieceName($0, base: "toma") }, ["corte01_toma", "corte03_toma"])   // el 1 y el 3, sin renumerar
+        XCTAssertEqual(Editing.pieceName(11, base: "x"), "corte12_x")
+    }
+
+    func testHighlightRangesOnlyForSelectedPieces() {
+        let ranges: [Range<Int>] = [0..<100, 100..<250, 250..<400, 400..<1_000]
+        let h = Editing.highlightRanges(ranges, total: 1_000, selected: [3, 0])
+        XCTAssertEqual(h.count, 2)
+        XCTAssertEqual(h[0], 0...0.1); XCTAssertEqual(h[1], 0.4...1.0)                 // ordenados, sólo los elegidos
+        XCTAssertTrue(Editing.highlightRanges(ranges, total: 1_000, selected: []).isEmpty)
+        XCTAssertEqual(Editing.highlightRanges(ranges, total: 1_000, selected: [9]).count, 0)   // índice que ya no existe
+        XCTAssertTrue(Editing.highlightRanges(ranges, total: 0, selected: [0]).isEmpty)
+    }
 }

@@ -9,7 +9,7 @@ struct ChopSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var mode = 8            // 4, 8, 12 o 0 = automático
     @State private var sensitivity = 0.5
-    @State private var selected = 0
+    @State private var selected: Set<Int> = []     // cortes elegidos (0 = el primero)
     @State private var player: AVAudioPlayer?
     @State private var sharing: [URL] = []
     @State private var showShare = false
@@ -25,7 +25,7 @@ struct ChopSheet: View {
                                : Editing.evenSlices(audio, count: mode)
         if grid, let b = bpm { starts = Editing.snapToGrid(starts, step: Double(sample.sampleRate) * 60 / b / 4) }
         ranges = Array(Editing.slices(starts: starts, total: audio.count).prefix(12))
-        if selected >= ranges.count { selected = 0 }
+        selected = []                                   // al cambiar los cortes, los números ya no significan lo mismo
     }
 
     var body: some View {
@@ -33,12 +33,12 @@ struct ChopSheet: View {
             Theme.bg.ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    ScreenTitle(title: "Chop en pads", subtitle: "\(ranges.count) cortes · toca un pad para escucharlo",
+                    ScreenTitle(title: "Chop en pads", subtitle: "\(ranges.count) cortes · \(selected.count) seleccionado\(selected.count == 1 ? "" : "s")",
                                 trailing: AnyView(TextLink(title: "Cerrar") { player?.stop(); dismiss() }))
                     wave
                     HStack(spacing: 8) {
                         ForEach([4, 8, 12, 0], id: \.self) { m in
-                            Chip(title: m == 0 ? "Auto" : "\(m)", selected: mode == m) { mode = m; selected = 0 }
+                            Chip(title: m == 0 ? "Auto" : "\(m)", selected: mode == m) { mode = m }
                         }
                     }
                     if mode == 0 {
@@ -54,22 +54,37 @@ struct ChopSheet: View {
                         }.tint(Theme.amber).disabled(bpm == nil)
                         Text("Funciona mejor si grabaste con compás.").font(Theme.font(12)).foregroundColor(Theme.muted)
                     }.card()
+                    Text("Toca los pads que quieras quedarte: se escuchan y se marcan. Puedes elegir los que quieras, juntos o no (por ejemplo, el 1 y el 3).")
+                        .font(Theme.font(12)).foregroundColor(Theme.muted)
+                    HStack(spacing: 8) {
+                        Button("Todos") { selected = Set(ranges.indices) }.buttonStyle(OutlineButton()).disabled(selected.count == ranges.count)
+                        Button("Ninguno") { selected = [] }.buttonStyle(OutlineButton()).disabled(selected.isEmpty)
+                    }.font(Theme.font(13))
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
                         ForEach(0..<12, id: \.self) { i in
-                            let live = i < ranges.count
-                            Button { if live { selected = i; play(i) } } label: {
+                            let live = i < ranges.count, on = selected.contains(i)
+                            Button {
+                                guard live else { return }
+                                if on { selected.remove(i) } else { selected.insert(i) }
+                                play(i)
+                            } label: {
                                 Text("\(i + 1)").font(Theme.font(20, weight: .bold))
-                                    .foregroundColor(!live ? Theme.line : (selected == i ? Theme.amber : Theme.text))
+                                    .foregroundColor(!live ? Theme.line : (on ? Theme.amber : Theme.text))
                                     .frame(maxWidth: .infinity, minHeight: 64)
-                                    .background(Theme.surface)
-                                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(selected == i && live ? Theme.amber : Theme.line, lineWidth: 1.5))
+                                    .background(on ? Theme.surface2 : Theme.surface)
+                                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(on && live ? Theme.amber : Theme.line, lineWidth: 1.5))
                                     .clipShape(RoundedRectangle(cornerRadius: 14))
-                            }.disabled(!live)
+                            }
+                            .disabled(!live)
+                            .accessibilityLabel("Pad \(i + 1)" + (on ? ", seleccionado" : ""))
+                            .accessibilityAddTraits(on ? .isSelected : [])
                         }
                     }
                     if ranges.count < 12 { Text("Pads \(ranges.count + 1)–12 libres").font(Theme.font(12)).foregroundColor(Theme.muted).frame(maxWidth: .infinity, alignment: .center) }
-                    Button("Guardar cortes en la Biblioteca") { saveAll() }.buttonStyle(AmberButton())
-                    Button("Exportar cortes para el K.O. II") { exportAll() }.buttonStyle(OutlineButton(selected: true))
+                    Button(selected.isEmpty ? "Elige al menos un corte" : "Guardar \(selected.count) en la Biblioteca") { saveSelected() }
+                        .buttonStyle(AmberButton()).disabled(selected.isEmpty).opacity(selected.isEmpty ? 0.4 : 1)
+                    Button(selected.isEmpty ? "Exportar cortes" : "Exportar \(selected.count) para el K.O. II") { exportSelected() }
+                        .buttonStyle(OutlineButton(selected: true)).disabled(selected.isEmpty).opacity(selected.isEmpty ? 0.4 : 1)
                     if let m = message { Text(m).font(Theme.font(13)).foregroundColor(Theme.muted).frame(maxWidth: .infinity, alignment: .center) }
                 }.padding(16)
             }
@@ -84,7 +99,7 @@ struct ChopSheet: View {
 
     private var wave: some View {
         ZStack {
-            WaveBars(peaks: peaks, range: sliceRange).padding(12)
+            WaveBars(peaks: peaks, highlights: selected.isEmpty ? nil : Editing.highlightRanges(ranges, total: audio.count, selected: selected)).padding(12)
             Canvas { ctx, size in
                 for r in ranges.dropFirst() {
                     let x = size.width * CGFloat(r.lowerBound) / CGFloat(max(audio.count, 1))
@@ -97,15 +112,9 @@ struct ChopSheet: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    private var sliceRange: ClosedRange<Double> {
-        guard selected < ranges.count, !audio.isEmpty else { return 0...1 }
-        let r = ranges[selected]
-        return (Double(r.lowerBound) / Double(audio.count))...(Double(r.upperBound) / Double(audio.count))
-    }
-
     private func piece(_ i: Int) -> Sample {
         var s = sample; s.id = UUID(); s.slot = nil; s.effects = EffectParams()
-        s.name = "corte\(String(format: "%02d", i + 1))_\(sample.name)"
+        s.name = Editing.pieceName(i, base: sample.name)
         return s
     }
 
@@ -117,19 +126,21 @@ struct ChopSheet: View {
         } catch { message = "No se pudo reproducir: \(error.localizedDescription)" }
     }
 
-    private func saveAll() {
-        for (i, r) in ranges.enumerated() {
-            if var x = lib.add(name: "\(sample.name) · corte \(i + 1)", audio: Array(audio[r]), sampleRate: sample.sampleRate) {
-                x.folder = lib.folder(of: sample); lib.update(x)
+    private func saveSelected() {
+        let chosen = selected.sorted().filter { $0 < ranges.count }
+        for i in chosen {
+            if var x = lib.add(name: "\(sample.name) · corte \(i + 1)", audio: Array(audio[ranges[i]]), sampleRate: sample.sampleRate) {
+                x.folder = lib.folder(of: sample); x.subfolder = sample.subfolder; lib.update(x)
             }
         }
-        message = "\(ranges.count) cortes guardados en la Biblioteca"
+        message = chosen.count == 1 ? "1 corte guardado en la Biblioteca" : "\(chosen.count) cortes guardados en la Biblioteca"
     }
 
-    private func exportAll() {
-        let pieces = ranges.indices.map { piece($0) }
+    private func exportSelected() {
+        let chosen = selected.sorted().filter { $0 < ranges.count }
+        let pieces = chosen.map { piece($0) }
         var audioByID: [UUID: [Float]] = [:]
-        for (i, r) in ranges.enumerated() { audioByID[pieces[i].id] = Array(audio[r]) }
+        for (k, i) in chosen.enumerated() { audioByID[pieces[k].id] = Array(audio[ranges[i]]) }
         Task {
             do { sharing = try await Exporter.exportKit(pieces) { audioByID[$0.id] ?? [] }; showShare = true; message = nil }
             catch { message = "No se pudo exportar: \(error.localizedDescription)" }

@@ -87,6 +87,37 @@ final class LibraryStore: ObservableObject {
         save()
     }
 
+    /// Nombres para un cambio de nombre: uno solo tal cual; varios, numerados («nombre 01», «nombre 02»…).
+    nonisolated static func names(base: String, count: Int) -> [String] {
+        guard count > 1 else { return count == 1 ? [base] : [] }
+        let width = max(2, String(count).count)
+        return (1...count).map { "\(base) \(String(format: "%0\(width)d", $0))" }
+    }
+
+    /// Cambia el nombre de las grabaciones elegidas (de la más antigua a la más reciente si son varias).
+    func rename(ids: Set<UUID>, to base: String) {
+        let name = base.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        let targets = samples.filter { ids.contains($0.id) }.sorted { $0.created < $1.created }
+        for (t, n) in zip(targets, Self.names(base: name, count: targets.count)) {
+            if let i = samples.firstIndex(where: { $0.id == t.id }) { samples[i].name = n }
+        }
+        save()
+    }
+
+    func move(ids: Set<UUID>, folder: String, sub: String?) {
+        for i in samples.indices where ids.contains(samples[i].id) {
+            samples[i].folder = folder; samples[i].subfolder = sub
+        }
+        save()
+    }
+
+    func delete(ids: Set<UUID>) {
+        for s in samples where ids.contains(s.id) { try? FileManager.default.removeItem(at: url(s)) }
+        samples.removeAll { ids.contains($0.id) }
+        save()
+    }
+
     func update(_ s: Sample) {
         guard let i = samples.firstIndex(where: { $0.id == s.id }) else { return }
         samples[i] = s; save()

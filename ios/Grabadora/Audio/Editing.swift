@@ -159,4 +159,16 @@ enum Editing {
         let c = min(max(i, 0), max(x.count - 1, 0))
         return zeroCross ? nearestZeroCross(x, to: c, window: 2048) : c
     }
+
+    /// Nombre de un corte: conserva su número original aunque se dejen huecos («corte01_x», «corte03_x»).
+    nonisolated static func pieceName(_ i: Int, base: String) -> String { "corte\(String(format: "%02d", i + 1))_\(base)" }
+
+    /// Tramos elegidos como fracciones de la toma, para resaltarlos en la onda.
+    nonisolated static func highlightRanges(_ ranges: [Range<Int>], total: Int, selected: Set<Int>) -> [ClosedRange<Double>] {
+        guard total > 0 else { return [] }
+        return selected.sorted().compactMap { i in
+            guard i >= 0, i < ranges.count else { return nil }
+            return (Double(ranges[i].lowerBound) / Double(total))...(Double(ranges[i].upperBound) / Double(total))
+        }
+    }
 }

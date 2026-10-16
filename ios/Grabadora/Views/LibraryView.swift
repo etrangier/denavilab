@@ -12,8 +12,15 @@ struct LibraryView: View {
             Screen {
                 VStack(alignment: .leading, spacing: 14) {
                     ScreenTitle(title: "Biblioteca", trailing: AnyView(
-                        Text("\(lib.samples.count) \(lib.samples.count == 1 ? "grabación" : "grabaciones")")
-                            .font(Theme.font(13)).foregroundColor(Theme.muted)))
+                        HStack(spacing: 12) {
+                            Text("\(lib.samples.count) \(lib.samples.count == 1 ? "grabación" : "grabaciones")")
+                                .font(Theme.font(13)).foregroundColor(Theme.muted)
+                            if !lib.samples.isEmpty {
+                                NavigationLink(value: FolderView.selectKey) {
+                                    Text("Seleccionar").font(Theme.font(14, weight: .bold)).foregroundColor(Theme.amber).frame(minHeight: 44)
+                                }
+                            }
+                        }))
                     HStack(spacing: 8) {
                         Image(systemName: "magnifyingglass").foregroundColor(Theme.muted)
                         TextField("Buscar sonido…", text: $lib.query).font(Theme.font(15)).foregroundColor(Theme.text)
@@ -118,37 +125,161 @@ struct FlowChips: View {
     }
 }
 
-/// Lista de una carpeta, con borrado deslizando o con pulsación larga.
+/// Lista de una carpeta (o de todas las grabaciones) con selección individual y múltiple:
+/// cambiar nombre, mover de carpeta o eliminar.
 struct FolderView: View {
+    static let allKey = "__todas__"
+    static let selectKey = "__seleccionar__"
     let folder: String
     @EnvironmentObject var lib: LibraryStore
     @EnvironmentObject var state: AppState
-    @State private var toDelete: Sample?
+    @State private var selecting = false
+    @State private var selected: Set<UUID> = []
+    @State private var started = false
+    @State private var newName = ""
+    @State private var showRename = false
+    @State private var showMove = false
+    @State private var confirmDelete = false
+
+    private var isAll: Bool { folder == Self.allKey || folder == Self.selectKey }
+    private var items: [Sample] { isAll ? lib.filtered : lib.samples(in: folder) }
+    private var title: String { isAll ? "Todas las grabaciones" : folder }
 
     var body: some View {
         ZStack {
             Theme.bg.ignoresSafeArea()
-            let items = lib.samples(in: folder)
             if items.isEmpty {
                 Text("Esta carpeta está vacía").font(Theme.font(15)).foregroundColor(Theme.muted)
             } else {
                 List {
-                    ForEach(items) { s in
-                        Button { state.open(s) } label: { SampleRow(sample: s) }
-                            .buttonStyle(.plain)
-                            .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button(role: .destructive) { toDelete = s } label: { Label("Borrar", systemImage: "trash") }
-                            }
-                            .contextMenu { Button(role: .destructive) { toDelete = s } label: { Label("Borrar", systemImage: "trash") } }
-                    }
+                    ForEach(items) { s in row(s) }
                 }.listStyle(.plain).scrollContentBackground(.hidden)
             }
         }
-        .navigationTitle(folder).navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("¿Borrar esta grabación?", isPresented: Binding(get: { toDelete != nil }, set: { if !$0 { toDelete = nil } }), titleVisibility: .visible) {
-            Button("Borrar", role: .destructive) { if let s = toDelete { lib.delete(s) }; toDelete = nil }
+        .navigationTitle(selecting ? "\(selected.count) seleccionada\(selected.count == 1 ? "" : "s")" : title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(selecting ? "Cancelar" : "Seleccionar") { selecting.toggle(); selected = [] }
+                    .disabled(items.isEmpty && !selecting)
+            }
+            if selecting {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(selected.count == items.count ? "Ninguna" : "Todas") {
+                        selected = selected.count == items.count ? [] : Set(items.map(\.id))
+                    }
+                }
+            }
+        }
+        .safeAreaInset(edge: .bottom) { if selecting { actionBar } }
+        .onAppear { if folder == Self.selectKey && !started { started = true; selecting = true } }
+        .alert(selected.count > 1 ? "Cambiar nombre de \(selected.count) grabaciones" : "Cambiar nombre", isPresented: $showRename) {
+            TextField("Nombre", text: $newName)
+            Button("Guardar") { lib.rename(ids: selected, to: newName); finish() }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text(selected.count > 1
+                 ? "Se numeran: " + LibraryStore.names(base: newName.isEmpty ? "nombre" : newName, count: min(selected.count, 3)).joined(separator: ", ") + (selected.count > 3 ? "…" : "")
+                 : "")
+        }
+        .sheet(isPresented: $showMove) {
+            MoveSheet(count: selected.count, initialFolder: commonFolder) { f, s in
+                lib.move(ids: selected, folder: f, sub: s); finish()
+            }.presentationDetents([.large])
+        }
+        .confirmationDialog(selected.count > 1 ? "¿Borrar \(selected.count) grabaciones?" : "¿Borrar esta grabación?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Borrar", role: .destructive) { lib.delete(ids: selected); finish() }
+        }
+    }
+
+    private func row(_ s: Sample) -> some View {
+        Button {
+            if selecting { toggle(s.id) } else { state.open(s) }
+        } label: {
+            HStack(spacing: 12) {
+                if selecting {
+                    Image(systemName: selected.contains(s.id) ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 24)).foregroundColor(selected.contains(s.id) ? Theme.amber : Theme.muted)
+                        .accessibilityLabel(selected.contains(s.id) ? "Seleccionada" : "No seleccionada")
+                }
+                SampleRow(sample: s)
+            }
+        }
+        .buttonStyle(.plain)
+        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if !selecting {
+                Button(role: .destructive) { selected = [s.id]; confirmDelete = true } label: { Label("Borrar", systemImage: "trash") }
+            }
+        }
+        .contextMenu {
+            Button { selecting = true; selected = [s.id] } label: { Label("Seleccionar", systemImage: "checkmark.circle") }
+            Button { selecting = true; selected = [s.id]; prepareRename() } label: { Label("Cambiar nombre", systemImage: "pencil") }
+            Button { selecting = true; selected = [s.id]; showMove = true } label: { Label("Mover", systemImage: "folder") }
+            Button(role: .destructive) { selected = [s.id]; confirmDelete = true } label: { Label("Borrar", systemImage: "trash") }
+        }
+    }
+
+    private var actionBar: some View {
+        VStack(spacing: 8) {
+            Text(selected.isEmpty ? "Elige una o varias grabaciones" : "\(selected.count) seleccionada\(selected.count == 1 ? "" : "s")")
+                .font(Theme.font(12)).foregroundColor(Theme.muted)
+            HStack(spacing: 8) {
+                Button("Cambiar nombre") { prepareRename() }.buttonStyle(OutlineButton())
+                Button("Mover") { showMove = true }.buttonStyle(OutlineButton())
+                Button("Borrar") { confirmDelete = true }.buttonStyle(OutlineButton(danger: true))
+            }.font(Theme.font(13)).disabled(selected.isEmpty)
+        }
+        .padding(12).frame(maxWidth: .infinity).background(Theme.surface)
+        .overlay(alignment: .top) { Rectangle().fill(Theme.line).frame(height: 1) }
+    }
+
+    private func toggle(_ id: UUID) {
+        if selected.contains(id) { selected.remove(id) } else { selected.insert(id) }
+    }
+
+    private func prepareRename() {
+        newName = selected.count == 1 ? (lib.samples.first { selected.contains($0.id) }?.name ?? "") : ""
+        showRename = true
+    }
+
+    /// Si todas las elegidas están en la misma carpeta, se propone esa.
+    private var commonFolder: String? {
+        let folders = Set(lib.samples.filter { selected.contains($0.id) }.map { lib.folder(of: $0) })
+        return folders.count == 1 ? folders.first : nil
+    }
+
+    private func finish() { selected = []; selecting = false }
+}
+
+/// Elegir carpeta y subcarpeta de destino.
+struct MoveSheet: View {
+    let count: Int
+    let initialFolder: String?
+    let onMove: (String, String?) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var folder: String
+    @State private var sub: String?
+
+    init(count: Int, initialFolder: String?, onMove: @escaping (String, String?) -> Void) {
+        self.count = count; self.initialFolder = initialFolder; self.onMove = onMove
+        _folder = State(initialValue: initialFolder ?? LibraryStore.unsorted)
+    }
+
+    private var destination: String { sub.map { "\(folder) › \($0)" } ?? folder }
+
+    var body: some View {
+        ZStack {
+            Theme.bg.ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    ScreenTitle(title: "Mover", subtitle: "\(count) grabación\(count == 1 ? "" : "es")",
+                                trailing: AnyView(TextLink(title: "Cancelar") { dismiss() }))
+                    FolderPicker(folder: $folder, sub: $sub)
+                    Button("Mover a \(destination)") { onMove(folder, sub); dismiss() }.buttonStyle(AmberButton()).padding(.top, 6)
+                }.padding(16)
+            }
         }
     }
 }
