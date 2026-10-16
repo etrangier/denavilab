@@ -68,6 +68,92 @@ test.describe('núcleo de audio (dsp.js)', () => {
   });
 });
 
+test.describe('chop con selección múltiple', () => {
+  // Cuatro golpes separados por silencio: con 4 cortes iguales, cada golpe cae en su corte.
+  const sembrarGolpes = (page, nombre = 'Percusión') => page.evaluate(async n => {
+    const st = await import('/sounds/store.js'), rate = 48000, a = new Float32Array(rate * 4);
+    for (let g = 0; g < 4; g++) for (let j = 0; j < 6000; j++) a[g * rate + 2000 + j] = 0.8 * Math.sin(2 * Math.PI * 200 * j / rate) * (1 - j / 6000);
+    await st.putSample(st.newSample(n, a, rate), a);
+  }, nombre);
+  const abrirChop = async (page, nombreBoton) => {
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Percusión' }).click();
+    await page.getByRole('button', { name: nombreBoton, exact: true }).click();
+    return page.locator('dialog.sheet');
+  };
+
+  test('cálculo de cortes en el navegador', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async () => {
+      const d = await import('/sounds/dsp.js'), rate = 44100, x = new Float32Array(rate), s = [4410, 17640, 30870];
+      for (const i of s) for (let j = 0; j < 2000; j++) x[i + j] = .8 * Math.sin(2 * Math.PI * 220 * j / rate) * (1 - j / 2000);
+      const f = d.transients(x, .5, rate / 10), y = new Float32Array(8000).fill(.1), sl = d.slices(d.evenSlices(y, 8), y.length);
+      return { golpes: f.map((v, i) => Math.abs(v - s[i]) < 1500), n: f.length, cortes: sl.length, fin: sl[7][1],
+        rejilla: d.snapToGrid([0, 1020, 2450, 2500], 1000), nombres: [d.pieceName(0, 'toma'), d.pieceName(2, 'toma')],
+        resalte: d.highlightRanges([[0, 100], [100, 250], [250, 400], [400, 1000]], 1000, new Set([3, 0])) };
+    });
+    expect(r.n).toBe(3); expect(r.golpes).toEqual([true, true, true]);
+    expect(r.cortes).toBe(8); expect(r.fin).toBe(8000);
+    expect(r.rejilla).toEqual([0, 1000, 2000, 3000]);
+    expect(r.nombres).toEqual(['corte01_toma', 'corte03_toma']);
+    expect(r.resalte).toEqual([[0, 0.1], [0.4, 1]]);
+  });
+
+  test('se pueden elegir el 1 y el 3: se guardan y exportan sólo ésos, con su número original', async ({ page }) => {
+    const errores = vigilar(page);
+    await abrir(page, 'rolando'); await sembrarGolpes(page); await page.reload();
+    const hoja = await abrirChop(page, 'Chop en pads');
+    await hoja.getByRole('button', { name: '4', exact: true }).click();
+    await expect(hoja).toContainText('4 cortes · 0 seleccionados');
+    await expect(hoja.getByRole('button', { name: 'Elige al menos un corte' })).toBeDisabled();
+    await hoja.getByRole('button', { name: 'Pad 1', exact: true }).click();
+    await hoja.getByRole('button', { name: 'Pad 3', exact: true }).click();
+    await expect(hoja).toContainText('4 cortes · 2 seleccionados');
+    await expect(hoja.getByRole('button', { name: 'Pad 2', exact: true })).toHaveAttribute('aria-pressed', 'false');
+    await expect(hoja.getByRole('button', { name: 'Pad 1, seleccionado', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await hoja.getByRole('button', { name: 'Pad 3, seleccionado' }).click();                       // otra vez: se desmarca
+    await expect(hoja).toContainText('1 seleccionado');
+    await hoja.getByRole('button', { name: 'Pad 3', exact: true }).click();                        // y se vuelve a marcar
+
+    const { buf, nombre } = await descargar(page, () => hoja.getByRole('button', { name: 'Exportar 2 para el K.O. II' }).click());
+    expect(nombre).toBe('denavilab-cortes.zip');
+    const texto = buf.toString('latin1');
+    expect(texto).toContain('corte01_Percusion.wav'); expect(texto).toContain('corte03_Percusion.wav'); expect(texto).not.toContain('corte02_'); expect(texto).not.toContain('corte04_');
+
+    await hoja.getByRole('button', { name: 'Guardar 2 en la Biblioteca' }).click();
+    await expect(page.locator('#toast')).toContainText('2 cortes guardados en la Biblioteca');
+    await hoja.getByRole('button', { name: 'Cerrar' }).click();
+    await tab(page, 'biblioteca');                                   // la Biblioteca recuerda que seguías dentro de la carpeta
+    const carpeta = page.locator('.folder', { hasText: 'Sin clasificar' }); if (await carpeta.count()) await carpeta.click();
+    await expect(page.locator('.row-btn', { hasText: 'Percusión · corte 1' })).toBeVisible();
+    await expect(page.locator('.row-btn', { hasText: 'Percusión · corte 3' })).toBeVisible();
+    await expect(page.locator('.row-btn', { hasText: 'Percusión · corte 2' })).toHaveCount(0);
+    expect(errores).toEqual([]);
+  });
+
+  test('Todos y Ninguno; cambiar el número de cortes borra la selección', async ({ page }) => {
+    await abrir(page, 'rolando'); await sembrarGolpes(page); await page.reload();
+    const hoja = await abrirChop(page, 'Chop en pads');
+    await hoja.getByRole('button', { name: 'Todos', exact: true }).click();
+    await expect(hoja).toContainText('8 cortes · 8 seleccionados');
+    await expect(hoja.getByRole('button', { name: 'Todos', exact: true })).toBeDisabled();
+    await hoja.getByRole('button', { name: 'Ninguno', exact: true }).click();
+    await expect(hoja).toContainText('8 cortes · 0 seleccionados');
+    await hoja.getByRole('button', { name: 'Pad 5', exact: true }).click();
+    await hoja.getByRole('button', { name: '12', exact: true }).click();
+    await expect(hoja).toContainText('12 cortes · 0 seleccionados');
+  });
+
+  test('sin K.O. II (Schair): se llama «cortes» y no menciona pads ni el aparato', async ({ page }) => {
+    await abrir(page, 'schair'); await sembrarGolpes(page); await page.reload();
+    const hoja = await abrirChop(page, 'Chop');
+    await expect(hoja.getByRole('heading', { name: 'Chop', exact: true })).toBeVisible();
+    await hoja.getByRole('button', { name: 'Corte 1', exact: true }).click(); await hoja.getByRole('button', { name: 'Corte 3', exact: true }).click();
+    await expect(hoja.getByRole('button', { name: 'Exportar 2', exact: true })).toBeVisible();
+    await expect(hoja).not.toContainText(/K\.O\.|pads?\b|libres/i);
+  });
+});
+
 test.describe('puerta de acceso', () => {
   test('sin sesión pide entrar; como invitado se entra a Inicio', async ({ page }) => {
     const errores = vigilar(page);
@@ -212,6 +298,33 @@ test.describe('biblioteca', () => {
     await expect(page.locator('#screen')).toContainText('Aún no hay samples');
     await page.setInputFiles('input[type=file]', { name: 'copia.zip', mimeType: 'application/zip', buffer: buf });
     await expect(page.locator('#toast')).toContainText('Restauradas 2 grabaciones');
+  });
+});
+
+test.describe('aspecto', () => {
+  test.use({ deviceScaleFactor: 2 });                        // como un iPhone: con densidad doble el lienzo roto se realimentaba
+  test('el lienzo de la onda del editor mantiene su tamaño (no se agranda solo)', async ({ page }) => {
+    await abrir(page, 'rolando'); await sembrar(page, ['uno']);
+    await tab(page, 'editar'); await page.locator('.tab[data-tab="biblioteca"]').click();
+    await page.locator('.row-btn').first().click();
+    await expect(page.getByRole('heading', { name: 'Escuchar y editar' })).toBeVisible();
+    await page.waitForTimeout(700);                                   // varios fotogramas
+    const m = await page.evaluate(() => {
+      const wrap = document.querySelector('.wave-edit'), c = wrap.querySelector('canvas'), rc = c.getBoundingClientRect(), rw = wrap.getBoundingClientRect();
+      return { w: c.width, cw: rc.width, ch: rc.height, wrapW: rw.width, wrapH: rw.height, dpr: devicePixelRatio };
+    });
+    expect(m.cw, 'el lienzo debe caber dentro de su tarjeta').toBeLessThanOrEqual(m.wrapW);
+    expect(m.ch).toBeLessThanOrEqual(m.wrapH);
+    expect(m.w).toBeLessThanOrEqual(Math.ceil(m.wrapW * m.dpr) + 2);   // y su resolución no puede crecer más que la tarjeta
+    expect(m.cw).toBeGreaterThan(200);
+  });
+
+  test('en las hojas, los interruptores y deslizadores no heredan el estilo del cuadro de login', async ({ page }) => {
+    await abrir(page, 'rolando'); await tab(page, 'grabar');
+    await page.locator('.icon-btn[aria-label="Guardado rápido"]').click();
+    const e = await page.evaluate(() => { const l = document.querySelector('dialog.sheet .toggle-row'), r = document.querySelector('dialog.sheet input[type=range]'); return { transform: getComputedStyle(l).textTransform, tam: getComputedStyle(l.querySelector('b')).fontSize, bg: getComputedStyle(r).backgroundColor, borde: getComputedStyle(r).borderTopWidth }; });
+    expect(e.transform).toBe('none'); expect(parseFloat(e.tam)).toBeGreaterThanOrEqual(15);
+    expect(e.borde).toBe('0px');                                       // el deslizador no lleva el borde de los campos de texto
   });
 });
 

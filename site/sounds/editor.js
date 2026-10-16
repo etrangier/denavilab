@@ -3,6 +3,7 @@ import { app, go, refreshSamples, sampleById } from './state.js';
 import { h, mount, fill, btn, link, card, label, muted, title, sliderRow, logo, confirmSheet, toast, folderPicker, drawBars } from './ui.js';
 import * as dsp from './dsp.js';
 import { putSample, getAudio, deleteSamples } from './store.js';
+import { openChop } from './chop.js';
 
 const ed = { id: null, audio: null, peaks: [], undo: [], redo: [], start: 0, end: 1, fadeMs: 10, loop: false };
 let playCtx = null, src = null, t0 = 0, dur = 0;
@@ -103,6 +104,7 @@ export function renderEdit(root) {
     sliderRow('Fundido', { min: 0, max: 200, step: 1, value: ed.fadeMs, fmt: v => v + ' ms', onInput: v => { ed.fadeMs = v; } }),
     h('div', { class: 'row2' }, btn('Deshacer', { small: true, disabled: !ed.undo.length, onclick: () => step(ed.undo, ed.redo) }), btn('Rehacer', { small: true, disabled: !ed.redo.length, onclick: () => step(ed.redo, ed.undo) })),
     bpmCard,
+    btn(app.ko2 ? 'Chop en pads' : 'Chop', { sel: true, onclick: () => openChop(s, ed.audio) }),
     folderPicker(fp, async st => { await putSample({ ...s, folder: st.folder, subfolder: st.sub }); await refreshSamples(); }),
     label('¿Qué hacemos con esta toma?'),
     h('div', { class: 'row3' },

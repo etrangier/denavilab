@@ -223,3 +223,52 @@ export function stamp(seconds) {
   const p = (n, w = 2) => String(n).padStart(w, '0');
   return p(Math.floor(c / 6000)) + ':' + p(Math.floor(c / 100) % 60) + '.' + p(c % 100);
 }
+
+// ---------- chop ----------
+
+/** Inicios de golpes por subida de energía. `sensitivity` 0..1: más alta, más cortes. */
+export function transients(x, sensitivity, minGapSamples, maxCount = 12) {
+  const hop = 512;
+  if (x.length <= hop * 4) return [];
+  const n = Math.floor(x.length / hop), e = new Float32Array(n), flux = new Float32Array(n);
+  for (let i = 0; i < n; i++) { let s = 0; for (let j = i * hop; j < (i + 1) * hop; j++) s += x[j] * x[j]; e[i] = Math.sqrt(s / hop); }
+  let mean = 0;
+  for (let i = 1; i < n; i++) { flux[i] = Math.max(0, e[i] - e[i - 1]); mean += flux[i]; }
+  mean /= n;
+  let v = 0; for (let i = 0; i < n; i++) v += (flux[i] - mean) ** 2;
+  const sd = Math.sqrt(v / n), k = 4 - 3.5 * Math.min(Math.max(sensitivity, 0), 1), thr = mean + k * sd;
+  const picks = [];
+  for (let i = 1; i < n; i++) if (flux[i] > thr && flux[i] >= flux[i - 1] && flux[i] >= (i + 1 < n ? flux[i + 1] : 0)) picks.push([i, flux[i]]);
+  const gap = Math.max(1, Math.floor(minGapSamples / hop)), chosen = [];
+  for (const [i] of picks.sort((a, b) => b[1] - a[1])) if (chosen.every(c => Math.abs(c - i) >= gap)) chosen.push(i);
+  return chosen.slice(0, maxCount).sort((a, b) => a - b).map(i => nearestZeroCross(x, Math.max(0, i * hop - hop), 256));
+}
+
+/** `count` inicios repartidos por igual, ajustados a cruce por cero. */
+export function evenSlices(x, count) {
+  if (!x.length || count < 1) return [];
+  return Array.from({ length: count }, (_, i) => i === 0 ? 0 : nearestZeroCross(x, Math.floor(x.length * i / count), 256));
+}
+
+/** Tramos [inicio, fin) entre inicios; descarta los de menos de 64 muestras. */
+export function slices(starts, total) {
+  const s = [...new Set([0, ...starts.filter(v => v > 0 && v < total)])].sort((a, b) => a - b), out = [];
+  for (let i = 0; i < s.length; i++) { const a = s[i], b = i + 1 < s.length ? s[i + 1] : total; if (b - a >= 64) out.push([a, b]); }
+  return out;
+}
+
+/** Ajusta cada inicio a la rejilla (`step` muestras desde `origin`); sin repetidos. */
+export function snapToGrid(starts, step, origin = 0) {
+  if (step < 1) return starts;
+  const m = Math.round(step);
+  return [...new Set(starts.map(s => Math.max(0, origin + Math.round((s - origin) / step) * m)))].sort((a, b) => a - b);
+}
+
+/** Nombre de un corte: conserva su número original aunque se dejen huecos («corte01_x», «corte03_x»). */
+export const pieceName = (i, base) => 'corte' + String(i + 1).padStart(2, '0') + '_' + base;
+
+/** Tramos elegidos como fracciones de la toma, para resaltarlos en la onda. */
+export function highlightRanges(ranges, total, selected) {
+  if (total <= 0) return [];
+  return [...selected].sort((a, b) => a - b).filter(i => i >= 0 && i < ranges.length).map(i => [ranges[i][0] / total, ranges[i][1] / total]);
+}

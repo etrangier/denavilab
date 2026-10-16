@@ -396,6 +396,12 @@ const fileNameFor = s => {
   const clean = s.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'sonido';
   return app.ko2 ? (s.slot ? String(s.slot).padStart(3, '0') + '_' : '') + clean.slice(0, 24) + '.wav' : clean.slice(0, 60) + '.wav';
 };
+/** WAV de un trozo de audio en memoria (nombre ya sin tildes), a la frecuencia de exportación actual. */
+export function wavFromAudio(name, audio, srcRate) {
+  const rate = exportRate(), out = dsp.resample(audio, srcRate, rate);
+  return new File([dsp.encodeWav(out, rate)], fileNameFor({ name, slot: null }), { type: 'audio/wav' });
+}
+export { makeZip as zipFiles };
 async function wavFile(s, rate) {
   const out = dsp.resample(await getAudio(s.id), s.rate, rate);
   return new File([dsp.encodeWav(out, rate)], fileNameFor(s), { type: 'audio/wav' });
@@ -405,7 +411,7 @@ export function download(file) {
   document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 15000);
 }
 /** En móvil, la hoja de compartir (Archivos, Drive, AirDrop…); si no, descarga. */
-async function deliver(file) {
+export async function deliver(file) {
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try { await navigator.share({ files: [file], title: file.name }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
   }

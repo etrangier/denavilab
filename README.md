@@ -73,7 +73,7 @@ En [`ios/`](ios/README.md): Grabadora, app nativa iOS para grabar samples y expo
 
 Capturador de sonidos para sampling: graba con el micrófono, guarda por carpetas, recorta y exporta WAV. Es la versión web de la app de iPhone (`ios/`), para quien no tiene iPhone. URL: `https://denavilab.neocities.org/sounds/`.
 
-- **Sin build ni dependencias**: módulos ES, HTML y CSS planos. `dsp.js` (audio puro, sin DOM), `audio.js` + `worklet.js` (micrófono y búfer de captura retroactiva), `metronome.js`, `store.js` (IndexedDB), `zip.js`, `screens.js` y `editor.js` (pantallas), `main.js` (arranque).
+- **Sin build ni dependencias**: módulos ES, HTML y CSS planos. `dsp.js` (audio puro, sin DOM), `audio.js` + `worklet.js` (micrófono y búfer de captura retroactiva), `metronome.js`, `store.js` (IndexedDB), `zip.js`, `screens.js`, `editor.js` y `chop.js` (pantallas), `main.js` (arranque).
 - **Login**: es la misma puerta del resto del sitio (`acceso.js`, sesión en `denavilab.sesion`). Sin sesión, la app muestra una pantalla cerrada con el botón Entrar.
 - **Perfiles**: `profile.js`. Rolando trabaja con el EP-133 K.O. II (slot, memoria de 128 MB, 46 875 Hz). **Schair y los invitados no ven nada del K.O. II**: exportan WAV mono de 16 bit a 48 o 44,1 kHz, con el nombre del archivo sin prefijo de slot, y el manual no menciona el aparato.
 - **Datos**: todo queda en el navegador de cada dispositivo (IndexedDB); nada se sube. «Copia de seguridad» y «Restaurar» (en Biblioteca) guardan y recuperan toda la biblioteca en un `.zip`.
@@ -81,4 +81,5 @@ Capturador de sonidos para sampling: graba con el micrófono, guarda por carpeta
 - **Actualizaciones**: al publicar en `main`, el service worker (`sw.js`, primero la red) trae los archivos nuevos y la app avisa «Hay una versión nueva · Actualizar». **Sube `VERSION` en `sw.js` en cada publicación**, y el `?v=` de `app.css` en `index.html` si cambias los estilos.
 - **Neocities (plan gratuito)**: sólo se suben tipos de archivo permitidos (`html`, `css`, `js`, `json`, `png`, `ttf`…). No añadas `.wasm`, `.woff2` ni `.webmanifest` sin comprobar que los acepta.
 - **Pruebas**: `tests/sounds.spec.js` usa el micrófono falso de Chromium: login, grabar → guardar → editar → exportar, la toma que se corta sola en el compás exacto, el perfil sin K.O. II, la selección múltiple, la copia de seguridad, pantallas de 320 a 820 px y el manifiesto con el service worker.
-- **Pendiente respecto a la app de iPhone**: edición precisa con zoom, chop en pads, efectos (EQ, reverb, compresor, carácter), cambio de tono y sugerencia automática de carpeta.
+- **Chop**: desde Editar. Corta la toma en 4, 8, 12 o Auto (por golpes), con ajuste a la cuadrícula si hay BPM. Se pueden elegir los cortes que se quiera, juntos o no (el 1 y el 3), y guardar o exportar sólo ésos; conservan su número original. Sin K.O. II se llama «cortes» en vez de «pads».
+- **Pendiente respecto a la app de iPhone**: edición precisa con zoom, efectos (EQ, reverb, compresor, carácter), cambio de tono y sugerencia automática de carpeta.

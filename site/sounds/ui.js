@@ -45,10 +45,11 @@ export function toggleRow(name, sub, checked, onchange) {
 }
 
 /** Fila con deslizador. Devuelve el elemento; `onInput(valor)` y `fmt(valor)` para el texto de la derecha. */
-export function sliderRow(name, { min = 0, max = 1, step = 0.01, value, fmt = v => String(v), onInput }) {
+export function sliderRow(name, { min = 0, max = 1, step = 0.01, value, fmt = v => String(v), onInput, onChange }) {
   const val = h('span', { class: 'amber' }, fmt(value));
   const input = h('input', { type: 'range', min, max, step, value, 'aria-label': name,
-    oninput: e => { const v = parseFloat(e.target.value); val.textContent = fmt(v); onInput && onInput(v); } });
+    oninput: e => { const v = parseFloat(e.target.value); val.textContent = fmt(v); onInput && onInput(v); },
+    onchange: e => onChange && onChange(parseFloat(e.target.value)) });
   return h('div', { class: 'card slider-row' }, h('div', { class: 'sr-head' }, h('b', {}, name), val), input);
 }
 
@@ -111,18 +112,21 @@ export function folderPicker(st, onChange = () => {}) {
 }
 
 // ---------- onda ----------
-/** Dibuja barras de onda; las del rango seleccionado en ámbar. */
-export function drawBars(canvas, pk, range = [0, 1], playhead = null) {
+/** Dibuja barras de onda; las del rango seleccionado en ámbar. `highlights` (lista de [desde, hasta]) sustituye al rango;
+ *  `cuts` (fracciones) dibuja una raya en cada corte. */
+export function drawBars(canvas, pk, range = [0, 1], playhead = null, highlights = null, cuts = null) {
   const dpr = window.devicePixelRatio || 1, w = canvas.clientWidth, hh = canvas.clientHeight;
-  if (!w || !hh) return;
+  if (!w || !hh || w * dpr > 4096 || hh * dpr > 4096) return;   // nunca realimentar un lienzo hasta que el navegador lo descarte
   if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(hh * dpr)) { canvas.width = Math.round(w * dpr); canvas.height = Math.round(hh * dpr); }
   const g = canvas.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, hh);
   if (!pk.length) return;
   const step = w / pk.length, bw = Math.max(2, step * 0.55), mid = hh / 2;
   pk.forEach((p, i) => {
     const f = i / pk.length, bh = Math.max(3, Math.min(1, p) * hh * 0.9);
-    g.fillStyle = f >= range[0] && f <= range[1] ? '#e8a94a' : '#322e3f';
+    const lit = highlights ? highlights.some(([a, b]) => f >= a && f <= b) : (f >= range[0] && f <= range[1]);
+    g.fillStyle = lit ? '#e8a94a' : '#322e3f';
     g.beginPath(); g.roundRect ? g.roundRect(i * step + (step - bw) / 2, mid - bh / 2, bw, bh, bw / 2) : g.rect(i * step + (step - bw) / 2, mid - bh / 2, bw, bh); g.fill();
   });
+  if (cuts) { g.fillStyle = '#ede9f3'; for (const c of cuts) g.fillRect(w * c - 1, 8, 2, hh - 16); }
   if (playhead != null) { g.fillStyle = '#ede9f3'; g.fillRect(w * playhead - 1, 0, 2, hh); }
 }

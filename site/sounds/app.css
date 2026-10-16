@@ -123,7 +123,7 @@ select.field { appearance: none; }
 .stepper { display: flex; align-items: center; gap: 8px; } .stepper .circle { width: 48px; height: 48px; }
 
 /* ---- editar ---- */
-.wave-edit { position: relative; height: 150px; padding: 0; overflow: hidden; touch-action: pan-y; } .wave-edit .wave { position: absolute; top: 12px; bottom: 12px; left: 14px; right: 14px; width: auto; height: auto; }
+.wave-edit { position: relative; height: 150px; padding: 0; overflow: hidden; touch-action: pan-y; } .wave-edit .wave { position: absolute; top: 12px; left: 14px; width: calc(100% - 28px); height: calc(100% - 24px); }
 .handle { position: absolute; top: 0; bottom: 0; width: 44px; margin-left: -22px; display: grid; place-items: center; touch-action: none; cursor: ew-resize; }
 .handle::before { content: ''; position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text); } .handle i { position: relative; width: 26px; height: 26px; border-radius: 50%; background: var(--amber); border: 2px solid var(--bg); }
 .play-btn { width: 84px; height: 84px; border-radius: 50%; border: 0; background: var(--amber); color: var(--ink); font-size: 30px; cursor: pointer; }
@@ -133,13 +133,13 @@ select.field { appearance: none; }
 /* ---- hojas y bienvenida ---- */
 dialog { background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 16px; padding: 0; width: min(92vw, 420px); max-height: 92dvh; }
 dialog::backdrop { background: rgba(0, 0, 0, .65); }
-dialog form { padding: 22px; display: grid; gap: 14px; } dialog h2 { margin: 0; }
-dialog .por { color: var(--muted); font-size: 14px; margin-top: -6px; }
-dialog label { display: grid; gap: 5px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-dialog input { font: inherit; font-size: 16px; min-height: 48px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--text); text-transform: none; letter-spacing: normal; width: 100%; }
-dialog .fila { display: flex; gap: 8px; } dialog .fila .btn { width: auto; flex: 1; }
-dialog .error { color: var(--err); font-size: 13px; min-height: 1.2em; margin-top: -6px; }
-dialog .fila-invitado { display: flex; gap: 10px; align-items: center; justify-content: space-between; color: var(--muted); font-size: 13px; } dialog .fila-invitado .btn { width: auto; }
+#puerta form { padding: 22px; display: grid; gap: 14px; } #puerta h2 { margin: 0; }
+#puerta .por { color: var(--muted); font-size: 14px; margin-top: -6px; }
+#puerta label { display: grid; gap: 5px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+#puerta input { font: inherit; font-size: 16px; min-height: 48px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--text); text-transform: none; letter-spacing: normal; width: 100%; }
+#puerta .fila { display: flex; gap: 8px; } #puerta .fila .btn { width: auto; flex: 1; }
+#puerta .error { color: var(--err); font-size: 13px; min-height: 1.2em; margin-top: -6px; }
+#puerta .fila-invitado { display: flex; gap: 10px; align-items: center; justify-content: space-between; color: var(--muted); font-size: 13px; } #puerta .fila-invitado .btn { width: auto; }
 .campo-clave { position: relative; display: block; } .ver-clave { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: 0; color: var(--amber); min-height: 40px; padding: 0 10px; cursor: pointer; text-transform: none; letter-spacing: normal; font-size: 13px; }
 dialog.sheet { margin: auto auto 0; width: min(100%, 600px); max-width: 100%; max-height: 94dvh; border-radius: 22px 22px 0 0; border-bottom: 0; overflow: auto; }
 .sheet-in { padding: 18px 16px calc(24px + env(safe-area-inset-bottom)); }
@@ -148,5 +148,9 @@ dialog.sheet { margin: auto auto 0; width: min(100%, 600px); max-width: 100%; ma
 .steps, .bullets { list-style: none; margin: 8px 0 0; padding: 0; width: 100%; text-align: left; } .steps li, .bullets li { display: flex; gap: 14px; align-items: center; min-height: 48px; border-bottom: 1px solid var(--line); }
 .bullets li::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--amber); flex: none; }
 
+.padgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.pad { min-height: 64px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--surface); color: var(--text); font-size: 20px; font-weight: 700; cursor: pointer; }
+.pad.on { background: var(--surface2); border-color: var(--amber); color: var(--amber); }
+.pad:disabled { color: var(--line); cursor: default; }
 @media (max-height: 560px) { .logo-box { width: 84px; height: 84px; } .wave-card { height: 120px; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
