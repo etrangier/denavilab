@@ -252,4 +252,39 @@ final class LogicTests: XCTestCase {
         s.open(sample)
         XCTAssertEqual(s.tab, .editar); XCTAssertEqual(s.selectedID, sample.id)
     }
+
+    func testRenameNames() {
+        XCTAssertEqual(LibraryStore.names(base: "Bombo", count: 1), ["Bombo"])
+        XCTAssertEqual(LibraryStore.names(base: "Bombo", count: 3), ["Bombo 01", "Bombo 02", "Bombo 03"])
+        XCTAssertEqual(LibraryStore.names(base: "x", count: 100).last, "x 100")        // ancho según la cantidad
+        XCTAssertTrue(LibraryStore.names(base: "x", count: 0).isEmpty)
+    }
+
+    @MainActor func testBatchRenameMoveDelete() {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let lib = LibraryStore(directory: dir)
+        let a = lib.add(name: "a", audio: [0, 0.1, 0], sampleRate: 48_000)!
+        let b = lib.add(name: "b", audio: [0, 0.1, 0], sampleRate: 48_000)!
+        let c = lib.add(name: "c", audio: [0, 0.1, 0], sampleRate: 48_000)!
+
+        lib.rename(ids: [a.id, b.id], to: "Kick")                                   // varias: numeradas, la más antigua primero
+        XCTAssertEqual(lib.samples.first { $0.id == a.id }?.name, "Kick 01")
+        XCTAssertEqual(lib.samples.first { $0.id == b.id }?.name, "Kick 02")
+        XCTAssertEqual(lib.samples.first { $0.id == c.id }?.name, "c")
+        lib.rename(ids: [c.id], to: "  Solo  ")                                      // una: tal cual, sin espacios sobrantes
+        XCTAssertEqual(lib.samples.first { $0.id == c.id }?.name, "Solo")
+        lib.rename(ids: [c.id], to: "   ")                                           // vacío: no cambia
+        XCTAssertEqual(lib.samples.first { $0.id == c.id }?.name, "Solo")
+
+        lib.move(ids: [a.id, c.id], folder: "Voz", sub: "Habla")
+        XCTAssertEqual(lib.samples(in: "Voz").count, 2)
+        XCTAssertEqual(lib.samples.first { $0.id == a.id }?.subfolder, "Habla")
+
+        let reloaded = LibraryStore(directory: dir)                                  // todo se guardó en disco
+        XCTAssertEqual(reloaded.samples.first { $0.id == b.id }?.name, "Kick 02")
+
+        lib.delete(ids: [a.id, b.id])
+        XCTAssertEqual(lib.samples.map(\.id), [c.id])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: lib.url(a).path))
+    }
 }
