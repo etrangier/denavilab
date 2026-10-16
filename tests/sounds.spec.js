@@ -90,13 +90,19 @@ test.describe('chop con selección múltiple', () => {
       const f = d.transients(x, .5, rate / 10), y = new Float32Array(8000).fill(.1), sl = d.slices(d.evenSlices(y, 8), y.length);
       return { golpes: f.map((v, i) => Math.abs(v - s[i]) < 1500), n: f.length, cortes: sl.length, fin: sl[7][1],
         rejilla: d.snapToGrid([0, 1020, 2450, 2500], 1000), nombres: [d.pieceName(0, 'toma'), d.pieceName(2, 'toma')],
-        resalte: d.highlightRanges([[0, 100], [100, 250], [250, 400], [400, 1000]], 1000, new Set([3, 0])) };
+        resalte: d.highlightRanges([[0, 100], [100, 250], [250, 400], [400, 1000]], 1000, new Set([3, 0])),
+        seg: d.previewSegments([[0, 100], [100, 250], [250, 400]], new Set([2, 0]), 1000, 0.1),
+        pre: (() => { const a = d.previewAudio(new Float32Array(400).fill(0.5), [[0, 100], [100, 250], [250, 400]], new Set([2, 0]), 1000, 0.1); return [a.length, a[150], a[50], a[275], a[0], a[349]]; })(),
+        vacio: [d.previewAudio(new Float32Array(400), [[0, 100]], new Set(), 1000).length, d.previewSegments([[0, 100]], new Set([9]), 1000).length] };
     });
     expect(r.n).toBe(3); expect(r.golpes).toEqual([true, true, true]);
     expect(r.cortes).toBe(8); expect(r.fin).toBe(8000);
     expect(r.rejilla).toEqual([0, 1000, 2000, 3000]);
     expect(r.nombres).toEqual(['corte01_toma', 'corte03_toma']);
     expect(r.resalte).toEqual([[0, 0.1], [0.4, 1]]);
+    expect(r.seg).toEqual([{ i: 0, start: 0, end: 100 }, { i: 2, start: 200, end: 350 }]);   // en su orden original, con un hueco entre ellos
+    expect(r.pre).toEqual([350, 0, 0.5, 0.5, 0, 0]);                                         // sin hueco al final; el hueco es silencio; fundido en los extremos
+    expect(r.vacio).toEqual([0, 0]);
   });
 
   test('se pueden elegir el 1 y el 3: se guardan y exportan sólo ésos, con su número original', async ({ page }) => {
@@ -114,6 +120,19 @@ test.describe('chop con selección múltiple', () => {
     await hoja.getByRole('button', { name: 'Pad 3, seleccionado' }).click();                       // otra vez: se desmarca
     await expect(hoja).toContainText('1 seleccionado');
     await hoja.getByRole('button', { name: 'Pad 3', exact: true }).click();                        // y se vuelve a marcar
+
+    // Escuchar la selección: uno tras otro, en orden; el pad que suena se ilumina
+    const escuchar = hoja.getByRole('button', { name: /^Escuchar selección · \d,\d s$/ });
+    await expect(escuchar).toBeEnabled();
+    await escuchar.click();
+    await expect(hoja.getByRole('button', { name: 'Parar la escucha de la selección', exact: true })).toBeVisible();
+    await expect(hoja.getByRole('button', { name: 'Pad 1, seleccionado' })).toHaveClass(/playing/, { timeout: 3000 });
+    await expect(hoja.getByRole('button', { name: 'Pad 3, seleccionado' })).toHaveClass(/playing/, { timeout: 4000 });   // después, el 3 (se salta el 2)
+    await expect(hoja.locator('.pad.playing')).toHaveCount(1);
+    await expect(hoja.getByRole('button', { name: /^Escuchar selección/ })).toBeVisible({ timeout: 6000 });             // termina solo y vuelve el botón
+    await expect(hoja.locator('.pad.playing')).toHaveCount(0);
+    await escuchar.click(); await hoja.getByRole('button', { name: 'Parar la escucha de la selección', exact: true }).click();                    // se puede parar a mitad
+    await expect(escuchar).toBeVisible(); await expect(hoja.locator('.pad.playing')).toHaveCount(0);
 
     const { buf, nombre } = await descargar(page, () => hoja.getByRole('button', { name: 'Exportar 2 para el K.O. II' }).click());
     expect(nombre).toBe('denavilab-cortes.zip');
@@ -139,6 +158,7 @@ test.describe('chop con selección múltiple', () => {
     await expect(hoja.getByRole('button', { name: 'Todos', exact: true })).toBeDisabled();
     await hoja.getByRole('button', { name: 'Ninguno', exact: true }).click();
     await expect(hoja).toContainText('8 cortes · 0 seleccionados');
+    await expect(hoja.getByRole('button', { name: 'Escuchar selección', exact: true })).toBeDisabled();   // sin selección no hay nada que escuchar
     await hoja.getByRole('button', { name: 'Pad 5', exact: true }).click();
     await hoja.getByRole('button', { name: '12', exact: true }).click();
     await expect(hoja).toContainText('12 cortes · 0 seleccionados');

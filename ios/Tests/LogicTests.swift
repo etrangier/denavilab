@@ -302,4 +302,19 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(Editing.highlightRanges(ranges, total: 1_000, selected: [9]).count, 0)   // índice que ya no existe
         XCTAssertTrue(Editing.highlightRanges(ranges, total: 0, selected: [0]).isEmpty)
     }
+
+    func testSelectionPreviewPlan() {
+        let ranges: [Range<Int>] = [0..<100, 100..<250, 250..<400]
+        let seg = Editing.previewSegments(ranges, selected: [2, 0], rate: 1_000, gap: 0.1)
+        XCTAssertEqual(seg.map(\.index), [0, 2])                                   // en su orden original, no en el de elección
+        XCTAssertEqual(seg.map(\.start), [0, 200]); XCTAssertEqual(seg.map(\.end), [100, 350])   // con un hueco entre ellos
+        let x = [Float](repeating: 0.5, count: 400)
+        let a = Editing.previewAudio(x, ranges: ranges, selected: [2, 0], rate: 1_000, gap: 0.1)
+        XCTAssertEqual(a.count, 350)                                                // sin hueco al final
+        XCTAssertEqual(a[150], 0); XCTAssertEqual(a[199], 0)                        // el hueco es silencio
+        XCTAssertEqual(a[50], 0.5); XCTAssertEqual(a[275], 0.5)                     // cada corte en su sitio
+        XCTAssertEqual(a[0], 0); XCTAssertEqual(a[349], 0)                          // fundido en los extremos
+        XCTAssertTrue(Editing.previewAudio(x, ranges: ranges, selected: [], rate: 1_000).isEmpty)
+        XCTAssertTrue(Editing.previewSegments(ranges, selected: [9], rate: 1_000).isEmpty)       // índice que ya no existe
+    }
 }

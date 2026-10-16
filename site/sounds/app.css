@@ -152,5 +152,6 @@ dialog.sheet { margin: auto auto 0; width: min(100%, 600px); max-width: 100%; ma
 .pad { min-height: 64px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--surface); color: var(--text); font-size: 20px; font-weight: 700; cursor: pointer; }
 .pad.on { background: var(--surface2); border-color: var(--amber); color: var(--amber); }
 .pad:disabled { color: var(--line); cursor: default; }
+.pad.playing { background: rgba(232, 169, 74, .28); border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber); }
 @media (max-height: 560px) { .logo-box { width: 84px; height: 84px; } .wave-card { height: 120px; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
