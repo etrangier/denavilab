@@ -127,7 +127,7 @@ enum NoiseReduction {
 
     nonisolated private static let hann: [Double] = (0..<2048).map { 0.5 - 0.5 * cos(2 * Double.pi * Double($0) / 2048) }
 
-    nonisolated private static func fft(_ re: inout [Double], _ im: inout [Double], inverse: Bool) {
+    nonisolated static func fft(_ re: inout [Double], _ im: inout [Double], inverse: Bool) {
         let n = re.count
         var j = 0
         for i in 1..<n {

@@ -23,9 +23,23 @@ struct ChopSheet: View {
     @State private var peaks: [Float] = []
     @State private var grid = false
     @State private var bpm: Double?
+    @State private var harmonyOn = false                   // detectar acordes y compases (opcional)
+    @State private var base: Harmony.Analysis?
+    @State private var lay: Harmony.Analysis?
+    @State private var shift = 0
+    @State private var perPad = 1
+    @State private var loopPlayer: AVAudioPlayer?
     @State private var harmonize = true                   // centra la onda, suaviza bordes y, al unir, iguala el volumen
 
     private func recompute() {
+        if mode == -1, let b = base {
+            let l = Harmony.layout(b, downbeat: b.downbeat + shift)
+            lay = l
+            ranges = barRanges(l)
+            stopPreview()
+            selected = []
+            return
+        }
         var starts = mode == 0 ? Editing.transients(audio, sensitivity: sensitivity, minGapSamples: sample.sampleRate / 10, maxCount: 11)
                                : Editing.evenSlices(audio, count: mode)
         if grid, let b = bpm { starts = Editing.snapToGrid(starts, step: Double(sample.sampleRate) * 60 / b / 4) }
@@ -43,13 +57,16 @@ struct ChopSheet: View {
                                 trailing: AnyView(TextLink(title: "Cerrar") { stopPreview(); dismiss() }))
                     wave
                     HStack(spacing: 8) {
-                        ForEach([4, 8, 12, 0], id: \.self) { m in
-                            Chip(title: m == 0 ? "Auto" : "\(m)", selected: mode == m) { mode = m }
+                        ForEach(lay == nil ? [4, 8, 12, 0] : [4, 8, 12, 0, -1], id: \.self) { m in
+                            Chip(title: m == 0 ? "Auto" : (m == -1 ? "Compases" : "\(m)"), selected: mode == m) { mode = m }
                         }
                     }
                     if mode == 0 {
                         SliderRow(title: "Sensibilidad de golpes", valueText: sensitivity < 0.34 ? "Baja" : sensitivity < 0.67 ? "Media" : "Alta", value: $sensitivity)
                     }
+                    ToggleRow(title: "Detectar acordes y compases", subtitle: "Aproximado: acordes mayores y menores, compás de 4 tiempos",
+                              isOn: Binding(get: { harmonyOn }, set: { setHarmony($0) }))
+                    if let l = lay { harmonyCard(l) }
                     VStack(alignment: .leading, spacing: 4) {
                         Toggle(isOn: $grid) {
                             VStack(alignment: .leading, spacing: 2) {
@@ -76,7 +93,10 @@ struct ChopSheet: View {
                                 if on { selected.remove(i) } else { selected.insert(i) }
                                 play(i)
                             } label: {
-                                Text("\(i + 1)").font(Theme.font(20, weight: .bold))
+                                VStack(spacing: 1) {
+                                    Text("\(i + 1)").font(Theme.font(20, weight: .bold))
+                                    if live, mode == -1, let c = padChord(i) { Text(c).font(Theme.font(11)).lineLimit(1).minimumScaleFactor(0.6) }
+                                }
                                     .foregroundColor(!live ? Theme.line : (on ? Theme.amber : Theme.text))
                                     .frame(maxWidth: .infinity, minHeight: 64)
                                     .background(playingIndex == i ? Theme.amber.opacity(0.28) : (on ? Theme.surface2 : Theme.surface))
@@ -84,7 +104,7 @@ struct ChopSheet: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 14))
                             }
                             .disabled(!live)
-                            .accessibilityLabel("Pad \(i + 1)" + (on ? ", seleccionado" : ""))
+                            .accessibilityLabel("Pad \(i + 1)" + (live && mode == -1 ? ", " + (padChord(i) ?? "") : "") + (on ? ", seleccionado" : ""))
                             .accessibilityAddTraits(on ? .isSelected : [])
                         }
                     }
@@ -96,6 +116,12 @@ struct ChopSheet: View {
                     .accessibilityLabel(previewing ? "Parar la escucha de la selección" : "Escuchar selección")
                     Button(selected.isEmpty ? "Elige al menos un corte" : "Guardar \(selected.count) en la Biblioteca") { saveSelected() }
                         .buttonStyle(AmberButton()).disabled(selected.isEmpty).opacity(selected.isEmpty ? 0.4 : 1)
+                    if lay != nil {
+                        Button(loopPlayer != nil ? "Parar el loop" : "Escuchar loop") { toggleLoop() }
+                            .buttonStyle(OutlineButton(selected: loopPlayer != nil)).disabled(loopRange == nil).opacity(loopRange == nil ? 0.4 : 1)
+                        Button("Guardar selección como loop") { saveLoop() }
+                            .buttonStyle(OutlineButton(selected: true)).disabled(loopRange == nil).opacity(loopRange == nil ? 0.4 : 1)
+                    }
                     Button("Guardar unidos en un solo sonido") { saveJoined() }
                         .buttonStyle(OutlineButton(selected: true)).disabled(selected.count < 2).opacity(selected.count < 2 ? 0.4 : 1)
                     Button(selected.isEmpty ? "Exportar cortes" : "Exportar \(selected.count) para el K.O. II") { exportSelected() }
@@ -151,6 +177,7 @@ struct ChopSheet: View {
     }
 
     private func stopPreview() {
+        loopPlayer?.stop(); loopPlayer = nil
         player?.stop(); previewing = false; playingIndex = nil
     }
 
@@ -173,6 +200,120 @@ struct ChopSheet: View {
             let url = try Exporter.export(piece(i), audio: Array(audio[ranges[i]]), targetRate: sample.sampleRate)
             let p = try AVAudioPlayer(contentsOf: url); p.play(); player = p
         } catch { message = "No se pudo reproducir: \(error.localizedDescription)" }
+    }
+
+    // MARK: acordes, compases y loop
+
+    private func autoPer(_ l: Harmony.Analysis) -> Int { [1, 2, 4].first { Int((Double(l.bars.count) / Double($0)).rounded(.up)) <= 12 } ?? 4 }
+
+    /// Cortes por compás (o por 2 / 4 compases) cuando se detectaron compases.
+    private func barRanges(_ l: Harmony.Analysis) -> [Range<Int>] {
+        var out: [Range<Int>] = []
+        var i = 0
+        while i * perPad < l.bars.count && out.count < 12 {
+            let g = l.bars[(i * perPad)..<min(l.bars.count, i * perPad + perPad)]
+            out.append(g.first!.start..<max(g.first!.start + 1, min(audio.count, g.last!.end)))
+            i += 1
+        }
+        return out
+    }
+
+    private func padChord(_ i: Int) -> String? {
+        guard let l = lay else { return nil }
+        let g = l.bars[min(l.bars.count, i * perPad)..<min(l.bars.count, i * perPad + perPad)]
+        return g.isEmpty ? nil : g.map(\.label).joined(separator: " · ")
+    }
+
+    private func setHarmony(_ on: Bool) {
+        if !on {
+            harmonyOn = false; base = nil; lay = nil; shift = 0
+            if mode == -1 { mode = 8 }
+            recompute(); return
+        }
+        analyzeWith(bpm)
+    }
+
+    private func analyzeWith(_ b: Double?) {
+        guard let a = Harmony.analyze(audio, rate: sample.sampleRate, bpm: b) else {
+            message = "No encuentro un pulso claro (o la toma tiene menos de 8 tiempos): no puedo detectar compases"
+            harmonyOn = lay != nil; return
+        }
+        base = a; shift = 0; lay = a; harmonyOn = true
+        perPad = autoPer(a)
+        if mode == -1 { recompute() } else { mode = -1 }       // al cambiar `mode` se recalculan los cortes
+    }
+
+    private func harmonyCard(_ l: Harmony.Analysis) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Armonía").font(Theme.font(15, weight: .medium)).foregroundColor(Theme.text)
+                Spacer()
+                Text("≈ \(Int(l.bpm.rounded())) BPM · 4/4 · \(l.bars.count) compases").font(Theme.font(12)).foregroundColor(Theme.amber)
+            }
+            Text("Acordes: " + l.bars.prefix(12).map(\.label).joined(separator: " · ") + (l.bars.count > 12 ? " …" : "")).font(Theme.font(13)).foregroundColor(Theme.text)
+            if let b = l.bars.first {
+                Text("El compás 1 empieza en \(stamp(Double(b.start) / Double(l.rate))). Si no cae donde lo oyes, muévelo un tiempo.")
+                    .font(Theme.font(12)).foregroundColor(Theme.muted)
+            }
+            HStack(spacing: 8) {
+                Button("◀ 1 tiempo") { shift -= 1; recompute() }
+                Button("1 tiempo ▶") { shift += 1; recompute() }
+            }.buttonStyle(OutlineButton()).font(Theme.font(13))
+            HStack(spacing: 8) {
+                Button("Tempo ÷ 2") { analyzeWith(l.bpm / 2) }
+                Button("Tempo × 2") { analyzeWith(l.bpm * 2) }
+            }.buttonStyle(OutlineButton()).font(Theme.font(13))
+            if mode == -1 {
+                HStack(spacing: 8) {
+                    ForEach([1, 2, 4], id: \.self) { p in
+                        Chip(title: p == 1 ? "1 compás por corte" : "\(p) compases", selected: perPad == p) { perPad = p; recompute() }
+                    }
+                }
+            }
+            if let lp = l.loop {
+                Button("Elegir el loop sugerido · " + (lp.bars == 1 ? "1 compás" : "\(lp.bars) compases")) {
+                    mode = -1; perPad = 1; recompute()
+                    selected = Set(ranges.indices.filter { ranges[$0].lowerBound < lp.end && ranges[$0].upperBound > lp.start })
+                }.buttonStyle(OutlineButton(selected: true)).font(Theme.font(13))
+                Text("Sugerido: " + lp.chords.joined(separator: " · ")).font(Theme.font(12)).foregroundColor(Theme.muted)
+            } else {
+                Text("No encontré un tramo que se repita bien.").font(Theme.font(12)).foregroundColor(Theme.muted)
+            }
+        }.card()
+    }
+
+    /// Rango de audio de la selección si son compases seguidos (para escuchar o guardar como loop).
+    private var loopRange: (start: Int, end: Int, bars: Int)? {
+        guard mode == -1, lay != nil else { return nil }
+        let ids = selected.sorted().filter { $0 < ranges.count }
+        guard let f = ids.first, let l = ids.last, ids.count == l - f + 1 else { return nil }
+        return (ranges[f].lowerBound, ranges[l].upperBound, ids.count * perPad)
+    }
+
+    private func toggleLoop() {
+        if loopPlayer != nil { loopPlayer?.stop(); loopPlayer = nil; return }
+        guard let r = loopRange else { return }
+        stopPreview()
+        let lp = Harmony.makeLoop(audio, start: r.start, end: r.end, rate: sample.sampleRate)
+        guard !lp.isEmpty else { return }
+        do {
+            try AudioSessionConfig.activate()
+            var s = sample; s.id = UUID(); s.slot = nil; s.effects = EffectParams(); s.name = "loop_\(sample.name)"
+            let url = try Exporter.export(s, audio: lp, targetRate: sample.sampleRate)
+            let p = try AVAudioPlayer(contentsOf: url); p.numberOfLoops = -1; p.play(); loopPlayer = p
+        } catch { message = "No se pudo reproducir: \(error.localizedDescription)" }
+    }
+
+    private func saveLoop() {
+        guard let r = loopRange, let l = lay else { return }
+        let lp = Harmony.makeLoop(audio, start: r.start, end: r.end, rate: sample.sampleRate)
+        guard !lp.isEmpty else { return }
+        let word = r.bars == 1 ? "1 compás" : "\(r.bars) compases"
+        let chords = l.bars.filter { $0.start >= r.start && $0.end <= r.end + 1 }.map(\.label).joined(separator: " · ")
+        if var x = lib.add(name: "\(sample.name) · loop \(word)", audio: lp, sampleRate: sample.sampleRate) {
+            x.folder = lib.folder(of: sample); x.subfolder = sample.subfolder; x.bpm = (l.bpm * 10).rounded() / 10; lib.update(x)
+            message = "Loop de \(word) guardado (\(chords)) · ≈ \(Int(l.bpm.rounded())) BPM"
+        }
     }
 
     /// El audio de un corte, armonizado si el interruptor está encendido.

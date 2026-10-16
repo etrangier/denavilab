@@ -1,7 +1,7 @@
 // DenaviLab: Sounds · arranque: puerta de acceso, bienvenida, pestañas y actualizaciones.
 import { app, refreshSamples, go } from './state.js';
 import { h, fill, btn, link, logo, muted, toast } from './ui.js';
-import { renderHome, renderRecord, renderLibrary, renderExport, finishTake, openManual } from './screens.js';
+import { renderHome, renderRecord, renderLibrary, renderExport, finishTake, openManual, stopAudition } from './screens.js';
 import { renderEdit } from './editor.js';
 import { who, NAMES } from './profile.js';
 
@@ -12,6 +12,7 @@ let cleanup = null, lastTab = null;
 
 function render() {
   const keep = lastTab === app.tab ? screenEl.scrollTop : 0;
+  if (lastTab && lastTab !== app.tab) stopAudition();       // la escucha rápida de la Biblioteca no sigue sonando en otra pestaña
   if (cleanup) { cleanup(); cleanup = null; }
   fill(screenEl, );
   cleanup = SCREENS[app.tab](screenEl) || null;

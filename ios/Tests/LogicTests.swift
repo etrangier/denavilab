@@ -410,4 +410,59 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(Harmonize.join([hit(0.5)], rate: rate).count, 12000)
         XCTAssertGreaterThan(20 * log10(Harmonize.activeRMS(hit(0.8), rate: rate)) - 20 * log10(Harmonize.activeRMS(hit(0.2), rate: rate)), 10)
     }
+
+    // MARK: acordes, compases y loop
+
+    /// Am F C G en 4/4 a 100 BPM, 10 compases, con 0,37 s de silencio previo y un bombo en cada tiempo (más fuerte en el 1).
+    private func progression() -> (x: [Float], rate: Int) {
+        let rate = 48000, T = Double(rate) * 60 / 100, bars = 10, off = Int(Double(rate) * 0.37)
+        let n = Int(T * 4 * Double(bars)) + off
+        let chords: [[Double]] = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]]       // Am F C G
+        var x = [Float](repeating: 0, count: n)
+        for b in 0..<bars {
+            for i in 0..<Int(4 * T) {
+                let t = off + b * Int(4 * T) + i
+                if t >= n { break }
+                var s = 0.0
+                for m in chords[b % 4] {
+                    let w = 2 * Double.pi * 440 * pow(2, (m - 69) / 12) * Double(i) / Double(rate)
+                    s += 0.12 * sin(w) + 0.05 * sin(2 * w)
+                }
+                x[t] += Float(s)
+            }
+        }
+        for j in 0..<(bars * 4) {
+            let t0 = Int((Double(off) + Double(j) * T).rounded())
+            for i in 0..<3000 where t0 + i < n {
+                x[t0 + i] += Float((j % 4 == 0 ? 0.9 : 0.5) * sin(2 * Double.pi * 60 * Double(i) / Double(rate)) * exp(-Double(i) / 600))
+            }
+        }
+        return (x, rate)
+    }
+
+    func testChordMatching() {
+        XCTAssertEqual(Harmony.matchChord([1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0])?.name, "C")
+        XCTAssertEqual(Harmony.matchChord([1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0])?.name, "Cm")
+        XCTAssertNil(Harmony.matchChord([Double](repeating: 0, count: 12)))
+    }
+
+    func testBarsChordsAndLoop() throws {
+        let (x, rate) = progression()
+        let a = try XCTUnwrap(Harmony.analyze(x, rate: rate, bpm: 100))
+        XCTAssertEqual(a.bpm, 100, accuracy: 0.5)
+        XCTAssertEqual(a.first / Double(rate), 0.37, accuracy: 0.02)
+        XCTAssertEqual(a.downbeat, 0)
+        XCTAssertEqual(a.bars.count, 10)
+        XCTAssertEqual(a.bars.prefix(8).map(\.label), ["Am", "F", "C", "G", "Am", "F", "C", "G"])
+        let lp = try XCTUnwrap(a.loop)
+        XCTAssertEqual(lp.bars, 4)
+        XCTAssertEqual(Set(lp.chords), Set(["Am", "F", "C", "G"]))
+        XCTAssertEqual(Harmony.makeLoop(x, start: lp.start, end: lp.end, rate: rate).count, lp.end - lp.start)
+        // mover el 1 un tiempo cambia los compases
+        XCTAssertNotEqual(Harmony.layout(a, downbeat: a.downbeat + 1).bars.prefix(3).map(\.label), Array(a.bars.prefix(3).map(\.label)))
+        // sin pulso claro (un tono fijo) o con una toma muy corta, no hay análisis
+        let flat: [Float] = (0..<(rate * 6)).map { 0.3 * Float(sin(Double($0) * 0.05)) }
+        XCTAssertNil(Harmony.analyze(flat, rate: rate))
+        XCTAssertNil(Harmony.analyze(Array(x.prefix(rate * 2)), rate: rate, bpm: 100))
+    }
 }

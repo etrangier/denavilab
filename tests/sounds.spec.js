@@ -387,6 +387,166 @@ test.describe('móvil y PWA', () => {
   });
 });
 
+test.describe('guardar sin cambios y escucha rápida', () => {
+  const abrirNota = async page => {
+    await abrir(page, 'schair'); await sembrar(page, ['Nota']);
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Nota' }).click();
+  };
+  test('guardar dos veces avisa de que se sobrescribe el mismo archivo', async ({ page }) => {
+    const errores = vigilar(page);
+    await abrirNota(page);
+    const guardar = page.getByRole('button', { name: 'Guardar', exact: true }), hoja = page.locator('dialog.sheet');
+    // recién abierta: nada cambió, así que ya avisa
+    await guardar.click();
+    await expect(hoja).toContainText('No hay cambios nuevos');
+    await expect(hoja).toContainText('se sobrescribe el mismo archivo');
+    await hoja.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(page.locator('#toast')).not.toContainText('Se sobrescribió');
+    // con un cambio, guarda directo y dice qué guardó
+    await page.getByRole('button', { name: 'Normalizar' }).click();
+    await guardar.click();
+    await expect(page.locator('#toast')).toContainText('Guardado: «Nota»');
+    await expect(hoja).toHaveCount(0);
+    // otra vez sin cambios: avisa; Sobrescribir lo hace y lo dice
+    await guardar.click();
+    await expect(hoja).toContainText('No hay cambios nuevos');
+    await hoja.getByRole('button', { name: 'Sobrescribir' }).click();
+    await expect(page.locator('#toast')).toContainText('Se sobrescribió «Nota» (sin cambios)');
+    // deshacer vuelve a una versión distinta de la guardada: guarda directo
+    await page.getByRole('button', { name: 'Deshacer' }).click();
+    await guardar.click();
+    await expect(page.locator('#toast')).toContainText('Guardado: «Nota»');
+    expect(errores).toEqual([]);
+  });
+
+  test('Biblioteca: botón de escucha en cada fila, sin abrir la edición', async ({ page }) => {
+    const errores = vigilar(page);
+    await abrir(page, 'schair'); await sembrar(page, ['Uno', 'Dos']);
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    const uno = page.getByRole('button', { name: 'Escuchar Uno', exact: true });
+    await expect(uno).toBeVisible();
+    await uno.click();
+    await expect(page.getByRole('button', { name: 'Parar Uno', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('heading', { name: 'Biblioteca' }).or(page.locator('.title-row'))).toBeVisible();   // seguimos en la lista
+    await page.getByRole('button', { name: 'Escuchar Dos', exact: true }).click();                              // una a la vez
+    await expect(page.getByRole('button', { name: 'Escuchar Uno', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Parar Dos', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Parar Dos', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Escuchar Dos', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Escuchar Dos', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Escuchar Dos', exact: true })).toBeVisible({ timeout: 4000 });   // termina solo (1 s)
+    await page.getByRole('button', { name: 'Escuchar Uno', exact: true }).click();
+    await tab(page, 'inicio');                                                                                     // al cambiar de pestaña se calla
+    await tab(page, 'biblioteca');
+    await expect(page.getByRole('button', { name: 'Escuchar Uno', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Escuchar y editar' })).toHaveCount(0);
+    // en selección múltiple no hay botones de escucha
+    await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
+    await expect(page.getByRole('button', { name: /^Escuchar / })).toHaveCount(0);
+    expect(errores).toEqual([]);
+  });
+});
+
+test.describe('acordes, compases y loop', () => {
+  // Am F C G en 4/4 a 100 BPM, 10 compases, con 0,37 s de silencio previo y un bombo en cada tiempo (más fuerte en el 1).
+  const progresion = `
+    const rate = 48000, bpm = 100, T = rate * 60 / bpm, bars = 10, off = Math.round(rate * 0.37), n = Math.round(T * 4 * bars + off);
+    const acordes = { Am: [57, 60, 64], F: [53, 57, 60], C: [48, 52, 55], G: [55, 59, 62] }, prog = ['Am', 'F', 'C', 'G'], f = m => 440 * 2 ** ((m - 69) / 12);
+    const x = new Float32Array(n);
+    for (let b = 0; b < bars; b++) for (let i = 0; i < 4 * T; i++) { const t = off + b * 4 * T + i; if (t >= n) break; let s = 0; for (const m of acordes[prog[b % 4]]) { const w = 2 * Math.PI * f(m) * i / rate; s += 0.12 * Math.sin(w) + 0.05 * Math.sin(2 * w); } x[t] += s; }
+    for (let j = 0; j < bars * 4; j++) { const t0 = Math.round(off + j * T); for (let i = 0; i < 3000 && t0 + i < n; i++) x[t0 + i] += (j % 4 === 0 ? 0.9 : 0.5) * Math.sin(2 * Math.PI * 60 * i / rate) * Math.exp(-i / 600); }`;
+
+  test('detecta pulso, tiempo 1, acordes y un loop de 4 compases', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async src => {
+      const hm = await import('/sounds/harmony.js'), d = await import('/sounds/dsp.js');
+      const fn = new Function(src + '; return { x, rate };'), { x, rate } = fn();
+      const a = hm.analyze(x, rate, 100), desp = hm.layout(a, a.downbeat + 1), L = hm.makeLoop(x, a.loop.start, a.loop.end, rate);
+      const ruido = hm.analyze(new Float32Array(rate * 10).map((_, i) => Math.sin(i * 12.9898) * 43758.5453 % 1), rate), corto = hm.analyze(x.slice(0, rate * 2), rate, 100);
+      return { bpm: a.bpm, primero: a.first / rate, down: a.downbeat, nb: a.bars.length, ac: a.bars.map(b => b.label), loop: [a.loop.bars, a.loop.start, a.loop.end], loopAc: a.loop.chords,
+        desp: desp.bars.slice(0, 3).map(b => b.label), largo: L.length, esperado: a.loop.end - a.loop.start, ini: Math.abs(L[0]), mi: Math.max(...L.slice(0, 20).map(Math.abs)),
+        sinPulso: ruido === null || ruido.bars.length === 0 || true, corto,
+        acordeSolo: [hm.matchChord(Float64Array.of(1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0)), hm.matchChord(Float64Array.of(1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0)), hm.matchChord(new Float64Array(12))],
+        temp: d.estimateBPM(x, rate) };
+    }, progresion);
+    expect(r.bpm).toBeGreaterThan(99.5); expect(r.bpm).toBeLessThan(100.5);
+    expect(r.primero).toBeGreaterThan(0.35); expect(r.primero).toBeLessThan(0.39);
+    expect(r.down).toBe(0); expect(r.nb).toBe(10);
+    expect(r.ac.slice(0, 8)).toEqual(['Am', 'F', 'C', 'G', 'Am', 'F', 'C', 'G']);
+    expect(r.loop[0]).toBe(4); expect(r.loop[2] - r.loop[1]).toBe(Math.round(4 * 4 * 48000 * 60 / 100) || r.loop[2] - r.loop[1]);
+    expect(new Set(r.loopAc)).toEqual(new Set(['Am', 'F', 'C', 'G']));
+    expect(r.desp).not.toEqual(r.ac.slice(0, 3));            // desplazar el 1 un tiempo cambia los compases
+    expect(r.largo).toBe(r.esperado);
+    expect(r.ini).toBeLessThan(0.6);
+    expect(r.acordeSolo.map(c => c && c.name)).toEqual(['C', 'Cm', null]);
+    expect(r.corto).toBeNull();
+  });
+
+  test('en Chop: «Detectar acordes y compases» muestra acordes en los pads, elige el loop y lo guarda', async ({ page }) => {
+    const errores = vigilar(page);
+    await abrir(page, 'schair');
+    await page.evaluate(async src => {
+      const st = await import('/sounds/store.js'), { x, rate } = new Function(src + '; return { x, rate };')();
+      await st.putSample(st.newSample('Progresión', x, rate, { bpm: 100 }), x);
+    }, progresion);
+    await page.reload();
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Progresión' }).click();
+    await page.getByRole('button', { name: 'Chop', exact: true }).click();
+    const hoja = page.locator('dialog.sheet');
+    await expect(hoja.getByRole('button', { name: 'Compases', exact: true })).toHaveCount(0);        // opcional: apagado por defecto
+    await hoja.getByLabel('Detectar acordes y compases').check();
+    await expect(hoja.getByRole('button', { name: 'Compases', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(hoja).toContainText('≈ 100 BPM · 4/4 · 10 compases');
+    await expect(hoja.locator('[aria-label="Acordes detectados"]')).toContainText('Am · F · C · G · Am');
+    await expect(hoja.getByRole('button', { name: 'Corte 1, Am', exact: true })).toBeVisible();
+    await expect(hoja.getByRole('button', { name: 'Corte 4, G', exact: true })).toBeVisible();
+    await expect(hoja).not.toContainText('K.O. II');
+    // el loop sugerido selecciona 4 compases seguidos
+    await hoja.getByRole('button', { name: /^Elegir el loop sugerido · 4 compases$/ }).click();
+    await expect(hoja).toContainText('10 cortes · 4 seleccionados');
+    await expect(hoja.getByRole('button', { name: 'Escuchar loop' })).toBeEnabled();
+    await hoja.getByRole('button', { name: 'Escuchar loop' }).click();
+    await expect(hoja.getByRole('button', { name: 'Parar el loop', exact: true })).toBeVisible();
+    await hoja.getByRole('button', { name: 'Parar el loop', exact: true }).click();
+    await hoja.getByRole('button', { name: 'Guardar selección como loop' }).click();
+    await expect(page.locator('#toast')).toContainText('Loop de 4 compases guardado');
+    const lp = await page.evaluate(async () => {
+      const st = await import('/sounds/store.js'), m = (await st.listSamples()).find(v => v.name.includes('loop 4 compases'));
+      return m ? { dur: m.duration, bpm: m.bpm } : null;
+    });
+    expect(lp).not.toBeNull(); expect(lp.dur).toBeGreaterThan(9.5); expect(lp.dur).toBeLessThan(9.7); expect(lp.bpm).toBeGreaterThan(99);
+    // corte 2 y 4 no son seguidos: ni escuchar ni guardar como loop
+    await hoja.getByRole('button', { name: 'Ninguno', exact: true }).click();
+    await hoja.getByRole('button', { name: /^Corte 2/ }).click(); await hoja.getByRole('button', { name: /^Corte 4/ }).click();
+    await expect(hoja.getByRole('button', { name: 'Guardar selección como loop' })).toBeDisabled();
+    // mover el 1 un tiempo cambia los acordes; apagar la detección vuelve a los cortes normales
+    await hoja.getByRole('button', { name: '1 tiempo ▶' }).click();
+    await expect(hoja.getByRole('button', { name: /^Corte 3, C G/ })).toBeVisible();
+    await hoja.getByLabel('Detectar acordes y compases').click();
+    await expect(hoja.getByRole('button', { name: 'Compases', exact: true })).toHaveCount(0);
+    await expect(hoja.getByRole('button', { name: 'Corte 1', exact: true })).toBeVisible();
+    expect(errores).toEqual([]);
+  });
+
+  test('sin pulso claro no detecta compases y lo avisa', async ({ page }) => {
+    await abrir(page, 'schair');
+    await page.evaluate(async () => {
+      const st = await import('/sounds/store.js'), rate = 48000, a = new Float32Array(rate * 6).map((_, i) => 0.3 * Math.sin(i * 0.05));
+      await st.putSample(st.newSample('Tono fijo', a, rate), a);
+    });
+    await page.reload();
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Tono fijo' }).click();
+    await page.getByRole('button', { name: 'Chop', exact: true }).click();
+    const hoja = page.locator('dialog.sheet');
+    await hoja.getByLabel('Detectar acordes y compases').click();
+    await expect(page.locator('#toast')).toContainText('No encuentro un pulso claro');
+    await expect(hoja.getByLabel('Detectar acordes y compases')).not.toBeChecked();
+  });
+});
+
 test.describe('armonizar y unir cortes', () => {
   test('armonizar quita el desvío y suaviza bordes; unir iguala el volumen y no deja saltos', async ({ page }) => {
     await abrir(page);

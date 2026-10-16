@@ -35,6 +35,8 @@ struct EditorBody: View {
     @EnvironmentObject var met: Metronome
     @State var sample: Sample
     @State private var audio: [Float] = []
+    @State private var savedAudio: [Float] = []           // lo último guardado: sirve para avisar de «no hay cambios»
+    @State private var confirmOverwrite = false
     @State private var peaks: [Float] = []
     @State private var peakDB: Float = 0
     @State private var undo: [[Float]] = []
@@ -100,7 +102,13 @@ struct EditorBody: View {
                 HStack(spacing: 8) {
                     Button("Descartar") { confirmDelete = true }.buttonStyle(OutlineButton(danger: true))
                     Button("Grabar") { state.tab = .grabar }.buttonStyle(OutlineButton())
-                    Button("Guardar") { save() }.buttonStyle(AmberButton())
+                    Button("Guardar") { if audio == savedAudio { confirmOverwrite = true } else { save() } }.buttonStyle(AmberButton())
+                        .confirmationDialog("No hay cambios nuevos", isPresented: $confirmOverwrite, titleVisibility: .visible) {
+                            Button("Sobrescribir") { save(overwriting: true) }
+                            Button("Cancelar", role: .cancel) {}
+                        } message: {
+                            Text("«\(sample.name)» ya está guardada tal cual. Si sigues, se sobrescribe el mismo archivo.")
+                        }
                 }
                 if let m = message { Text(m).font(Theme.font(13)).foregroundColor(Theme.muted).frame(maxWidth: .infinity, alignment: .center) }
                 HStack(spacing: 10) {
@@ -112,7 +120,7 @@ struct EditorBody: View {
         }
         .onAppear {
             if let s = lib.samples.first(where: { $0.id == sample.id }) { sample = s }
-            if undo.isEmpty { audio = lib.audio(for: sample); refreshPeaks() }
+            if undo.isEmpty { audio = lib.audio(for: sample); savedAudio = audio; refreshPeaks() }
         }
         .onDisappear { player?.stop(); lib.update(sample) }
         .onReceive(tick) { _ in updatePlayhead() }
@@ -270,10 +278,11 @@ struct EditorBody: View {
         refreshPeaks()
     }
 
-    private func save() {
+    private func save(overwriting: Bool = false) {
         lib.replaceAudio(sample, with: audio)
         lib.update(sample)
-        message = "Guardado"
+        savedAudio = audio
+        message = overwriting ? "Se sobrescribió «\(sample.name)» (sin cambios)" : "Guardado: «\(sample.name)»"
     }
 
     private func togglePlay() {

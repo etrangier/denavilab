@@ -5,7 +5,7 @@ import * as dsp from './dsp.js';
 import { putSample, getAudio, deleteSamples } from './store.js';
 import { openChop } from './chop.js';
 
-const ed = { id: null, audio: null, peaks: [], undo: [], redo: [], start: 0, end: 1, fadeMs: 10, loop: false, noiseAmt: dsp.DENOISE_AMOUNT };
+const ed = { id: null, audio: null, saved: null, peaks: [], undo: [], redo: [], start: 0, end: 1, fadeMs: 10, loop: false, noiseAmt: dsp.DENOISE_AMOUNT };
 let playCtx = null, src = null, t0 = 0, dur = 0;
 
 const stopPlay = () => { if (src) { try { src.onended = null; src.stop(); } catch (e) {} src = null; } };
@@ -40,7 +40,7 @@ export function renderEdit(root) {
   }
   if (ed.id !== s.id) {
     stopPlay(); Object.assign(ed, { id: s.id, audio: null, peaks: [], undo: [], redo: [], start: 0, end: 1 });
-    getAudio(s.id).then(a => { if (ed.id === s.id) { setAudio(a); if (app.tab === 'editar') app.render(); } });
+    getAudio(s.id).then(a => { if (ed.id === s.id) { setAudio(a); ed.saved = a; if (app.tab === 'editar') app.render(); } });
   }
   if (!ed.audio) { mount(root, title('Escuchar y editar'), muted('Cargando…')); return; }
 
@@ -131,8 +131,13 @@ export function renderEdit(root) {
       } }),
       btn('Grabar', { small: true, onclick: () => go('grabar') }),
       btn('Guardar', { kind: 'amber', small: true, onclick: async () => {
-        try { await putSample({ ...s, duration: ed.audio.length / s.rate }, ed.audio); await refreshSamples(); toast('Guardado'); app.render(); }
-        catch (e) { toast('No se pudo guardar (¿poco espacio en el dispositivo?)'); }
+        // Misma toma que la ya guardada (p. ej. al tocar Guardar dos veces): se avisa de que se va a sobrescribir el mismo archivo.
+        const igual = ed.audio === ed.saved;
+        if (igual && !await confirmSheet({ title: 'No hay cambios nuevos', message: `«${s.name}» ya está guardada tal cual. Si sigues, se sobrescribe el mismo archivo.`, ok: 'Sobrescribir' })) return;
+        try {
+          await putSample({ ...s, duration: ed.audio.length / s.rate }, ed.audio); ed.saved = ed.audio; await refreshSamples();
+          toast(igual ? `Se sobrescribió «${s.name}» (sin cambios)` : `Guardado: «${s.name}»`); app.render();
+        } catch (e) { toast('No se pudo guardar (¿poco espacio en el dispositivo?)'); }
       } })),
     btn(app.ko2 ? 'Exportar al K.O. II' : 'Exportar', { sel: true, onclick: () => go('exportar') }));
 

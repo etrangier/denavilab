@@ -17,11 +17,34 @@ const pathOf = s => [folderOf(s), s.subfolder].filter(Boolean).join(' › ');
 export const exportRate = () => { const r = ls.get('rate', exportRates()[0]); return exportRates().includes(r) ? r : exportRates()[0]; };
 export const loadQuick = () => ({ ...dsp.QUICK_DEFAULTS, ...ls.get('quick', {}) });
 
-export function sampleRow(s, { onclick, trailing } = {}) {
+// Escucha rápida desde la Biblioteca: una a la vez, sin abrir la edición.
+const aud = { id: null, src: null, ctx: null };
+export function stopAudition() {
+  if (aud.src) { try { aud.src.onended = null; aud.src.stop(); } catch (e) {} }
+  aud.src = null; aud.id = null;
+}
+async function toggleAudition(s) {
+  if (aud.id === s.id) { stopAudition(); return app.render(); }
+  stopAudition(); aud.id = s.id; app.render();
+  try {
+    const a = await getAudio(s.id); if (aud.id !== s.id) return;
+    if (!a.length) { stopAudition(); app.render(); return toast('Esta grabación no tiene audio'); }
+    aud.ctx = aud.ctx || new (window.AudioContext || window.webkitAudioContext)(); aud.ctx.resume();
+    const buf = aud.ctx.createBuffer(1, a.length, s.rate); buf.copyToChannel(a, 0);
+    const src = aud.ctx.createBufferSource(); src.buffer = buf; src.connect(aud.ctx.destination);
+    src.onended = () => { if (aud.src === src) { aud.src = null; aud.id = null; app.render(); } };
+    aud.src = src; src.start();
+  } catch (e) { stopAudition(); app.render(); toast('No se pudo reproducir'); }
+}
+const listenBtn = s => h('button', { type: 'button', class: 'icon-btn' + (aud.id === s.id ? ' on' : ''), 'aria-pressed': String(aud.id === s.id),
+  'aria-label': (aud.id === s.id ? 'Parar ' : 'Escuchar ') + s.name, onclick: () => toggleAudition(s) }, aud.id === s.id ? '■' : '▶');
+
+export function sampleRow(s, { onclick, trailing, listen = false } = {}) {
   const right = trailing !== undefined ? trailing : (app.ko2 ? (s.slot ? 'slot ' + s.slot : 'sin enviar') : '');
-  return h('button', { type: 'button', class: 'card row-btn', onclick: onclick || (() => openSample(s)) },
+  const row = h('button', { type: 'button', class: 'card row-btn', onclick: onclick || (() => { stopAudition(); openSample(s); }) },
     h('span', { class: 'rb-text' }, h('b', {}, s.name), h('small', {}, pathOf(s) + ' · ' + dsp.stamp(s.duration))),
     right ? h('span', { class: 'amber small' }, right) : null);
+  return listen ? h('div', { class: 'sel-row' }, row, listenBtn(s)) : row;
 }
 
 // ====================================================================== INICIO
@@ -285,7 +308,7 @@ export function renderLibrary(root) {
         label('Carpetas'), h('div', { class: 'wrap' }, FOLDERS.map(f => h('span', { class: 'chip static' }, f.name)))));
     } else if (q) {
       const found = app.samples.filter(s => s.name.toLowerCase().includes(q) || (s.tags || []).some(t => t.toLowerCase().includes(q)));
-      fill(results, label('Resultados'), found.length ? found.map(s => sampleRow(s)) : muted('Nada coincide con la búsqueda.'));
+      fill(results, label('Resultados'), found.length ? found.map(s => sampleRow(s, { listen: true })) : muted('Nada coincide con la búsqueda.'));
     } else {
       fill(results, 
         FOLDERS.map(f => {
@@ -293,7 +316,7 @@ export function renderLibrary(root) {
           return h('button', { type: 'button', class: 'card folder' + (hl ? ' hl' : ''), onclick: () => { L.folder = f.name; app.render(); } },
             h('span', { class: 'dot' }), h('span', { class: 'rb-text' }, h('b', { class: hl ? 'amber' : '' }, f.name), h('small', {}, folderDetail(f))), h('b', { class: 'amber' }, String(c)));
         }),
-        label('Recientes'), app.samples.slice(0, 5).map(s => sampleRow(s)),
+        label('Recientes'), app.samples.slice(0, 5).map(s => sampleRow(s, { listen: true })),
         h('div', { class: 'row2 backup' }, btn('Copia de seguridad', { small: true, onclick: backupAll }), btn('Restaurar', { small: true, onclick: () => fileInput.click() })));
     }
   };
@@ -351,10 +374,11 @@ function renderFolder(root) {
       const on = L.sel.has(s.id);
       return h('div', { class: 'sel-row' },
         h('button', { type: 'button', class: 'card row-btn' + (on ? ' picked' : ''), 'aria-pressed': L.selecting ? String(on) : null,
-          onclick: () => { if (L.selecting) { on ? L.sel.delete(s.id) : L.sel.add(s.id); paint(); } else openSample(s); } },
+          onclick: () => { if (L.selecting) { on ? L.sel.delete(s.id) : L.sel.add(s.id); paint(); } else { stopAudition(); openSample(s); } } },
           L.selecting ? h('span', { class: 'check' + (on ? ' on' : ''), 'aria-hidden': 'true' }, on ? '✓' : '') : null,
           h('span', { class: 'rb-text' }, h('b', {}, s.name), h('small', {}, pathOf(s) + ' · ' + dsp.stamp(s.duration))),
           app.ko2 && s.slot ? h('span', { class: 'amber small' }, 'slot ' + s.slot) : null),
+        L.selecting ? null : listenBtn(s),
         L.selecting ? null : h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Más acciones para ' + s.name, onclick: () => rowMenu(s) }, '⋯'));
     }) : [muted('Esta carpeta está vacía.', 'center')]));
     bar.hidden = !L.selecting;
