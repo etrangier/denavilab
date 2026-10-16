@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DenaviLab: Sounds</title>
+<meta name="description" content="capturador de sonidos para sampling">
+<meta name="theme-color" content="#14131b">
+<meta name="color-scheme" content="dark">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="DL Sounds">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="app.css?v=1">
+</head>
+<body>
+<div id="app">
+  <div id="update" hidden><span>Hay una versión nueva.</span> <button type="button">Actualizar</button></div>
+  <main id="screen" tabindex="-1"><noscript><p style="padding:24px">DenaviLab: Sounds necesita JavaScript.</p></noscript></main>
+  <nav id="tabs" role="tablist" aria-label="Secciones" hidden></nav>
+  <div id="toast" role="status" aria-live="polite"></div>
+</div>
+
+<!-- Sesión: la misma puerta del resto del sitio (acceso.js). Se mueve a Inicio al pintar esa pantalla. -->
+<p id="sesion" class="sesion muted small center" hidden></p>
+<button type="button" id="btnLogin" hidden>Entrar</button>
+<dialog id="puerta">
+  <form method="dialog" id="formPuerta">
+    <h2>Entra a DenaviLab</h2>
+    <p class="por">Con tu nombre y tu clave.</p>
+    <label>Nombre
+      <input type="text" id="usuario" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+    </label>
+    <label>Clave
+      <span class="campo-clave">
+        <input type="password" id="clave" autocomplete="current-password" required>
+        <button type="button" class="ver-clave" id="verClave" aria-pressed="false" aria-label="Mostrar la clave">Ver</button>
+      </span>
+    </label>
+    <p class="error" id="errorPuerta" role="alert"></p>
+    <div class="fila">
+      <button type="button" class="btn outline" id="cancelar">Cancelar</button>
+      <button type="submit" class="btn amber">Entrar</button>
+    </div>
+    <div class="fila-invitado">
+      <span>¿Quieres probarlo sin cuenta?</span>
+      <button type="button" class="btn outline small" id="entrarInvitado">Entrar como invitado</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="../acceso.js?v=20260915f" defer></script>
+<script type="module" src="main.js"></script>
+</body>
+</html>
