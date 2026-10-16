@@ -23,7 +23,8 @@ struct HomeView: View {
                     shortcut("Manual", detail: "Glosario técnico", icon: "book.fill") { showManual = true }
                 }
                 if !lib.samples.isEmpty { recents }
-                Text("Beta \(version)").font(Theme.font(12)).foregroundColor(Theme.muted).padding(.top, 6)
+                Text("Beta \(version) · Desarrollado por: Rolando Chaparro Gehren")
+                    .font(Theme.font(11)).foregroundColor(Theme.muted).multilineTextAlignment(.center).padding(.top, 6)
             }
         }
         .sheet(isPresented: $showManual) { ManualView().presentationDetents([.large]) }
