@@ -713,3 +713,68 @@ test('Synth pop: los pads sintéticos nuevos (563–567) están en la base y los
   await page.fill('#ksBuscar', 'Warm PWM'); await expect(page.locator('#ksResultados')).toContainText('Warm PWM Bbmaj9');
   await expect(page.locator('#ksResultados')).toContainText('567');
 });
+
+test('Behringer RD-8: sección con el plan de carga (30 por cargar, 2 ya en el aparato) y slots previstos libres', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  const sec = page.locator('#ksRd8');
+  await expect(sec.getByRole('heading', { name: 'Behringer RD-8' })).toBeVisible();
+  await expect(sec.locator('#ksRd8Resumen')).toContainText('2 de 32 ya en tu K.O. II (slots 42 y 158)');
+  await expect(sec.locator('#ksRd8Resumen')).toContainText('30 por cargar');
+  await expect(sec.locator('li.ks-rd8-fila')).toHaveCount(32);
+  await expect(sec.locator('li.ks-rd8-fila.ok')).toHaveCount(2);
+  const previsto = n => sec.locator(`li.ks-rd8-fila[data-nombre="${n}"]`);
+  const esperado = { 'CP BD RD-8 Deep Short': 43, 'CP SN RD-8 Crisp High': 159, 'CP RS RD-8': 161, 'CP HH RD-8 Bright': 265, 'CP CY RD-8 Bright Long': 273,
+    'CP Clap RD-8 Dry': 364, 'CP LT RD-8 F#': 368, 'CP HC RD-8 G#': 374, 'CP MA RD-8': 377 };
+  for (const [n, slot] of Object.entries(esperado)) await expect(previsto(n)).toHaveAttribute('data-slot', String(slot));
+  // los slots previstos son únicos, no chocan con ninguno ya cargado y caen en el grupo correcto del EP Sample Tool
+  const r = await page.evaluate(() => {
+    const filas = [...document.querySelectorAll('#ksRd8 li.ks-rd8-fila:not(.ok)')].map(f => [f.dataset.nombre, Number(f.dataset.slot)]);
+    const base = JSON.parse(document.getElementById('ksDatos').textContent), usados = new Set(base.sonidos.filter(s => s.cargado).map(s => s.slot));
+    return { n: filas.length, unicos: new Set(filas.map(f => f[1])).size, choques: filas.filter(f => usados.has(f[1])).length, fuera: filas.filter(f => !(f[1] >= 1 && f[1] <= 999)).length,
+      kick: filas.filter(f => /BD/.test(f[0])).every(f => f[1] >= 1 && f[1] <= 99), snare: filas.filter(f => /SN|RS/.test(f[0])).every(f => f[1] >= 100 && f[1] <= 199),
+      cymb: filas.filter(f => /HH|CY/.test(f[0])).every(f => f[1] >= 200 && f[1] <= 299), perc: filas.filter(f => /Clap|LT|MT|HT|LC|MC|HC|CB|CL|MA/.test(f[0])).every(f => f[1] >= 300 && f[1] <= 399),
+      prev: base.sonidos.filter(s => /RD-8/.test(s.pack) && !s.cargado).every(s => Number.isInteger(s.slot_previsto)) };
+  });
+  expect(r).toEqual({ n: 30, unicos: 30, choques: 0, fuera: 0, kick: true, snare: true, cymb: true, perc: true, prev: true });
+});
+
+test('Behringer RD-8: copiar el plan, marcar uno y marcar todos como cargados (y se queda tras recargar)', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await rolando(page); await page.goto('/kits.html');
+  const sec = page.locator('#ksRd8');
+  await sec.locator('#ksRd8Copiar').click();
+  const texto = await page.evaluate(() => navigator.clipboard.readText());
+  expect(texto).toContain('CP BD RD-8 Deep Short.wav → slot 43 (KICK)');
+  expect(texto).toContain('CP MA RD-8.wav → slot 377 (PERC)');
+  expect(texto.split('\n').filter(l => /\.wav → slot/.test(l))).toHaveLength(30);
+  expect(texto).not.toContain('Deep Medium');                                  // el que ya está (slot 42) no sale en el plan
+  // marcar uno
+  await sec.locator('button[data-marcar="CP BD RD-8 Deep Short"]').click();
+  await expect(sec.locator('#ksRd8Resumen')).toContainText('3 de 32');
+  await expect(sec.locator('li.ks-rd8-fila[data-nombre="CP BD RD-8 Deep Short"]')).toHaveClass(/ok/);
+  await page.reload();
+  await expect(page.locator('#ksRd8Resumen')).toContainText('3 de 32');
+  // marcar todos (pide confirmación)
+  page.once('dialog', d => d.dismiss());
+  await page.locator('#ksRd8Todos').click();
+  await expect(page.locator('#ksRd8Resumen')).toContainText('3 de 32');
+  page.once('dialog', d => d.accept());
+  await page.locator('#ksRd8Todos').click();
+  await expect(page.locator('#ksRd8Resumen')).toContainText('32 de 32');
+  await expect(page.locator('#ksRd8Resumen')).toContainText('0 por cargar');
+  await expect(page.locator('li.ks-rd8-fila.ok')).toHaveCount(32);
+  await expect(page.locator('#ksRd8Estado')).toContainText('29 marcados como cargados');
+});
+
+test('Behringer RD-8: en el detalle de un sonido por cargar, el slot previsto ya viene escrito', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  const base = JSON.parse(JSON.stringify(SINTETICA));
+  base.sonidos.push(snd('CP BD RD-8 High Long', 'Bombo', 99.5, { cargado: false, pack: 'Captain Pikant - RD-8 48kHz' }));       // el plan lo conoce por nombre: slot 44
+  await subirBase(page, base);
+  await page.uncheck('#ksSolo');
+  await pad(page, 'A:7').click();
+  await expect(page.locator('#ksSlotNuevo')).toHaveValue('44');
+  await page.click('#ksMarcar');
+  await expect(pad(page, 'A:7').locator('.slot')).toHaveText('44');
+  await expect(page.locator('li.ks-rd8-fila[data-nombre="CP BD RD-8 High Long"]')).toHaveClass(/ok/);       // y la sección RD-8 lo refleja
+});
