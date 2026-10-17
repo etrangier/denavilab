@@ -188,8 +188,9 @@ struct EditorBody: View {
         guard b - a >= sample.sampleRate / 2 else { message = "Marca al menos 0,5 s (o no marques nada para usar toda la toma)"; return }
         let rate = sample.sampleRate, cross = loopCross, refine = loopRefine
         message = "Creando el loop…"
+        let before = undo.count
         apply { Creative.loopSeamless($0, from: a, to: b, rate: rate, crossSec: cross, refine: refine) }
-        if undo.count > 0 { loop = true; message = "Loop de \(stamp(Double(audio.count) / self.rate)) · pulsa ▶ para oírlo en bucle" }
+        if undo.count > before { loop = true; message = "Loop de \(stamp(Double(audio.count) / self.rate)) · pulsa ▶ para oírlo en bucle" }
     }
 
     private func makePad(_ factor: Int) {
