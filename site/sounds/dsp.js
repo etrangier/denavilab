@@ -361,6 +361,63 @@ export function reverseRange(x, a = 0, b = x.length) {
   return y;
 }
 
+/**
+ * Colchón sostenido (estirar mucho, al estilo Paul's Extreme Sound Stretch): ventanas largas (~0,25 s) cuyo espectro se conserva
+ * pero con la fase al azar, así cada nota se difumina en un sonido continuo sin cambiar de tono. `factor` ≥ 2 (4, 8, 16…).
+ * Con `sustain`, las colas que se apagan se suben (hasta +18 dB) para que el colchón no se desvanezca. Es determinista: la misma
+ * toma da siempre el mismo resultado. El volumen se iguala al de la toma original.
+ */
+export function padStretch(x, factor, rate, sustain = true) {
+  const n = x.length;
+  if (n < 64 || !(factor > 1) || !Number.isFinite(factor)) return Float32Array.from(x);
+  let N = 1024; while (N < rate * 0.25) N <<= 1;
+  const H = N / 2, m = Math.round(n * factor), win = new Float64Array(N).map((_, i) => Math.sin(Math.PI * (i + 0.5) / N));   // ventana de seno: w² suma 1 con solape de 50 %
+  const out = new Float64Array(m + 3 * N), OFF = N, re = new Float64Array(N), im = new Float64Array(N);
+  let seed = 12345; const rnd = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+  for (let k = 0; (k - 1) * H <= m; k++) {
+    const s = (k - 1) * H, start = Math.round((s + H) / factor - H);          // el centro de cada ventana de salida cae donde le toca en la entrada
+    for (let i = 0; i < N; i++) { const j = start + i; re[i] = (j >= 0 && j < n ? x[j] : 0) * win[i]; im[i] = 0; }
+    fftInPlace(re, im, false);
+    for (let b = 0; b <= H; b++) {
+      const mag = Math.hypot(re[b], im[b]);
+      if (b === 0 || b === H) { re[b] = mag; im[b] = 0; continue; }
+      const th = 2 * Math.PI * rnd();
+      re[b] = mag * Math.cos(th); im[b] = mag * Math.sin(th); re[N - b] = re[b]; im[N - b] = -im[b];
+    }
+    fftInPlace(re, im, true);
+    for (let i = 0; i < N; i++) out[OFF + s + i] += re[i] * win[i];
+  }
+  let y = new Float32Array(m), ein = 0, eout = 0;
+  for (let i = 0; i < n; i++) ein += x[i] * x[i];
+  for (let i = 0; i < m; i++) y[i] = out[OFF + i];
+  if (sustain) y = levelEnvelope(y, rate);
+  for (let i = 0; i < m; i++) eout += y[i] * y[i];
+  let g = eout > 1e-18 && ein > 1e-18 ? Math.min(4, Math.sqrt((ein / n) / (eout / m))) : 1, pk = 0;
+  for (let i = 0; i < m; i++) pk = Math.max(pk, Math.abs(y[i]) * g);
+  if (pk > 0.98) g *= 0.98 / pk;
+  for (let i = 0; i < m; i++) y[i] *= g;
+  return cosFade(y, Math.round(rate * 0.01), Math.round(rate * 0.15));
+}
+
+/** Sube las partes que se apagan hacia el nivel de las más fuertes (sólo sube, hasta `maxBoostDB`; el silencio real no se toca). */
+export function levelEnvelope(y, rate, maxBoostDB = 18) {
+  const blk = Math.max(1, Math.round(rate * 0.1)), nb = Math.floor(y.length / blk);
+  if (nb < 3) return y;
+  const e = new Float64Array(nb);
+  for (let b = 0; b < nb; b++) { let a = 0; for (let i = b * blk; i < (b + 1) * blk; i++) a += y[i] * y[i]; e[b] = Math.sqrt(a / blk); }
+  const sorted = [...e].sort((p, q) => q - p), target = sorted[Math.floor(nb * 0.25)] || sorted[0], peak = sorted[0];
+  const sm = new Float64Array(nb), R = 5;                                    // promedio de ±0,5 s: el nivel cambia despacio
+  for (let b = 0; b < nb; b++) { let a = 0, c = 0; for (let d = -R; d <= R; d++) { const j = b + d; if (j >= 0 && j < nb) { a += e[j]; c++; } } sm[b] = a / c; }
+  const maxG = Math.pow(10, maxBoostDB / 20), gain = new Float64Array(nb);
+  for (let b = 0; b < nb; b++) gain[b] = sm[b] < peak * 1e-3 || sm[b] < 1e-9 ? 1 : Math.min(maxG, Math.max(1, target / sm[b]));
+  const out = new Float32Array(y.length);
+  for (let i = 0; i < y.length; i++) {
+    const f = Math.min(nb - 1, Math.max(0, i / blk - 0.5)), b0 = Math.floor(f), b1 = Math.min(nb - 1, b0 + 1), g = gain[b0] + (gain[b1] - gain[b0]) * (f - b0);
+    out[i] = y[i] * g;
+  }
+  return out;
+}
+
 /** Guardado rápido: recorte relativo al nivel, fundidos cortos y normalizado. */
 export const QUICK_DEFAULTS = { enabled: false, denoise: 'off', trim: true, fades: true, normalize: true, thresholdDB: -48 };
 export function quickProcess(x, rate, s = QUICK_DEFAULTS) {

@@ -474,4 +474,36 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(Creative.reverseRange([1, 2, 3], from: -5, to: 99), [3, 2, 1])
         XCTAssertTrue(Creative.reverseRange([]).isEmpty)
     }
+
+    // MARK: colchón sostenido
+
+    func testPadStretchKeepsPitchAndLevel() {
+        let rate = 48000, n = rate * 2
+        let x: [Float] = (0..<n).map { i in
+            let t = Double(i) / Double(rate)
+            return Float(0.4 * (sin(2 * Double.pi * 440 * t) + 0.4 * sin(2 * Double.pi * 880 * t)) * exp(-t * 2.5) * min(1, t * 50))
+        }
+        func rms(_ y: [Float], _ a: Int, _ b: Int) -> Double {
+            var e = 0.0
+            for i in a..<b { e += Double(y[i]) * Double(y[i]) }
+            return (e / Double(b - a)).squareRoot()
+        }
+        let y = Creative.padStretch(x, factor: 8, rate: rate, sustain: true), flat = Creative.padStretch(x, factor: 8, rate: rate, sustain: false)
+        XCTAssertEqual(y.count, n * 8)
+        XCTAssertEqual(rms(y, 0, y.count) / rms(x, 0, n), 1, accuracy: 0.15)
+        XCTAssertLessThan(y.map(abs).max() ?? 1, 0.99)
+        XCTAssertEqual(Creative.padStretch(x, factor: 8, rate: rate, sustain: true), y)                  // determinista
+        // el tono dominante sigue en ~440 Hz
+        let N = 16384, st = y.count / 2
+        var re = (0..<N).map { Double(y[st + $0]) * (0.5 - 0.5 * cos(2 * Double.pi * Double($0) / Double(N))) }, im = [Double](repeating: 0, count: N)
+        NoiseReduction.fft(&re, &im, inverse: false)
+        var bi = 1, bm = 0.0
+        for k in 1..<(N / 2) { let m = (re[k] * re[k] + im[k] * im[k]).squareRoot(); if m > bm { bm = m; bi = k } }
+        XCTAssertEqual(Double(bi) * Double(rate) / Double(N), 440, accuracy: 6)
+        // «Sostener» deja el colchón más parejo: la caída entre el primer y el último cuarto es mucho menor
+        func drop(_ v: [Float]) -> Double { rms(v, 0, v.count / 4) / rms(v, v.count * 3 / 4, v.count) }
+        XCTAssertLessThan(drop(y), drop(flat) / 3)
+        XCTAssertEqual(Creative.padStretch([Float](repeating: 0, count: 10), factor: 8, rate: rate).count, 10)
+        XCTAssertEqual(Creative.padStretch(x, factor: 1, rate: rate), x)
+    }
 }

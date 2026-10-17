@@ -41,6 +41,7 @@ struct EditorBody: View {
     @State private var peakDB: Float = 0
     @State private var undo: [[Float]] = []
     @State private var redo: [[Float]] = []
+    @State private var sustainPad = true
     @State private var start = 0.0
     @State private var end = 1.0
     @State private var fadeMs = 10.0
@@ -147,6 +148,28 @@ struct EditorBody: View {
             Button("Invertir") { apply { Creative.reverseRange($0, from: selA, to: selB) } }.buttonStyle(OutlineButton()).font(Theme.font(13))
             Text("Da la vuelta a la selección (o a toda la toma): una cola que se apaga pasa a ser un crescendo que «chupa» hacia el golpe.")
                 .font(Theme.font(12)).foregroundColor(Theme.muted)
+            SectionLabel("Colchón sostenido")
+            HStack(spacing: 8) {
+                ForEach([4, 8, 16], id: \.self) { f in
+                    Button("Colchón ×\(f)") { makePad(f) }
+                }
+            }.buttonStyle(OutlineButton()).font(Theme.font(13))
+            ToggleRow(title: "Sostener el nivel", subtitle: "Sube las colas que se apagan para que el colchón no se desvanezca", isOn: $sustainPad)
+            Text("Estira la selección (o toda la toma) sin cambiar el tono y la difumina en un sonido continuo, ideal para notas de cuerda, pads y ambientes. Se queda sólo con lo estirado; puedes deshacer.")
+                .font(Theme.font(12)).foregroundColor(Theme.muted)
+        }
+    }
+
+    private func makePad(_ factor: Int) {
+        let a = selA, b = selB
+        guard b - a >= sample.sampleRate / 10 else { message = "Marca al menos 0,1 s (o no marques nada para usar toda la toma)"; return }
+        guard (b - a) * factor <= sample.sampleRate * 600 else { message = "Quedaría demasiado largo (más de 10 minutos): marca un tramo más corto"; return }
+        message = "Creando el colchón…"
+        let piece = Array(audio[a..<b]), rate = sample.sampleRate, sustain = sustainPad
+        Task {
+            let out = await Task.detached { Creative.padStretch(piece, factor: Double(factor), rate: rate, sustain: sustain) }.value
+            apply { _ in out }
+            message = "Colchón ×\(factor) · dura \(stamp(Double(audio.count) / self.rate))"
         }
     }
 

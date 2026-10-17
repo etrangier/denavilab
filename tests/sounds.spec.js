@@ -427,6 +427,59 @@ test.describe('invertir', () => {
   });
 });
 
+test.describe('colchón sostenido', () => {
+  const nota = `
+    const rate = 48000, n = rate * 2, x = new Float32Array(n).map((_, i) => { const t = i / rate; return 0.4 * (Math.sin(2 * Math.PI * 440 * t) + 0.4 * Math.sin(2 * Math.PI * 880 * t)) * Math.exp(-t * 2.5) * Math.min(1, t * 50); });`;
+
+  test('núcleo: estira sin cambiar el tono, conserva el volumen y es determinista', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async src => {
+      const d = await import('/sounds/dsp.js'), { x, rate, n } = new Function(src + '; return { x, rate, n };')();
+      const rms = (y, a, b) => { let e = 0; for (let i = a; i < b; i++) e += y[i] ** 2; return Math.sqrt(e / (b - a)); };
+      const dominante = y => { const N = 16384, re = new Float64Array(N), im = new Float64Array(N), st = Math.floor(y.length / 2); for (let i = 0; i < N; i++) re[i] = y[st + i] * (0.5 - 0.5 * Math.cos(2 * Math.PI * i / N)); d.fftInPlace(re, im, false); let bi = 1, bm = 0; for (let k = 1; k < N / 2; k++) { const m = Math.hypot(re[k], im[k]); if (m > bm) { bm = m; bi = k; } } return bi * rate / N; };
+      const por = (y) => [0, 1, 2, 3].map(k => rms(y, Math.floor(k * y.length / 4), Math.floor((k + 1) * y.length / 4)));
+      const y8 = d.padStretch(x, 8, rate, true), plano = d.padStretch(x, 8, rate, false), otra = d.padStretch(x, 8, rate, true);
+      const q = por(y8), qp = por(plano), qe = por(x);
+      let pico = 0; for (const v of y8) pico = Math.max(pico, Math.abs(v));
+      return { largo: [y8.length, n * 8], f: dominante(y8), rms: [rms(x, 0, n), rms(y8, 0, y8.length)], igual: y8.every((v, i) => v === otra[v === v ? i : 0]), pico,
+        caida: [qe[0] / qe[3], qp[0] / qp[3], q[0] / q[3]], corto: d.padStretch(new Float32Array(10), 8, rate).length, noEstira: [d.padStretch(x, 1, rate).length === n, d.padStretch(x, NaN, rate).length === n],
+        silencio: d.padStretch(new Float32Array(rate), 8, rate).every(v => v === 0) };
+    }, nota);
+    expect(r.largo[0]).toBe(r.largo[1]);
+    expect(Math.abs(r.f - 440)).toBeLessThan(6);                                  // el tono no cambia
+    expect(Math.abs(r.rms[1] / r.rms[0] - 1)).toBeLessThan(0.15);                 // mismo volumen que la toma
+    expect(r.igual).toBe(true); expect(r.pico).toBeLessThan(0.99);
+    expect(r.caida[2]).toBeLessThan(r.caida[1] / 3);                              // «Sostener» deja el colchón mucho más parejo que el estirado a secas
+    expect(r.corto).toBe(10); expect(r.noEstira).toEqual([true, true]); expect(r.silencio).toBe(true);
+  });
+
+  test('Editar: Colchón ×8 estira la selección, avisa si es muy corta y se puede deshacer', async ({ page }) => {
+    const errores = vigilar(page);
+    await abrir(page, 'schair');
+    await page.evaluate(async src => { const st = await import('/sounds/store.js'), { x, rate } = new Function(src + '; return { x, rate };')(); await st.putSample(st.newSample('Cuerda', x, rate), x); }, nota);
+    await page.reload();
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Cuerda' }).click();
+    await expect(page.getByText('Colchón sostenido', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('Sostener el nivel')).toBeChecked();
+    await page.getByRole('button', { name: 'Colchón ×8', exact: true }).click();
+    await expect(page.locator('#screen')).toContainText('Dura 00:16', { timeout: 15000 });          // 2 s × 8
+    await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+    await expect(page.locator('#toast')).toContainText('Guardado');
+    const dur = await page.evaluate(async () => { const st = await import('/sounds/store.js'); return (await st.listSamples()).find(v => v.name === 'Cuerda').duration; });
+    expect(dur).toBeGreaterThan(15.9); expect(dur).toBeLessThan(16.1);
+    await page.getByRole('button', { name: 'Deshacer' }).click();
+    await expect(page.locator('#screen')).toContainText('Dura 00:02');
+    // marcar un tramo menor a 0,1 s avisa
+    const he = page.getByRole('slider', { name: 'Marcador de final' });
+    await he.focus(); for (let i = 0; i < 99; i++) await he.press('ArrowLeft');
+    await page.getByRole('slider', { name: 'Marcador de inicio' }).focus();
+    await page.getByRole('button', { name: 'Colchón ×4', exact: true }).click();
+    await expect(page.locator('#toast')).toContainText('Marca al menos 0,1 s');
+    expect(errores).toEqual([]);
+  });
+});
+
 test.describe('service worker', () => {
   test('guarda para uso sin conexión todos los módulos de la app', async ({ request }) => {
     const sw = await (await request.get('/sounds/sw.js')).text();
