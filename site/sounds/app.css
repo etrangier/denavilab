@@ -171,3 +171,5 @@ dialog.sheet { margin: auto auto 0; width: min(100%, 600px); max-width: 100%; ma
 .undo-bar { position: sticky; top: 0; z-index: 6; margin: 0 -2px; padding: 8px 2px 6px; background: var(--bg); border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px; }
 .undo-bar .btn.small { min-height: 44px; font-weight: 600; }
 .undo-note { margin: 0; min-height: 16px; text-align: center; }
+
+.pasos { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 10px; } .pasos li { line-height: 1.4; }

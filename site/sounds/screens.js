@@ -1,5 +1,5 @@
 // Pantallas: Inicio, Grabar, Biblioteca, Exportar, y las hojas (retroactiva, guardar, metrónomo, manual…).
-import { app, go, openSample, refreshSamples, sampleById, VERSION } from './state.js';
+import { app, go, openSample, refreshSamples, sampleById, VERSION, inst, isStandalone, platform, installApp } from './state.js';
 import { h, mount, fill, btn, link, chip, card, label, muted, title, toggleRow, sliderRow, logo, sheet, confirmSheet, promptSheet, toast, folderPicker, drawBars } from './ui.js';
 import * as dsp from './dsp.js';
 import { FOLDERS, UNSORTED, folderDetail, folderOf } from './folders.js';
@@ -48,6 +48,24 @@ export function sampleRow(s, { onclick, trailing, listen = false } = {}) {
 }
 
 // ====================================================================== INICIO
+/** Deja la app como acceso directo en la pantalla de inicio: con el aviso del navegador si existe; si no, con los pasos a mano. */
+async function instalar() {
+  const r = await installApp();
+  if (r === 'accepted') return toast('Instalada: búscala en la pantalla de inicio de tu celular');
+  if (r === 'dismissed') return;
+  const pasos = {
+    ios: ['Abre esta página en Safari (en otros navegadores el iPhone no deja instalar).', 'Toca el botón Compartir (el cuadrado con una flecha hacia arriba).', 'Baja y elige «Añadir a pantalla de inicio».', 'Toca «Añadir». El ícono aparece junto a tus otras apps.'],
+    android: ['Abre esta página en Chrome.', 'Toca el menú ⋮ (arriba a la derecha).', 'Elige «Instalar app» (o «Añadir a la pantalla de inicio»).', 'Confirma con «Instalar». El ícono aparece junto a tus otras apps.'],
+    otra: ['En el menú de tu navegador busca «Instalar app» o «Añadir a la pantalla de inicio».', 'Confirma. En el celular, el ícono queda junto a tus otras apps.'],
+  }[platform()];
+  sheet(close => h('div', { class: 'stack' },
+    h('div', { class: 'title-row' }, h('h2', {}, 'Instalar en mi celular'), link('Cerrar', close)),
+    muted('Queda como una app más, a pantalla completa y sin la barra del navegador.'),
+    h('ol', { class: 'pasos' }, pasos.map(p => h('li', {}, p))),
+    muted('Si ya la instalaste, ábrela desde ese ícono y este botón desaparece.', 'small'),
+    btn('Entendido', { kind: 'amber', onclick: close })));
+}
+
 export function renderHome(root) {
   const n = app.samples.length, last = app.samples[0];
   const shortcut = (name, detail, icon, onclick) => h('button', { type: 'button', class: 'card shortcut', onclick },
@@ -64,6 +82,7 @@ export function renderHome(root) {
       shortcut('Editar', last ? last.name : 'Sin grabaciones', '✂', () => last ? openSample(last) : go('biblioteca')),
       shortcut('Exportar', app.ko2 ? 'Formato K.O. II' : 'WAV para compartir', '⇪', () => go('exportar')),
       shortcut('Manual', 'Glosario técnico', '?', openManual)),
+    isStandalone() || inst.done ? null : btn('📲 Instalar en mi celular', { sel: true, aria: 'Instalar la app en mi celular', onclick: instalar }),
     n ? h('div', { class: 'stack tight' }, label('Recientes'), app.samples.slice(0, 3).map(s => sampleRow(s))) : null,
     h('p', { class: 'muted tiny center' }, `Beta ${VERSION} · Desarrollado por: Rolando Chaparro Gehren`),
     sesion ? (sesion.hidden = false, sesion) : null);

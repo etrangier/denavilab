@@ -620,6 +620,48 @@ test.describe('historial siempre a la vista', () => {
   });
 });
 
+test.describe('instalar como app', () => {
+  test('Chrome en Android: el botón dispara la instalación y no menciona el K.O. II', async ({ page }) => {
+    await abrir(page, 'schair');
+    await expect(page.getByRole('button', { name: 'Instalar la app en mi celular' })).toBeVisible();
+    await expect(page.locator('body')).not.toContainText('K.O. II');
+    await page.evaluate(() => {
+      window.__prompted = false;
+      const e = Object.assign(new Event('beforeinstallprompt', { cancelable: true }), { prompt: async () => { window.__prompted = true; }, userChoice: Promise.resolve({ outcome: 'accepted' }) });
+      window.dispatchEvent(e);
+    });
+    await page.getByRole('button', { name: 'Instalar la app en mi celular' }).click();
+    expect(await page.evaluate(() => window.__prompted)).toBe(true);
+    await expect(page.locator('#toast')).toContainText('Instalada');
+  });
+
+  test('sin aviso del navegador muestra los pasos: Android, iPhone y otros', async ({ browser }) => {
+    for (const [nombre, ua, esperado, noEsperado] of [
+      ['android', 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36', 'Instalar app', 'Compartir'],
+      ['ios', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1', 'Compartir', 'menú ⋮'],
+      ['otra', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36', 'Instalar app', 'Compartir'],
+    ]) {
+      const ctx = await browser.newContext({ userAgent: ua }); const page = await ctx.newPage();
+      await abrir(page, 'schair');
+      await page.getByRole('button', { name: 'Instalar la app en mi celular' }).click();
+      const hoja = page.locator('dialog.sheet');
+      await expect(hoja.getByRole('heading', { name: 'Instalar en mi celular' }), nombre).toBeVisible();
+      await expect(hoja.locator('ol li'), nombre).not.toHaveCount(0);
+      await expect(hoja, nombre).toContainText(esperado); await expect(hoja, nombre).not.toContainText(noEsperado);
+      await expect(hoja, nombre).not.toContainText('K.O. II');
+      await hoja.getByRole('button', { name: 'Entendido' }).click();
+      await ctx.close();
+    }
+  });
+
+  test('ya instalada (pantalla completa) el botón no aparece', async ({ page }) => {
+    await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { get: () => true }));
+    await abrir(page, 'schair');
+    await expect(page.getByRole('heading', { name: 'DenaviLab: Sounds' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Instalar la app en mi celular' })).toHaveCount(0);
+  });
+});
+
 test.describe('service worker', () => {
   test('guarda para uso sin conexión todos los módulos de la app', async ({ request }) => {
     const sw = await (await request.get('/sounds/sw.js')).text();
