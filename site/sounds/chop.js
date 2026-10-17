@@ -1,6 +1,6 @@
 // Chop: corta la toma en trozos y deja elegir cuáles guardar o exportar (uno, varios, juntos o no).
 import { app, refreshSamples } from './state.js';
-import { h, mount, fill, btn, link, chip, card, label, muted, toggleRow, sliderRow, sheet, toast, drawBars } from './ui.js';
+import { h, mount, fill, btn, link, chip, card, label, muted, toggleRow, sliderRow, sheet, toast, drawBars, fx, flash } from './ui.js';
 import * as dsp from './dsp.js';
 import * as hm from './harmony.js';
 import { putSample, newSample } from './store.js';
@@ -55,7 +55,7 @@ export function openChop(sample, audio) {
           const piece = harmonized(audio.slice(S.ranges[i][0], S.ranges[i][1]));
           await putSample(newSample(`${sample.name} · corte ${i + 1}`, piece, sample.rate, { folder: sample.folder, subfolder: sample.subfolder }), piece);
         }
-        await refreshSamples(); toast(ids.length === 1 ? '1 corte guardado en la Biblioteca' : `${ids.length} cortes guardados en la Biblioteca`);
+        await refreshSamples(); flash('guardar-cortes'); toast(ids.length === 1 ? '1 corte guardado en la Biblioteca' : `${ids.length} cortes guardados en la Biblioteca`);
       } catch (e) { toast('No se pudo guardar (¿poco espacio en el dispositivo?)'); }
     };
     const analyzeWith = bpm => {
@@ -81,7 +81,7 @@ export function openChop(sample, audio) {
       const lp = hm.makeLoop(audio, r[0], r[1], sample.rate), bars = Math.round(r[2]), chords = S.lay.bars.filter(b => b.start >= r[0] && b.end <= r[1] + 1).map(b => b.label).join(' · ');
       try {
         await putSample(newSample(`${sample.name} · loop ${bars === 1 ? '1 compás' : bars + ' compases'}`, lp, sample.rate, { folder: sample.folder, subfolder: sample.subfolder, bpm: Math.round(S.lay.bpm * 10) / 10 }), lp);
-        await refreshSamples(); toast(`Loop de ${bars === 1 ? '1 compás' : bars + ' compases'} guardado (${chords}) · ≈ ${Math.round(S.lay.bpm)} BPM`);
+        await refreshSamples(); flash('guardar-loop'); toast(`Loop de ${bars === 1 ? '1 compás' : bars + ' compases'} guardado (${chords}) · ≈ ${Math.round(S.lay.bpm)} BPM`);
       } catch (e) { toast('No se pudo guardar (¿poco espacio en el dispositivo?)'); }
     };
     const harmonized = x => S.harm ? dsp.harmonize(x, sample.rate) : x;
@@ -91,7 +91,7 @@ export function openChop(sample, audio) {
       const joined = S.harm ? dsp.joinPieces(pieces, sample.rate) : pieces.reduce((a, p) => { const r = new Float32Array(a.length + p.length); r.set(a); r.set(p, a.length); return r; }, new Float32Array(0));
       try {
         await putSample(newSample(`${sample.name} · ${ids.map(i => i + 1).join('+')}`, joined, sample.rate, { folder: sample.folder, subfolder: sample.subfolder }), joined);
-        await refreshSamples(); toast(`${ids.length} cortes unidos en un sonido nuevo (${dsp.stamp(joined.length / sample.rate)})`);
+        await refreshSamples(); flash('guardar-unidos'); toast(`${ids.length} cortes unidos en un sonido nuevo (${dsp.stamp(joined.length / sample.rate)})`);
       } catch (e) { toast('No se pudo guardar (¿poco espacio en el dispositivo?)'); }
     };
     /** Escuchar la selección: los cortes elegidos uno tras otro, en su orden original; el pad que suena se ilumina. */
@@ -165,10 +165,10 @@ export function openChop(sample, audio) {
         app.ko2 && total < 12 ? muted(`Pads ${total + 1}–12 libres`, 'center tiny') : null,
         btn(preview ? 'Parar' : (n ? `Escuchar selección · ${secs.toFixed(1).replace('.', ',')} s` : 'Escuchar selección'), { sel: !!preview, disabled: !n, aria: preview ? 'Parar la escucha de la selección' : null,
           onclick: () => { if (preview) { stopPreview(); paint(); } else { startPreview(); paint(); } } }),
-        btn(n ? `Guardar ${n} en la Biblioteca` : 'Elige al menos un corte', { kind: 'amber', disabled: !n, onclick: async () => { await saveSelected(); paint(); app.render(); } }),
+        btn(n ? `Guardar ${n} en la Biblioteca` : 'Elige al menos un corte', { kind: 'amber', act: 'guardar-cortes', disabled: !n, onclick: async () => { await saveSelected(); paint(); app.render(); } }),
         S.lay ? btn(loopSrc ? 'Parar el loop' : 'Escuchar loop', { sel: !!loopSrc, disabled: !loopRange(), aria: loopSrc ? 'Parar el loop' : null, onclick: toggleLoop }) : null,
-        S.lay ? btn('Guardar selección como loop', { sel: true, disabled: !loopRange(), onclick: async () => { await saveLoop(); paint(); app.render(); } }) : null,
-        btn('Guardar unidos en un solo sonido', { sel: true, disabled: n < 2, onclick: async () => { await saveJoined(); paint(); app.render(); } }),
+        S.lay ? btn('Guardar selección como loop', { sel: true, act: 'guardar-loop', disabled: !loopRange(), onclick: async () => { await saveLoop(); paint(); app.render(); } }) : null,
+        btn('Guardar unidos en un solo sonido', { sel: true, act: 'guardar-unidos', disabled: n < 2, onclick: async () => { await saveJoined(); paint(); app.render(); } }),
         btn(n ? (app.ko2 ? `Exportar ${n} para el K.O. II` : `Exportar ${n}`) : 'Exportar cortes', { sel: true, disabled: !n, onclick: exportSelected }));
       requestAnimationFrame(drawWave);
     };

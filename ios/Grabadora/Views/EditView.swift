@@ -42,6 +42,8 @@ struct EditorBody: View {
     @State private var undo: [[Float]] = []
     @State private var redo: [[Float]] = []
     @State private var sustainPad = true
+    @State private var fxBusy: String?                    // acción trabajando (borde amarillo)
+    @State private var fxFlash: String?                   // acción recién hecha (destello)
     @State private var loopCross = 1.0
     @State private var loopRefine = true
     @State private var start = 0.0
@@ -84,14 +86,18 @@ struct EditorBody: View {
                 transport
                 SectionLabel("Herramientas")
                 HStack(spacing: 8) {
-                    Button("Recortar") { apply { Editing.fade(Editing.trim($0, from: Int(start * Double(count)), to: Int(end * Double(count))), inSamples: fadeSamples, outSamples: fadeSamples) }; start = 0; end = 1 }
-                    Button("Normalizar") { apply { Editing.normalize($0) } }
-                    Button("Fundido") { apply { Editing.fade($0, inSamples: fadeSamples, outSamples: fadeSamples) } }
+                    Button("Recortar") { let a = Int(start * Double(count)), b = Int(end * Double(count)), f = fadeSamples; run("recortar", done: "Listo: recortado") { Editing.fade(Editing.trim($0, from: a, to: b), inSamples: f, outSamples: f) }; start = 0; end = 1 }
+                        .actionFX("recortar", busy: fxBusy, flash: fxFlash)
+                    Button("Normalizar") { run("normalizar", done: "Listo: normalizado a −1 dB") { Editing.normalize($0) } }
+                        .actionFX("normalizar", busy: fxBusy, flash: fxFlash)
+                    Button("Fundido") { let f = fadeSamples; run("fundido", done: "Listo: fundido aplicado") { Editing.fade($0, inSamples: f, outSamples: f) } }
+                        .actionFX("fundido", busy: fxBusy, flash: fxFlash)
                     Button("Efectos") { showEffects = true }.buttonStyle(OutlineButton(selected: !sample.effects.isNeutral))
                 }.buttonStyle(OutlineButton()).font(Theme.font(13))
                 Button("Edición precisa (zoom)") { showPrecise = true }.buttonStyle(OutlineButton(selected: true))
                 Button("Chop en pads") { showChop = true }.buttonStyle(OutlineButton())
-                Button("Armonizar bordes (sin clics)") { apply { Harmonize.harmonize($0, rate: sample.sampleRate) } }.buttonStyle(OutlineButton()).font(Theme.font(13))
+                Button("Armonizar bordes (sin clics)") { let r = sample.sampleRate; run("armonizar", done: "Listo: bordes armonizados") { Harmonize.harmonize($0, rate: r) } }.buttonStyle(OutlineButton()).font(Theme.font(13))
+                    .actionFX("armonizar", busy: fxBusy, flash: fxFlash)
                 Text("Centra la onda y suaviza el inicio y el final a medida, para que un recorte no suene «cortado». Puedes deshacer.")
                     .font(Theme.font(12)).foregroundColor(Theme.muted)
                 creativeTools
@@ -108,6 +114,7 @@ struct EditorBody: View {
                     Button("Descartar") { confirmDelete = true }.buttonStyle(OutlineButton(danger: true))
                     Button("Grabar") { state.tab = .grabar }.buttonStyle(OutlineButton())
                     Button("Guardar") { if audio == savedAudio { confirmOverwrite = true } else { save() } }.buttonStyle(AmberButton())
+                        .actionFX("guardar", busy: fxBusy, flash: fxFlash)
                         .confirmationDialog("No hay cambios nuevos", isPresented: $confirmOverwrite, titleVisibility: .visible) {
                             Button("Sobrescribir") { save(overwriting: true) }
                             Button("Cancelar", role: .cancel) {}
@@ -148,13 +155,14 @@ struct EditorBody: View {
     private var creativeTools: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionLabel("Creativo")
-            Button("Invertir") { apply { Creative.reverseRange($0, from: selA, to: selB) } }.buttonStyle(OutlineButton()).font(Theme.font(13))
+            Button("Invertir") { let a = selA, b = selB; run("invertir", done: "Listo: invertido") { Creative.reverseRange($0, from: a, to: b) } }.buttonStyle(OutlineButton()).font(Theme.font(13))
+                .actionFX("invertir", busy: fxBusy, flash: fxFlash)
             Text("Da la vuelta a la selección (o a toda la toma): una cola que se apaga pasa a ser un crescendo que «chupa» hacia el golpe.")
                 .font(Theme.font(12)).foregroundColor(Theme.muted)
             SectionLabel("Colchón sostenido")
             HStack(spacing: 8) {
                 ForEach([4, 8, 16], id: \.self) { f in
-                    Button("Colchón ×\(f)") { makePad(f) }
+                    Button("Colchón ×\(f)") { makePad(f) }.actionFX("colchon\(f)", busy: fxBusy, flash: fxFlash)
                 }
             }.buttonStyle(OutlineButton()).font(Theme.font(13))
             ToggleRow(title: "Sostener el nivel", subtitle: "Sube las colas que se apagan para que el colchón no se desvanezca", isOn: $sustainPad)
@@ -178,6 +186,7 @@ struct EditorBody: View {
             }
             ToggleRow(title: "Afinar el final", subtitle: "Busca, hasta medio segundo cerca de tu marcador, el punto donde el sonido más se parece al del inicio", isOn: $loopRefine)
             Button("Hacer loop continuo") { makeLoop() }.buttonStyle(OutlineButton()).font(Theme.font(13))
+                .actionFX("loop", busy: fxBusy, flash: fxFlash)
             Text("Une el final con el principio para que el tramo se repita sin saltos, aunque no tenga ritmo: pads, cuerdas, ambientes. Se queda sólo con el loop; ya queda activado Repetir para oírlo. Puedes deshacer.")
                 .font(Theme.font(12)).foregroundColor(Theme.muted)
         }
@@ -189,8 +198,8 @@ struct EditorBody: View {
         let rate = sample.sampleRate, cross = loopCross, refine = loopRefine
         message = "Creando el loop…"
         let before = undo.count
-        apply { Creative.loopSeamless($0, from: a, to: b, rate: rate, crossSec: cross, refine: refine) }
-        if undo.count > before { loop = true; message = "Loop de \(stamp(Double(audio.count) / self.rate)) · pulsa ▶ para oírlo en bucle" }
+        run("loop", slow: true, done: "Listo: loop · pulsa ▶ para oírlo en bucle") { Creative.loopSeamless($0, from: a, to: b, rate: rate, crossSec: cross, refine: refine) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { if undo.count > before { loop = true } }
     }
 
     private func makePad(_ factor: Int) {
@@ -198,11 +207,14 @@ struct EditorBody: View {
         guard b - a >= sample.sampleRate / 10 else { message = "Marca al menos 0,1 s (o no marques nada para usar toda la toma)"; return }
         guard (b - a) * factor <= sample.sampleRate * 600 else { message = "Quedaría demasiado largo (más de 10 minutos): marca un tramo más corto"; return }
         message = "Creando el colchón…"
-        let piece = Array(audio[a..<b]), rate = sample.sampleRate, sustain = sustainPad
+        let piece = Array(audio[a..<b]), rate = sample.sampleRate, sustain = sustainPad, key = "colchon\(factor)"
+        fxBusy = key
         Task {
             let out = await Task.detached { Creative.padStretch(piece, factor: Double(factor), rate: rate, sustain: sustain) }.value
+            let before = undo.count
             apply { _ in out }
-            message = "Colchón ×\(factor) · dura \(stamp(Double(audio.count) / self.rate))"
+            fxBusy = nil
+            if undo.count > before { flashFX(key); message = "Listo: colchón ×\(factor) · dura \(stamp(Double(audio.count) / self.rate))" }
         }
     }
 
@@ -210,12 +222,14 @@ struct EditorBody: View {
         VStack(alignment: .leading, spacing: 8) {
             SectionLabel("Limpiar ruido")
             HStack(spacing: 8) {
-                Button("Suave") { apply { NoiseReduction.clean($0, rate: sample.sampleRate, level: .soft) } }
-                Button("Fuerte") { apply { NoiseReduction.clean($0, rate: sample.sampleRate, level: .strong) } }
+                Button("Suave") { let r = sample.sampleRate; run("ruido-suave", slow: true, done: "Listo: ruido reducido (suave)") { NoiseReduction.clean($0, rate: r, level: .soft) } }
+                    .actionFX("ruido-suave", busy: fxBusy, flash: fxFlash)
+                Button("Fuerte") { let r = sample.sampleRate; run("ruido-fuerte", slow: true, done: "Listo: ruido reducido (fuerte)") { NoiseReduction.clean($0, rate: r, level: .strong) } }
+                    .actionFX("ruido-fuerte", busy: fxBusy, flash: fxFlash)
             }.buttonStyle(OutlineButton()).font(Theme.font(13))
             HStack(spacing: 8) {
-                Button("Quitar ruido de fondo") { denoiseAuto() }
-                Button("Con la selección") { denoiseSelection() }
+                Button("Quitar ruido de fondo") { denoiseAuto() }.actionFX("ruido-fondo", busy: fxBusy, flash: fxFlash)
+                Button("Con la selección") { denoiseSelection() }.actionFX("ruido-sel", busy: fxBusy, flash: fxFlash)
             }.buttonStyle(OutlineButton()).font(Theme.font(13))
             SliderRow(title: "Intensidad", valueText: noiseAmount < 1.2 ? "Suave" : noiseAmount < 2.2 ? "Normal" : "Fuerte", value: $noiseAmount, range: 0.5...3)
             Text("Suave y Fuerte cortan graves (respiración, soplidos) y apagan lo que suena bajito entre sonidos. «Quitar ruido de fondo» aprende el ruido de la parte más tranquila; «Con la selección» lo aprende de lo que marques. Puedes deshacer.")
@@ -229,7 +243,7 @@ struct EditorBody: View {
             message = "No hay una parte tranquila: marca una con los marcadores y usa «Con la selección»"; return
         }
         let noises = w.map { Array(audio[$0]) }, amount = noiseAmount
-        apply { NoiseReduction.denoise($0, noises: noises, amount: amount) }
+        run("ruido-fondo", slow: true, done: "Listo: ruido de fondo quitado") { NoiseReduction.denoise($0, noises: noises, amount: amount) }
     }
 
     private func denoiseSelection() {
@@ -237,7 +251,7 @@ struct EditorBody: View {
         guard b - a >= sample.sampleRate / 10 else { message = "Marca una parte de solo ruido de al menos 0,1 s"; return }
         let noise = Array(audio[a..<b])
         let amount = noiseAmount
-        apply { NoiseReduction.denoise($0, noise: noise, amount: amount) }
+        run("ruido-sel", slow: true, done: "Listo: ruido de la selección quitado") { NoiseReduction.denoise($0, noise: noise, amount: amount) }
     }
 
     private var bpmCard: some View {
@@ -291,7 +305,9 @@ struct EditorBody: View {
             }
         }
         .frame(height: 150).padding(.horizontal, 10)
-        .background(Theme.surface).overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.line, lineWidth: 1))
+        .background(Theme.surface)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(fxFlash != nil ? Theme.amber : Theme.line, lineWidth: fxFlash != nil ? 3 : 1))
+        .animation(fxFlash != nil ? nil : .easeOut(duration: 0.9), value: fxFlash != nil)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
@@ -340,6 +356,23 @@ struct EditorBody: View {
         refreshPeaks()
     }
 
+    /// Destello del botón al terminar una acción.
+    private func flashFX(_ key: String) {
+        fxFlash = key
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { if fxFlash == key { fxFlash = nil } }
+    }
+
+    /// Acción con respuesta visible: si es lenta, el botón se ilumina mientras trabaja; al terminar destella y avisa «Listo».
+    private func run(_ key: String, slow: Bool = false, done: String, _ f: @escaping ([Float]) -> [Float]) {
+        let go = {
+            let before = undo.count
+            apply(f)
+            fxBusy = nil
+            if undo.count > before { flashFX(key); message = done }
+        }
+        if slow { fxBusy = key; DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { go() } } else { go() }
+    }
+
     private func refreshPeaks() { peaks = Editing.peaks(audio, buckets: 56); peakDB = Editing.peakDB(audio) }
 
     private func step(from a: inout [[Float]], to b: inout [[Float]]) {
@@ -352,6 +385,7 @@ struct EditorBody: View {
         lib.replaceAudio(sample, with: audio)
         lib.update(sample)
         savedAudio = audio
+        flashFX("guardar")
         message = overwriting ? "Se sobrescribió «\(sample.name)» (sin cambios)" : "Guardado: «\(sample.name)»"
     }
 
