@@ -1,6 +1,7 @@
 // DenaviLab: Sounds (la PWA de site/sounds). Se prueba con el micrófono falso de Chromium:
 // puerta de acceso, grabar → guardar → biblioteca → editar → exportar, el perfil sin K.O. II, la selección múltiple y el móvil.
 const fs = require('fs');
+const path = require('path');
 const { test, expect } = require('@playwright/test');
 
 const URL = '/sounds/';
@@ -384,6 +385,15 @@ test.describe('móvil y PWA', () => {
     expect(sw).toBe(true);
     const caches = await page.evaluate(async () => (await caches.keys()));
     expect(caches.some(k => k.startsWith('sounds-'))).toBe(true);
+  });
+});
+
+test.describe('service worker', () => {
+  test('guarda para uso sin conexión todos los módulos de la app', async ({ request }) => {
+    const sw = await (await request.get('/sounds/sw.js')).text();
+    const mods = fs.readdirSync(path.join(__dirname, '..', 'site', 'sounds')).filter(f => f.endsWith('.js') && f !== 'sw.js');
+    expect(mods.length).toBeGreaterThan(10);
+    for (const m of mods) expect(sw, `${m} falta en la lista de archivos del service worker`).toContain(`'${m}'`);
   });
 });
 
