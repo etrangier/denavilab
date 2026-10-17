@@ -29,6 +29,7 @@ struct ChopSheet: View {
     @State private var shift = 0
     @State private var perPad = 1
     @State private var loopPlayer: AVAudioPlayer?
+    @State private var fxFlash: String?                    // botón recién usado (destello amarillo)
     @State private var harmonize = true                   // centra la onda, suaviza bordes y, al unir, iguala el volumen
 
     private func recompute() {
@@ -157,6 +158,7 @@ struct ChopSheet: View {
             if lay != nil { loopButtons }
             Button("Guardar unidos en un solo sonido") { saveJoined() }
                 .buttonStyle(OutlineButton(selected: true)).disabled(selected.count < 2).opacity(selected.count < 2 ? 0.4 : 1)
+                .actionFX("guardar-unidos", busy: nil, flash: fxFlash)
             Button(selected.isEmpty ? "Exportar cortes" : "Exportar \(selected.count) para el K.O. II") { exportSelected() }
                 .buttonStyle(OutlineButton(selected: true)).disabled(selected.isEmpty).opacity(selected.isEmpty ? 0.4 : 1)
         }
@@ -172,6 +174,7 @@ struct ChopSheet: View {
     private var saveButtons: some View {
         Button(selected.isEmpty ? "Elige al menos un corte" : "Guardar \(selected.count) en la Biblioteca") { saveSelected() }
             .buttonStyle(AmberButton()).disabled(selected.isEmpty).opacity(selected.isEmpty ? 0.4 : 1)
+            .actionFX("guardar-cortes", busy: nil, flash: fxFlash)
     }
 
     private var loopButtons: some View {
@@ -181,6 +184,7 @@ struct ChopSheet: View {
                 .buttonStyle(OutlineButton(selected: loopPlayer != nil)).disabled(!can).opacity(can ? 1 : 0.4)
             Button("Guardar selección como loop") { saveLoop() }
                 .buttonStyle(OutlineButton(selected: true)).disabled(!can).opacity(can ? 1 : 0.4)
+                .actionFX("guardar-loop", busy: nil, flash: fxFlash)
         }
     }
 
@@ -219,6 +223,11 @@ struct ChopSheet: View {
             let p = try AVAudioPlayer(contentsOf: url); p.play(); player = p
             previewing = true
         } catch { message = "No se pudo reproducir: \(error.localizedDescription)" }
+    }
+
+    private func flashFX(_ key: String) {
+        fxFlash = key
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { if fxFlash == key { fxFlash = nil } }
     }
 
     private func stopPreview() {
@@ -357,6 +366,7 @@ struct ChopSheet: View {
         let chords = l.bars.filter { $0.start >= r.start && $0.end <= r.end + 1 }.map(\.label).joined(separator: " · ")
         if var x = lib.add(name: "\(sample.name) · loop \(word)", audio: lp, sampleRate: sample.sampleRate) {
             x.folder = lib.folder(of: sample); x.subfolder = sample.subfolder; x.bpm = (l.bpm * 10).rounded() / 10; lib.update(x)
+            flashFX("guardar-loop")
             message = "Loop de \(word) guardado (\(chords)) · ≈ \(Int(l.bpm.rounded())) BPM"
         }
     }
@@ -376,6 +386,7 @@ struct ChopSheet: View {
         let name = "\(sample.name) · " + chosen.map { String($0 + 1) }.joined(separator: "+")
         if var x = lib.add(name: name, audio: joined, sampleRate: sample.sampleRate) {
             x.folder = lib.folder(of: sample); x.subfolder = sample.subfolder; lib.update(x)
+            flashFX("guardar-unidos")
             message = String(format: "%d cortes unidos en un sonido nuevo (%.1f s)", chosen.count, Double(joined.count) / Double(sample.sampleRate)).replacingOccurrences(of: ".", with: ",")
         }
     }
@@ -387,6 +398,7 @@ struct ChopSheet: View {
                 x.folder = lib.folder(of: sample); x.subfolder = sample.subfolder; lib.update(x)
             }
         }
+        flashFX("guardar-cortes")
         message = chosen.count == 1 ? "1 corte guardado en la Biblioteca" : "\(chosen.count) cortes guardados en la Biblioteca"
     }
 

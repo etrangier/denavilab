@@ -157,3 +157,17 @@ dialog.sheet { margin: auto auto 0; width: min(100%, 600px); max-width: 100%; ma
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 
 .pad .pad-chord { display: block; font-size: 11px; font-weight: 400; line-height: 1.1; opacity: .85; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* respuesta visible al tocar una acción: el borde se ilumina de amarillo */
+@keyframes fxflash { 0% { border-color: var(--amber); box-shadow: 0 0 0 0 rgba(232,169,74,0); } 18% { border-color: var(--amber); box-shadow: 0 0 0 4px rgba(232,169,74,.55), 0 0 18px rgba(232,169,74,.55); } 60% { border-color: var(--amber); box-shadow: 0 0 0 2px rgba(232,169,74,.25); } 100% { box-shadow: 0 0 0 0 rgba(232,169,74,0); } }
+@keyframes fxpulse { from { border-color: var(--amber); box-shadow: 0 0 0 0 rgba(232,169,74,.0); } to { border-color: var(--amber); box-shadow: 0 0 0 4px rgba(232,169,74,.45), 0 0 14px rgba(232,169,74,.45); } }
+.btn.fx-flash { animation: fxflash 1.2s ease-out; }
+.btn.fx-busy { border-color: var(--amber); color: var(--amber); animation: fxpulse .7s ease-in-out infinite alternate; cursor: progress; }
+.btn.fx-busy:disabled { opacity: .9; }
+.wave-edit.fx-flash { animation: fxflash 1.2s ease-out; }
+@media (prefers-reduced-motion: reduce) { .btn.fx-flash, .wave-edit.fx-flash, .btn.fx-busy { animation: none; border-color: var(--amber); } }
+
+/* barra de historial siempre a la vista: deshacer, rehacer y volver al original */
+.undo-bar { position: sticky; top: 0; z-index: 6; margin: 0 -2px; padding: 8px 2px 6px; background: var(--bg); border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px; }
+.undo-bar .btn.small { min-height: 44px; font-weight: 600; }
+.undo-note { margin: 0; min-height: 16px; text-align: center; }

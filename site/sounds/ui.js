@@ -27,8 +27,15 @@ export function toast(msg, ms = 4000) {
 }
 
 // ---------- componentes ----------
-export const btn = (label, { kind = 'outline', sel = false, onclick, disabled = false, small = false, aria } = {}) =>
-  h('button', { type: 'button', class: ['btn', kind, sel ? 'sel' : '', small ? 'small' : ''].join(' ').trim(), onclick, disabled, 'aria-label': aria }, label);
+// Respuesta visible al tocar una acción: `busy` (borde amarillo que pulsa mientras trabaja) y `flash` (destello amarillo al terminar).
+export const fx = { busy: null, flash: null };
+export function flash(key) {
+  fx.flash = key;
+  setTimeout(() => { if (fx.flash === key) { fx.flash = null; document.querySelectorAll('.fx-flash').forEach(e => e.classList.remove('fx-flash')); } }, 1400);
+}
+export const btn = (label, { kind = 'outline', sel = false, onclick, disabled = false, small = false, aria, act } = {}) =>
+  h('button', { type: 'button', class: ['btn', kind, sel ? 'sel' : '', small ? 'small' : '', act && fx.busy === act ? 'fx-busy' : '', act && fx.flash === act ? 'fx-flash' : ''].join(' ').trim().replace(/ +/g, ' '),
+    onclick, disabled: disabled || (!!act && fx.busy === act), 'aria-label': aria, 'aria-busy': act && fx.busy === act ? 'true' : null }, label);
 export const link = (label, onclick) => h('button', { type: 'button', class: 'link', onclick }, label);
 export const chip = (label, selected, onclick) => h('button', { type: 'button', class: 'chip' + (selected ? ' sel' : ''), 'aria-pressed': String(!!selected), onclick }, label);
 export const card = (kids, hl = false) => h('div', { class: 'card' + (hl ? ' hl' : '') }, kids);

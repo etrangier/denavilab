@@ -142,6 +142,7 @@ test.describe('chop con selección múltiple', () => {
 
     await hoja.getByRole('button', { name: 'Guardar 2 en la Biblioteca' }).click();
     await expect(page.locator('#toast')).toContainText('2 cortes guardados en la Biblioteca');
+    await expect(hoja.getByRole('button', { name: /^Guardar 2 en la Biblioteca/ })).toHaveClass(/fx-flash/);          // el botón destella al guardar
     // Guardar unidos: el 1 y el 3 en un solo sonido, en su orden original
     await hoja.getByRole('button', { name: 'Guardar unidos en un solo sonido' }).click();
     await expect(page.locator('#toast')).toContainText('2 cortes unidos en un sonido nuevo');
@@ -533,6 +534,92 @@ test.describe('loop continuo sin pulso', () => {
   });
 });
 
+test.describe('respuesta visible al tocar una acción', () => {
+  const abrirNota2 = async (page, seg = 2) => {
+    await abrir(page, 'schair');
+    await page.evaluate(async seg => { const st = await import('/sounds/store.js'), a = new Float32Array(48000 * seg).map((_, i) => 0.3 * Math.sin(i * 0.05) * Math.exp(-i / 60000)); await st.putSample(st.newSample('Nota', a, 48000), a); }, seg);
+    await page.reload();
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Nota' }).click();
+  };
+
+  test('al tocar Armonizar el botón y la onda destellan en amarillo y luego vuelven a la normalidad', async ({ page }) => {
+    await abrirNota2(page);
+    const boton = page.getByRole('button', { name: 'Armonizar bordes (sin clics)' });
+    await expect(boton).not.toHaveClass(/fx-flash/);
+    await boton.click();
+    await expect(page.getByRole('button', { name: 'Armonizar bordes (sin clics)' })).toHaveClass(/fx-flash/);
+    await expect(page.locator('.wave-edit')).toHaveClass(/fx-flash/);
+    await expect(page.locator('#toast')).toContainText('Listo: bordes armonizados');
+    await expect(page.getByRole('button', { name: 'Armonizar bordes (sin clics)' })).not.toHaveClass(/fx-flash/, { timeout: 4000 });
+    await expect(page.locator('.wave-edit')).not.toHaveClass(/fx-flash/);
+    // otro botón no destella
+    await expect(page.getByRole('button', { name: 'Normalizar', exact: true })).not.toHaveClass(/fx-flash/);
+  });
+
+  test('una acción lenta (Colchón ×16) pulsa en amarillo mientras trabaja y destella al terminar', async ({ page }) => {
+    await abrirNota2(page, 6);
+    await page.getByRole('button', { name: 'Colchón ×16', exact: true }).click();
+    await page.waitForSelector('button[aria-busy="true"]', { timeout: 3000 });                  // trabajando: borde que pulsa, botón bloqueado
+    expect(await page.locator('button[aria-busy="true"]').count()).toBe(1);
+    await expect(page.locator('#toast')).toContainText('Listo: colchón ×16', { timeout: 30000 });
+    await expect(page.getByRole('button', { name: 'Colchón ×16', exact: true })).toHaveClass(/fx-flash/);
+    await expect(page.locator('button[aria-busy="true"]')).toHaveCount(0);
+  });
+
+  test('Guardar destella; una acción que no cambia nada no destella', async ({ page }) => {
+    await abrirNota2(page);
+    await page.getByRole('button', { name: 'Normalizar', exact: true }).click();
+    await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+    await expect(page.locator('#toast')).toContainText('Guardado');
+    await expect(page.getByRole('button', { name: 'Guardar', exact: true })).toHaveClass(/fx-flash/);
+    // una selección demasiado corta para Armonizar de nada: el botón no destella
+    await page.getByRole('button', { name: 'Invertir', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Invertir', exact: true })).toHaveClass(/fx-flash/);
+  });
+});
+
+test.describe('historial siempre a la vista', () => {
+  test('barra de Deshacer / Rehacer / Original: aparece arriba, nombra el último cambio y vuelve al original', async ({ page }) => {
+    const errores = vigilar(page);
+    await abrir(page, 'schair');
+    await page.evaluate(async () => { const st = await import('/sounds/store.js'), a = new Float32Array(96000).map((_, i) => 0.2 * Math.sin(i * 0.05) + 0.1); await st.putSample(st.newSample('Toma', a, 48000), a); });
+    await page.reload();
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Toma' }).click();
+    const barra = page.locator('.undo-bar');
+    await expect(barra).toContainText('Sin cambios todavía');
+    for (const n of ['Deshacer el último cambio', 'Rehacer', 'Volver al original']) await expect(barra.getByRole('button', { name: n })).toBeDisabled();
+    // tres cambios: la barra nombra el último y cuenta
+    await page.getByRole('button', { name: 'Normalizar', exact: true }).click();
+    await page.getByRole('button', { name: 'Armonizar bordes (sin clics)' }).click();
+    await page.getByRole('button', { name: 'Invertir', exact: true }).click();
+    await expect(barra).toContainText('Último cambio: Invertir · 3 desde que abriste la toma');
+    // la barra sigue visible aunque se baje hasta el final de la pantalla
+    await page.evaluate(() => { const e = document.getElementById('screen'); e.scrollTo(0, e.scrollHeight); });
+    await expect(barra).toBeInViewport();
+    const caja = await barra.boundingBox(), pantalla = await page.locator('#screen').boundingBox();
+    expect(Math.abs(caja.y - pantalla.y)).toBeLessThan(20);                     // pegada arriba
+    // deshacer un paso: el último pasa a ser el anterior; Rehacer se activa
+    await barra.getByRole('button', { name: 'Deshacer el último cambio' }).click();
+    await expect(barra).toContainText('Último cambio: Armonizar bordes · 2');
+    await expect(barra.getByRole('button', { name: 'Rehacer' })).toBeEnabled();
+    await barra.getByRole('button', { name: 'Rehacer' }).click();
+    await expect(barra).toContainText('Último cambio: Invertir · 3');
+    // volver al original de una vez; y Rehacer devuelve todo
+    await barra.getByRole('button', { name: 'Volver al original' }).click();
+    await expect(page.locator('#toast')).toContainText('Volviste al original');
+    await expect(barra).toContainText('Sin cambios todavía');
+    await expect(barra.getByRole('button', { name: 'Volver al original' })).toBeDisabled();
+    await page.getByRole('button', { name: 'Guardar', exact: true }).click();                // sin cambios: avisa de que se sobrescribe lo mismo
+    await expect(page.locator('dialog.sheet')).toContainText('No hay cambios nuevos');
+    await page.locator('dialog.sheet').getByRole('button', { name: 'Cancelar' }).click();
+    await barra.getByRole('button', { name: 'Rehacer' }).click();
+    await expect(barra).toContainText('Último cambio: Normalizar');
+    expect(errores).toEqual([]);
+  });
+});
+
 test.describe('service worker', () => {
   test('guarda para uso sin conexión todos los módulos de la app', async ({ request }) => {
     const sw = await (await request.get('/sounds/sw.js')).text();
@@ -810,6 +897,7 @@ test.describe('limpieza de ruido', () => {
     await abrirRadio(page);
     await expect(page.getByText('Limpiar ruido', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Quitar ruido de fondo' }).click();
+    await expect(page.locator('#toast')).toContainText('Listo: ruido de fondo quitado');
     await page.getByRole('button', { name: 'Guardar', exact: true }).click();
     await expect(page.locator('#toast')).toContainText('Guardado');
     const n = await niveles(page);
@@ -824,6 +912,7 @@ test.describe('limpieza de ruido', () => {
     await abrir(page, 'schair'); await sembrarRuidoso(page); await page.reload();
     await abrirRadio(page);
     await page.getByRole('button', { name: 'Fuerte', exact: true }).click();
+    await expect(page.locator('#toast')).toContainText('Listo: ruido reducido (fuerte)');
     await page.getByRole('button', { name: 'Guardar', exact: true }).click();
     await expect(page.locator('#toast')).toContainText('Guardado');
     expect((await niveles(page)).ruido).toBeLessThan(-55);

@@ -188,3 +188,31 @@ struct WaveBars: View {
         return range.contains(f)
     }
 }
+
+/// Respuesta visible al tocar una acción: mientras trabaja, el borde se ilumina de amarillo y el botón se bloquea;
+/// al terminar destella y se apaga poco a poco.
+struct ActionFX: ViewModifier {
+    let key: String
+    let busy: String?
+    let flash: String?
+    func body(content: Content) -> some View {
+        let isBusy = busy == key, isFlash = flash == key
+        content
+            .overlay(
+                RoundedRectangle(cornerRadius: 14).stroke(Theme.amber, lineWidth: 3)
+                    .opacity(isBusy || isFlash ? 1 : 0)
+                    .animation(isBusy || isFlash ? nil : .easeOut(duration: 0.9), value: isBusy || isFlash)
+                    .allowsHitTesting(false)
+            )
+            .shadow(color: Theme.amber.opacity(isFlash ? 0.75 : 0), radius: isFlash ? 10 : 0)
+            .animation(isFlash ? nil : .easeOut(duration: 0.9), value: isFlash)
+            .opacity(isBusy ? 0.85 : 1)
+            .disabled(isBusy)
+    }
+}
+
+extension View {
+    func actionFX(_ key: String, busy: String?, flash: String?) -> some View {
+        modifier(ActionFX(key: key, busy: busy, flash: flash))
+    }
+}
