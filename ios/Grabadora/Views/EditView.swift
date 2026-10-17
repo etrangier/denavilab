@@ -42,6 +42,8 @@ struct EditorBody: View {
     @State private var undo: [[Float]] = []
     @State private var redo: [[Float]] = []
     @State private var sustainPad = true
+    @State private var loopCross = 1.0
+    @State private var loopRefine = true
     @State private var start = 0.0
     @State private var end = 1.0
     @State private var fadeMs = 10.0
@@ -93,6 +95,7 @@ struct EditorBody: View {
                 Text("Centra la onda y suaviza el inicio y el final a medida, para que un recorte no suene «cortado». Puedes deshacer.")
                     .font(Theme.font(12)).foregroundColor(Theme.muted)
                 creativeTools
+                loopTools
                 noiseTools
                 SliderRow(title: "Fundido", valueText: "\(Int(fadeMs)) ms", value: $fadeMs, range: 0...200)
                 bpmCard
@@ -158,6 +161,35 @@ struct EditorBody: View {
             Text("Estira la selección (o toda la toma) sin cambiar el tono y la difumina en un sonido continuo, ideal para notas de cuerda, pads y ambientes. Se queda sólo con lo estirado; puedes deshacer.")
                 .font(Theme.font(12)).foregroundColor(Theme.muted)
         }
+    }
+
+    private var loopTools: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel("Loop continuo (sin pulso)")
+            HStack {
+                Text("Empalme").font(Theme.font(15, weight: .medium)).foregroundColor(Theme.text)
+                Spacer()
+                Text("cuánto se funden final y principio").font(Theme.font(12)).foregroundColor(Theme.muted)
+            }
+            HStack(spacing: 8) {
+                ForEach([0.5, 1.0, 2.0, 4.0], id: \.self) { c in
+                    Chip(title: String(format: "%g s", c).replacingOccurrences(of: ".", with: ","), selected: loopCross == c) { loopCross = c }
+                }
+            }
+            ToggleRow(title: "Afinar el final", subtitle: "Busca, hasta medio segundo cerca de tu marcador, el punto donde el sonido más se parece al del inicio", isOn: $loopRefine)
+            Button("Hacer loop continuo") { makeLoop() }.buttonStyle(OutlineButton()).font(Theme.font(13))
+            Text("Une el final con el principio para que el tramo se repita sin saltos, aunque no tenga ritmo: pads, cuerdas, ambientes. Se queda sólo con el loop; ya queda activado Repetir para oírlo. Puedes deshacer.")
+                .font(Theme.font(12)).foregroundColor(Theme.muted)
+        }
+    }
+
+    private func makeLoop() {
+        let a = selA, b = selB
+        guard b - a >= sample.sampleRate / 2 else { message = "Marca al menos 0,5 s (o no marques nada para usar toda la toma)"; return }
+        let rate = sample.sampleRate, cross = loopCross, refine = loopRefine
+        message = "Creando el loop…"
+        apply { Creative.loopSeamless($0, from: a, to: b, rate: rate, crossSec: cross, refine: refine) }
+        if undo.count > 0 { loop = true; message = "Loop de \(stamp(Double(audio.count) / self.rate)) · pulsa ▶ para oírlo en bucle" }
     }
 
     private func makePad(_ factor: Int) {

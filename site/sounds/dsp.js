@@ -418,6 +418,49 @@ export function levelEnvelope(y, rate, maxBoostDB = 18) {
   return out;
 }
 
+// ---------- Loop continuo sin pulso ----------
+
+const nccAt = (x, e, a, F, stride) => {                       // parecido entre lo que hay justo antes de `e` y el principio (a)
+  let dot = 0, ea = 0, eb = 0;
+  for (let i = 0; i < F; i += stride) { const u = x[e - F + i], v = x[a + i]; dot += u * v; ea += u * u; eb += v * v; }
+  return dot / Math.sqrt(ea * eb + 1e-12);
+};
+
+/**
+ * Convierte el tramo [a, b) en un loop continuo, aunque no tenga pulso (pads, cuerdas, ambientes): el final se funde con el
+ * principio (empalme de `crossSec`) y, con `refine`, el final se mueve hasta ±0,5 s al punto cuyo sonido más se parece al del
+ * principio. Si ambos extremos se parecen, el fundido es lineal; si no, de potencia constante. Mide ~L − empalme.
+ */
+export function loopSeamless(x, a, b, rate, crossSec = 1, refine = true) {
+  a = Math.max(0, Math.min(Math.round(a), x.length)); b = Math.max(a, Math.min(Math.round(b), x.length));
+  if (!Number.isFinite(a + b) || b - a < rate * 0.5) return x;
+  const F = Math.min(Math.round(crossSec * rate), (b - a) >> 1);
+  if (F < 64) return x;
+  let e = b, sim = nccAt(x, e, a, F, 8);
+  if (refine) {
+    const S = Math.round(rate * 0.5), lo = Math.max(a + 2 * F, e - S), hi = Math.min(x.length, e + S);
+    let best = -Infinity, bc = e;
+    for (let c = lo; c <= hi; c += 16) { const v = nccAt(x, c, a, F, 8); if (v > best) { best = v; bc = c; } }
+    best = -Infinity;
+    for (let c = Math.max(lo, bc - 16); c <= Math.min(hi, bc + 16); c++) { const v = nccAt(x, c, a, F, 2); if (v > best) { best = v; e = c; } }
+    if (best > -Infinity) sim = best; else e = b;
+  }
+  const L = e - a, out = new Float32Array(L - F), linear = sim >= 0.6;
+  for (let i = 0; i < L - F; i++) out[i] = x[a + i];
+  for (let i = 0; i < F; i++) {
+    const t = (i + 0.5) / F, wi = linear ? t : Math.sin(t * Math.PI / 2), wo = linear ? 1 - t : Math.cos(t * Math.PI / 2);
+    out[i] = x[a + i] * wi + x[e - F + i] * wo;
+  }
+  return out;
+}
+
+/** Cuánto «salta» el audio al dar la vuelta: |último − primero| frente al cambio típico entre muestras vecinas (≈ 1 o menos = no se nota). */
+export function seamJump(x) {
+  if (x.length < 3) return 0;
+  let d = 0; for (let i = 1; i < x.length; i++) d += Math.abs(x[i] - x[i - 1]);
+  return Math.abs(x[0] - x[x.length - 1]) / (d / (x.length - 1) + 1e-12);
+}
+
 /** Guardado rápido: recorte relativo al nivel, fundidos cortos y normalizado. */
 export const QUICK_DEFAULTS = { enabled: false, denoise: 'off', trim: true, fades: true, normalize: true, thresholdDB: -48 };
 export function quickProcess(x, rate, s = QUICK_DEFAULTS) {

@@ -506,4 +506,31 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(Creative.padStretch([Float](repeating: 0, count: 10), factor: 8, rate: rate).count, 10)
         XCTAssertEqual(Creative.padStretch(x, factor: 1, rate: rate), x)
     }
+
+    // MARK: loop continuo sin pulso
+
+    func testSeamlessLoop() {
+        let rate = 48000, n = rate * 8
+        let x: [Float] = (0..<n).map { i in
+            let t = Double(i) / Double(rate)
+            let s = sin(2 * Double.pi * 220 * t + 0.8 * sin(2 * Double.pi * 0.3 * t)) + 0.7 * sin(2 * Double.pi * 277.2 * t + 0.5 * sin(2 * Double.pi * 0.17 * t)) + 0.5 * sin(2 * Double.pi * 329.6 * t)
+            return Float(0.25 * s * (0.8 + 0.2 * sin(2 * Double.pi * 0.23 * t)))
+        }
+        let a = rate, b = Int(Double(rate) * 6.3)
+        let crudo = Array(x[a..<b]), afinado = Creative.loopSeamless(x, from: a, to: b, rate: rate, crossSec: 1, refine: true)
+        let sinAfinar = Creative.loopSeamless(x, from: a, to: b, rate: rate, crossSec: 1, refine: false)
+        XCTAssertGreaterThan(Creative.seamJump(crudo), 10)
+        XCTAssertLessThan(Creative.seamJump(afinado), 2.5)
+        XCTAssertLessThan(Creative.seamJump(sinAfinar), 6)
+        XCTAssertEqual(sinAfinar.count, b - a - rate)
+        XCTAssertGreaterThan(afinado.count, rate * 2)
+        XCTAssertLessThan(afinado.map(abs).max() ?? 9, 1)
+        // un seno estacionario conserva su nivel en el empalme (el afinado alinea las fases)
+        let seno: [Float] = (0..<n).map { 0.4 * Float(sin(2 * Double.pi * 220.37 * Double($0) / Double(rate))) }
+        let l = Creative.loopSeamless(seno, from: a, to: b, rate: rate, crossSec: 1, refine: true)
+        func rms(_ v: ArraySlice<Float>) -> Double { (v.reduce(0.0) { $0 + Double($1) * Double($1) } / Double(v.count)).squareRoot() }
+        XCTAssertEqual(rms(l[0..<rate]) / rms(l[rate...]), 1, accuracy: 0.07)
+        // tramo muy corto o fuera de rango: no hace nada
+        XCTAssertEqual(Creative.loopSeamless(x, from: 0, to: 1000, rate: rate), x)
+    }
 }

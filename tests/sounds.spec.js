@@ -480,6 +480,59 @@ test.describe('colchón sostenido', () => {
   });
 });
 
+test.describe('loop continuo sin pulso', () => {
+  // pad de tres notas con vibrato y movimiento lento de volumen (sin ritmo)
+  const pad = `
+    const rate = 48000, n = rate * 8, x = new Float32Array(n).map((_, i) => { const t = i / rate; return 0.25 * (Math.sin(2 * Math.PI * 220 * t + 0.8 * Math.sin(2 * Math.PI * 0.3 * t)) + 0.7 * Math.sin(2 * Math.PI * 277.2 * t + 0.5 * Math.sin(2 * Math.PI * 0.17 * t)) + 0.5 * Math.sin(2 * Math.PI * 329.6 * t)) * (0.8 + 0.2 * Math.sin(2 * Math.PI * 0.23 * t)); });`;
+
+  test('núcleo: el empalme no salta, conserva el nivel y respeta los límites', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async src => {
+      const d = await import('/sounds/dsp.js'), { x, rate } = new Function(src + '; return { x, rate };')();
+      const a = rate, b = Math.round(rate * 6.3), crudo = x.slice(a, b), afinado = d.loopSeamless(x, a, b, rate, 1, true), sinAfinar = d.loopSeamless(x, a, b, rate, 1, false);
+      let sn = 0; const seno = new Float32Array(rate * 8).map((_, i) => 0.4 * Math.sin(2 * Math.PI * 220.37 * i / rate));
+      const lseno = d.loopSeamless(seno, a, b, rate, 1, true); let e1 = 0, e2 = 0; for (let i = 0; i < rate; i++) e1 += lseno[i] ** 2; for (let i = rate; i < lseno.length; i++) e2 += lseno[i] ** 2;
+      return { salto: [d.seamJump(crudo), d.seamJump(afinado), d.seamJump(sinAfinar)], largo: [afinado.length, sinAfinar.length, b - a - rate], nivel: Math.sqrt(e1 / rate) / Math.sqrt(e2 / (lseno.length - rate)),
+        corto: d.loopSeamless(x, 0, 1000, rate) === x, nan: d.loopSeamless(x, NaN, 5, rate) === x, finito: afinado.every(Number.isFinite), pico: afinado.reduce((m, v) => Math.max(m, Math.abs(v)), 0) };
+    }, pad);
+    expect(r.salto[0]).toBeGreaterThan(10);                    // cortado a secas, el salto es enorme
+    expect(r.salto[1]).toBeLessThan(2.5); expect(r.salto[2]).toBeLessThan(6);
+    expect(r.largo[1]).toBe(r.largo[2]);                       // sin afinar: largo = tramo − empalme
+    expect(r.largo[0]).toBeGreaterThan(48000 * 2);
+    expect(r.nivel).toBeGreaterThan(0.93); expect(r.nivel).toBeLessThan(1.07);   // en el empalme el nivel no sube ni baja
+    expect(r.corto).toBe(true); expect(r.nan).toBe(true); expect(r.finito).toBe(true); expect(r.pico).toBeLessThan(1);
+  });
+
+  test('Editar: Hacer loop continuo recorta, empalma y deja activado Repetir', async ({ page }) => {
+    const errores = vigilar(page);
+    await abrir(page, 'schair');
+    await page.evaluate(async src => { const st = await import('/sounds/store.js'), { x, rate } = new Function(src + '; return { x, rate };')(); await st.putSample(st.newSample('Pad', x, rate), x); }, pad);
+    await page.reload();
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Pad' }).click();
+    await expect(page.getByText('Loop continuo (sin pulso)', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '1 s', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await page.getByRole('button', { name: '2 s', exact: true }).click();
+    await expect(page.getByRole('button', { name: '2 s', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await page.getByLabel('Afinar el final').uncheck();
+    await page.getByRole('button', { name: 'Hacer loop continuo' }).click();
+    await expect(page.locator('#screen')).toContainText('Dura 00:06', { timeout: 8000 });                  // 8 s − 2 s de empalme
+    await expect(page.getByRole('button', { name: 'Repetir' })).toHaveAttribute('aria-pressed', 'true');
+    await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+    await expect(page.locator('#toast')).toContainText('Guardado');
+    const q = await page.evaluate(async () => { const st = await import('/sounds/store.js'), d = await import('/sounds/dsp.js'), m = (await st.listSamples()).find(v => v.name === 'Pad'), a = await st.getAudio(m.id); return { dur: m.duration, salto: d.seamJump(a) }; });
+    expect(q.dur).toBeGreaterThan(5.9); expect(q.dur).toBeLessThan(6.1); expect(q.salto).toBeLessThan(6);
+    await page.getByRole('button', { name: 'Deshacer' }).click();
+    await expect(page.locator('#screen')).toContainText('Dura 00:08');
+    // un tramo menor a 0,5 s avisa
+    const he = page.getByRole('slider', { name: 'Marcador de final' });
+    await he.focus(); for (let i = 0; i < 97; i++) await he.press('ArrowLeft');
+    await page.getByRole('button', { name: 'Hacer loop continuo' }).click();
+    await expect(page.locator('#toast')).toContainText('Marca al menos 0,5 s');
+    expect(errores).toEqual([]);
+  });
+});
+
 test.describe('service worker', () => {
   test('guarda para uso sin conexión todos los módulos de la app', async ({ request }) => {
     const sw = await (await request.get('/sounds/sw.js')).text();

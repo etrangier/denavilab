@@ -82,4 +82,54 @@ enum Creative {
             return y[i] * Float(g)
         }
     }
+
+    // MARK: loop continuo sin pulso
+
+    /// Parecido entre lo que hay justo antes de `e` y el principio (`a`).
+    nonisolated private static func ncc(_ x: [Float], _ e: Int, _ a: Int, _ f: Int, _ stride: Int) -> Double {
+        var dot = 0.0, ea = 0.0, eb = 0.0, i = 0
+        while i < f {
+            let u = Double(x[e - f + i]), v = Double(x[a + i])
+            dot += u * v; ea += u * u; eb += v * v
+            i += stride
+        }
+        return dot / (ea * eb + 1e-12).squareRoot()
+    }
+
+    /// Convierte el tramo [a, b) en un loop continuo, aunque no tenga pulso (pads, cuerdas, ambientes): el final se funde con el
+    /// principio (empalme de `crossSec`) y, con `refine`, el final se mueve hasta ±0,5 s al punto cuyo sonido más se parece al del
+    /// principio. Si ambos extremos se parecen, el fundido es lineal; si no, de potencia constante. Mide ~L − empalme.
+    nonisolated static func loopSeamless(_ x: [Float], from a0: Int, to b0: Int, rate: Int, crossSec: Double = 1, refine: Bool = true) -> [Float] {
+        let a = max(0, min(a0, x.count)), b = max(a, min(b0, x.count))
+        guard b - a >= rate / 2 else { return x }
+        let f = min(Int((crossSec * Double(rate)).rounded()), (b - a) >> 1)
+        guard f >= 64 else { return x }
+        var e = b, sim = ncc(x, e, a, f, 8)
+        if refine {
+            let sRange = Int((Double(rate) * 0.5).rounded()), lo = max(a + 2 * f, e - sRange), hi = min(x.count, e + sRange)
+            var best = -Double.infinity, bc = e
+            var c = lo
+            while c <= hi { let v = ncc(x, c, a, f, 8); if v > best { best = v; bc = c }; c += 16 }
+            best = -Double.infinity
+            var c2 = max(lo, bc - 16)
+            while c2 <= min(hi, bc + 16) { let v = ncc(x, c2, a, f, 2); if v > best { best = v; e = c2 }; c2 += 1 }
+            if best > -Double.infinity { sim = best } else { e = b }
+        }
+        let L = e - a, linear = sim >= 0.6
+        var out = Array(x[a..<(a + L - f)])
+        for i in 0..<f {
+            let t = (Double(i) + 0.5) / Double(f)
+            let wi = linear ? t : sin(t * Double.pi / 2), wo = linear ? 1 - t : cos(t * Double.pi / 2)
+            out[i] = Float(Double(x[a + i]) * wi + Double(x[e - f + i]) * wo)
+        }
+        return out
+    }
+
+    /// Cuánto «salta» el audio al dar la vuelta: |último − primero| frente al cambio típico entre muestras vecinas.
+    nonisolated static func seamJump(_ x: [Float]) -> Double {
+        guard x.count >= 3 else { return 0 }
+        var d = 0.0
+        for i in 1..<x.count { d += Double(abs(x[i] - x[i - 1])) }
+        return Double(abs(x[0] - x[x.count - 1])) / (d / Double(x.count - 1) + 1e-12)
+    }
 }

@@ -1,11 +1,11 @@
 // Pestaña Editar: onda con dos marcadores, reproducción, recorte, fundido, normalizado, deshacer, tempo y carpeta.
 import { app, go, refreshSamples, sampleById } from './state.js';
-import { h, mount, fill, btn, link, card, label, muted, title, toggleRow, sliderRow, logo, confirmSheet, toast, folderPicker, drawBars } from './ui.js';
+import { h, mount, fill, btn, link, chip, card, label, muted, title, toggleRow, sliderRow, logo, confirmSheet, toast, folderPicker, drawBars } from './ui.js';
 import * as dsp from './dsp.js';
 import { putSample, getAudio, deleteSamples } from './store.js';
 import { openChop } from './chop.js';
 
-const ed = { id: null, audio: null, saved: null, peaks: [], undo: [], redo: [], start: 0, end: 1, fadeMs: 10, loop: false, noiseAmt: dsp.DENOISE_AMOUNT, sustain: true };
+const ed = { id: null, audio: null, saved: null, peaks: [], undo: [], redo: [], start: 0, end: 1, fadeMs: 10, loop: false, noiseAmt: dsp.DENOISE_AMOUNT, sustain: true, cross: 1, refine: true };
 let playCtx = null, src = null, t0 = 0, dur = 0;
 
 const stopPlay = () => { if (src) { try { src.onended = null; src.stop(); } catch (e) {} src = null; } };
@@ -116,6 +116,17 @@ export function renderEdit(root) {
     } }))),
     toggleRow('Sostener el nivel', 'Sube las colas que se apagan para que el colchón no se desvanezca', ed.sustain, v => { ed.sustain = v; }),
     muted('Estira la selección (o toda la toma) sin cambiar el tono y la difumina en un sonido continuo, ideal para notas de cuerda, pads y ambientes. Se queda sólo con lo estirado; puedes deshacer.', 'tiny'),
+    label('Loop continuo (sin pulso)'),
+    h('div', { class: 'between' }, h('b', {}, 'Empalme'), h('span', { class: 'muted small' }, 'cuánto se funden final y principio')),
+    h('div', { class: 'wrap' }, [0.5, 1, 2, 4].map(c => chip(String(c).replace('.', ',') + ' s', ed.cross === c, () => { ed.cross = c; app.render(); }))),
+    toggleRow('Afinar el final', 'Busca, hasta medio segundo cerca de tu marcador, el punto donde el sonido más se parece al del inicio', ed.refine, v => { ed.refine = v; }),
+    btn('Hacer loop continuo', { small: true, onclick: () => {
+      const [a, b] = sel();
+      if (b - a < s.rate / 2) return toast('Marca al menos 0,5 s (o no marques nada para usar toda la toma)');
+      toast('Creando el loop…');
+      setTimeout(async () => { await apply(x => dsp.loopSeamless(x, a, b, s.rate, ed.cross, ed.refine)); ed.loop = true; app.render(); }, 30);
+    } }),
+    muted('Une el final con el principio para que el tramo se repita sin saltos, aunque no tenga ritmo: pads, cuerdas, ambientes. Se queda sólo con el loop; ya queda activado «Repetir» para oírlo con ▶. Puedes deshacer.', 'tiny'),
     label('Limpiar ruido'),
     h('div', { class: 'row2' },
       btn('Suave', { small: true, onclick: () => apply(x => dsp.cleanNoise(x, s.rate, 'soft')) }),
