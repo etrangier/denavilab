@@ -1,6 +1,13 @@
 {
  "changelog": [
   {
+   "fecha": "2026-10-17",
+   "items": [
+    "EP-133 Beatmaking Assistant: secciones nuevas «Behringer RD-8» y «Behringer RD-6», con el plan de carga de los packs «Captain Pikant - RD-8 48kHz» (32 sonidos) y «Captain Pikant - RD-6 48kHz» (19). Según las capturas del EP Sample Tool del 17 de octubre (418 muestras en el aparato), ya están cargados 31 del RD-8 (bombos 43–46, cajas 159–160, hats y platillos 265–273, palmas, toms, congas y percusión menor 364–377) y 17 del RD-6 (bombo 48, caja 162, platillos y hats 274–281, palmas 378–380, toms graves 381–382); entran en la base como «cargado» y ya se pueden recomendar. Faltan «CP RS RD-8» (slot previsto 165, porque el 161 lo ocupa una copia de «CP SD RD6 1») y los toms agudos «CP HT RD6 1» y «CP HT RD6 2» (slots 383 y 384).",
+    "Cada sección permite copiar el plan de carga de lo que falta y marcar sonidos como cargados (uno a uno o todos a la vez). La base lleva «slot_previsto» en lo pendiente, «nombre_aparato» (el aparato acorta los nombres a 16 caracteres: 7 primeros, un punto y 8 últimos) en lo confirmado y «slots_duplicados» para los slots 47, 161, 163 y 164, que parecen copias de sonidos que ya existían."
+   ]
+  },
+  {
    "fecha": "2026-10-09",
    "items": [
     "Cuatro sonidos nuevos en el aparato, de inspiración Recoil y Depeche Mode oscuro: «Drone Oscuro Dm» (slot 569), una capa grave en Re menor con una nota tensa; «Pad Lamento Blues Gm» (slot 570), un pad de Sol menor 7 con un bend inicial y saturación de cinta; «Piano Fieltro Apagado D3» (slot 571), tu piano de fábrica subido una octava y apagado; y «Placa Metalica Bend» (slot 572), un metal inarmónico que baja de tono. Entran en la base con su análisis (encaje estimado ~; el del piano es débil, ±16 puntos)."
