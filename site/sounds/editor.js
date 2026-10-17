@@ -5,7 +5,7 @@ import * as dsp from './dsp.js';
 import { putSample, getAudio, deleteSamples } from './store.js';
 import { openChop } from './chop.js';
 
-const ed = { id: null, audio: null, saved: null, peaks: [], undo: [], redo: [], start: 0, end: 1, fadeMs: 10, loop: false, noiseAmt: dsp.DENOISE_AMOUNT };
+const ed = { id: null, audio: null, saved: null, bu: [], br: [], tgt: null, rep: 4, div: 16, peaks: [], undo: [], redo: [], start: 0, end: 1, fadeMs: 10, loop: false, noiseAmt: dsp.DENOISE_AMOUNT };
 let playCtx = null, src = null, t0 = 0, dur = 0;
 
 const stopPlay = () => { if (src) { try { src.onended = null; src.stop(); } catch (e) {} src = null; } };
@@ -24,12 +24,22 @@ function play() {
 }
 
 function setAudio(a) { ed.audio = a; ed.peaks = dsp.peaks(a, 56); }
-function apply(fn) {
+const curBpm = () => { const m = sampleById(ed.id); return m ? m.bpm : null; };
+async function setBpm(v) { const m = sampleById(ed.id); if (m && m.bpm !== v) { await putSample({ ...m, bpm: v }); await refreshSamples(); } }
+/** Aplica un cambio al audio (deshacible). Si el cambio mueve el tempo (`newBpm`), el BPM de la grabación también se deshace con él. */
+async function apply(fn, newBpm) {
   const out = fn(ed.audio);
   if (!out.length) return toast('La selección quedó vacía');
-  stopPlay(); ed.undo.push(ed.audio); ed.redo = []; setAudio(out); ed.start = 0; ed.end = 1; app.render();
+  if (out === ed.audio) return toast('No hay nada que cambiar: la selección es muy corta para eso');
+  stopPlay(); ed.undo.push(ed.audio); ed.bu.push(curBpm()); ed.redo = []; ed.br = []; setAudio(out); ed.start = 0; ed.end = 1;
+  if (newBpm !== undefined) await setBpm(newBpm);
+  app.render();
 }
-function step(from, to) { const x = from.pop(); if (!x) return; to.push(ed.audio); stopPlay(); setAudio(x); ed.start = 0; ed.end = 1; app.render(); }
+async function step(from, to, bfrom, bto) {
+  const x = from.pop(); if (!x) return;
+  to.push(ed.audio); bto.push(curBpm()); stopPlay(); setAudio(x); ed.start = 0; ed.end = 1;
+  await setBpm(bfrom.pop()); app.render();
+}
 
 export function renderEdit(root) {
   const s = sampleById(app.selectedId);
@@ -39,7 +49,7 @@ export function renderEdit(root) {
     return;
   }
   if (ed.id !== s.id) {
-    stopPlay(); Object.assign(ed, { id: s.id, audio: null, peaks: [], undo: [], redo: [], start: 0, end: 1 });
+    stopPlay(); Object.assign(ed, { id: s.id, audio: null, peaks: [], undo: [], redo: [], bu: [], br: [], start: 0, end: 1 });
     getAudio(s.id).then(a => { if (ed.id === s.id) { setAudio(a); ed.saved = a; if (app.tab === 'editar') app.render(); } });
   }
   if (!ed.audio) { mount(root, title('Escuchar y editar'), muted('Cargando…')); return; }
@@ -84,7 +94,19 @@ export function renderEdit(root) {
       const r = dsp.estimateBPM(ed.audio, s.rate); if (!r) return toast('No encuentro un pulso claro en esta toma');
       await putSample({ ...s, bpm: r.bpm }); await refreshSamples(); toast(`≈ ${r.bpm.toFixed(0)} BPM · confianza ${Math.round(r.confidence * 100)} %`); app.render();
     } }), s.bpm ? btn('Usar en el metrónomo', { small: true, sel: true, onclick: () => { app.metro.set('bpm', Math.min(300, Math.max(30, Math.round(s.bpm)))); toast('Metrónomo a ' + Math.round(s.bpm) + ' BPM'); } }) : null),
-    muted('Funciona mejor con pulso claro y al menos 2 segundos.', 'tiny')]);
+    muted('Funciona mejor con pulso claro y al menos 2 segundos.', 'tiny'),
+    s.bpm ? h('div', { class: 'between' }, h('b', {}, 'Ajustar tempo'), h('span', { class: 'muted small' }, 'sin cambiar el tono')) : null,
+    s.bpm ? h('div', { class: 'row2' },
+      h('input', { type: 'number', class: 'field', min: '40', max: '240', step: 'any', inputmode: 'decimal', value: String(ed.tgt != null && !Number.isNaN(ed.tgt) ? ed.tgt : Math.round(s.bpm)), 'aria-label': 'BPM de destino', oninput: e => { ed.tgt = parseFloat(e.target.value); } }),
+      btn('Ajustar a ese BPM', { small: true, onclick: () => {
+        const target = ed.tgt != null && !Number.isNaN(ed.tgt) ? ed.tgt : Math.round(s.bpm);
+        if (!(target >= 40 && target <= 240)) return toast('Elige un tempo entre 40 y 240 BPM');
+        const ratio = s.bpm / target;
+        if (Math.abs(ratio - 1) < 0.002) return toast('Ya está a ese tempo');
+        if (ratio < 0.5 || ratio > 2) return toast('Demasiado lejos: el cambio máximo es el doble o la mitad del tempo');
+        apply(x => dsp.timeStretch(x, ratio), target).then(() => toast(`Ajustado a ${Math.round(target * 10) / 10} BPM · dura ${dsp.stamp(ed.audio.length / s.rate)}`));
+      } })) : null,
+    s.bpm ? muted('Estira o encoge la toma hasta ese BPM. Queda mejor entre ~75 % y ~135 % del tempo original; al pasarse, usa el doble o la mitad.', 'tiny') : null]);
   const fp = { folder: s.folder, sub: s.subfolder || null };
 
   mount(root, 
@@ -103,6 +125,13 @@ export function renderEdit(root) {
       btn('Fundido', { small: true, onclick: () => apply(x => dsp.fade(x, fade, fade)) })),
     btn('Armonizar bordes (sin clics)', { small: true, onclick: () => apply(x => dsp.harmonize(x, s.rate)) }),
     muted('Centra la onda y suaviza el inicio y el final a medida, para que un recorte no suene «cortado». Puedes deshacer.', 'tiny'),
+    label('Creativo'),
+    btn('Invertir', { small: true, onclick: () => { const [a, b] = sel(); apply(x => dsp.reverseRange(x, a, b)); } }),
+    muted('Da la vuelta a la selección (o a toda la toma): una cola que se apaga pasa a ser un crescendo que «chupa» hacia el golpe.', 'tiny'),
+    label('Tartamudeo'),
+    h('div', { class: 'row3' }, [2, 4, 8].map(n => btn('Repetir ×' + n, { small: true, onclick: () => { const [a, b] = sel(); apply(x => dsp.repeatRegion(x, a, b, n, s.rate)); } }))),
+    h('div', { class: 'row3' }, [8, 16, 32].map(d => btn('Rítmico 1/' + d, { small: true, disabled: !s.bpm, onclick: () => { const [a, b] = sel(); apply(x => dsp.stutterFill(x, a, b, dsp.noteSamples(s.bpm, d, s.rate), s.rate)); } }))),
+    muted(s.bpm ? 'Repetir pega la selección tantas veces seguidas. Rítmico rellena la selección repitiendo su primer trozo (1/16 de compás a tu tempo): la duración no cambia.' : 'Repetir pega la selección tantas veces seguidas. Rítmico necesita el tempo: usa «Detectar BPM» más abajo.', 'tiny'),
     label('Limpiar ruido'),
     h('div', { class: 'row2' },
       btn('Suave', { small: true, onclick: () => apply(x => dsp.cleanNoise(x, s.rate, 'soft')) }),
@@ -119,7 +148,7 @@ export function renderEdit(root) {
     sliderRow('Intensidad', { min: 0.5, max: 3, step: 0.1, value: ed.noiseAmt, fmt: v => v < 1.2 ? 'Suave' : v < 2.2 ? 'Normal' : 'Fuerte', onInput: v => { ed.noiseAmt = v; } }),
     muted('Suave y Fuerte cortan graves (respiración, soplidos) y apagan lo que suena bajito entre sonidos. «Quitar ruido de fondo» aprende el ruido de la parte más tranquila; «Con la selección» lo aprende de lo que marques. Puedes deshacer.', 'tiny'),
     sliderRow('Fundido', { min: 0, max: 200, step: 1, value: ed.fadeMs, fmt: v => v + ' ms', onInput: v => { ed.fadeMs = v; } }),
-    h('div', { class: 'row2' }, btn('Deshacer', { small: true, disabled: !ed.undo.length, onclick: () => step(ed.undo, ed.redo) }), btn('Rehacer', { small: true, disabled: !ed.redo.length, onclick: () => step(ed.redo, ed.undo) })),
+    h('div', { class: 'row2' }, btn('Deshacer', { small: true, disabled: !ed.undo.length, onclick: () => step(ed.undo, ed.redo, ed.bu, ed.br) }), btn('Rehacer', { small: true, disabled: !ed.redo.length, onclick: () => step(ed.redo, ed.undo, ed.br, ed.bu) })),
     bpmCard,
     btn(app.ko2 ? 'Chop en pads' : 'Chop', { sel: true, onclick: () => openChop(s, ed.audio) }),
     folderPicker(fp, async st => { await putSample({ ...s, folder: st.folder, subfolder: st.sub }); await refreshSamples(); }),

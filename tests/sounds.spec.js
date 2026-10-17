@@ -388,6 +388,90 @@ test.describe('móvil y PWA', () => {
   });
 });
 
+test.describe('invertir, tartamudeo y tempo exacto', () => {
+  // 8 compases de bombo a 100 BPM con un tono fijo de 440 Hz por debajo.
+  const pista = `
+    const rate = 48000, bpm = 100, T = rate * 60 / bpm, n = Math.round(T * 16), x = new Float32Array(n);
+    for (let j = 0; j < 16; j++) { const t0 = Math.round(j * T); for (let i = 0; i < 3000 && t0 + i < n; i++) x[t0 + i] += 0.8 * Math.sin(2 * Math.PI * 60 * i / rate) * Math.exp(-i / 600); }
+    for (let i = 0; i < n; i++) x[i] += 0.2 * Math.sin(2 * Math.PI * 440 * i / rate);`;
+
+  test('núcleo: invertir, repetir, rítmico y estirar sin cambiar el tono', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async src => {
+      const d = await import('/sounds/dsp.js'), { x, rate, n } = new Function(src + '; return { x, rate, n };')();
+      const cruces = (y, a, b) => { let c = 0; for (let i = a + 1; i < b; i++) if (y[i - 1] < 0 && y[i] >= 0) c++; return c / ((b - a) / rate); };
+      const f100 = d.estimateBPM(x, rate).bpm;
+      const mas = d.timeStretch(x, 100 / 120), menos = d.timeStretch(x, 100 / 80), alto = new Float32Array(rate * 4).map((_, i) => 0.5 * Math.sin(2 * Math.PI * 440 * i / rate)), largoAlto = d.timeStretch(alto, 1.5);
+      const rev = d.reverseRange(Float32Array.of(1, 2, 3, 4, 5), 1, 4), y0 = new Float32Array(1000).fill(0.5);
+      const rep = d.repeatRegion(y0, 100, 200, 4, 48000), fill = d.stutterFill(y0, 100, 900, 200, 48000);
+      return { rev: Array.from(rev), doble: Array.from(d.reverseRange(d.reverseRange(Float32Array.of(1, 2, 3, 4, 5)))), rep: rep.length, repIgual: rep.slice(0, 100).every(v => v === 0.5),
+        fill: fill.length, fillIni: fill[100], fillMedio: fill[200], inval: [d.repeatRegion(y0, 10, 12, 4, 48000) === y0, d.stutterFill(y0, 100, 200, 500, 48000) === y0],
+        nota: [d.noteSamples(120, 16, 48000), d.noteSamples(120, 8, 48000)], base: f100,
+        mas: [mas.length, Math.round(n * 100 / 120), d.estimateBPM(mas, rate).bpm], menos: [menos.length, d.estimateBPM(menos, rate).bpm],
+        tono: [cruces(alto, 1000, 80000), cruces(largoAlto, 1000, 80000)], id: d.timeStretch(x, 1).length === n, corto: d.timeStretch(new Float32Array(100), 1.5).length };
+    }, pista);
+    expect(r.rev).toEqual([1, 4, 3, 2, 5]); expect(r.doble).toEqual([1, 2, 3, 4, 5]);
+    expect(r.rep).toBe(1000 + 3 * 100); expect(r.repIgual).toBe(true);
+    expect(r.fill).toBe(1000); expect(r.fillIni).toBeLessThan(0.1); expect(r.fillMedio).toBeCloseTo(0.5, 1);
+    expect(r.inval).toEqual([true, true]);
+    expect(r.nota).toEqual([6000, 12000]);
+    expect(r.mas[0]).toBe(r.mas[1]); expect(Math.abs(r.mas[2] - 120)).toBeLessThan(2); expect(Math.abs(r.menos[1] - 80)).toBeLessThan(2);
+    expect(Math.abs(r.tono[1] - r.tono[0])).toBeLessThan(15);          // el tono (≈440 Hz) no cambia al estirar
+    expect(r.id).toBe(true); expect(r.corto).toBe(100);
+  });
+
+  test('Editar: Invertir, Repetir, Rítmico y Ajustar tempo, todo deshacible', async ({ page }) => {
+    const errores = vigilar(page);
+    await abrir(page, 'schair');
+    await page.evaluate(async src => {
+      const st = await import('/sounds/store.js'), { x, rate } = new Function(src + '; return { x, rate };')();
+      await st.putSample(st.newSample('Bombo', x, rate, { bpm: 100 }), x);
+    }, pista);
+    await page.reload();
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Bombo' }).click();
+    const info = () => page.evaluate(async () => { const st = await import('/sounds/store.js'), m = (await st.listSamples()).find(v => v.name === 'Bombo'); return { bpm: m.bpm, dur: m.duration }; });
+    const guardar = async () => { await page.getByRole('button', { name: 'Guardar', exact: true }).click(); await expect(page.locator('#toast')).toContainText('Guardado'); };
+    const dur0 = (await info()).dur;
+    // Invertir: toda la toma al revés (el primer golpe pasa a estar al final)
+    await page.getByRole('button', { name: 'Invertir', exact: true }).click();
+    await guardar();
+    const rev = await page.evaluate(async () => { const st = await import('/sounds/store.js'), m = (await st.listSamples()).find(v => v.name === 'Bombo'), a = await st.getAudio(m.id); let mi = 0, mf = 0; for (let i = 0; i < 4000; i++) mi = Math.max(mi, Math.abs(a[i])); for (let i = a.length - 4000; i < a.length; i++) mf = Math.max(mf, Math.abs(a[i])); return [mi, mf]; });
+    expect(rev[1]).toBeGreaterThan(rev[0]);                                // antes el golpe estaba al inicio; ahora al final
+    await page.getByRole('button', { name: 'Deshacer' }).click();
+    // Repetir ×4 sobre toda la toma: dura cuatro veces más
+    await page.getByRole('button', { name: 'Repetir ×4', exact: true }).click();
+    await expect(page.locator('#screen')).toContainText(/Dura 00:3\d/);       // 38,4 s
+    await page.getByRole('button', { name: 'Deshacer' }).click();
+    // Rítmico 1/16 rellena sin cambiar la duración
+    await page.getByRole('button', { name: 'Rítmico 1/16', exact: true }).click();
+    await guardar(); expect(Math.abs((await info()).dur - dur0)).toBeLessThan(0.01);
+    await page.getByRole('button', { name: 'Deshacer' }).click();
+    // Ajustar tempo a 120: dura 100/120 y el BPM de la grabación cambia; deshacer lo devuelve a 100
+    await page.getByLabel('BPM de destino').fill('120');
+    await page.getByRole('button', { name: 'Ajustar a ese BPM' }).click();
+    await expect(page.locator('#toast')).toContainText('Ajustado a 120 BPM');
+    await expect(page.locator('#screen')).toContainText('≈ 120 BPM');
+    await guardar(); const t = await info(); expect(t.bpm).toBe(120); expect(Math.abs(t.dur - dur0 * 100 / 120)).toBeLessThan(0.02);
+    await page.getByRole('button', { name: 'Deshacer' }).click();
+    await expect(page.locator('#screen')).toContainText('≈ 100 BPM'); expect((await info()).bpm).toBe(100);
+    // fuera de rango y tempo igual: avisa y no cambia nada
+    await page.getByLabel('BPM de destino').fill('300'); await page.getByRole('button', { name: 'Ajustar a ese BPM' }).click();
+    await expect(page.locator('#toast')).toContainText('entre 40 y 240');
+    await page.getByLabel('BPM de destino').fill('100'); await page.getByRole('button', { name: 'Ajustar a ese BPM' }).click();
+    await expect(page.locator('#toast')).toContainText('Ya está a ese tempo');
+    expect(errores).toEqual([]);
+  });
+
+  test('sin BPM, el tartamudeo rítmico y el ajuste de tempo no están disponibles', async ({ page }) => {
+    await abrir(page, 'schair'); await sembrar(page, ['Sin pulso']);
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Sin pulso' }).click();
+    for (const d of [8, 16, 32]) await expect(page.getByRole('button', { name: 'Rítmico 1/' + d, exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Ajustar a ese BPM' })).toHaveCount(0);
+  });
+});
+
 test.describe('service worker', () => {
   test('guarda para uso sin conexión todos los módulos de la app', async ({ request }) => {
     const sw = await (await request.get('/sounds/sw.js')).text();

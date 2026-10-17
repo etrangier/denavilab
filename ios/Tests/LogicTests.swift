@@ -465,4 +465,49 @@ final class LogicTests: XCTestCase {
         XCTAssertNil(Harmony.analyze(flat, rate: rate))
         XCTAssertNil(Harmony.analyze(Array(x.prefix(rate * 2)), rate: rate, bpm: 100))
     }
+
+    // MARK: invertir, tartamudeo y tempo exacto
+
+    func testReverseRepeatAndStutter() {
+        XCTAssertEqual(Creative.reverseRange([1, 2, 3, 4, 5], from: 1, to: 4), [1, 4, 3, 2, 5])
+        XCTAssertEqual(Creative.reverseRange(Creative.reverseRange([1, 2, 3, 4, 5])), [1, 2, 3, 4, 5])
+        let y = [Float](repeating: 0.5, count: 1000)
+        let rep = Creative.repeatRegion(y, from: 100, to: 200, times: 4, rate: 48000)
+        XCTAssertEqual(rep.count, 1300)
+        XCTAssertTrue(rep[0..<100].allSatisfy { $0 == 0.5 })
+        let fill = Creative.stutterFill(y, from: 100, to: 900, sliceLen: 200, rate: 48000)
+        XCTAssertEqual(fill.count, 1000)
+        XCTAssertLessThan(fill[100], 0.1)
+        XCTAssertEqual(fill[200], 0.5, accuracy: 0.05)
+        XCTAssertEqual(Creative.repeatRegion(y, from: 10, to: 12, times: 4, rate: 48000), y)         // tramo muy corto: no hace nada
+        XCTAssertEqual(Creative.stutterFill(y, from: 100, to: 200, sliceLen: 500, rate: 48000), y)
+        XCTAssertEqual(Creative.noteSamples(bpm: 120, division: 16, rate: 48000), 6000)
+        XCTAssertEqual(Creative.noteSamples(bpm: 120, division: 8, rate: 48000), 12000)
+    }
+
+    func testTimeStretchChangesTempoNotPitch() {
+        let rate = 48000, T = Double(rate) * 60 / 100, n = Int((T * 16).rounded())
+        var x = [Float](repeating: 0, count: n)
+        for j in 0..<16 {
+            let t0 = Int((Double(j) * T).rounded())
+            for i in 0..<3000 where t0 + i < n {
+                x[t0 + i] += Float(0.8 * sin(2 * Double.pi * 60 * Double(i) / Double(rate)) * exp(-Double(i) / 600))
+            }
+        }
+        for i in 0..<n { x[i] += Float(0.2 * sin(2 * Double.pi * 440 * Double(i) / Double(rate))) }
+        func crossings(_ y: [Float], _ a: Int, _ b: Int) -> Double {
+            var c = 0
+            for i in (a + 1)..<b where y[i - 1] < 0 && y[i] >= 0 { c += 1 }
+            return Double(c) / (Double(b - a) / Double(rate))
+        }
+        let faster = Creative.timeStretch(x, ratio: 100.0 / 120.0), slower = Creative.timeStretch(x, ratio: 100.0 / 80.0)
+        XCTAssertEqual(faster.count, Int((Double(n) * 100.0 / 120.0).rounded()))
+        XCTAssertEqual(Editing.estimateBPM(faster, rate: rate)?.bpm ?? 0, 120, accuracy: 2)
+        XCTAssertEqual(Editing.estimateBPM(slower, rate: rate)?.bpm ?? 0, 80, accuracy: 2)
+        let tone: [Float] = (0..<(rate * 4)).map { 0.5 * Float(sin(2 * Double.pi * 440 * Double($0) / Double(rate))) }
+        let stretched = Creative.timeStretch(tone, ratio: 1.5)
+        XCTAssertEqual(crossings(stretched, 1000, 80000), crossings(tone, 1000, 80000), accuracy: 15)    // el tono no cambia
+        XCTAssertEqual(Creative.timeStretch(x, ratio: 1), x)
+        XCTAssertEqual(Creative.timeStretch([Float](repeating: 0, count: 100), ratio: 1.5).count, 100)
+    }
 }

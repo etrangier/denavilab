@@ -41,6 +41,9 @@ struct EditorBody: View {
     @State private var peakDB: Float = 0
     @State private var undo: [[Float]] = []
     @State private var redo: [[Float]] = []
+    @State private var undoBPM: [Double?] = []            // el tempo también se deshace con el audio
+    @State private var redoBPM: [Double?] = []
+    @State private var targetBPM = ""
     @State private var start = 0.0
     @State private var end = 1.0
     @State private var fadeMs = 10.0
@@ -91,6 +94,7 @@ struct EditorBody: View {
                 Button("Armonizar bordes (sin clics)") { apply { Harmonize.harmonize($0, rate: sample.sampleRate) } }.buttonStyle(OutlineButton()).font(Theme.font(13))
                 Text("Centra la onda y suaviza el inicio y el final a medida, para que un recorte no suene «cortado». Puedes deshacer.")
                     .font(Theme.font(12)).foregroundColor(Theme.muted)
+                creativeTools
                 noiseTools
                 SliderRow(title: "Fundido", valueText: "\(Int(fadeMs)) ms", value: $fadeMs, range: 0...200)
                 bpmCard
@@ -112,8 +116,8 @@ struct EditorBody: View {
                 }
                 if let m = message { Text(m).font(Theme.font(13)).foregroundColor(Theme.muted).frame(maxWidth: .infinity, alignment: .center) }
                 HStack(spacing: 10) {
-                    Button("Deshacer") { step(from: &undo, to: &redo) }.disabled(undo.isEmpty)
-                    Button("Rehacer") { step(from: &redo, to: &undo) }.disabled(redo.isEmpty)
+                    Button("Deshacer") { step(from: &undo, to: &redo, bpmFrom: &undoBPM, bpmTo: &redoBPM) }.disabled(undo.isEmpty)
+                    Button("Rehacer") { step(from: &redo, to: &undo, bpmFrom: &redoBPM, bpmTo: &undoBPM) }.disabled(redo.isEmpty)
                 }.buttonStyle(OutlineButton()).font(Theme.font(13))
                 Button("Exportar al K.O. II") { state.tab = .exportar }.buttonStyle(OutlineButton(selected: true))
             }
@@ -135,6 +139,50 @@ struct EditorBody: View {
         .confirmationDialog("¿Borrar esta grabación?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Borrar", role: .destructive) { player?.stop(); lib.delete(sample); state.selectedID = nil; state.tab = .biblioteca }
         }
+    }
+
+    private var selA: Int { Int(start * Double(audio.count)) }
+    private var selB: Int { Int(end * Double(audio.count)) }
+
+    private var creativeTools: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel("Creativo")
+            Button("Invertir") { apply { Creative.reverseRange($0, from: selA, to: selB) } }.buttonStyle(OutlineButton()).font(Theme.font(13))
+            Text("Da la vuelta a la selección (o a toda la toma): una cola que se apaga pasa a ser un crescendo que «chupa» hacia el golpe.")
+                .font(Theme.font(12)).foregroundColor(Theme.muted)
+            SectionLabel("Tartamudeo")
+            HStack(spacing: 8) {
+                ForEach([2, 4, 8], id: \.self) { n in
+                    Button("Repetir ×\(n)") { apply { Creative.repeatRegion($0, from: selA, to: selB, times: n, rate: sample.sampleRate) } }
+                }
+            }.buttonStyle(OutlineButton()).font(Theme.font(13))
+            HStack(spacing: 8) {
+                ForEach([8, 16, 32], id: \.self) { d in
+                    Button("Rítmico 1/\(d)") { stutter(d) }.disabled(sample.bpm == nil).opacity(sample.bpm == nil ? 0.4 : 1)
+                }
+            }.buttonStyle(OutlineButton()).font(Theme.font(13))
+            Text(sample.bpm == nil ? "Repetir pega la selección tantas veces seguidas. Rítmico necesita el tempo: usa Detectar BPM más abajo."
+                                   : "Repetir pega la selección tantas veces seguidas. Rítmico rellena la selección repitiendo su primer trozo (1/16 de compás a tu tempo): la duración no cambia.")
+                .font(Theme.font(12)).foregroundColor(Theme.muted)
+        }
+    }
+
+    private func stutter(_ division: Int) {
+        guard let b = sample.bpm else { return }
+        let len = Creative.noteSamples(bpm: b, division: division, rate: sample.sampleRate)
+        apply { Creative.stutterFill($0, from: selA, to: selB, sliceLen: len, rate: sample.sampleRate) }
+    }
+
+    private func fitTempo() {
+        guard let cur = sample.bpm else { return }
+        let target = Double(targetBPM.replacingOccurrences(of: ",", with: ".")) ?? cur.rounded()
+        guard target >= 40, target <= 240 else { message = "Elige un tempo entre 40 y 240 BPM"; return }
+        let ratio = cur / target
+        guard abs(ratio - 1) >= 0.002 else { message = "Ya está a ese tempo"; return }
+        guard ratio >= 0.5, ratio <= 2 else { message = "Demasiado lejos: el cambio máximo es el doble o la mitad del tempo"; return }
+        message = "Ajustando el tempo…"
+        apply({ Creative.timeStretch($0, ratio: ratio) }, newBPM: target)
+        if undo.last != nil, sample.bpm == target { message = "Ajustado a \(Int(target.rounded())) BPM · dura \(stamp(Double(audio.count) / rate))" }
     }
 
     private var noiseTools: some View {
@@ -186,6 +234,21 @@ struct EditorBody: View {
                 }
             }.font(Theme.font(13))
             Text("Funciona mejor con pulso claro y al menos 2 segundos.").font(Theme.font(12)).foregroundColor(Theme.muted)
+            if let b = sample.bpm {
+                HStack {
+                    Text("Ajustar tempo").font(Theme.font(15, weight: .medium)).foregroundColor(Theme.text)
+                    Spacer()
+                    Text("sin cambiar el tono").font(Theme.font(13)).foregroundColor(Theme.muted)
+                }
+                HStack(spacing: 8) {
+                    TextField(String(Int(b.rounded())), text: $targetBPM).keyboardType(.decimalPad).font(Theme.font(16, weight: .bold)).foregroundColor(Theme.amber)
+                        .multilineTextAlignment(.center).frame(minHeight: 44).background(Theme.surface2).clipShape(RoundedRectangle(cornerRadius: 12))
+                        .accessibilityLabel("BPM de destino")
+                    Button("Ajustar a ese BPM") { fitTempo() }.buttonStyle(OutlineButton()).font(Theme.font(13))
+                }
+                Text("Estira o encoge la toma hasta ese BPM. Queda mejor entre ~75 % y ~135 % del tempo original; al pasarse, usa el doble o la mitad.")
+                    .font(Theme.font(12)).foregroundColor(Theme.muted)
+            }
         }.card()
     }
 
@@ -263,18 +326,22 @@ struct EditorBody: View {
 
     // MARK: acciones
 
-    private func apply(_ f: ([Float]) -> [Float]) {
+    /// Aplica un cambio al audio (deshacible). Si el cambio mueve el tempo (`newBPM`), el BPM de la grabación también se deshace con él.
+    private func apply(_ f: ([Float]) -> [Float], newBPM: Double? = nil) {
         let out = f(audio)
         guard !out.isEmpty else { message = "La selección quedó vacía"; return }
-        undo.append(audio); redo = []; audio = out; message = nil
+        guard out != audio else { message = "No hay nada que cambiar: la selección es muy corta para eso"; return }
+        undo.append(audio); undoBPM.append(sample.bpm); redo = []; redoBPM = []; audio = out; message = nil
+        if let b = newBPM { sample.bpm = b; lib.update(sample) }
         refreshPeaks()
     }
 
     private func refreshPeaks() { peaks = Editing.peaks(audio, buckets: 56); peakDB = Editing.peakDB(audio) }
 
-    private func step(from a: inout [[Float]], to b: inout [[Float]]) {
+    private func step(from a: inout [[Float]], to b: inout [[Float]], bpmFrom: inout [Double?], bpmTo: inout [Double?]) {
         guard let x = a.popLast() else { return }
-        b.append(audio); audio = x
+        b.append(audio); bpmTo.append(sample.bpm); audio = x
+        if let prev = bpmFrom.popLast(), prev != sample.bpm { sample.bpm = prev; lib.update(sample) }
         refreshPeaks()
     }
 

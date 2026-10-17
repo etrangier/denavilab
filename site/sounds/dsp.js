@@ -351,6 +351,78 @@ export function joinPieces(pieces, rate, { crossfadeMs = 12, match = true } = {}
   return cosFade(out, Math.min(Math.round(rate * 0.003), out.length >> 2), endFadeSamples(out, rate));
 }
 
+// ---------- Creativo: invertir, tartamudeo y tempo exacto ----------
+
+/** Da la vuelta a un tramo [a, b) del audio (por defecto, todo). */
+export function reverseRange(x, a = 0, b = x.length) {
+  a = Math.max(0, Math.min(a, x.length)); b = Math.max(a, Math.min(b, x.length));
+  const y = Float32Array.from(x);
+  for (let i = 0; i < b - a; i++) y[a + i] = x[b - 1 - i];
+  return y;
+}
+
+/** Una repetición con entrada y salida cortas (1,5 ms, de coseno): sin clics en los empalmes. */
+const rep = (x, a, b, rate) => cosFade(x.slice(a, b), Math.round(rate * 0.0015), Math.round(rate * 0.0015));
+
+/** Repite el tramo [a, b) `times` veces seguidas (el audio crece). */
+export function repeatRegion(x, a, b, times, rate) {
+  a = Math.max(0, Math.min(a, x.length)); b = Math.max(a, Math.min(b, x.length)); times = Math.max(1, Math.round(times));
+  if (b - a < 16 || times < 2) return x;
+  const piece = rep(x, a, b, rate), out = new Float32Array(x.length + (times - 1) * (b - a));
+  out.set(x.subarray(0, a)); for (let k = 0; k < times; k++) out.set(piece, a + k * (b - a)); out.set(x.subarray(b), a + times * (b - a));
+  return out;
+}
+
+/** Tartamudeo rítmico: rellena [a, b) repitiendo su primer trozo de `sliceLen` muestras (la duración no cambia). */
+export function stutterFill(x, a, b, sliceLen, rate) {
+  a = Math.max(0, Math.min(a, x.length)); b = Math.max(a, Math.min(b, x.length)); sliceLen = Math.round(sliceLen);
+  if (b - a < 32 || sliceLen < 16 || sliceLen >= b - a) return x;
+  const piece = rep(x, a, a + sliceLen, rate), out = Float32Array.from(x);
+  for (let t = a, k = 0; t < b; t += sliceLen, k++) {
+    const len = Math.min(sliceLen, b - t);
+    out.set(len === sliceLen ? piece : cosFade(piece.subarray(0, len), 0, Math.round(rate * 0.0015)), t);
+  }
+  return out;
+}
+
+/** Largo de una división de compás (1/8, 1/16…) en muestras, a un tempo dado. */
+export const noteSamples = (bpm, division, rate) => Math.round(rate * 60 / bpm * 4 / division);
+
+const TS_N = 2048, TS_H = 1024, TS_D = 400;
+const tsWin = new Float64Array(TS_N).map((_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / TS_N));
+// desplazamientos a probar, del más cercano al más lejano (0, +4, −4, +8, −8…): a igualdad gana el más cercano
+const TS_COARSE = (() => { const o = [0]; for (let d = 4; d <= TS_D; d += 4) o.push(d, -d); return o; })();
+
+/**
+ * Cambia la duración sin cambiar el tono (WSOLA: tramos solapados que se alinean por correlación, primero a grosso modo
+ * y luego afinando). `ratio` = duración nueva / duración vieja (> 1 = más lento). Mejor entre 0,5 y 2 y con material de pulso.
+ */
+export function timeStretch(x, ratio) {
+  const n = x.length;
+  if (n < TS_N * 2 || !(ratio > 0) || Math.abs(ratio - 1) < 1e-4) return Float32Array.from(x);
+  const m = Math.round(n * ratio), OFF = TS_H, out = new Float64Array(m + 4 * TS_H), at = j => (j >= 0 && j < n ? x[j] : 0);
+  const score = (c, ref, stride) => {
+    let dot = 0, en = 0;
+    for (let i = 0; i < TS_H; i += stride) { const v = at(c + i); dot += v * at(ref + i); en += v * v; }
+    return dot / Math.sqrt(en + 1e-9);
+  };
+  let prev = 0;
+  for (let k = 0; (k - 1) * TS_H <= m; k++) {
+    const s = (k - 1) * TS_H, q = Math.round(s / ratio);
+    let pos = q;
+    if (k > 0) {
+      const ref = prev + TS_H; let best = -Infinity, bc = q;
+      for (const d of TS_COARSE) { const sc = score(q + d, ref, 8); if (sc > best) { best = sc; bc = q + d; } }
+      best = -Infinity; pos = bc;
+      for (let d = -4; d <= 4; d++) { const c = bc + d; if (c < q - TS_D || c > q + TS_D) continue; const sc = score(c, ref, 2); if (sc > best) { best = sc; pos = c; } }
+    }
+    prev = pos;
+    for (let i = 0; i < TS_N; i++) out[OFF + s + i] += tsWin[i] * at(pos + i);
+  }
+  const y = new Float32Array(m); for (let i = 0; i < m; i++) y[i] = out[OFF + i];
+  return y;
+}
+
 /** Guardado rápido: recorte relativo al nivel, fundidos cortos y normalizado. */
 export const QUICK_DEFAULTS = { enabled: false, denoise: 'off', trim: true, fades: true, normalize: true, thresholdDB: -48 };
 export function quickProcess(x, rate, s = QUICK_DEFAULTS) {
