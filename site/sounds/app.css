@@ -155,3 +155,5 @@ dialog.sheet { margin: auto auto 0; width: min(100%, 600px); max-width: 100%; ma
 .pad.playing { background: rgba(232, 169, 74, .28); border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber); }
 @media (max-height: 560px) { .logo-box { width: 84px; height: 84px; } .wave-card { height: 120px; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+.pad .pad-chord { display: block; font-size: 11px; font-weight: 400; line-height: 1.1; opacity: .85; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -35,13 +35,19 @@ struct EditorBody: View {
     @EnvironmentObject var met: Metronome
     @State var sample: Sample
     @State private var audio: [Float] = []
+    @State private var savedAudio: [Float] = []           // lo último guardado: sirve para avisar de «no hay cambios»
+    @State private var confirmOverwrite = false
     @State private var peaks: [Float] = []
     @State private var peakDB: Float = 0
     @State private var undo: [[Float]] = []
     @State private var redo: [[Float]] = []
+    @State private var sustainPad = true
+    @State private var loopCross = 1.0
+    @State private var loopRefine = true
     @State private var start = 0.0
     @State private var end = 1.0
     @State private var fadeMs = 10.0
+    @State private var noiseAmount = NoiseReduction.defaultAmount
     @State private var player: AVAudioPlayer?
     @State private var playhead: Double?
     @State private var loop = false
@@ -85,6 +91,12 @@ struct EditorBody: View {
                 }.buttonStyle(OutlineButton()).font(Theme.font(13))
                 Button("Edición precisa (zoom)") { showPrecise = true }.buttonStyle(OutlineButton(selected: true))
                 Button("Chop en pads") { showChop = true }.buttonStyle(OutlineButton())
+                Button("Armonizar bordes (sin clics)") { apply { Harmonize.harmonize($0, rate: sample.sampleRate) } }.buttonStyle(OutlineButton()).font(Theme.font(13))
+                Text("Centra la onda y suaviza el inicio y el final a medida, para que un recorte no suene «cortado». Puedes deshacer.")
+                    .font(Theme.font(12)).foregroundColor(Theme.muted)
+                creativeTools
+                loopTools
+                noiseTools
                 SliderRow(title: "Fundido", valueText: "\(Int(fadeMs)) ms", value: $fadeMs, range: 0...200)
                 bpmCard
                 FolderPicker(
@@ -95,7 +107,13 @@ struct EditorBody: View {
                 HStack(spacing: 8) {
                     Button("Descartar") { confirmDelete = true }.buttonStyle(OutlineButton(danger: true))
                     Button("Grabar") { state.tab = .grabar }.buttonStyle(OutlineButton())
-                    Button("Guardar") { save() }.buttonStyle(AmberButton())
+                    Button("Guardar") { if audio == savedAudio { confirmOverwrite = true } else { save() } }.buttonStyle(AmberButton())
+                        .confirmationDialog("No hay cambios nuevos", isPresented: $confirmOverwrite, titleVisibility: .visible) {
+                            Button("Sobrescribir") { save(overwriting: true) }
+                            Button("Cancelar", role: .cancel) {}
+                        } message: {
+                            Text("«\(sample.name)» ya está guardada tal cual. Si sigues, se sobrescribe el mismo archivo.")
+                        }
                 }
                 if let m = message { Text(m).font(Theme.font(13)).foregroundColor(Theme.muted).frame(maxWidth: .infinity, alignment: .center) }
                 HStack(spacing: 10) {
@@ -107,7 +125,7 @@ struct EditorBody: View {
         }
         .onAppear {
             if let s = lib.samples.first(where: { $0.id == sample.id }) { sample = s }
-            if undo.isEmpty { audio = lib.audio(for: sample); refreshPeaks() }
+            if undo.isEmpty { audio = lib.audio(for: sample); savedAudio = audio; refreshPeaks() }
         }
         .onDisappear { player?.stop(); lib.update(sample) }
         .onReceive(tick) { _ in updatePlayhead() }
@@ -122,6 +140,104 @@ struct EditorBody: View {
         .confirmationDialog("¿Borrar esta grabación?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Borrar", role: .destructive) { player?.stop(); lib.delete(sample); state.selectedID = nil; state.tab = .biblioteca }
         }
+    }
+
+    private var selA: Int { Int(start * Double(audio.count)) }
+    private var selB: Int { Int(end * Double(audio.count)) }
+
+    private var creativeTools: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel("Creativo")
+            Button("Invertir") { apply { Creative.reverseRange($0, from: selA, to: selB) } }.buttonStyle(OutlineButton()).font(Theme.font(13))
+            Text("Da la vuelta a la selección (o a toda la toma): una cola que se apaga pasa a ser un crescendo que «chupa» hacia el golpe.")
+                .font(Theme.font(12)).foregroundColor(Theme.muted)
+            SectionLabel("Colchón sostenido")
+            HStack(spacing: 8) {
+                ForEach([4, 8, 16], id: \.self) { f in
+                    Button("Colchón ×\(f)") { makePad(f) }
+                }
+            }.buttonStyle(OutlineButton()).font(Theme.font(13))
+            ToggleRow(title: "Sostener el nivel", subtitle: "Sube las colas que se apagan para que el colchón no se desvanezca", isOn: $sustainPad)
+            Text("Estira la selección (o toda la toma) sin cambiar el tono y la difumina en un sonido continuo, ideal para notas de cuerda, pads y ambientes. Se queda sólo con lo estirado; puedes deshacer.")
+                .font(Theme.font(12)).foregroundColor(Theme.muted)
+        }
+    }
+
+    private var loopTools: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel("Loop continuo (sin pulso)")
+            HStack {
+                Text("Empalme").font(Theme.font(15, weight: .medium)).foregroundColor(Theme.text)
+                Spacer()
+                Text("cuánto se funden final y principio").font(Theme.font(12)).foregroundColor(Theme.muted)
+            }
+            HStack(spacing: 8) {
+                ForEach([0.5, 1.0, 2.0, 4.0], id: \.self) { c in
+                    Chip(title: String(format: "%g s", c).replacingOccurrences(of: ".", with: ","), selected: loopCross == c) { loopCross = c }
+                }
+            }
+            ToggleRow(title: "Afinar el final", subtitle: "Busca, hasta medio segundo cerca de tu marcador, el punto donde el sonido más se parece al del inicio", isOn: $loopRefine)
+            Button("Hacer loop continuo") { makeLoop() }.buttonStyle(OutlineButton()).font(Theme.font(13))
+            Text("Une el final con el principio para que el tramo se repita sin saltos, aunque no tenga ritmo: pads, cuerdas, ambientes. Se queda sólo con el loop; ya queda activado Repetir para oírlo. Puedes deshacer.")
+                .font(Theme.font(12)).foregroundColor(Theme.muted)
+        }
+    }
+
+    private func makeLoop() {
+        let a = selA, b = selB
+        guard b - a >= sample.sampleRate / 2 else { message = "Marca al menos 0,5 s (o no marques nada para usar toda la toma)"; return }
+        let rate = sample.sampleRate, cross = loopCross, refine = loopRefine
+        message = "Creando el loop…"
+        let before = undo.count
+        apply { Creative.loopSeamless($0, from: a, to: b, rate: rate, crossSec: cross, refine: refine) }
+        if undo.count > before { loop = true; message = "Loop de \(stamp(Double(audio.count) / self.rate)) · pulsa ▶ para oírlo en bucle" }
+    }
+
+    private func makePad(_ factor: Int) {
+        let a = selA, b = selB
+        guard b - a >= sample.sampleRate / 10 else { message = "Marca al menos 0,1 s (o no marques nada para usar toda la toma)"; return }
+        guard (b - a) * factor <= sample.sampleRate * 600 else { message = "Quedaría demasiado largo (más de 10 minutos): marca un tramo más corto"; return }
+        message = "Creando el colchón…"
+        let piece = Array(audio[a..<b]), rate = sample.sampleRate, sustain = sustainPad
+        Task {
+            let out = await Task.detached { Creative.padStretch(piece, factor: Double(factor), rate: rate, sustain: sustain) }.value
+            apply { _ in out }
+            message = "Colchón ×\(factor) · dura \(stamp(Double(audio.count) / self.rate))"
+        }
+    }
+
+    private var noiseTools: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel("Limpiar ruido")
+            HStack(spacing: 8) {
+                Button("Suave") { apply { NoiseReduction.clean($0, rate: sample.sampleRate, level: .soft) } }
+                Button("Fuerte") { apply { NoiseReduction.clean($0, rate: sample.sampleRate, level: .strong) } }
+            }.buttonStyle(OutlineButton()).font(Theme.font(13))
+            HStack(spacing: 8) {
+                Button("Quitar ruido de fondo") { denoiseAuto() }
+                Button("Con la selección") { denoiseSelection() }
+            }.buttonStyle(OutlineButton()).font(Theme.font(13))
+            SliderRow(title: "Intensidad", valueText: noiseAmount < 1.2 ? "Suave" : noiseAmount < 2.2 ? "Normal" : "Fuerte", value: $noiseAmount, range: 0.5...3)
+            Text("Suave y Fuerte cortan graves (respiración, soplidos) y apagan lo que suena bajito entre sonidos. «Quitar ruido de fondo» aprende el ruido de la parte más tranquila; «Con la selección» lo aprende de lo que marques. Puedes deshacer.")
+                .font(Theme.font(12)).foregroundColor(Theme.muted)
+        }
+    }
+
+    private func denoiseAuto() {
+        let w = NoiseReduction.quietestWindows(audio, rate: sample.sampleRate)
+        guard !w.isEmpty else {
+            message = "No hay una parte tranquila: marca una con los marcadores y usa «Con la selección»"; return
+        }
+        let noises = w.map { Array(audio[$0]) }, amount = noiseAmount
+        apply { NoiseReduction.denoise($0, noises: noises, amount: amount) }
+    }
+
+    private func denoiseSelection() {
+        let a = Int(start * Double(audio.count)), b = Int(end * Double(audio.count))
+        guard b - a >= sample.sampleRate / 10 else { message = "Marca una parte de solo ruido de al menos 0,1 s"; return }
+        let noise = Array(audio[a..<b])
+        let amount = noiseAmount
+        apply { NoiseReduction.denoise($0, noise: noise, amount: amount) }
     }
 
     private var bpmCard: some View {
@@ -219,6 +335,7 @@ struct EditorBody: View {
     private func apply(_ f: ([Float]) -> [Float]) {
         let out = f(audio)
         guard !out.isEmpty else { message = "La selección quedó vacía"; return }
+        guard out != audio else { message = "No hay nada que cambiar: la selección es muy corta para eso"; return }
         undo.append(audio); redo = []; audio = out; message = nil
         refreshPeaks()
     }
@@ -231,10 +348,11 @@ struct EditorBody: View {
         refreshPeaks()
     }
 
-    private func save() {
+    private func save(overwriting: Bool = false) {
         lib.replaceAudio(sample, with: audio)
         lib.update(sample)
-        message = "Guardado"
+        savedAudio = audio
+        message = overwriting ? "Se sobrescribió «\(sample.name)» (sin cambios)" : "Guardado: «\(sample.name)»"
     }
 
     private func togglePlay() {

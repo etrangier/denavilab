@@ -317,4 +317,220 @@ final class LogicTests: XCTestCase {
         XCTAssertTrue(Editing.previewAudio(x, ranges: ranges, selected: [], rate: 1_000).isEmpty)
         XCTAssertTrue(Editing.previewSegments(ranges, selected: [9], rate: 1_000).isEmpty)       // índice que ya no existe
     }
+
+    // MARK: limpieza de ruido
+
+    private func noisyTake(rate: Int = 48000, seconds: Int = 5) -> [Float] {
+        var seed: UInt32 = 3
+        func rnd() -> Float { seed = seed &* 1664525 &+ 1013904223; return Float(seed) / 4294967296 - 0.5 }
+        return (0..<(rate * seconds)).map { i in
+            let t = Double(i) / Double(rate)
+            let tone: Float = (t > 2 && t < 3) ? Float(0.4 * sin(2 * Double.pi * 880 * t)) : 0
+            return 0.04 * rnd() + Float(0.03 * sin(2 * Double.pi * 60 * t)) + tone
+        }
+    }
+
+    private func rmsDB(_ x: [Float], _ a: Double, _ b: Double, rate: Int = 48000) -> Float {
+        let lo = Int((a * Double(rate)).rounded()), hi = Int((b * Double(rate)).rounded())
+        var e: Float = 0
+        for i in lo..<hi { e += x[i] * x[i] }
+        return 20 * log10((e / Float(hi - lo)).squareRoot())
+    }
+
+    func testNoiseGateAndHighpass() {
+        let x = noisyTake()
+        let soft = NoiseReduction.clean(x, rate: 48000, level: .soft), strong = NoiseReduction.clean(x, rate: 48000, level: .strong)
+        XCTAssertLessThan(rmsDB(soft, 3.5, 4.5), rmsDB(x, 3.5, 4.5) - 6)
+        XCTAssertLessThan(rmsDB(strong, 3.5, 4.5), rmsDB(soft, 3.5, 4.5))
+        XCTAssertEqual(rmsDB(strong, 2.2, 2.8), rmsDB(x, 2.2, 2.8), accuracy: 1)      // el sonido real queda igual
+        XCTAssertEqual(NoiseReduction.clean(x, rate: 48000, level: .off), x)
+        XCTAssertEqual(NoiseReduction.clean(x, rate: 48000, level: .strong).count, x.count)
+    }
+
+    func testSpectralDenoise() {
+        var seed: UInt32 = 7
+        func rnd() -> Float { seed = seed &* 1664525 &+ 1013904223; return Float(seed) / 4294967296 - 0.5 }
+        let x: [Float] = (0..<240000).map { i in
+            let t = Double(i) / 48000
+            return 0.05 * rnd() + ((t > 2 && t < 3) ? Float(0.4 * sin(2 * Double.pi * 880 * t)) : 0)
+        }
+        guard let w = NoiseReduction.quietestWindow(x, rate: 48000) else { return XCTFail("debería haber una parte tranquila") }
+        let y = NoiseReduction.denoise(x, noise: Array(x[w]))
+        XCTAssertEqual(y.count, x.count)
+        XCTAssertLessThan(rmsDB(y, 3.5, 4.5), rmsDB(x, 3.5, 4.5) - 8)
+        XCTAssertEqual(rmsDB(y, 2.2, 2.8), rmsDB(x, 2.2, 2.8), accuracy: 1)
+        // una señal pareja no tiene parte tranquila, y con ruido nulo la resta no cambia nada
+        let flat: [Float] = (0..<144000).map { 0.3 * Float(sin(Double($0) * 0.1)) }
+        XCTAssertNil(NoiseReduction.quietestWindow(flat, rate: 48000))
+        let same = NoiseReduction.denoise(flat, noise: [Float](repeating: 0, count: 48000))
+        XCTAssertEqual(zip(same, flat).map { abs($0 - $1) }.max() ?? 1, 0, accuracy: 1e-5)
+    }
+
+    func testQuickSaveDenoiseTrimsNoise() {
+        let x = noisyTake()
+        var s = QuickSave.Settings(); s.normalize = false; s.fades = false
+        let plain = QuickSave.process(x, rate: 48000, s)
+        s.denoise = .strong
+        let clean = QuickSave.process(x, rate: 48000, s)
+        XCTAssertLessThan(clean.count, plain.count / 2)
+        XCTAssertGreaterThan(clean.count, 43200)
+    }
+
+    // MARK: armonizar y unir
+
+    private func hit(_ amp: Float, rate: Int = 48000) -> [Float] {
+        (0..<(rate / 4)).map { amp * Float(sin(Double($0) * 0.2) * exp(-Double($0) / 4000)) }
+    }
+
+    func testHarmonizeCentersAndSoftensEdges() {
+        let rate = 48000
+        let a: [Float] = (0..<(rate / 2)).map { 0.5 * Float(sin(2 * Double.pi * 300 * Double($0) / Double(rate))) + 0.1 }
+        let h = Harmonize.harmonize(a, rate: rate)
+        XCTAssertEqual(h.count, a.count)
+        XCTAssertLessThan(abs(h[0]), 1e-3)
+        XCTAssertLessThan(abs(h[h.count - 1]), 1e-3)
+        XCTAssertLessThan(abs(h.reduce(0, +) / Float(h.count)), 1e-3)
+        XCTAssertGreaterThan(Double(Harmonize.endFadeSamples(Harmonize.removeDC(a), rate: rate)) / Double(rate) * 1000, 20)   // cortada en pleno sonido
+        let tail: [Float] = (0..<(rate / 2)).map { 0.5 * Float(sin(Double($0) * 0.04) * exp(-Double($0) / 3000)) }
+        XCTAssertLessThan(Double(Harmonize.endFadeSamples(tail, rate: rate)) / Double(rate) * 1000, 5)                     // ya acaba suave
+    }
+
+    func testJoinMatchesLevelAndHasNoJumps() {
+        let rate = 48000
+        let soft: [Float] = (0..<(rate / 4)).map { 0.3 * Float(sin(Double($0) * 0.05)) * min(1, Float($0) / 3000) }
+        let j = Harmonize.join([hit(0.8), hit(0.2), soft], rate: rate)
+        XCTAssertGreaterThan(j.count, 36000 - 1500); XCTAssertLessThanOrEqual(j.count, 36000)
+        XCTAssertLessThan(j.map(abs).max() ?? 1, 0.99)
+        var jump: Float = 0
+        for i in 1..<j.count { jump = max(jump, abs(j[i] - j[i - 1])) }
+        XCTAssertLessThan(jump, 0.2)
+        XCTAssertEqual(Harmonize.join([hit(0.8), hit(0.2)], rate: rate, match: false).count, 24000)
+        XCTAssertGreaterThan(j[12000..<12400].map(abs).max() ?? 0, 0.1)                       // el golpe que entra conserva su ataque
+        XCTAssertTrue(Harmonize.join([], rate: rate).isEmpty)
+        XCTAssertEqual(Harmonize.join([hit(0.5)], rate: rate).count, 12000)
+        XCTAssertGreaterThan(20 * log10(Harmonize.activeRMS(hit(0.8), rate: rate)) - 20 * log10(Harmonize.activeRMS(hit(0.2), rate: rate)), 10)
+    }
+
+    // MARK: acordes, compases y loop
+
+    /// Am F C G en 4/4 a 100 BPM, 10 compases, con 0,37 s de silencio previo y un bombo en cada tiempo (más fuerte en el 1).
+    private func progression() -> (x: [Float], rate: Int) {
+        let rate = 48000, T = Double(rate) * 60 / 100, bars = 10, off = Int(Double(rate) * 0.37)
+        let n = Int(T * 4 * Double(bars)) + off
+        let chords: [[Double]] = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]]       // Am F C G
+        var x = [Float](repeating: 0, count: n)
+        for b in 0..<bars {
+            for i in 0..<Int(4 * T) {
+                let t = off + b * Int(4 * T) + i
+                if t >= n { break }
+                var s = 0.0
+                for m in chords[b % 4] {
+                    let w = 2 * Double.pi * 440 * pow(2, (m - 69) / 12) * Double(i) / Double(rate)
+                    s += 0.12 * sin(w) + 0.05 * sin(2 * w)
+                }
+                x[t] += Float(s)
+            }
+        }
+        for j in 0..<(bars * 4) {
+            let t0 = Int((Double(off) + Double(j) * T).rounded())
+            for i in 0..<3000 where t0 + i < n {
+                x[t0 + i] += Float((j % 4 == 0 ? 0.9 : 0.5) * sin(2 * Double.pi * 60 * Double(i) / Double(rate)) * exp(-Double(i) / 600))
+            }
+        }
+        return (x, rate)
+    }
+
+    func testChordMatching() {
+        XCTAssertEqual(Harmony.matchChord([1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0])?.name, "C")
+        XCTAssertEqual(Harmony.matchChord([1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0])?.name, "Cm")
+        XCTAssertNil(Harmony.matchChord([Double](repeating: 0, count: 12)))
+    }
+
+    func testBarsChordsAndLoop() throws {
+        let (x, rate) = progression()
+        let a = try XCTUnwrap(Harmony.analyze(x, rate: rate, bpm: 100))
+        XCTAssertEqual(a.bpm, 100, accuracy: 0.5)
+        XCTAssertEqual(a.first / Double(rate), 0.37, accuracy: 0.02)
+        XCTAssertEqual(a.downbeat, 0)
+        XCTAssertEqual(a.bars.count, 10)
+        XCTAssertEqual(a.bars.prefix(8).map(\.label), ["Am", "F", "C", "G", "Am", "F", "C", "G"])
+        let lp = try XCTUnwrap(a.loop)
+        XCTAssertEqual(lp.bars, 4)
+        XCTAssertEqual(Set(lp.chords), Set(["Am", "F", "C", "G"]))
+        XCTAssertEqual(Harmony.makeLoop(x, start: lp.start, end: lp.end, rate: rate).count, lp.end - lp.start)
+        // mover el 1 un tiempo cambia los compases
+        XCTAssertNotEqual(Harmony.layout(a, downbeat: a.downbeat + 1).bars.prefix(3).map(\.label), Array(a.bars.prefix(3).map(\.label)))
+        // sin pulso claro (un tono fijo) o con una toma muy corta, no hay análisis
+        let flat: [Float] = (0..<(rate * 6)).map { 0.3 * Float(sin(Double($0) * 0.05)) }
+        XCTAssertNil(Harmony.analyze(flat, rate: rate))
+        XCTAssertNil(Harmony.analyze(Array(x.prefix(rate * 2)), rate: rate, bpm: 100))
+    }
+
+    // MARK: invertir
+
+    func testReverse() {
+        XCTAssertEqual(Creative.reverseRange([1, 2, 3, 4, 5], from: 1, to: 4), [1, 4, 3, 2, 5])
+        XCTAssertEqual(Creative.reverseRange(Creative.reverseRange([1, 2, 3, 4, 5])), [1, 2, 3, 4, 5])
+        XCTAssertEqual(Creative.reverseRange([1, 2, 3], from: -5, to: 99), [3, 2, 1])
+        XCTAssertTrue(Creative.reverseRange([]).isEmpty)
+    }
+
+    // MARK: colchón sostenido
+
+    func testPadStretchKeepsPitchAndLevel() {
+        let rate = 48000, n = rate * 2
+        let x: [Float] = (0..<n).map { i in
+            let t = Double(i) / Double(rate)
+            return Float(0.4 * (sin(2 * Double.pi * 440 * t) + 0.4 * sin(2 * Double.pi * 880 * t)) * exp(-t * 2.5) * min(1, t * 50))
+        }
+        func rms(_ y: [Float], _ a: Int, _ b: Int) -> Double {
+            var e = 0.0
+            for i in a..<b { e += Double(y[i]) * Double(y[i]) }
+            return (e / Double(b - a)).squareRoot()
+        }
+        let y = Creative.padStretch(x, factor: 8, rate: rate, sustain: true), flat = Creative.padStretch(x, factor: 8, rate: rate, sustain: false)
+        XCTAssertEqual(y.count, n * 8)
+        XCTAssertEqual(rms(y, 0, y.count) / rms(x, 0, n), 1, accuracy: 0.15)
+        XCTAssertLessThan(y.map(abs).max() ?? 1, 0.99)
+        XCTAssertEqual(Creative.padStretch(x, factor: 8, rate: rate, sustain: true), y)                  // determinista
+        // el tono dominante sigue en ~440 Hz
+        let N = 16384, st = y.count / 2
+        var re = (0..<N).map { Double(y[st + $0]) * (0.5 - 0.5 * cos(2 * Double.pi * Double($0) / Double(N))) }, im = [Double](repeating: 0, count: N)
+        NoiseReduction.fft(&re, &im, inverse: false)
+        var bi = 1, bm = 0.0
+        for k in 1..<(N / 2) { let m = (re[k] * re[k] + im[k] * im[k]).squareRoot(); if m > bm { bm = m; bi = k } }
+        XCTAssertEqual(Double(bi) * Double(rate) / Double(N), 440, accuracy: 6)
+        // «Sostener» deja el colchón más parejo: la caída entre el primer y el último cuarto es mucho menor
+        func drop(_ v: [Float]) -> Double { rms(v, 0, v.count / 4) / rms(v, v.count * 3 / 4, v.count) }
+        XCTAssertLessThan(drop(y), drop(flat) / 3)
+        XCTAssertEqual(Creative.padStretch([Float](repeating: 0, count: 10), factor: 8, rate: rate).count, 10)
+        XCTAssertEqual(Creative.padStretch(x, factor: 1, rate: rate), x)
+    }
+
+    // MARK: loop continuo sin pulso
+
+    func testSeamlessLoop() {
+        let rate = 48000, n = rate * 8
+        let x: [Float] = (0..<n).map { i in
+            let t = Double(i) / Double(rate)
+            let s = sin(2 * Double.pi * 220 * t + 0.8 * sin(2 * Double.pi * 0.3 * t)) + 0.7 * sin(2 * Double.pi * 277.2 * t + 0.5 * sin(2 * Double.pi * 0.17 * t)) + 0.5 * sin(2 * Double.pi * 329.6 * t)
+            return Float(0.25 * s * (0.8 + 0.2 * sin(2 * Double.pi * 0.23 * t)))
+        }
+        let a = rate, b = Int(Double(rate) * 6.3)
+        let crudo = Array(x[a..<b]), afinado = Creative.loopSeamless(x, from: a, to: b, rate: rate, crossSec: 1, refine: true)
+        let sinAfinar = Creative.loopSeamless(x, from: a, to: b, rate: rate, crossSec: 1, refine: false)
+        XCTAssertGreaterThan(Creative.seamJump(crudo), 10)
+        XCTAssertLessThan(Creative.seamJump(afinado), 2.5)
+        XCTAssertLessThan(Creative.seamJump(sinAfinar), 6)
+        XCTAssertEqual(sinAfinar.count, b - a - rate)
+        XCTAssertGreaterThan(afinado.count, rate * 2)
+        XCTAssertLessThan(afinado.map(abs).max() ?? 9, 1)
+        // un seno estacionario conserva su nivel en el empalme (el afinado alinea las fases)
+        let seno: [Float] = (0..<n).map { 0.4 * Float(sin(2 * Double.pi * 220.37 * Double($0) / Double(rate))) }
+        let l = Creative.loopSeamless(seno, from: a, to: b, rate: rate, crossSec: 1, refine: true)
+        func rms(_ v: ArraySlice<Float>) -> Double { (v.reduce(0.0) { $0 + Double($1) * Double($1) } / Double(v.count)).squareRoot() }
+        XCTAssertEqual(rms(l[0..<rate]) / rms(l[rate...]), 1, accuracy: 0.07)
+        // tramo muy corto o fuera de rango: no hace nada
+        XCTAssertEqual(Creative.loopSeamless(x, from: 0, to: 1000, rate: rate), x)
+    }
 }

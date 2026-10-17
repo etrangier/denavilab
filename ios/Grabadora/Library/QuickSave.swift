@@ -9,17 +9,19 @@ enum QuickSave {
         var normalize = true
         var suggest = true
         var thresholdDB = -48.0
+        var denoise = NoiseReduction.Level.off
 
         static func load(_ d: UserDefaults = .standard) -> Settings {
             func flag(_ k: String, _ def: Bool) -> Bool { d.object(forKey: k) == nil ? def : d.bool(forKey: k) }
             return Settings(enabled: flag("qsEnabled", false), trim: flag("qsTrim", true), fades: flag("qsFades", true),
                             normalize: flag("qsNormalize", true), suggest: flag("qsSuggest", true),
-                            thresholdDB: d.object(forKey: "qsThreshold") == nil ? -48 : d.double(forKey: "qsThreshold"))
+                            thresholdDB: d.object(forKey: "qsThreshold") == nil ? -48 : d.double(forKey: "qsThreshold"),
+                            denoise: NoiseReduction.Level(rawValue: d.string(forKey: "qsDenoise") ?? "off") ?? .off)
         }
     }
 
     static func process(_ x: [Float], rate: Int, _ s: Settings) -> [Float] {
-        var y = x
+        var y = NoiseReduction.clean(x, rate: rate, level: s.denoise)
         if s.trim {
             // El umbral nunca queda por encima de 30 dB bajo el pico de la propia toma: una grabación baja
             // (p. ej. un ambiente de exterior) no debe quedar casi vacía por un umbral absoluto.

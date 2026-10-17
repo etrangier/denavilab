@@ -90,8 +90,10 @@ struct LibraryView: View {
     }
 
     private func row(_ s: Sample) -> some View {
-        Button { state.open(s) } label: { SampleRow(sample: s) }
-            .buttonStyle(.plain)
+        HStack(spacing: 8) {
+            Button { Auditioner.shared.stop(); state.open(s) } label: { SampleRow(sample: s) }.buttonStyle(.plain)
+            ListenButton(sample: s)
+        }
             .contextMenu { Button(role: .destructive) { toDelete = s } label: { Label("Borrar", systemImage: "trash") } }
     }
 }
@@ -173,6 +175,7 @@ struct FolderView: View {
         }
         .safeAreaInset(edge: .bottom) { if selecting { actionBar } }
         .onAppear { if folder == Self.selectKey && !started { started = true; selecting = true } }
+        .onDisappear { Auditioner.shared.stop() }
         .alert(selected.count > 1 ? "Cambiar nombre de \(selected.count) grabaciones" : "Cambiar nombre", isPresented: $showRename) {
             TextField("Nombre", text: $newName)
             Button("Guardar") { lib.rename(ids: selected, to: newName); finish() }
@@ -193,19 +196,22 @@ struct FolderView: View {
     }
 
     private func row(_ s: Sample) -> some View {
-        Button {
-            if selecting { toggle(s.id) } else { state.open(s) }
-        } label: {
-            HStack(spacing: 12) {
-                if selecting {
-                    Image(systemName: selected.contains(s.id) ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 24)).foregroundColor(selected.contains(s.id) ? Theme.amber : Theme.muted)
-                        .accessibilityLabel(selected.contains(s.id) ? "Seleccionada" : "No seleccionada")
+        HStack(spacing: 8) {
+            Button {
+                if selecting { toggle(s.id) } else { Auditioner.shared.stop(); state.open(s) }
+            } label: {
+                HStack(spacing: 12) {
+                    if selecting {
+                        Image(systemName: selected.contains(s.id) ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 24)).foregroundColor(selected.contains(s.id) ? Theme.amber : Theme.muted)
+                            .accessibilityLabel(selected.contains(s.id) ? "Seleccionada" : "No seleccionada")
+                    }
+                    SampleRow(sample: s)
                 }
-                SampleRow(sample: s)
             }
+            .buttonStyle(.plain)
+            if !selecting { ListenButton(sample: s) }
         }
-        .buttonStyle(.plain)
         .listRowBackground(Color.clear).listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
