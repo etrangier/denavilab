@@ -463,6 +463,33 @@ test.describe('invertir, tartamudeo y tempo exacto', () => {
     expect(errores).toEqual([]);
   });
 
+  test('el BPM de destino no se arrastra de una grabación a otra', async ({ page }) => {
+    await abrir(page, 'schair');
+    await page.evaluate(async () => {
+      const st = await import('/sounds/store.js'), a = new Float32Array(96000).map((_, i) => 0.3 * Math.sin(i * 0.05));
+      await st.putSample(st.newSample('Lenta', a, 48000, { bpm: 80, created: Date.now() }), a);
+      await st.putSample(st.newSample('Rápida', a, 48000, { bpm: 140, created: Date.now() + 1000 }), a);
+    });
+    await page.reload();
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Lenta' }).click();
+    await expect(page.getByLabel('BPM de destino')).toHaveValue('80');
+    await page.getByLabel('BPM de destino').fill('95');
+    await tab(page, 'biblioteca'); await page.locator('.row-btn', { hasText: 'Rápida' }).click();
+    await expect(page.getByLabel('BPM de destino')).toHaveValue('140');
+  });
+
+  test('Repetir no deja crecer la toma más de 10 minutos', async ({ page }) => {
+    await abrir(page, 'schair');
+    await page.evaluate(async () => { const st = await import('/sounds/store.js'), a = new Float32Array(48000 * 120).map((_, i) => 0.3 * Math.sin(i * 0.05)); await st.putSample(st.newSample('Larga', a, 48000), a); });
+    await page.reload();
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Larga' }).click();
+    await page.getByRole('button', { name: 'Repetir ×8', exact: true }).click();
+    await expect(page.locator('#toast')).toContainText('demasiado largo');
+    await expect(page.locator('#screen')).toContainText('Dura 02:00');
+  });
+
   test('sin BPM, el tartamudeo rítmico y el ajuste de tempo no están disponibles', async ({ page }) => {
     await abrir(page, 'schair'); await sembrar(page, ['Sin pulso']);
     await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();

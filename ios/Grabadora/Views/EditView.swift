@@ -153,7 +153,7 @@ struct EditorBody: View {
             SectionLabel("Tartamudeo")
             HStack(spacing: 8) {
                 ForEach([2, 4, 8], id: \.self) { n in
-                    Button("Repetir ×\(n)") { apply { Creative.repeatRegion($0, from: selA, to: selB, times: n, rate: sample.sampleRate) } }
+                    Button("Repetir ×\(n)") { repeatSelection(n) }
                 }
             }.buttonStyle(OutlineButton()).font(Theme.font(13))
             HStack(spacing: 8) {
@@ -165,6 +165,13 @@ struct EditorBody: View {
                                    : "Repetir pega la selección tantas veces seguidas. Rítmico rellena la selección repitiendo su primer trozo (1/16 de compás a tu tempo): la duración no cambia.")
                 .font(Theme.font(12)).foregroundColor(Theme.muted)
         }
+    }
+
+    private func repeatSelection(_ n: Int) {
+        if audio.count + (n - 1) * max(0, selB - selA) > sample.sampleRate * 600 {
+            message = "Quedaría demasiado largo (más de 10 minutos): marca un tramo más corto"; return
+        }
+        apply { Creative.repeatRegion($0, from: selA, to: selB, times: n, rate: sample.sampleRate) }
     }
 
     private func stutter(_ division: Int) {
@@ -180,6 +187,7 @@ struct EditorBody: View {
         let ratio = cur / target
         guard abs(ratio - 1) >= 0.002 else { message = "Ya está a ese tempo"; return }
         guard ratio >= 0.5, ratio <= 2 else { message = "Demasiado lejos: el cambio máximo es el doble o la mitad del tempo"; return }
+        guard Double(audio.count) * ratio <= Double(sample.sampleRate) * 600 else { message = "Quedaría demasiado largo (más de 10 minutos)"; return }
         message = "Ajustando el tempo…"
         apply({ Creative.timeStretch($0, ratio: ratio) }, newBPM: target)
         if undo.last != nil, sample.bpm == target { message = "Ajustado a \(Int(target.rounded())) BPM · dura \(stamp(Double(audio.count) / rate))" }

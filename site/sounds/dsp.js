@@ -366,6 +366,7 @@ const rep = (x, a, b, rate) => cosFade(x.slice(a, b), Math.round(rate * 0.0015),
 
 /** Repite el tramo [a, b) `times` veces seguidas (el audio crece). */
 export function repeatRegion(x, a, b, times, rate) {
+  if (!Number.isFinite(a) || !Number.isFinite(b) || !Number.isFinite(times)) return x;
   a = Math.max(0, Math.min(a, x.length)); b = Math.max(a, Math.min(b, x.length)); times = Math.max(1, Math.round(times));
   if (b - a < 16 || times < 2) return x;
   const piece = rep(x, a, b, rate), out = new Float32Array(x.length + (times - 1) * (b - a));
@@ -375,6 +376,7 @@ export function repeatRegion(x, a, b, times, rate) {
 
 /** Tartamudeo rítmico: rellena [a, b) repitiendo su primer trozo de `sliceLen` muestras (la duración no cambia). */
 export function stutterFill(x, a, b, sliceLen, rate) {
+  if (!Number.isFinite(a) || !Number.isFinite(b) || !Number.isFinite(sliceLen)) return x;
   a = Math.max(0, Math.min(a, x.length)); b = Math.max(a, Math.min(b, x.length)); sliceLen = Math.round(sliceLen);
   if (b - a < 32 || sliceLen < 16 || sliceLen >= b - a) return x;
   const piece = rep(x, a, a + sliceLen, rate), out = Float32Array.from(x);
@@ -399,7 +401,7 @@ const TS_COARSE = (() => { const o = [0]; for (let d = 4; d <= TS_D; d += 4) o.p
  */
 export function timeStretch(x, ratio) {
   const n = x.length;
-  if (n < TS_N * 2 || !(ratio > 0) || Math.abs(ratio - 1) < 1e-4) return Float32Array.from(x);
+  if (n < TS_N * 2 || !(ratio > 0) || !Number.isFinite(ratio) || Math.abs(ratio - 1) < 1e-4) return Float32Array.from(x);
   const m = Math.round(n * ratio), OFF = TS_H, out = new Float64Array(m + 4 * TS_H), at = j => (j >= 0 && j < n ? x[j] : 0);
   const score = (c, ref, stride) => {
     let dot = 0, en = 0;

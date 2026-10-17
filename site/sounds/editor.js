@@ -49,7 +49,7 @@ export function renderEdit(root) {
     return;
   }
   if (ed.id !== s.id) {
-    stopPlay(); Object.assign(ed, { id: s.id, audio: null, peaks: [], undo: [], redo: [], bu: [], br: [], start: 0, end: 1 });
+    stopPlay(); Object.assign(ed, { id: s.id, audio: null, peaks: [], undo: [], redo: [], bu: [], br: [], tgt: null, start: 0, end: 1 });
     getAudio(s.id).then(a => { if (ed.id === s.id) { setAudio(a); ed.saved = a; if (app.tab === 'editar') app.render(); } });
   }
   if (!ed.audio) { mount(root, title('Escuchar y editar'), muted('Cargando…')); return; }
@@ -104,6 +104,7 @@ export function renderEdit(root) {
         const ratio = s.bpm / target;
         if (Math.abs(ratio - 1) < 0.002) return toast('Ya está a ese tempo');
         if (ratio < 0.5 || ratio > 2) return toast('Demasiado lejos: el cambio máximo es el doble o la mitad del tempo');
+        if (ed.audio.length * ratio > s.rate * 600) return toast('Quedaría demasiado largo (más de 10 minutos)');
         apply(x => dsp.timeStretch(x, ratio), target).then(() => toast(`Ajustado a ${Math.round(target * 10) / 10} BPM · dura ${dsp.stamp(ed.audio.length / s.rate)}`));
       } })) : null,
     s.bpm ? muted('Estira o encoge la toma hasta ese BPM. Queda mejor entre ~75 % y ~135 % del tempo original; al pasarse, usa el doble o la mitad.', 'tiny') : null]);
@@ -129,7 +130,7 @@ export function renderEdit(root) {
     btn('Invertir', { small: true, onclick: () => { const [a, b] = sel(); apply(x => dsp.reverseRange(x, a, b)); } }),
     muted('Da la vuelta a la selección (o a toda la toma): una cola que se apaga pasa a ser un crescendo que «chupa» hacia el golpe.', 'tiny'),
     label('Tartamudeo'),
-    h('div', { class: 'row3' }, [2, 4, 8].map(n => btn('Repetir ×' + n, { small: true, onclick: () => { const [a, b] = sel(); apply(x => dsp.repeatRegion(x, a, b, n, s.rate)); } }))),
+    h('div', { class: 'row3' }, [2, 4, 8].map(n => btn('Repetir ×' + n, { small: true, onclick: () => { const [a, b] = sel(); if (ed.audio.length + (n - 1) * (b - a) > s.rate * 600) return toast('Quedaría demasiado largo (más de 10 minutos): marca un tramo más corto'); apply(x => dsp.repeatRegion(x, a, b, n, s.rate)); } }))),
     h('div', { class: 'row3' }, [8, 16, 32].map(d => btn('Rítmico 1/' + d, { small: true, disabled: !s.bpm, onclick: () => { const [a, b] = sel(); apply(x => dsp.stutterFill(x, a, b, dsp.noteSamples(s.bpm, d, s.rate), s.rate)); } }))),
     muted(s.bpm ? 'Repetir pega la selección tantas veces seguidas. Rítmico rellena la selección repitiendo su primer trozo (1/16 de compás a tu tempo): la duración no cambia.' : 'Repetir pega la selección tantas veces seguidas. Rítmico necesita el tempo: usa «Detectar BPM» más abajo.', 'tiny'),
     label('Limpiar ruido'),
