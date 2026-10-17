@@ -29,3 +29,22 @@ export function go(tab, id) {
 export const openSample = (s, tab = 'editar') => go(tab, s.id);
 
 export const VERSION = '0.1.0';
+
+// ---------- Instalar como app (acceso directo en la pantalla de inicio del celular) ----------
+export const inst = { evt: null, done: false };      // `evt`: aviso de instalación que ofrece Chrome en Android
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); inst.evt = e; app.render(); });
+window.addEventListener('appinstalled', () => { inst.evt = null; inst.done = true; app.render(); });
+/** ¿Ya se abrió como app instalada (sin barra del navegador)? */
+export const isStandalone = () => { try { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch (e) { return false; } };
+/** Plataforma para mostrar los pasos correctos: 'ios', 'android' u 'otra'. */
+export const platform = () => {
+  const ua = navigator.userAgent || '';
+  if (/iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1)) return 'ios';
+  return /Android/i.test(ua) ? 'android' : 'otra';
+};
+/** Lanza la instalación si el navegador la ofrece; devuelve 'accepted' | 'dismissed' | null (sin aviso: hay que mostrar los pasos a mano). */
+export async function installApp() {
+  const e = inst.evt; if (!e) return null;
+  inst.evt = null;
+  try { e.prompt(); const r = await e.userChoice; return r && r.outcome || 'dismissed'; } catch (err) { return null; }
+}
