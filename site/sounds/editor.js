@@ -5,7 +5,7 @@ import * as dsp from './dsp.js';
 import { putSample, getAudio, deleteSamples } from './store.js';
 import { openChop } from './chop.js';
 
-const ed = { id: null, audio: null, saved: null, peaks: [], undo: [], redo: [], start: 0, end: 1, fadeMs: 10, loop: false, noiseAmt: dsp.DENOISE_AMOUNT, sustain: true, cross: 1, refine: true };
+const ed = { id: null, audio: null, saved: null, labels: [], rlabels: [], peaks: [], undo: [], redo: [], start: 0, end: 1, fadeMs: 10, loop: false, noiseAmt: dsp.DENOISE_AMOUNT, sustain: true, cross: 1, refine: true };
 let playCtx = null, src = null, t0 = 0, dur = 0;
 
 const stopPlay = () => { if (src) { try { src.onended = null; src.stop(); } catch (e) {} src = null; } };
@@ -25,22 +25,34 @@ function play() {
 
 function setAudio(a) { ed.audio = a; ed.peaks = dsp.peaks(a, 56); }
 /** Aplica un cambio al audio (deshacible). Con `key`, el botón correspondiente se ilumina al terminar; devuelve si se aplicó. */
-function apply(fn, key) {
+function apply(fn, key, label = 'Cambio') {
   const fail = msg => { fx.busy = null; if (key) app.render(); toast(msg); return false; };
   const out = fn(ed.audio);
   if (!out.length) return fail('La selección quedó vacía');
   if (out === ed.audio) return fail('No hay nada que cambiar: la selección es muy corta para eso');
   fx.busy = null; if (key) flash(key);
-  stopPlay(); ed.undo.push(ed.audio); ed.redo = []; setAudio(out); ed.start = 0; ed.end = 1; app.render();
+  stopPlay(); ed.undo.push(ed.audio); ed.labels.push(label); ed.redo = []; ed.rlabels = []; setAudio(out); ed.start = 0; ed.end = 1; app.render();
   return true;
 }
+const LABELS = { recortar: 'Recortar', normalizar: 'Normalizar', fundido: 'Fundido', armonizar: 'Armonizar bordes', invertir: 'Invertir', colchon4: 'Colchón ×4', colchon8: 'Colchón ×8', colchon16: 'Colchón ×16',
+  loop: 'Loop continuo', 'ruido-suave': 'Ruido (suave)', 'ruido-fuerte': 'Ruido (fuerte)', 'ruido-fondo': 'Quitar ruido de fondo', 'ruido-sel': 'Ruido de la selección' };
 /** Acción con respuesta visible: si es lenta, el botón pulsa en amarillo mientras trabaja; al terminar destella y avisa «Listo». */
 function run(key, fn, { slow = false, done = null } = {}) {
-  const go = () => { if (apply(fn, key) && done) toast(typeof done === 'function' ? done() : done); };
+  const go = () => { if (apply(fn, key, LABELS[key] || key) && done) toast(typeof done === 'function' ? done() : done); };
   if (!slow) return go();
   fx.busy = key; app.render(); setTimeout(go, 90);
 }
-function step(from, to) { const x = from.pop(); if (!x) return; to.push(ed.audio); stopPlay(); setAudio(x); ed.start = 0; ed.end = 1; app.render(); }
+function stepRaw(from, to, lfrom, lto) {
+  const x = from.pop(); if (!x) return false;
+  to.push(ed.audio); lto.push(lfrom.pop() || 'Cambio'); stopPlay(); setAudio(x); ed.start = 0; ed.end = 1; return true;
+}
+function step(from, to, lfrom, lto) { if (stepRaw(from, to, lfrom, lto)) app.render(); }
+/** Vuelve a cómo estaba la toma al abrirla (Rehacer permite volver a todo lo hecho). */
+function toOriginal() {
+  if (!ed.undo.length) return;
+  while (stepRaw(ed.undo, ed.redo, ed.labels, ed.rlabels));
+  flash('original'); toast('Volviste al original: la toma como estaba al abrirla'); app.render();
+}
 
 export function renderEdit(root) {
   const s = sampleById(app.selectedId);
@@ -50,7 +62,7 @@ export function renderEdit(root) {
     return;
   }
   if (ed.id !== s.id) {
-    stopPlay(); Object.assign(ed, { id: s.id, audio: null, peaks: [], undo: [], redo: [], start: 0, end: 1 });
+    stopPlay(); Object.assign(ed, { id: s.id, audio: null, peaks: [], undo: [], redo: [], labels: [], rlabels: [], start: 0, end: 1 });
     getAudio(s.id).then(a => { if (ed.id === s.id) { setAudio(a); ed.saved = a; if (app.tab === 'editar') app.render(); } });
   }
   if (!ed.audio) { mount(root, title('Escuchar y editar'), muted('Cargando…')); return; }
@@ -100,6 +112,12 @@ export function renderEdit(root) {
 
   mount(root, 
     title('Escuchar y editar'),
+    h('div', { class: 'undo-bar', role: 'group', 'aria-label': 'Historial de cambios' },
+      h('div', { class: 'row3' },
+        btn('↶ Deshacer', { small: true, act: 'deshacer', disabled: !ed.undo.length, aria: 'Deshacer el último cambio', onclick: () => step(ed.undo, ed.redo, ed.labels, ed.rlabels) }),
+        btn('↷ Rehacer', { small: true, disabled: !ed.redo.length, aria: 'Rehacer', onclick: () => step(ed.redo, ed.undo, ed.rlabels, ed.labels) }),
+        btn('⟲ Original', { small: true, act: 'original', disabled: !ed.undo.length, aria: 'Volver al original', onclick: toOriginal })),
+      h('p', { class: 'muted tiny undo-note' }, ed.undo.length ? `Último cambio: ${ed.labels[ed.labels.length - 1]} · ${ed.undo.length} desde que abriste la toma` : 'Sin cambios todavía: aquí podrás deshacer o volver al original')),
     h('div', { class: 'stack tight' }, nameInput, h('p', { class: 'muted small' }, `${dsp.stamp(total)} · mono · ${s.rate} Hz · pico ${Math.round(pk)} dB`),
       pk < -30 ? h('p', { class: 'amber small' }, 'Nivel muy bajo: usa Normalizar para oírla bien.') : null),
     wrap, times,
@@ -154,7 +172,6 @@ export function renderEdit(root) {
     sliderRow('Intensidad', { min: 0.5, max: 3, step: 0.1, value: ed.noiseAmt, fmt: v => v < 1.2 ? 'Suave' : v < 2.2 ? 'Normal' : 'Fuerte', onInput: v => { ed.noiseAmt = v; } }),
     muted('Suave y Fuerte cortan graves (respiración, soplidos) y apagan lo que suena bajito entre sonidos. «Quitar ruido de fondo» aprende el ruido de la parte más tranquila; «Con la selección» lo aprende de lo que marques. Puedes deshacer.', 'tiny'),
     sliderRow('Fundido', { min: 0, max: 200, step: 1, value: ed.fadeMs, fmt: v => v + ' ms', onInput: v => { ed.fadeMs = v; } }),
-    h('div', { class: 'row2' }, btn('Deshacer', { small: true, disabled: !ed.undo.length, onclick: () => step(ed.undo, ed.redo) }), btn('Rehacer', { small: true, disabled: !ed.redo.length, onclick: () => step(ed.redo, ed.undo) })),
     bpmCard,
     btn(app.ko2 ? 'Chop en pads' : 'Chop', { sel: true, onclick: () => openChop(s, ed.audio) }),
     folderPicker(fp, async st => { await putSample({ ...s, folder: st.folder, subfolder: st.sub }); await refreshSamples(); }),

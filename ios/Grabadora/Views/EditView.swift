@@ -41,6 +41,8 @@ struct EditorBody: View {
     @State private var peakDB: Float = 0
     @State private var undo: [[Float]] = []
     @State private var redo: [[Float]] = []
+    @State private var undoLabels: [String] = []         // nombre de cada cambio, para la barra de historial
+    @State private var redoLabels: [String] = []
     @State private var sustainPad = true
     @State private var fxBusy: String?                    // acción trabajando (borde amarillo)
     @State private var fxFlash: String?                   // acción recién hecha (destello)
@@ -123,13 +125,10 @@ struct EditorBody: View {
                         }
                 }
                 if let m = message { Text(m).font(Theme.font(13)).foregroundColor(Theme.muted).frame(maxWidth: .infinity, alignment: .center) }
-                HStack(spacing: 10) {
-                    Button("Deshacer") { step(from: &undo, to: &redo) }.disabled(undo.isEmpty)
-                    Button("Rehacer") { step(from: &redo, to: &undo) }.disabled(redo.isEmpty)
-                }.buttonStyle(OutlineButton()).font(Theme.font(13))
                 Button("Exportar al K.O. II") { state.tab = .exportar }.buttonStyle(OutlineButton(selected: true))
             }
         }
+        .safeAreaInset(edge: .top, spacing: 0) { historyBar }
         .onAppear {
             if let s = lib.samples.first(where: { $0.id == sample.id }) { sample = s }
             if undo.isEmpty { audio = lib.audio(for: sample); savedAudio = audio; refreshPeaks() }
@@ -212,7 +211,7 @@ struct EditorBody: View {
         Task {
             let out = await Task.detached { Creative.padStretch(piece, factor: Double(factor), rate: rate, sustain: sustain) }.value
             let before = undo.count
-            apply { _ in out }
+            apply({ _ in out }, label: "Colchón ×\(factor)")
             fxBusy = nil
             if undo.count > before { flashFX(key); message = "Listo: colchón ×\(factor) · dura \(stamp(Double(audio.count) / self.rate))" }
         }
@@ -348,11 +347,11 @@ struct EditorBody: View {
 
     // MARK: acciones
 
-    private func apply(_ f: ([Float]) -> [Float]) {
+    private func apply(_ f: ([Float]) -> [Float], label: String = "Cambio") {
         let out = f(audio)
         guard !out.isEmpty else { message = "La selección quedó vacía"; return }
         guard out != audio else { message = "No hay nada que cambiar: la selección es muy corta para eso"; return }
-        undo.append(audio); redo = []; audio = out; message = nil
+        undo.append(audio); undoLabels.append(label); redo = []; redoLabels = []; audio = out; message = nil
         refreshPeaks()
     }
 
@@ -363,10 +362,14 @@ struct EditorBody: View {
     }
 
     /// Acción con respuesta visible: si es lenta, el botón se ilumina mientras trabaja; al terminar destella y avisa «Listo».
+    private static let fxLabels: [String: String] = ["recortar": "Recortar", "normalizar": "Normalizar", "fundido": "Fundido", "armonizar": "Armonizar bordes",
+        "invertir": "Invertir", "loop": "Loop continuo", "ruido-suave": "Ruido (suave)", "ruido-fuerte": "Ruido (fuerte)", "ruido-fondo": "Quitar ruido de fondo",
+        "ruido-sel": "Ruido de la selección"]
+
     private func run(_ key: String, slow: Bool = false, done: String, _ f: @escaping ([Float]) -> [Float]) {
         let go = {
             let before = undo.count
-            apply(f)
+            apply(f, label: Self.fxLabels[key] ?? "Cambio")
             fxBusy = nil
             if undo.count > before { flashFX(key); message = done }
         }
@@ -375,10 +378,42 @@ struct EditorBody: View {
 
     private func refreshPeaks() { peaks = Editing.peaks(audio, buckets: 56); peakDB = Editing.peakDB(audio) }
 
-    private func step(from a: inout [[Float]], to b: inout [[Float]]) {
+    private func step(from a: inout [[Float]], to b: inout [[Float]], labelsFrom lf: inout [String], labelsTo lt: inout [String]) {
         guard let x = a.popLast() else { return }
-        b.append(audio); audio = x
+        b.append(audio); lt.append(lf.popLast() ?? "Cambio"); audio = x
         refreshPeaks()
+    }
+
+    /// Vuelve a cómo estaba la toma al abrirla (Rehacer permite volver a todo lo hecho).
+    private func toOriginal() {
+        guard !undo.isEmpty else { return }
+        while !undo.isEmpty { step(from: &undo, to: &redo, labelsFrom: &undoLabels, labelsTo: &redoLabels) }
+        flashFX("original")
+        message = "Volviste al original: la toma como estaba al abrirla"
+    }
+
+    /// Barra siempre a la vista: deshacer, rehacer y volver al original.
+    private var historyBar: some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 8) {
+                Button("↶ Deshacer") { step(from: &undo, to: &redo, labelsFrom: &undoLabels, labelsTo: &redoLabels) }
+                    .disabled(undo.isEmpty).opacity(undo.isEmpty ? 0.4 : 1)
+                    .accessibilityLabel("Deshacer el último cambio")
+                Button("↷ Rehacer") { step(from: &redo, to: &undo, labelsFrom: &redoLabels, labelsTo: &undoLabels) }
+                    .disabled(redo.isEmpty).opacity(redo.isEmpty ? 0.4 : 1)
+                    .accessibilityLabel("Rehacer")
+                Button("⟲ Original") { toOriginal() }
+                    .disabled(undo.isEmpty).opacity(undo.isEmpty ? 0.4 : 1)
+                    .actionFX("original", busy: nil, flash: fxFlash)
+                    .accessibilityLabel("Volver al original")
+            }.buttonStyle(OutlineButton()).font(Theme.font(13, weight: .bold))
+            Text(undo.isEmpty ? "Sin cambios todavía: aquí podrás deshacer o volver al original"
+                              : "Último cambio: \(undoLabels.last ?? "Cambio") · \(undo.count) desde que abriste la toma")
+                .font(Theme.font(12)).foregroundColor(Theme.muted)
+        }
+        .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 6)
+        .background(Theme.bg)
+        .overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 1) }
     }
 
     private func save(overwriting: Bool = false) {

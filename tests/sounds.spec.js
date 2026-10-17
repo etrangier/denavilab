@@ -579,6 +579,47 @@ test.describe('respuesta visible al tocar una acción', () => {
   });
 });
 
+test.describe('historial siempre a la vista', () => {
+  test('barra de Deshacer / Rehacer / Original: aparece arriba, nombra el último cambio y vuelve al original', async ({ page }) => {
+    const errores = vigilar(page);
+    await abrir(page, 'schair');
+    await page.evaluate(async () => { const st = await import('/sounds/store.js'), a = new Float32Array(96000).map((_, i) => 0.2 * Math.sin(i * 0.05) + 0.1); await st.putSample(st.newSample('Toma', a, 48000), a); });
+    await page.reload();
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Toma' }).click();
+    const barra = page.locator('.undo-bar');
+    await expect(barra).toContainText('Sin cambios todavía');
+    for (const n of ['Deshacer el último cambio', 'Rehacer', 'Volver al original']) await expect(barra.getByRole('button', { name: n })).toBeDisabled();
+    // tres cambios: la barra nombra el último y cuenta
+    await page.getByRole('button', { name: 'Normalizar', exact: true }).click();
+    await page.getByRole('button', { name: 'Armonizar bordes (sin clics)' }).click();
+    await page.getByRole('button', { name: 'Invertir', exact: true }).click();
+    await expect(barra).toContainText('Último cambio: Invertir · 3 desde que abriste la toma');
+    // la barra sigue visible aunque se baje hasta el final de la pantalla
+    await page.evaluate(() => { const e = document.getElementById('screen'); e.scrollTo(0, e.scrollHeight); });
+    await expect(barra).toBeInViewport();
+    const caja = await barra.boundingBox(), pantalla = await page.locator('#screen').boundingBox();
+    expect(Math.abs(caja.y - pantalla.y)).toBeLessThan(20);                     // pegada arriba
+    // deshacer un paso: el último pasa a ser el anterior; Rehacer se activa
+    await barra.getByRole('button', { name: 'Deshacer el último cambio' }).click();
+    await expect(barra).toContainText('Último cambio: Armonizar bordes · 2');
+    await expect(barra.getByRole('button', { name: 'Rehacer' })).toBeEnabled();
+    await barra.getByRole('button', { name: 'Rehacer' }).click();
+    await expect(barra).toContainText('Último cambio: Invertir · 3');
+    // volver al original de una vez; y Rehacer devuelve todo
+    await barra.getByRole('button', { name: 'Volver al original' }).click();
+    await expect(page.locator('#toast')).toContainText('Volviste al original');
+    await expect(barra).toContainText('Sin cambios todavía');
+    await expect(barra.getByRole('button', { name: 'Volver al original' })).toBeDisabled();
+    await page.getByRole('button', { name: 'Guardar', exact: true }).click();                // sin cambios: avisa de que se sobrescribe lo mismo
+    await expect(page.locator('dialog.sheet')).toContainText('No hay cambios nuevos');
+    await page.locator('dialog.sheet').getByRole('button', { name: 'Cancelar' }).click();
+    await barra.getByRole('button', { name: 'Rehacer' }).click();
+    await expect(barra).toContainText('Último cambio: Normalizar');
+    expect(errores).toEqual([]);
+  });
+});
+
 test.describe('service worker', () => {
   test('guarda para uso sin conexión todos los módulos de la app', async ({ request }) => {
     const sw = await (await request.get('/sounds/sw.js')).text();
