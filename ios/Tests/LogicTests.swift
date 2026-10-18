@@ -436,7 +436,8 @@ final class LogicTests: XCTestCase {
     // MARK: acordes, compases y loop
 
     /// Am F C G en 4/4 a 100 BPM, 10 compases, con 0,37 s de silencio previo y un bombo en cada tiempo (más fuerte en el 1).
-    private func progression(sequence: [Int]? = nil, bars: Int = 10) -> (x: [Float], rate: Int) {
+    /// `hatBars`: compases con otro groove (hi-hat en semicorcheas y sin bombo).
+    private func progression(sequence: [Int]? = nil, bars: Int = 10, hatBars: Range<Int> = 0..<0) -> (x: [Float], rate: Int) {
         let rate = 48000, T = Double(rate) * 60 / 100, off = Int(Double(rate) * 0.37)
         let n = Int(T * 4 * Double(bars)) + off
         let chords: [[Double]] = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62], [51, 55, 58]]       // Am F C G Eb
@@ -453,10 +454,19 @@ final class LogicTests: XCTestCase {
                 x[t] += Float(s)
             }
         }
+        var seed: UInt32 = 5
+        func rnd() -> Double { seed = seed &* 1664525 &+ 1013904223; return Double(seed) / 4294967296.0 - 0.5 }
         for j in 0..<(bars * 4) {
             let t0 = Int((Double(off) + Double(j) * T).rounded())
-            for i in 0..<3000 where t0 + i < n {
-                x[t0 + i] += Float((j % 4 == 0 ? 0.9 : 0.5) * sin(2 * Double.pi * 60 * Double(i) / Double(rate)) * exp(-Double(i) / 600))
+            if hatBars.contains(j / 4) {
+                for q in 0..<4 {
+                    let t1 = Int((Double(t0) + Double(q) * T / 4).rounded())
+                    for i in 0..<900 where t1 + i < n { x[t1 + i] += Float(0.35 * rnd() * exp(-Double(i) / 200)) }
+                }
+            } else {
+                for i in 0..<3000 where t0 + i < n {
+                    x[t0 + i] += Float((j % 4 == 0 ? 0.9 : 0.5) * sin(2 * Double.pi * 60 * Double(i) / Double(rate)) * exp(-Double(i) / 600))
+                }
             }
         }
         return (x, rate)
@@ -539,6 +549,41 @@ final class LogicTests: XCTestCase {
         var few: [[Float]] = [[1], [2]], fewL = ["a", "b"]
         Editing.trimHistory(&few, &fewL)
         XCTAssertEqual(few.count, 2)
+    }
+
+    func testComboCostPrefersSameGrooveAndBalance() throws {
+        let (x, rate) = progression(sequence: [0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3], bars: 12, hatBars: 4..<8)
+        let a = try XCTUnwrap(Harmony.analyze(x, rate: rate, bpm: 100))
+        let l = Harmony.layout(a, downbeat: a.downbeat, want: 4)
+        func sc(_ p: [Int]) -> Double { Harmony.scoreCombo(a, l.bars, picks: p) }
+        XCTAssertGreaterThan(sc([0, 1, 2, 3]), sc([0, 5, 2, 3]) + 0.05)          // un F con otro ritmo puntúa peor que el F con bombo
+        XCTAssertGreaterThan(sc([0, 1, 2, 3]), sc([0, 1, 6, 3]) + 0.05)
+        XCTAssertEqual(l.bars[0].bal.count, 3); XCTAssertEqual(l.bars[0].rhy.count, 16)
+        XCTAssertGreaterThan(abs(l.bars[1].bal[0] - l.bars[5].bal[0]), 0.03)     // mismo acorde, otro reparto de graves
+        let best = try XCTUnwrap(l.combos.first)
+        XCTAssertEqual(best.chords, ["Am", "F", "C", "G"]); XCTAssertTrue(best.picks.allSatisfy { $0 < 4 || $0 >= 8 })
+    }
+
+    func testFixedBpmKeepsPitchWithWsola() {
+        let rate = 48_000
+        let x = (0..<(rate * 4)).map { Float(0.5 * sin(2 * Double.pi * 440 * Double($0) / Double(rate))) }
+        func zc(_ y: [Float]) -> Double { var c = 0; for i in 1..<y.count where y[i - 1] < 0 && y[i] >= 0 { c += 1 }; return Double(c) / (Double(y.count) / Double(rate)) }
+        func rms(_ y: [Float]) -> Double { (y.reduce(0.0) { $0 + Double($1) * Double($1) } / Double(y.count)).squareRoot() }
+        for pct in [-6.0, -2.0, 2.0, 6.0] {
+            let n = Int((Double(x.count) * (1 + pct / 100)).rounded())
+            let w = Harmony.wsolaStretch(x, n, rate: rate), q = Harmony.fitLength(x, n)
+            XCTAssertEqual(w.count, n)
+            XCTAssertEqual(zc(w), 440, accuracy: 2)                               // el tono no cambia
+            XCTAssertEqual(rms(w) / rms(x), 1, accuracy: 0.05)
+            var jump: Float = 0
+            for i in 1..<w.count { jump = max(jump, abs(w[i] - w[i - 1])) }
+            XCTAssertLessThan(jump, 0.1)
+            if pct == 6 { XCTAssertGreaterThan(abs(zc(q) - 440), 15) }            // remuestrear a +6 % desafina más de un semitono
+        }
+        let n2 = Int((Double(x.count) * 1.003).rounded()), t = Harmony.fitTempo(x, n2, rate: rate)
+        XCTAssertEqual(t.count, n2); XCTAssertEqual(zc(t), 440, accuracy: 2)
+        XCTAssertEqual(Harmony.wsolaStretch([Float](repeating: 0.1, count: 100), 150, rate: rate).count, 150)
+        XCTAssertEqual(Harmony.wsolaStretch(x, x.count, rate: rate).count, x.count)
     }
 
     // MARK: invertir

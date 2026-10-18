@@ -10,6 +10,8 @@ enum Harmony {
         var chords: [String?]
         var label: String
         var vec: [Double] = []
+        var bal: [Double] = [1.0 / 3, 1.0 / 3, 1.0 / 3]   // reparto de energía grave / media / aguda de todo el compás
+        var rhy: [Double] = []                            // golpes en las 16 semicorcheas del compás (0–1)
     }
 
     struct LoopSuggestion {
@@ -35,6 +37,8 @@ enum Harmony {
         var beatChroma: [[Double]]
         var beatRMS: [Double]
         var beatHit: [Double] = []
+        var beatBands: [[Double]] = []   // energía grave / media / aguda de cada tiempo
+        var beatPulse: [[Double]] = []   // golpes en las 4 semicorcheas de cada tiempo (0–1)
         var length: Int
         var confidence: Double
         var downbeat: Int
@@ -70,7 +74,7 @@ enum Harmony {
     }
 
     /// Chroma (12 notas) por ventana de 4096 muestras, de 110 a 1760 Hz, con compresión logarítmica.
-    nonisolated static func chromaFrames(_ x: [Float], rate: Int) -> [(center: Int, chroma: [Double])] {
+    nonisolated static func chromaFrames(_ x: [Float], rate: Int) -> [(center: Int, chroma: [Double], bands: [Double])] {
         let n = chN
         let kLo = Int((110.0 * Double(n) / Double(rate)).rounded(.up)), kHi = Int((1760.0 * Double(n) / Double(rate)).rounded(.down))
         var pc = [Int](repeating: 0, count: kHi + 1)
@@ -81,20 +85,24 @@ enum Harmony {
             }
         }
         var re = [Double](repeating: 0, count: n), im = [Double](repeating: 0, count: n)
-        var out: [(center: Int, chroma: [Double])] = []
+        let bLo = Int((40.0 * Double(n) / Double(rate)).rounded(.up)), bMid = Int((200.0 * Double(n) / Double(rate)).rounded(.up))
+        let bHigh = Int((2000.0 * Double(n) / Double(rate)).rounded(.up)), bHi = min(n / 2 - 1, Int((8000.0 * Double(n) / Double(rate)).rounded(.down)))
+        var out: [(center: Int, chroma: [Double], bands: [Double])] = []
         var s = 0
         while s + n <= x.count {
             for i in 0..<n { re[i] = Double(x[s + i]) * hann[i]; im[i] = 0 }
             NoiseReduction.fft(&re, &im, inverse: false)
             var c = [Double](repeating: 0, count: 12)
             if kLo <= kHi { for k in kLo...kHi { c[pc[k]] += log1p(50 * (re[k] * re[k] + im[k] * im[k]).squareRoot() / Double(n / 4)) } }
-            out.append((center: s + n / 2, chroma: c))
+            var bands = [0.0, 0.0, 0.0]
+            if bLo <= bHi { for k in bLo...bHi { bands[k < bMid ? 0 : (k < bHigh ? 1 : 2)] += re[k] * re[k] + im[k] * im[k] } }      // energía grave / media / aguda
+            out.append((center: s + n / 2, chroma: c, bands: bands))
             s += chHop
         }
         return out
     }
 
-    nonisolated private static func sumChroma(_ frames: [(center: Int, chroma: [Double])], _ a: Double, _ b: Double) -> [Double] {
+    nonisolated private static func sumChroma(_ frames: [(center: Int, chroma: [Double], bands: [Double])], _ a: Double, _ b: Double) -> [Double] {
         var c = [Double](repeating: 0, count: 12)
         var n = 0
         for f in frames where Double(f.center) >= a && Double(f.center) < b {
@@ -107,6 +115,27 @@ enum Harmony {
             c = best.chroma
         }
         return c
+    }
+
+    /// Energía grave / media / aguda de un tramo (suma de las ventanas que caen dentro; si no cae ninguna, la más cercana).
+    nonisolated private static func sumBands(_ frames: [(center: Int, chroma: [Double], bands: [Double])], _ a: Double, _ b: Double) -> [Double] {
+        var v = [0.0, 0.0, 0.0]
+        var n = 0
+        for f in frames where Double(f.center) >= a && Double(f.center) < b {
+            for i in 0..<3 { v[i] += f.bands[i] }
+            n += 1
+        }
+        if n == 0, !frames.isEmpty {
+            let mid = (a + b) / 2
+            v = frames.min { abs(Double($0.center) - mid) < abs(Double($1.center) - mid) }!.bands
+        }
+        return v
+    }
+
+    /// Reparto (suma 1) de la energía entre grave, medio y agudo.
+    nonisolated private static func fractions(_ v: [Double]) -> [Double] {
+        let t = v[0] + v[1] + v[2]
+        return t > 1e-12 ? [v[0] / t, v[1] / t, v[2] / t] : [1.0 / 3, 1.0 / 3, 1.0 / 3]
     }
 
     /// Mejor acorde para un chroma, o nil si no se parece a ninguno (ruido, percusión sola).
@@ -188,8 +217,11 @@ enum Harmony {
         let second = score.sorted(by: >)[1]
         let confidence = min(1, max(0, (score[downbeat] - second) * 2 + 0.3))
         let beatHit = beats.map { Double(fluxAt(flux, $0, hop: Double(hop))) }
+        let beatBands = beats.map { sumBands(frames, $0, $0 + T) }
+        let maxFlux = max(1e-9, Double(flux.max() ?? 0))
+        let beatPulse: [[Double]] = beats.map { bt in (0..<4).map { k in Double(fluxAt(flux, bt + Double(k) * T / 4, hop: Double(hop))) / maxFlux } }       // golpes en las 4 semicorcheas de cada tiempo
         let an = Analysis(bpm: 60 * Double(rate) / T, rate: rate, period: T, first: fit.first, beats: beats, beatChroma: beatChroma,
-                          beatRMS: beatRMS, beatHit: beatHit, length: x.count, confidence: confidence, downbeat: downbeat)
+                          beatRMS: beatRMS, beatHit: beatHit, beatBands: beatBands, beatPulse: beatPulse, length: x.count, confidence: confidence, downbeat: downbeat)
         return layout(an, downbeat: downbeat)
     }
 
@@ -209,7 +241,10 @@ enum Harmony {
             let label = c1 == nil && c2 == nil ? "—" : (x == y ? x : "\(x) \(y)")
             var vec = [Double](repeating: 0, count: 12)
             for k in 0..<4 { for i in 0..<12 { vec[i] += an.beatChroma[j + k][i] } }
-            bars.append(Bar(beat: j, start: Int(an.beats[j].rounded()), end: Int((an.beats[j] + 4 * T).rounded()), chords: [c1, c2], label: label, vec: vec))
+            var bandSum = [0.0, 0.0, 0.0]
+            for k in 0..<4 { for i in 0..<3 { bandSum[i] += an.beatBands[j + k][i] } }
+            let rhy = (0..<4).flatMap { an.beatPulse[j + $0] }
+            bars.append(Bar(beat: j, start: Int(an.beats[j].rounded()), end: Int((an.beats[j] + 4 * T).rounded()), chords: [c1, c2], label: label, vec: vec, bal: fractions(bandSum), rhy: rhy))
             j += 4
         }
         var out = an
@@ -252,21 +287,35 @@ enum Harmony {
         return out
     }
 
-    /// Loops combinados: `want` compases (por defecto 4) elegidos entre todos los de la toma, en su orden original pero no necesariamente seguidos
-    /// (por ejemplo los compases 1, 3, 5 y 8). Puntúa que cada empalme suene continuo (armonía y volumen), que la secuencia de acordes sea una
-    /// progresión que se repite en la toma, que haya movimiento armónico, que cada compás sea representativo de su acorde, que empiece sobre golpe
-    /// y que el volumen sea parejo. Los tramos seguidos se dejan a `suggestLoops`.
-    nonisolated static func suggestCombos(_ an: Analysis, _ bars: [Bar], want: Int, count: Int) -> [LoopSuggestion] {
+    /// Modelo de costos de los loops combinados: costo de concatenación entre compases (1 = empalma como si fueran seguidos) y puntuación completa.
+    private struct ComboModel {
+        let n: Int
+        let join: [[Double]]
+        let unary: [Double]
+        let repr: [Double]
+        let cls: [Int]
+        let fullScore: ([Int]) -> Double
+    }
+
+    nonisolated private static func comboModel(_ an: Analysis, _ bars: [Bar], _ L: Int) -> ComboModel {
         let N = bars.count
-        guard let L = [want, 4, 2].first(where: { $0 >= 2 && N >= $0 + 1 }), N <= 48 else { return [] }
         let maxHit = max(1e-9, an.beatHit.max() ?? 0)
         func db(_ v: Double) -> Double { 20 * log10(max(v, 1e-6)) }
-        struct F { var vec: [Double]; var first: [Double]; var last: [Double]; var r0: Double; var r3: Double; var avg: Double; var hit: Double }
+        func tv(_ p: [Double], _ q: [Double]) -> Double { 0.5 * (abs(p[0] - q[0]) + abs(p[1] - q[1]) + abs(p[2] - q[2])) }   // distancia entre repartos grave/medio/agudo (0–1)
+        func cosv(_ p: [Double], _ q: [Double]) -> Double {
+            var d = 0.0, a = 0.0, b = 0.0
+            for i in 0..<min(p.count, q.count) { d += p[i] * q[i]; a += p[i] * p[i]; b += q[i] * q[i] }
+            if a < 1e-4 && b < 1e-4 { return 1 }
+            return a < 1e-12 || b < 1e-12 ? 0 : d / (a * b).squareRoot()
+        }
+        struct F { var vec: [Double]; var first: [Double]; var last: [Double]; var r0: Double; var r3: Double; var avg: Double; var hit: Double
+                   var bal: [Double]; var rhy: [Double]; var firstBal: [Double]; var lastBal: [Double] }
         let rr = an.beatRMS
         let f: [F] = bars.map { b in
             let avg = (rr[b.beat] + rr[b.beat + 1] + rr[b.beat + 2] + rr[b.beat + 3]) / 4
             let hit = b.beat < an.beatHit.count ? an.beatHit[b.beat] / maxHit : 0
-            return F(vec: b.vec, first: an.beatChroma[b.beat], last: an.beatChroma[b.beat + 3], r0: rr[b.beat], r3: rr[b.beat + 3], avg: avg, hit: hit)
+            return F(vec: b.vec, first: an.beatChroma[b.beat], last: an.beatChroma[b.beat + 3], r0: rr[b.beat], r3: rr[b.beat + 3], avg: avg, hit: hit,
+                     bal: b.bal, rhy: b.rhy, firstBal: fractions(an.beatBands[b.beat]), lastBal: fractions(an.beatBands[b.beat + 3]))
         }
         // acordes de la toma: se agrupan los compases con armonía casi igual
         var cls: [Int] = [], reps: [[Double]] = [], cen: [[Double]] = []
@@ -277,10 +326,14 @@ enum Harmony {
             for k in 0..<12 { cen[c][k] += b.vec[k] }
         }
         let repr: [Double] = (0..<N).map { cos12(f[$0].vec, cen[cls[$0]]) }
-        func join(_ i: Int, _ j: Int) -> Double {
-            let lv = 1 - min(1, abs(db(f[i].r3) - db(f[j].r0)) / 12)
-            return 0.5 * cos12(f[i].last, f[j].first) + 0.5 * lv
+        var J = [[Double]](repeating: [Double](repeating: 0, count: N), count: N)
+        for i in 0..<N {
+            for j in 0..<N {
+                let lv = 1 - min(1, abs(db(f[i].r3) - db(f[j].r0)) / 12)
+                J[i][j] = 0.4 * cos12(f[i].last, f[j].first) + 0.2 * lv + 0.2 * (1 - tv(f[i].lastBal, f[j].firstBal)) + 0.2 * cosv(f[i].rhy, f[j].rhy)
+            }
         }
+        let unary: [Double] = (0..<N).map { 0.2 * (f[$0].hit + repr[$0]) / Double(L) }
         func occurrences(_ seq: [Int]) -> Int {
             var c = 0, i = 0
             while i + seq.count <= N {
@@ -288,34 +341,76 @@ enum Harmony {
             }
             return c
         }
-        // búsqueda en haz: se van añadiendo compases hacia delante, quedándose con los mejores empalmes
-        var beam: [(idx: [Int], s: Double)] = (0..<N).map { ([$0], repr[$0] * 0.2) }
+        let full: ([Int]) -> Double = { p in
+            var mj = 0.0
+            for k in 1..<L { mj += J[p[k - 1]][p[k]] }
+            mj /= Double(L - 1)
+            let seq = p.map { cls[$0] }, occ = occurrences(seq), distinct = Set(seq).count
+            let lv = p.map { db(f[$0].avg) }, mean = lv.reduce(0, +) / Double(L)
+            let sd = (lv.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(L)).squareRoot()
+            var groove = 0.0, balance = 0.0, pairs = 0.0
+            for a in 0..<L { for b in (a + 1)..<L { groove += cosv(f[p[a]].rhy, f[p[b]].rhy); balance += 1 - tv(f[p[a]].bal, f[p[b]].bal); pairs += 1 } }
+            var score = 0.9 * mj + 0.6 * J[p[L - 1]][p[0]] + 0.6 * min(1, Double(occ - 1) / 2) + 0.15 * Double(distinct - 1) / Double(L - 1)
+            score += 0.2 * p.reduce(0) { $0 + f[$1].hit } / Double(L) + 0.2 * p.reduce(0) { $0 + repr[$1] } / Double(L)
+            score += 0.6 * groove / pairs + 0.4 * balance / pairs - (sd > 6 ? 0.3 : 0)
+            score += (cls[p[0]] == cls[0] ? 0.15 : 0) - 0.01 * Double(p[0]) / Double(N)       // a igualdad, que empiece como la toma
+            return score
+        }
+        return ComboModel(n: N, join: J, unary: unary, repr: repr, cls: cls, fullScore: full)
+    }
+
+    /// Puntuación de un loop combinado concreto (índices de compás en orden): la misma que usa la búsqueda. Sirve para comparar y para pruebas.
+    nonisolated static func scoreCombo(_ an: Analysis, _ bars: [Bar], picks: [Int]) -> Double {
+        comboModel(an, bars, picks.count).fullScore(picks)
+    }
+
+    /// Loops combinados: `want` compases (por defecto 4) elegidos entre todos los de la toma, en su orden original pero no necesariamente seguidos
+    /// (por ejemplo los compases 1, 3, 5 y 8). Selección de unidades con costo de concatenación (como en la síntesis concatenativa) más costo de objetivo.
+    /// El empalme entre dos compases cuesta según cuánto se parecen: armonía del final de uno y el principio del otro, volumen, reparto de graves, medios y
+    /// agudos en ese punto y dibujo rítmico de los dos compases. A todo el loop se le suma que mantenga el mismo groove y balance espectral, que haya
+    /// movimiento armónico, que la secuencia sea una progresión de la toma, que empiece sobre golpe y que el volumen sea parejo.
+    /// La parte aditiva se resuelve de forma exacta (programación dinámica, un camino óptimo por cada primer y último compás) y se completa con una
+    /// búsqueda en haz; las candidatas se puntúan con todos los términos. Los tramos seguidos se dejan a `suggestLoops`.
+    nonisolated static func suggestCombos(_ an: Analysis, _ bars: [Bar], want: Int, count: Int) -> [LoopSuggestion] {
+        let N = bars.count
+        guard let L = [want, 4, 2].first(where: { $0 >= 2 && N >= $0 + 1 }), N <= 48 else { return [] }
+        let m = comboModel(an, bars, L)
+        var cands: [String: [Int]] = [:]
+        func add(_ p: [Int]) { if p[L - 1] - p[0] != L - 1 { cands[p.map(String.init).joined(separator: ",")] = p } }
+        // parte aditiva exacta: para cada primer compás, el mejor camino hasta cada último compás
+        for first in 0...(N - L) {
+            var best = [[Double]](repeating: [Double](repeating: -.infinity, count: N), count: L)
+            var from = [[Int]](repeating: [Int](repeating: -1, count: N), count: L)
+            best[0][first] = m.unary[first]
+            for k in 1..<L {
+                for j in (first + k)...(N - (L - k)) {
+                    for i in (first + k - 1)..<j where best[k - 1][i] > -.infinity {
+                        let s = best[k - 1][i] + 0.9 / Double(L - 1) * m.join[i][j] + m.unary[j]
+                        if s > best[k][j] { best[k][j] = s; from[k][j] = i }
+                    }
+                }
+            }
+            for last in (first + L - 1)..<N where best[L - 1][last] > -.infinity {
+                var p = [last]
+                for k in stride(from: L - 1, to: 0, by: -1) { p.insert(from[k][p[0]], at: 0) }
+                add(p)
+            }
+        }
+        // búsqueda en haz: variedad de candidatas
+        var beam: [(idx: [Int], s: Double)] = (0..<N).map { ([$0], m.repr[$0] * 0.2) }
         for k in 1..<L {
             var next: [(idx: [Int], s: Double)] = []
             for st in beam {
                 let last = st.idx[st.idx.count - 1], top = N - (L - k)
                 if last + 1 > top { continue }
-                for j in (last + 1)...top { next.append((st.idx + [j], st.s + join(last, j) + repr[j] * 0.2)) }
+                for j in (last + 1)...top { next.append((st.idx + [j], st.s + m.join[last][j] + m.repr[j] * 0.2)) }
             }
             next.sort { $0.s > $1.s }
             beam = Array(next.prefix(300))
         }
-        var scored: [(picks: [Int], score: Double, key: String)] = []
-        for st in beam where st.idx[L - 1] - st.idx[0] != L - 1 {
-            let p = st.idx
-            var mj = 0.0
-            for k in 1..<L { mj += join(p[k - 1], p[k]) }
-            mj /= Double(L - 1)
-            let seq = p.map { cls[$0] }, occ = occurrences(seq), distinct = Set(seq).count
-            let lv = p.map { db(f[$0].avg) }, mean = lv.reduce(0, +) / Double(L)
-            let sd = (lv.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(L)).squareRoot()
-            var score = 0.9 * mj + 0.6 * join(p[L - 1], p[0]) + 0.6 * min(1, Double(occ - 1) / 2) + 0.15 * Double(distinct - 1) / Double(L - 1)
-            score += 0.2 * p.reduce(0) { $0 + f[$1].hit } / Double(L) + 0.2 * p.reduce(0) { $0 + repr[$1] } / Double(L)
-            score -= sd > 6 ? 0.3 : 0
-            score += (cls[p[0]] == cls[0] ? 0.15 : 0) - 0.01 * Double(p[0]) / Double(N)       // a igualdad, que empiece como la toma
-            scored.append((p, score, seq.map(String.init).joined(separator: ">")))
-        }
-        scored.sort { $0.score > $1.score }
+        beam.forEach { add($0.idx) }
+        let scored = cands.values.map { p in (picks: p, score: m.fullScore(p), key: p.map { String(m.cls[$0]) }.joined(separator: ">")) }
+            .sorted { $0.score != $1.score ? $0.score > $1.score : $0.picks.lexicographicallyPrecedes($1.picks) }
         var out: [LoopSuggestion] = []
         for c in scored {
             if out.count >= count { break }
@@ -337,7 +432,7 @@ enum Harmony {
         let out = Harmonize.cosFade(joined, inSamples: c, outSamples: c)
         guard let f = fix else { return out }
         let target = loopLength(rate: rate, bpm: f.bpm, bars: f.bars)
-        return abs(stretchPct(out.count, target)) > maxStretchPct ? out : fitLength(out, target)
+        return abs(stretchPct(out.count, target)) > maxStretchPct ? out : fitTempo(out, target, rate: rate)
     }
 
     /// Más allá de este ajuste (en %) el BPM fijo se descarta: sería un cambio de tono audible, no una corrección.
@@ -351,6 +446,50 @@ enum Harmony {
 
     /// Cuánto hay que estirar o acortar (en %) un tramo de `len` muestras para que dure `target`. Positivo = se alarga.
     nonisolated static func stretchPct(_ len: Int, _ target: Int) -> Double { len > 0 ? 100 * Double(target - len) / Double(len) : 0 }
+
+    /// Estira o acorta `x` a exactamente `n` muestras SIN cambiar el tono (WSOLA: superposición y suma con búsqueda de la mejor alineación de onda).
+    /// Ventanas de 40 ms con 50 % de solape; cada ventana se toma de donde mejor continúa a la anterior (±10 ms), así no se doblan ni se cortan los
+    /// períodos de la onda. Ver Driedger y Müller, «A Review of Time-Scale Modification of Music Signals» (2016).
+    nonisolated static func wsolaStretch(_ x: [Float], _ n: Int, rate: Int) -> [Float] {
+        let len = x.count
+        guard n > 0, len > 0 else { return [] }
+        if n == len { return x }
+        let N = max(256, Int((0.040 * Double(rate) / 2).rounded()) * 2)
+        if len < 2 * N { return fitLength(x, n) }
+        let hs = N / 2, ha = Double(hs) * Double(len) / Double(n), delta = Int((0.010 * Double(rate)).rounded()), top = len - N
+        let win: [Float] = (0..<N).map { Float(0.5 - 0.5 * cos(2 * Double.pi * Double($0) / Double(N))) }
+        var out = [Float](repeating: 0, count: n + N), wsum = out
+        var prev = 0, k = 0
+        while k * hs < n {
+            var pos = 0
+            if k > 0 {
+                let nominal = min(top, Int((Double(k) * ha).rounded())), tgt = min(top, prev + hs)
+                let lo = max(0, nominal - delta), hi = min(top, nominal + delta)
+                func corr(_ c: Int, _ dec: Int, _ m: Int) -> Double {
+                    var d = 0.0, e = 1e-9
+                    for i in 0..<m { let a = Double(x[c + i * dec]); d += a * Double(x[tgt + i * dec]); e += a * a }
+                    return d / e.squareRoot()
+                }
+                var best = -Double.infinity
+                pos = nominal
+                var c = lo
+                while c <= hi { let sc = corr(c, 8, N >> 3); if sc > best { best = sc; pos = c }; c += 4 }          // búsqueda gruesa (cada 4 muestras, 1 de cada 8)
+                let mid = pos
+                best = -Double.infinity
+                for c2 in max(lo, mid - 4)...max(max(lo, mid - 4), min(hi, mid + 4)) { let sc = corr(c2, 2, N >> 1); if sc > best { best = sc; pos = c2 } }   // y afinada alrededor
+            }
+            let o = k * hs
+            for i in 0..<N { out[o + i] += x[pos + i] * win[i]; wsum[o + i] += win[i] }
+            prev = pos
+            k += 1
+        }
+        return (0..<n).map { out[$0] / max(wsum[$0], 1e-6) }
+    }
+
+    /// Ajuste de duración de un loop: hasta ±0,5 % basta remuestrear (el tono cambia menos de 9 centésimas de semitono); más, con WSOLA para no tocar el tono.
+    nonisolated static func fitTempo(_ x: [Float], _ n: Int, rate: Int) -> [Float] {
+        abs(stretchPct(x.count, n)) <= 0.5 ? fitLength(x, n) : wsolaStretch(x, n, rate: rate)
+    }
 
     /// Remuestrea `x` a exactamente `n` muestras (interpolación cúbica Catmull-Rom): cambios de duración de ±1 % no se oyen como tono.
     nonisolated static func fitLength(_ x: [Float], _ n: Int) -> [Float] {
@@ -372,7 +511,7 @@ enum Harmony {
         let out = rawLoop(x, start: start, end: end, rate: rate, fadeMs: fadeMs)
         guard let f = fix, !out.isEmpty else { return out }
         let target = loopLength(rate: rate, bpm: f.bpm, bars: f.bars)
-        return abs(stretchPct(out.count, target)) > maxStretchPct ? out : fitLength(out, target)
+        return abs(stretchPct(out.count, target)) > maxStretchPct ? out : fitTempo(out, target, rate: rate)
     }
 
     nonisolated private static func rawLoop(_ x: [Float], start: Int, end: Int, rate: Int, fadeMs: Double) -> [Float] {

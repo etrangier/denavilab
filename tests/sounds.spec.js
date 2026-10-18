@@ -911,6 +911,47 @@ test.describe('acordes, compases y loop', () => {
     expect(r.pocos).toBe(0); expect(r.de2).toBe(true);
   });
 
+  const grooves = `
+    const rate = 48000, bpm = 100, T = rate * 60 / bpm, bars = 12, off = Math.round(rate * 0.37), n = Math.round(T * 4 * bars + off);
+    const ac = { Am: [57, 60, 64], F: [53, 57, 60], C: [48, 52, 55], G: [55, 59, 62] }, f = m => 440 * 2 ** ((m - 69) / 12), seq = ['Am', 'F', 'C', 'G', 'Am', 'F', 'C', 'G', 'Am', 'F', 'C', 'G'];
+    const x = new Float32Array(n); let seed = 5; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32 - 0.5; };
+    for (let b = 0; b < bars; b++) for (let i = 0; i < 4 * T; i++) { const t = off + b * 4 * T + i; if (t >= n) break; let s = 0; for (const m of ac[seq[b]]) { const w = 2 * Math.PI * f(m) * i / rate; s += 0.12 * Math.sin(w) + 0.05 * Math.sin(2 * w); } x[t] += s; }
+    for (let j = 0; j < bars * 4; j++) { const bar = Math.floor(j / 4), hat = bar >= 4 && bar < 8, t0 = Math.round(off + j * T);
+      if (!hat) { for (let i = 0; i < 3000 && t0 + i < n; i++) x[t0 + i] += (j % 4 === 0 ? 0.9 : 0.5) * Math.sin(2 * Math.PI * 60 * i / rate) * Math.exp(-i / 600); }
+      else for (let q = 0; q < 4; q++) { const t1 = Math.round(t0 + q * T / 4); for (let i = 0; i < 900 && t1 + i < n; i++) x[t1 + i] += 0.35 * rnd() * Math.exp(-i / 200); } }`;
+
+  test('el costo de empalme premia el mismo groove y balance: un F con otro ritmo (hi-hat sin bombo) puntúa peor que el F con bombo', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async src => {
+      const hm = await import('/sounds/harmony.js'), { x, rate } = new Function(src + '; return { x, rate };')();
+      const a = hm.analyze(x, rate, 100), l = hm.layout(a, a.downbeat, 4), sc = p => hm.scoreCombo(a, l.bars, p);
+      return { mismo: sc([0, 1, 2, 3]), otroF: sc([0, 5, 2, 3]), otroC: sc([0, 1, 6, 3]), rasgos: l.bars.slice(0, 6).map(b => [b.bal.length, b.rhy.length]), mejor: l.combos[0].picks, acordes: l.combos[0].chords,
+        grave: [l.bars[1].bal[0], l.bars[5].bal[0]] };
+    }, grooves);
+    expect(r.mismo).toBeGreaterThan(r.otroF + 0.05); expect(r.mismo).toBeGreaterThan(r.otroC + 0.05);
+    expect(r.rasgos.every(v => v[0] === 3 && v[1] === 16)).toBe(true);
+    expect(Math.abs(r.grave[0] - r.grave[1])).toBeGreaterThan(0.03);                 // el F con bombo reparte distinto los graves que el F con hi-hat (mismo acorde)
+    expect(r.acordes).toEqual(['Am', 'F', 'C', 'G']); expect(r.mejor.every(i => i < 4 || i >= 8)).toBe(true);     // no mezcla el compás de otro groove
+  });
+
+  test('fijar el BPM no cambia el tono (WSOLA); un ajuste mínimo sí se remuestrea', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async () => {
+      const hm = await import('/sounds/harmony.js'), rate = 48000, x = new Float32Array(rate * 4).map((_, i) => 0.5 * Math.sin(2 * Math.PI * 440 * i / rate));
+      const zc = y => { let c = 0; for (let i = 1; i < y.length; i++) if (y[i - 1] < 0 && y[i] >= 0) c++; return c / (y.length / rate); };
+      const rms = y => Math.sqrt(y.reduce((a, v) => a + v * v, 0) / y.length), out = {};
+      for (const pct of [-6, -2, 2, 6]) {
+        const n = Math.round(x.length * (1 + pct / 100)), w = hm.wsolaStretch(x, n, rate), q = hm.fitLength(x, n); let salto = 0; for (let i = 1; i < w.length; i++) salto = Math.max(salto, Math.abs(w[i] - w[i - 1]));
+        out[pct] = { largo: w.length === n, tono: zc(w), tonoRemuestreo: zc(q), rms: rms(w) / rms(x), salto };
+      }
+      const n2 = Math.round(x.length * 1.003), t = hm.fitTempo(x, n2, rate), corto = hm.wsolaStretch(new Float32Array(100).fill(0.1), 150, rate);
+      return { out, minimo: t.length === n2 && Math.abs(zc(t) - 440) < 2, corto: corto.length, igual: hm.wsolaStretch(x, x.length, rate).length === x.length };
+    });
+    for (const k of Object.keys(r.out)) { const o = r.out[k]; expect(o.largo).toBe(true); expect(Math.abs(o.tono - 440)).toBeLessThan(2); expect(o.rms).toBeGreaterThan(0.95); expect(o.rms).toBeLessThan(1.05); expect(o.salto).toBeLessThan(0.1); }
+    expect(Math.abs(r.out[6].tonoRemuestreo - 440)).toBeGreaterThan(15);          // remuestrear a +6 % desafina más de un semitono: por eso ya no se usa
+    expect(r.minimo).toBe(true); expect(r.corto).toBe(150); expect(r.igual).toBe(true);
+  });
+
   test('en Chop: «Combinado 1» elige los compases sueltos, se escucha y se guarda como loop combinado a BPM fijo', async ({ page }) => {
     await abrir(page, 'schair');
     await page.evaluate(async src => {
