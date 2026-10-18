@@ -227,7 +227,7 @@ test('los samples 254–257 (de fábrica, antes sin inventariar) están en la ba
   expect(nuevos.map(s => s.dur_s)).toEqual([0.26, 0.26, 0.39, 0.14]);        // medidas con el método de la base
   expect(nuevos.slice(0, 3).map(s => s.acorde)).toEqual(['≈ B m7', '≈ B m7', '≈ B m7']);
   expect(nuevos[3].acorde).toBe('');                                          // el 257 no se pudo clasificar con seguridad
-  expect(base.sonidos).toHaveLength(581);
+  expect(base.sonidos).toHaveLength(586);
 });
 
 test('los samples 254–257 se pueden elegir desde las mejores opciones de un pad y avisan su nivel y su encaje estimado', async ({ page }) => {
@@ -358,7 +358,7 @@ test('los archivos se asocian por nombre o, si no tienen nombre, por número a l
   await subirAudio(page, [['001 micro kick.wav', wav()], ['kick dirt.wav', wav()], ['254 sample.wav', wav()], ['023 sample.wav', wav()], ['cualquier cosa.wav', wav()], ['notas.txt', Buffer.from('x')]]);
   await expect(page.locator('#ksAudioInfo')).toContainText('3 con audio nuevo');
   await expect(page.locator('#ksAudioInfo')).toContainText('2 archivos sin coincidencia');      // «cualquier cosa» y «023 sample»; el .txt ni se mira
-  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 3 de 581');
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 3 de 586');
   await page.fill('#ksBuscar', 'micro kick'); await expect(page.locator('.ks-play[data-nombre="micro kick"]')).toHaveCount(1);   // por nombre, con el número del paquete delante
   await page.fill('#ksBuscar', 'synth keys bm7 254'); await expect(page.locator('.ks-play[data-nombre="synth keys bm7 254"]')).toHaveCount(1);   // por número: estimado
   await page.fill('#ksBuscar', 'nt alt kick c'); await expect(page.locator('#ksResultados .ks-rs').filter({ hasText: 'nt alt kick c' }).first()).toBeVisible();
@@ -394,14 +394,14 @@ test('al terminar el sonido el botón vuelve a ▶ solo', async ({ page }) => {
 test('la biblioteca sobrevive a recargar, se puede ampliar sin perder lo anterior y se borra en dos pasos', async ({ page }) => {
   await rolando(page); await page.goto('/kits.html');
   await subirAudio(page, [['micro kick.wav', wav(1)]]);
-  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 1 de 581');
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 1 de 586');
   await page.reload();
-  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 1 de 581');            // sigue ahí
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 1 de 586');            // sigue ahí
   await page.fill('#ksBuscar', 'micro kick'); await page.locator('.ks-play[data-nombre="micro kick"]').click();
   await expect(sonando(page)).toHaveAttribute('data-sonando', 'micro kick');                    // y suena tras recargar
   await subirAudio(page, [['micro kick.wav', wav(1, 880)], ['nt kick.wav', wav(1)]]);          // uno actualizado y uno nuevo
   await expect(page.locator('#ksAudioInfo')).toContainText('1 con audio nuevo, 1 actualizados');
-  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2 de 581');
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2 de 586');
   await page.locator('#ksAudioCaja > summary').click();
   await page.click('#ksAudioBorrar'); await expect(page.locator('#ksAudioBorrar')).toHaveText('¿Seguro? Pulsa otra vez');
   await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2');                    // con un solo clic no se borra
@@ -417,7 +417,7 @@ test('un .pak (zip) se lee por dentro: sólo entran los audios que coinciden con
   await subirAudio(page, [['ep-133-factory.pak', pak]]);
   await expect(page.locator('#ksAudioInfo')).toContainText('2 con audio nuevo');                // deflate y sin comprimir
   await expect(page.locator('#ksAudioInfo')).toContainText('1 archivo sin coincidencia');       // «999 no existe»; el .tar ni se mira
-  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2 de 581');
+  await expect(page.locator('#ksAudioResumen')).toContainText('Audio de 2 de 586');
 });
 
 test('un audio dañado no rompe nada: avisa y sigue funcionando', async ({ page }) => {
@@ -732,7 +732,7 @@ test('RD-8 y RD-6: las secciones muestran cuánto está cargado según las captu
   await expect(slot(r6, 'CP HT RD6 1')).toHaveAttribute('data-slot', '383'); await expect(slot(r6, 'CP HT RD6 2')).toHaveAttribute('data-slot', '384');
   await expect(r6.locator('p.ks-hint')).toContainText('slot 47'); await expect(r6.locator('p.ks-hint')).toContainText('slot 164');
   await expect(r8.locator('p.ks-hint')).toHaveCount(0);
-  // la base: ningún slot repetido, 418 muestras en el aparato (las del recuento de la captura) y los slots previstos caen en su grupo y en huecos libres
+  // la base: ningún slot repetido, 423 muestras en el aparato (las del recuento de la captura) y los slots previstos caen en su grupo y en huecos libres
   const b = await page.evaluate(() => {
     const base = JSON.parse(document.getElementById('ksDatos').textContent), car = base.sonidos.filter(s => s.cargado), slots = car.map(s => s.slot).concat(base.slots_duplicados.map(x => x.slot));
     const pend = base.sonidos.filter(s => /RD-?[68]/.test(s.pack) && !s.cargado), usados = new Set(slots);
@@ -740,9 +740,9 @@ test('RD-8 y RD-6: las secciones muestran cuánto está cargado según las captu
       largos: base.sonidos.filter(s => s.nombre_aparato && s.nombre_aparato.length > 16).length, conAparato: base.sonidos.filter(s => s.nombre_aparato).length,
       dup: base.slots_duplicados.map(x => x.slot) };
   });
-  expect(b.total).toBe(418); expect(b.unicos).toBe(418);
+  expect(b.total).toBe(423); expect(b.unicos).toBe(423);
   expect(b.pend).toEqual([['CP RS RD-8', 165], ['CP HT RD6 1', 383], ['CP HT RD6 2', 384]]);
-  expect(b.choque).toBe(0); expect(b.largos).toBe(0); expect(b.conAparato).toBe(44); expect(b.dup).toEqual([47, 161, 163, 164]);
+  expect(b.choque).toBe(0); expect(b.largos).toBe(0); expect(b.conAparato).toBe(49); expect(b.dup).toEqual([47, 161, 163, 164]);
 });
 
 test('RD-8 y RD-6: el nombre que muestra el aparato sigue la regla de 16 caracteres (7 + «.» + 8)', async ({ page }) => {
@@ -800,4 +800,18 @@ test('Behringer RD-8: en el detalle de un sonido por cargar, el slot previsto ya
   await page.click('#ksMarcar');
   await expect(pad(page, 'A:7').locator('.slot')).toHaveText('44');
   await expect(page.locator('li.ks-rd8-fila[data-nombre="CP BD RD-8 High Long"]')).toHaveClass(/ok/);       // y la sección RD-8 lo refleja
+});
+
+test('Samples propios en USER 1 (700–704) quedan en la base como cargados, con nombre del aparato', async ({ page }) => {
+  await rolando(page); await page.goto('/kits.html');
+  const r = await page.evaluate(() => {
+    const base = JSON.parse(document.getElementById('ksDatos').textContent);
+    return base.sonidos.filter(s => s.slot >= 700 && s.slot < 800).map(s => [s.slot, s.nombre, s.nombre_aparato, s.cargado, s.origen, s.rol, s.onda]);
+  });
+  expect(r).toEqual([
+    [700, 'beingboring1', 'BEINGBORINGI', true, 'propio', 'Sintes / FX / otros', 'polifónica'],
+    [701, 'porvenir', 'PORVENIR', true, 'propio', 'Sintes / FX / otros', 'ruido'],
+    [702, 'songbird_1', 'SONGBIRD_1', true, 'propio', 'Sintes / FX / otros', 'polifónica'],
+    [703, 'songbird_2', 'SONGBIRD_2', true, 'propio', 'Sintes / FX / otros', 'polifónica'],
+    [704, 'songbird_loop', 'SONGBIRD_LOOP', true, 'propio', 'Sintes / FX / otros', 'polifónica']]);
 });
