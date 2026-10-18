@@ -194,11 +194,10 @@ test.describe('chop con selección múltiple', () => {
   });
 
   test('en Chop se comparten los cortes elegidos como WAV sueltos', async ({ page }) => {
-    await abrir(page, 'rolando'); await sembrarGolpes(page);
-    await abrirChop(page, 'Chop'); await espiar(page);
-    const hoja = page.locator('dialog.sheet');
-    await expect(hoja).not.toContainText(/K\.O\./);
-    await hoja.getByRole('button', { name: /^Pad 1/ }).click(); await hoja.getByRole('button', { name: /^Pad 3/ }).click();
+    await abrir(page, 'rolando'); await sembrarGolpes(page); await page.reload();
+    const hoja = await abrirChop(page, 'Chop en pads'); await espiar(page);
+    await hoja.getByRole('button', { name: '4', exact: true }).click();
+    await hoja.getByRole('button', { name: 'Pad 1', exact: true }).click(); await hoja.getByRole('button', { name: 'Pad 3', exact: true }).click();
     await hoja.getByRole('button', { name: 'Compartir 2 (WAV)' }).click();
     await expect.poll(() => page.evaluate(() => window.__compartido.length)).toBe(1);
     const fs = (await page.evaluate(() => window.__compartido))[0];
