@@ -18,7 +18,12 @@ const TEMPLATES = (() => {
 const cos12 = (a, b) => { let d = 0, na = 0, nb = 0; for (let i = 0; i < 12; i++) { d += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; } return na > 1e-12 && nb > 1e-12 ? d / Math.sqrt(na * nb) : 0; };
 
 /** Chroma (12 notas) por ventana de 4096 muestras, de 110 a 1760 Hz, con compresión logarítmica. */
+const chromaCache = new WeakMap();      // el análisis de la misma toma (Tempo ÷ 2, × 2, mover el tiempo 1…) no recalcula el cromagrama
 export function chromaFrames(x, rate) {
+  const c = chromaCache.get(x); if (c && c.rate === rate) return c.frames;
+  const frames = computeChroma(x, rate); chromaCache.set(x, { rate, frames }); return frames;
+}
+function computeChroma(x, rate) {
   const kLo = Math.ceil(110 * CH_N / rate), kHi = Math.floor(1760 * CH_N / rate), pc = new Int8Array(kHi + 1);
   for (let k = kLo; k <= kHi; k++) pc[k] = ((Math.round(69 + 12 * Math.log2(k * rate / CH_N / 440)) % 12) + 12) % 12;
   const re = new Float64Array(CH_N), im = new Float64Array(CH_N), out = [];

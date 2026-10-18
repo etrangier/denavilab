@@ -1015,6 +1015,63 @@ test.describe('depuración: historial acotado y lo compartido siempre al día', 
     expect(r.pn).toBe(2);
   });
 
+  test('los cálculos largos van a un hilo aparte: dan lo mismo que en el principal y la pantalla sigue viva', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async () => {
+      const w = await import('/sounds/work.js'), d = await import('/sounds/dsp.js'), rate = 48000;
+      let seed = 3; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32 - 0.5; };
+      const x = new Float32Array(rate * 20).map((_, i) => 0.05 * rnd() + (i % 24000 < 6000 ? 0.4 * Math.sin(i * 0.07) : 0));
+      const ref = d.cleanNoise(x, rate, 'strong');
+      let ticks = 0; const t = setInterval(() => ticks++, 16);
+      const out = await w.compute('cleanNoise', [x, rate, 'strong']);
+      clearInterval(t);
+      let dif = 0; for (let i = 0; i < ref.length; i++) dif = Math.max(dif, Math.abs(ref[i] - out[i]));
+      const pad = await w.compute('padStretch', [x.slice(0, rate), 4, rate, true]), padRef = d.padStretch(x.slice(0, rate), 4, rate, true);
+      return { worker: w.usesWorker(), igual: out.length === ref.length && dif < 1e-6, ticks, padIgual: pad.length === padRef.length && pad[1000] === padRef[1000], intacto: x[0] === x[0] };
+    });
+    expect(r.worker).toBe(true); expect(r.igual).toBe(true); expect(r.padIgual).toBe(true);
+    expect(r.ticks).toBeGreaterThan(5);                               // mientras calculaba, el hilo principal seguía atendiendo
+  });
+
+  test('sin soporte de hilos el cálculo se hace igualmente en el principal', async ({ page }) => {
+    await page.addInitScript(() => { delete window.Worker; });
+    await abrir(page);
+    const r = await page.evaluate(async () => {
+      const w = await import('/sounds/work.js'), d = await import('/sounds/dsp.js'), x = new Float32Array(48000).map((_, i) => 0.3 * Math.sin(i * 0.05)), out = await w.compute('cleanNoise', [x, 48000, 'soft']);
+      return { worker: w.usesWorker(), igual: out.length === d.cleanNoise(x, 48000, 'soft').length };
+    });
+    expect(r.worker).toBe(false); expect(r.igual).toBe(true);
+  });
+
+  test('el análisis de acordes de una misma toma se reutiliza (Tempo ÷ 2, × 2…)', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async () => {
+      const hm = await import('/sounds/harmony.js'), x = new Float32Array(48000 * 6).map((_, i) => 0.3 * Math.sin(i * 0.05)), y = x.slice();
+      const a = hm.chromaFrames(x, 48000);
+      return { mismo: hm.chromaFrames(x, 48000) === a, otraToma: hm.chromaFrames(y, 48000) !== a, otraFrecuencia: hm.chromaFrames(x, 44100) !== a };
+    });
+    expect(r).toEqual({ mismo: true, otraToma: true, otraFrecuencia: true });
+  });
+
+  test('en el editor, «Fuerte» trabaja en segundo plano: el botón pulsa, la pantalla responde y al terminar se aplica y se puede deshacer', async ({ page }) => {
+    const errores = vigilar(page);
+    await abrir(page, 'schair');
+    await page.evaluate(async () => {
+      const st = await import('/sounds/store.js'), rate = 48000; let seed = 7; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32 - 0.5; };
+      const a = new Float32Array(rate * 15).map((_, i) => 0.05 * rnd() + ((i / rate) % 3 > 1 && (i / rate) % 3 < 2 ? 0.4 * Math.sin(i * 0.07) : 0));
+      await st.putSample(st.newSample('Ruidosa', a, rate), a);
+    });
+    await page.reload();
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Ruidosa' }).click();
+    await page.getByRole('button', { name: 'Fuerte', exact: true }).click();
+    await expect(page.locator('#toast')).toContainText('Listo: ruido reducido (fuerte)', { timeout: 20000 });
+    await expect(page.getByRole('button', { name: /Deshacer/ })).toBeEnabled();
+    await page.getByRole('button', { name: /Deshacer/ }).click();
+    await expect(page.getByRole('button', { name: /Deshacer/ })).toBeDisabled();
+    expect(errores).toEqual([]);
+  });
+
   test('cada guardado renueva la versión: lo preparado para compartir nunca queda viejo', async ({ page }) => {
     await abrir(page, 'schair'); await sembrar(page, ['uno']);
     await page.evaluate(() => { window.__c = []; navigator.canShare = d => !!(d && d.files && d.files.length); navigator.share = async d => { const b = new Uint8Array(await d.files[0].arrayBuffer()); let m = 0; for (let i = 44; i + 1 < b.length; i += 2) m = Math.max(m, Math.abs(new Int16Array(b.buffer, i, 1)[0] || 0)); window.__c.push(m); }; });
