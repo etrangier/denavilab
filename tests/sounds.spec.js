@@ -787,22 +787,24 @@ test.describe('acordes, compases y loop', () => {
     await expect(hoja.getByRole('button', { name: 'Corte 1, Am', exact: true })).toBeVisible();
     await expect(hoja.getByRole('button', { name: 'Corte 4, G', exact: true })).toBeVisible();
     await expect(hoja).not.toContainText('K.O. II');
-    // el loop sugerido selecciona 4 compases seguidos
-    await hoja.getByRole('button', { name: /^Elegir el loop sugerido · 4 compases$/ }).click();
-    await expect(hoja).toContainText('10 cortes · 4 seleccionados');
+    // sin tocar nada ya hay un loop de 4 compases sugerido, con el BPM fijado
+    const tarjeta = hoja.getByLabel('Loop sugerido');
+    await expect(tarjeta.getByRole('button', { name: '4 compases', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(tarjeta).toContainText('4 compases de'); await expect(tarjeta).toContainText('100 BPM: el loop dura justo 9,6 s');
+    await expect(tarjeta.getByRole('button', { name: /^Mejor/ })).toBeVisible();
+    await expect(hoja).toContainText('10 cortes · 0 seleccionados');
     await expect(hoja.getByRole('button', { name: 'Escuchar loop' })).toBeEnabled();
     await hoja.getByRole('button', { name: 'Escuchar loop' }).click();
     await expect(hoja.getByRole('button', { name: 'Parar el loop', exact: true })).toBeVisible();
     await hoja.getByRole('button', { name: 'Parar el loop', exact: true }).click();
     await hoja.getByRole('button', { name: 'Guardar selección como loop' }).click();
-    await expect(page.locator('#toast')).toContainText('Loop de 4 compases guardado');
+    await expect(page.locator('#toast')).toContainText('Loop de 4 compases guardado'); await expect(page.locator('#toast')).toContainText('100 BPM fijos');
     const lp = await page.evaluate(async () => {
       const st = await import('/sounds/store.js'), m = (await st.listSamples()).find(v => v.name.includes('loop 4 compases'));
       return m ? { dur: m.duration, bpm: m.bpm } : null;
     });
-    expect(lp).not.toBeNull(); expect(lp.dur).toBeGreaterThan(9.5); expect(lp.dur).toBeLessThan(9.7); expect(lp.bpm).toBeGreaterThan(99);
+    expect(lp).not.toBeNull(); expect(lp.dur).toBeGreaterThan(9.5); expect(lp.dur).toBeLessThan(9.7); expect(lp.bpm).toBe(100);
     // corte 2 y 4 no son seguidos: ni escuchar ni guardar como loop
-    await hoja.getByRole('button', { name: 'Ninguno', exact: true }).click();
     await hoja.getByRole('button', { name: /^Corte 2/ }).click(); await hoja.getByRole('button', { name: /^Corte 4/ }).click();
     await expect(hoja.getByRole('button', { name: 'Guardar selección como loop' })).toBeDisabled();
     // mover el 1 un tiempo cambia los acordes; apagar la detección vuelve a los cortes normales
@@ -812,6 +814,58 @@ test.describe('acordes, compases y loop', () => {
     await expect(hoja.getByRole('button', { name: 'Compases', exact: true })).toHaveCount(0);
     await expect(hoja.getByRole('button', { name: 'Corte 1', exact: true })).toBeVisible();
     expect(errores).toEqual([]);
+  });
+
+  test('el loop se sugiere por compases (2, 4 u 8), con alternativas que no se solapan y duración exacta a BPM fijo', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async src => {
+      const hm = await import('/sounds/harmony.js'), { x, rate } = new Function(src + '; return { x, rate };')();
+      const a = hm.analyze(x, rate, 100), por = n => hm.layout(a, a.downbeat, n), l4 = por(4), l8 = por(8), l2 = por(2), l16 = por(16);
+      const solapan = l2.loops.some((p, i) => l2.loops.some((q, j) => i < j && Math.abs(p.bar - q.bar) < 2));
+      const lp = hm.makeLoop(x, l4.loop.start, l4.loop.end, rate, 15, { bpm: 100, bars: 4 }), lp98 = hm.makeLoop(x, l4.loop.start, l4.loop.end, rate, 15, { bpm: 98, bars: 4 });
+      const lejos = hm.makeLoop(x, l4.loop.start, l4.loop.end, rate, 15, { bpm: 60, bars: 4 }), sinFijar = hm.makeLoop(x, l4.loop.start, l4.loop.end, rate);
+      const rampa = new Float32Array(1000).map((_, i) => i / 1000), r2 = hm.fitLength(rampa, 1500);
+      return { w: [l2.loop.bars, l4.loop.bars, l8.loop.bars, l16.loop.bars], n4: l4.loops.length, solapan, ord: l4.loops.every((c, i) => !i || l4.loops[i - 1].score >= c.score),
+        fijo: lp.length, fijoEsp: hm.loopLength(rate, 100, 4), p98: lp98.length, p98Esp: hm.loopLength(rate, 98, 4), lejos: lejos.length, orig: sinFijar.length,
+        redondeo: [hm.fixedBpm(99.6), hm.fixedBpm(100.4), hm.fixedBpm(0.2)], pct: hm.stretchPct(1000, 1010),
+        rampa: [r2.length, r2[0], r2[750], r2[1499] > 0.99, Math.max(...r2) <= 1.001], igual: hm.fitLength(rampa, 1000)[500] };
+    }, progresion);
+    expect(r.w).toEqual([2, 4, 8, 4]);                // 16 no cabe en 10 compases: se queda en 4
+    expect(r.n4).toBeGreaterThanOrEqual(1); expect(r.solapan).toBe(false); expect(r.ord).toBe(true);
+    expect(r.fijo).toBe(r.fijoEsp); expect(r.fijoEsp).toBe(460800);
+    expect(r.p98).toBe(r.p98Esp);
+    expect(r.lejos).toBe(r.orig);                      // 60 BPM exigiría estirar un 67 %: se deja sin fijar
+    expect(r.redondeo).toEqual([100, 100, 1]); expect(r.pct).toBeCloseTo(1, 5);
+    expect(r.rampa[0]).toBe(1500); expect(r.rampa[1]).toBe(0); expect(r.rampa[2]).toBeCloseTo(0.5, 2); expect(r.rampa[4]).toBe(true); expect(r.igual).toBeCloseTo(0.5, 5);
+  });
+
+  test('en Chop: cambiar a 2 u 8 compases, elegir otra opción y mover el BPM fijo cambia el loop que se guarda', async ({ page }) => {
+    await abrir(page, 'schair');
+    await page.evaluate(async src => {
+      const st = await import('/sounds/store.js'), { x, rate } = new Function(src + '; return { x, rate };')();
+      await st.putSample(st.newSample('Progresión', x, rate, { bpm: 100 }), x);
+    }, progresion);
+    await page.reload();
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Progresión' }).click();
+    await page.getByRole('button', { name: 'Chop', exact: true }).click();
+    const hoja = page.locator('dialog.sheet'), t = hoja.getByLabel('Loop sugerido');
+    await hoja.getByLabel('Detectar acordes y compases').check();
+    await t.getByRole('button', { name: '8 compases', exact: true }).click();
+    await expect(t).toContainText('8 compases de'); await expect(t).toContainText('100 BPM: el loop dura justo 19,2 s');
+    await t.getByRole('button', { name: '2 compases', exact: true }).click();
+    await expect(t).toContainText('2 compases de'); await expect(t).toContainText('4,8 s');
+    await t.getByRole('button', { name: /^Opción 2/ }).click();
+    await expect(t.getByRole('button', { name: /^Opción 2/ })).toHaveAttribute('aria-pressed', 'true');
+    await t.getByRole('button', { name: 'BPM +1', exact: true }).click();
+    await expect(t).toContainText('101 BPM: el loop dura justo 4,75 s');
+    await hoja.getByRole('button', { name: 'Guardar selección como loop' }).click();
+    await expect(page.locator('#toast')).toContainText('Loop de 2 compases guardado'); await expect(page.locator('#toast')).toContainText('101 BPM fijos');
+    const lp = await page.evaluate(async () => { const st = await import('/sounds/store.js'), m = (await st.listSamples()).find(v => v.name.includes('loop 2 compases')); return m ? { dur: m.duration, bpm: m.bpm, name: m.name } : null; });
+    expect(lp.bpm).toBe(101); expect(lp.dur).toBeCloseTo(4.752, 2); expect(lp.name).toContain('101 BPM');
+    // sin fijar el BPM, el loop conserva su duración original
+    await t.getByLabel('Fijar BPM').uncheck();
+    await expect(t).toContainText('conserva su duración original');
   });
 
   test('sin pulso claro no detecta compases y lo avisa', async ({ page }) => {

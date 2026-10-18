@@ -28,13 +28,17 @@ struct ChopSheet: View {
     @State private var lay: Harmony.Analysis?
     @State private var shift = 0
     @State private var perPad = 1
+    @State private var wantBars = 4                        // compases del loop sugerido (4 por defecto)
+    @State private var pick: Harmony.LoopSuggestion?       // el loop sugerido que está elegido (mientras no se elijan cortes a mano)
+    @State private var fixOn = true                        // fijar el BPM: el loop dura justo sus compases a ese BPM
+    @State private var fixBpmValue: Int?                   // BPM fijo elegido por el usuario (nil = el detectado, redondeado)
     @State private var loopPlayer: AVAudioPlayer?
     @State private var fxFlash: String?                    // botón recién usado (destello amarillo)
     @State private var harmonize = true                   // centra la onda, suaviza bordes y, al unir, iguala el volumen
 
     private func recompute() {
         if mode == -1, let b = base {
-            let l = Harmony.layout(b, downbeat: b.downbeat + shift)
+            let l = Harmony.layout(b, downbeat: b.downbeat + shift, want: wantBars)
             lay = l
             ranges = barRanges(l)
             stopPreview()
@@ -188,9 +192,17 @@ struct ChopSheet: View {
         }
     }
 
+    private var waveHighlights: [ClosedRange<Double>]? {
+        if selected.isEmpty {
+            guard let p = pick, audio.count > 0 else { return nil }
+            return [(Double(p.start) / Double(audio.count))...(Double(p.end) / Double(audio.count))]
+        }
+        return Editing.highlightRanges(ranges, total: audio.count, selected: selected)
+    }
+
     private var wave: some View {
         ZStack {
-            WaveBars(peaks: peaks, highlights: selected.isEmpty ? nil : Editing.highlightRanges(ranges, total: audio.count, selected: selected)).padding(12)
+            WaveBars(peaks: peaks, highlights: waveHighlights).padding(12)
             Canvas { ctx, size in
                 for r in ranges.dropFirst() {
                     let x = size.width * CGFloat(r.lowerBound) / CGFloat(max(audio.count, 1))
@@ -280,7 +292,7 @@ struct ChopSheet: View {
 
     private func setHarmony(_ on: Bool) {
         if !on {
-            harmonyOn = false; base = nil; lay = nil; shift = 0
+            harmonyOn = false; base = nil; lay = nil; pick = nil; shift = 0
             if mode == -1 { mode = 8 }
             recompute(); return
         }
@@ -292,7 +304,8 @@ struct ChopSheet: View {
             message = "No encuentro un pulso claro (o la toma tiene menos de 8 tiempos): no puedo detectar compases"
             harmonyOn = lay != nil; return
         }
-        base = a; shift = 0; lay = a; harmonyOn = true
+        let laid = Harmony.layout(a, downbeat: a.downbeat, want: wantBars)
+        base = a; shift = 0; lay = laid; pick = laid.loop; fixBpmValue = nil; harmonyOn = true
         perPad = autoPer(a)
         if mode == -1 { recompute() } else { mode = -1 }       // al cambiar `mode` se recalculan los cortes
     }
@@ -310,8 +323,8 @@ struct ChopSheet: View {
                     .font(Theme.font(12)).foregroundColor(Theme.muted)
             }
             HStack(spacing: 8) {
-                Button("◀ 1 tiempo") { shift -= 1; recompute() }
-                Button("1 tiempo ▶") { shift += 1; recompute() }
+                Button("◀ 1 tiempo") { shift -= 1; recompute(); pick = lay?.loop }
+                Button("1 tiempo ▶") { shift += 1; recompute(); pick = lay?.loop }
             }.buttonStyle(OutlineButton()).font(Theme.font(13))
             HStack(spacing: 8) {
                 Button("Tempo ÷ 2") { analyzeWith(l.bpm / 2) }
@@ -324,21 +337,73 @@ struct ChopSheet: View {
                     }
                 }
             }
-            if let lp = l.loop {
-                Button("Elegir el loop sugerido · " + (lp.bars == 1 ? "1 compás" : "\(lp.bars) compases")) {
-                    mode = -1; perPad = 1; recompute()
-                    selected = Set(ranges.indices.filter { ranges[$0].lowerBound < lp.end && ranges[$0].upperBound > lp.start })
-                }.buttonStyle(OutlineButton(selected: true)).font(Theme.font(13))
-                Text("Sugerido: " + lp.chords.joined(separator: " · ")).font(Theme.font(12)).foregroundColor(Theme.muted)
-            } else {
-                Text("No encontré un tramo que se repita bien.").font(Theme.font(12)).foregroundColor(Theme.muted)
-            }
+            loopCard(l)
         }.card()
+    }
+
+    private func loopBpm(_ l: Harmony.Analysis) -> Int { fixBpmValue ?? Harmony.fixedBpm(l.bpm) }
+
+    /// Ajuste de duración para el loop elegido, o nil si no se fija el BPM o el cambio sería audible.
+    private func loopFix(_ r: (start: Int, end: Int, bars: Int), _ l: Harmony.Analysis) -> (bpm: Int, bars: Int)? {
+        guard fixOn else { return nil }
+        let bpm = loopBpm(l), target = Harmony.loopLength(rate: sample.sampleRate, bpm: bpm, bars: r.bars)
+        if abs(Harmony.stretchPct(r.end - r.start, target)) > Harmony.maxStretchPct { return nil }
+        return (bpm: bpm, bars: r.bars)
+    }
+
+    private func secs(_ n: Int) -> String {
+        var t = String(format: "%.2f", Double(n) / Double(sample.sampleRate))
+        while t.hasSuffix("0") { t.removeLast() }
+        if t.hasSuffix(".") { t.removeLast() }
+        return t.replacingOccurrences(of: ".", with: ",") + " s"
+    }
+
+    private func barsWord(_ n: Int) -> String { n == 1 ? "1 compás" : "\(n) compases" }
+
+    /// Loop de N compases sugerido (4 por defecto) sobre toda la toma, con alternativas y BPM fijo para pasarlo al K.O.
+    private func loopCard(_ l: Harmony.Analysis) -> some View {
+        let bpm = loopBpm(l), r = loopRange
+        let stretch = r.map { Harmony.stretchPct($0.end - $0.start, Harmony.loopLength(rate: sample.sampleRate, bpm: bpm, bars: $0.bars)) } ?? 0
+        let okFix = r != nil && abs(stretch) <= Harmony.maxStretchPct
+        let counts = [1, 2, 4, 8].filter { $0 <= l.bars.count || $0 == wantBars }
+        var fixText = "El loop conserva su duración original"
+        if fixOn, let r = r {
+            fixText = "\(bpm) BPM: el loop dura justo \(secs(Harmony.loopLength(rate: sample.sampleRate, bpm: bpm, bars: r.bars)))"
+            fixText += okFix ? " (ajuste \(stretch >= 0 ? "+" : "")\(String(format: "%.2f", stretch).replacingOccurrences(of: ".", with: ",")) %)" : " · el ajuste sería muy grande: se deja sin fijar"
+        } else if fixOn { fixText = "\(bpm) BPM" }
+        var info = "No encontré un tramo que se repita bien."
+        if let p = pick, selected.isEmpty { info = "\(barsWord(p.bars)) de \(stamp(Double(p.start) / Double(l.rate))) a \(stamp(Double(p.end) / Double(l.rate))) · " + p.chords.joined(separator: " · ") }
+        else if l.loop != nil { info = "Elegiste cortes a mano: el loop son esos compases seguidos." }
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Loop sugerido").font(Theme.font(15, weight: .medium)).foregroundColor(Theme.text)
+            HStack(spacing: 8) {
+                ForEach(counts, id: \.self) { n in
+                    Chip(title: barsWord(n), selected: wantBars == n) { wantBars = n; recompute(); pick = lay?.loop }
+                }
+            }
+            if !l.loops.isEmpty {
+                HStack(spacing: 8) {
+                    ForEach(Array(l.loops.enumerated()), id: \.offset) { i, c in
+                        Chip(title: (i == 0 ? "Mejor" : "Opción \(i + 1)") + " · " + stamp(Double(c.start) / Double(l.rate)),
+                             selected: pick?.start == c.start && selected.isEmpty) { stopPreview(); selected = []; pick = c }
+                    }
+                }
+            }
+            Text(info).font(Theme.font(12)).foregroundColor(Theme.muted)
+            ToggleRow(title: "Fijar BPM", subtitle: fixText, isOn: $fixOn)
+            if fixOn {
+                HStack(spacing: 8) {
+                    Button("BPM −1") { fixBpmValue = max(30, bpm - 1) }
+                    Button("BPM +1") { fixBpmValue = min(300, bpm + 1) }
+                }.buttonStyle(OutlineButton()).font(Theme.font(13))
+            }
+        }.padding(.top, 6)
     }
 
     /// Rango de audio de la selección si son compases seguidos (para escuchar o guardar como loop).
     private var loopRange: (start: Int, end: Int, bars: Int)? {
         guard mode == -1, lay != nil else { return nil }
+        if let p = pick, selected.isEmpty { return (p.start, p.end, p.bars) }
         let ids = selected.sorted().filter { $0 < ranges.count }
         guard let f = ids.first, let l = ids.last, ids.count == l - f + 1 else { return nil }
         return (ranges[f].lowerBound, ranges[l].upperBound, ids.count * perPad)
@@ -348,7 +413,7 @@ struct ChopSheet: View {
         if loopPlayer != nil { loopPlayer?.stop(); loopPlayer = nil; return }
         guard let r = loopRange else { return }
         stopPreview()
-        let lp = Harmony.makeLoop(audio, start: r.start, end: r.end, rate: sample.sampleRate)
+        let fix = lay.flatMap { loopFix(r, $0) }, lp = Harmony.makeLoop(audio, start: r.start, end: r.end, rate: sample.sampleRate, fix: fix)
         guard !lp.isEmpty else { return }
         do {
             try AudioSessionConfig.activate()
@@ -360,14 +425,14 @@ struct ChopSheet: View {
 
     private func saveLoop() {
         guard let r = loopRange, let l = lay else { return }
-        let lp = Harmony.makeLoop(audio, start: r.start, end: r.end, rate: sample.sampleRate)
+        let fix = loopFix(r, l), lp = Harmony.makeLoop(audio, start: r.start, end: r.end, rate: sample.sampleRate, fix: fix)
         guard !lp.isEmpty else { return }
         let word = r.bars == 1 ? "1 compás" : "\(r.bars) compases"
         let chords = l.bars.filter { $0.start >= r.start && $0.end <= r.end + 1 }.map(\.label).joined(separator: " · ")
-        if var x = lib.add(name: "\(sample.name) · loop \(word)", audio: lp, sampleRate: sample.sampleRate) {
-            x.folder = lib.folder(of: sample); x.subfolder = sample.subfolder; x.bpm = (l.bpm * 10).rounded() / 10; lib.update(x)
+        if var x = lib.add(name: "\(sample.name) · loop \(word)" + (fix.map { " · \($0.bpm) BPM" } ?? ""), audio: lp, sampleRate: sample.sampleRate) {
+            x.folder = lib.folder(of: sample); x.subfolder = sample.subfolder; x.bpm = fix.map { Double($0.bpm) } ?? (l.bpm * 10).rounded() / 10; lib.update(x)
             flashFX("guardar-loop")
-            message = "Loop de \(word) guardado (\(chords)) · ≈ \(Int(l.bpm.rounded())) BPM"
+            message = "Loop de \(word) guardado (\(chords)) · " + (fix.map { "\($0.bpm) BPM fijos, dura \(secs(lp.count))" } ?? "≈ \(Int(l.bpm.rounded())) BPM")
         }
     }
 

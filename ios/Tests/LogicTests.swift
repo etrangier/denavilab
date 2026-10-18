@@ -466,6 +466,28 @@ final class LogicTests: XCTestCase {
         XCTAssertNil(Harmony.analyze(Array(x.prefix(rate * 2)), rate: rate, bpm: 100))
     }
 
+    func testLoopByBarsAlternativesAndFixedBpm() throws {
+        let (x, rate) = progression()
+        let a = try XCTUnwrap(Harmony.analyze(x, rate: rate, bpm: 100))
+        func lay(_ n: Int) -> Harmony.Analysis { Harmony.layout(a, downbeat: a.downbeat, want: n) }
+        XCTAssertEqual([2, 4, 8, 16].map { lay($0).loop?.bars }, [2, 4, 8, 4])      // 16 no cabe en 10 compases
+        let l4 = lay(4), l2 = lay(2)
+        XCTAssertGreaterThanOrEqual(l4.loops.count, 1)
+        for (i, p) in l2.loops.enumerated() { for q in l2.loops.dropFirst(i + 1) { XCTAssertGreaterThanOrEqual(abs(p.bar - q.bar), 2) } }
+        XCTAssertEqual(l4.loops.map(\.score), l4.loops.map(\.score).sorted(by: >))
+        let lp = try XCTUnwrap(l4.loop)
+        // BPM fijo: dura justo compases × 4 × 60 / BPM
+        XCTAssertEqual(Harmony.makeLoop(x, start: lp.start, end: lp.end, rate: rate, fix: (100, 4)).count, 460800)
+        XCTAssertEqual(Harmony.makeLoop(x, start: lp.start, end: lp.end, rate: rate, fix: (98, 4)).count, Harmony.loopLength(rate: rate, bpm: 98, bars: 4))
+        // 60 BPM exigiría estirar un 67 %: se deja sin fijar
+        XCTAssertEqual(Harmony.makeLoop(x, start: lp.start, end: lp.end, rate: rate, fix: (60, 4)).count, lp.end - lp.start)
+        XCTAssertEqual([Harmony.fixedBpm(99.6), Harmony.fixedBpm(100.4), Harmony.fixedBpm(0.2)], [100, 100, 1])
+        XCTAssertEqual(Harmony.stretchPct(1000, 1010), 1, accuracy: 1e-9)
+        let ramp = (0..<1000).map { Float($0) / 1000 }, r2 = Harmony.fitLength(ramp, 1500)
+        XCTAssertEqual(r2.count, 1500); XCTAssertEqual(r2[0], 0); XCTAssertEqual(r2[750], 0.5, accuracy: 0.01)
+        XCTAssertEqual(Harmony.fitLength(ramp, 1000)[500], 0.5, accuracy: 1e-6)
+    }
+
     // MARK: invertir
 
     func testReverse() {

@@ -17,6 +17,8 @@ enum Harmony {
         var start: Int
         var end: Int
         var chords: [String]
+        var want = 4
+        var score = 0.0
     }
 
     struct Analysis {
@@ -27,11 +29,13 @@ enum Harmony {
         var beats: [Double]
         var beatChroma: [[Double]]
         var beatRMS: [Double]
+        var beatHit: [Double] = []
         var length: Int
         var confidence: Double
         var downbeat: Int
         var bars: [Bar] = []
         var loop: LoopSuggestion?
+        var loops: [LoopSuggestion] = []
     }
 
     nonisolated static let notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
@@ -177,13 +181,14 @@ enum Harmony {
         for i in 0..<4 where score[i] > score[downbeat] { downbeat = i }
         let second = score.sorted(by: >)[1]
         let confidence = min(1, max(0, (score[downbeat] - second) * 2 + 0.3))
+        let beatHit = beats.map { Double(fluxAt(flux, $0, hop: Double(hop))) }
         let an = Analysis(bpm: 60 * Double(rate) / T, rate: rate, period: T, first: fit.first, beats: beats, beatChroma: beatChroma,
-                          beatRMS: beatRMS, length: x.count, confidence: confidence, downbeat: downbeat)
+                          beatRMS: beatRMS, beatHit: beatHit, length: x.count, confidence: confidence, downbeat: downbeat)
         return layout(an, downbeat: downbeat)
     }
 
     /// Compases, acordes y loop sugerido para un tiempo 1 dado (0–3 tiempos desde el primero detectado). No vuelve a analizar el audio.
-    nonisolated static func layout(_ an: Analysis, downbeat: Int) -> Analysis {
+    nonisolated static func layout(_ an: Analysis, downbeat: Int, want: Int = 4) -> Analysis {
         let d = ((downbeat % 4) + 4) % 4, T = an.period
         var bars: [Bar] = []
         var j = d
@@ -200,36 +205,80 @@ enum Harmony {
             j += 4
         }
         var out = an
-        out.downbeat = d; out.bars = bars; out.loop = suggestLoop(an, bars)
+        out.downbeat = d; out.bars = bars
+        out.loops = suggestLoops(an, bars, want: want, count: 3); out.loop = out.loops.first
         return out
     }
 
-    /// El tramo de 4, 2 o 1 compases que mejor se repite: empieza y acaba en armonías parecidas y con volumen parejo.
-    nonisolated private static func suggestLoop(_ an: Analysis, _ bars: [Bar]) -> LoopSuggestion? {
-        var best: (score: Double, bar: Int, bars: Int)?
-        for L in [4, 2, 1] where bars.count >= L {
-            for m in 0...(bars.count - L) {
-                let j0 = bars[m].beat, jN = j0 + 4 * L
-                var s = jN < an.beatChroma.count ? cos12(an.beatChroma[j0], an.beatChroma[jN]) : 0.5
-                if L >= 2 {
-                    let half = (L / 2) * 4
-                    var a = [Double](repeating: 0, count: 12), b = a
-                    for k in 0..<half { for i in 0..<12 { a[i] += an.beatChroma[j0 + k][i]; b[i] += an.beatChroma[j0 + half + k][i] } }
-                    s += 0.5 * cos12(a, b)
-                }
-                let r0 = an.beatRMS[j0], r1 = jN - 1 < an.beatRMS.count ? an.beatRMS[jN - 1] : r0
-                if r0 > 1e-6 && r1 > 1e-6 && abs(20 * log10(r0 / r1)) > 6 { s -= 0.3 }
-                s += (L == 4 ? 0.25 : L == 2 ? 0.12 : 0) - 0.01 * Double(m)       // a igualdad, el que empieza antes
-                if best == nil || s > best!.score { best = (s, m, L) }
+    /// Los `count` mejores tramos distintos (sin solaparse) de `want` compases (por defecto 4; si no caben, el mayor de 4, 2 o 1 que quepa), de mejor a peor.
+    /// Puntúa cuánto se parece el final al principio (armonía), que las dos mitades suenen igual, que empiece sobre un golpe claro del tiempo 1
+    /// y que el volumen no caiga entre el principio y el final; a igualdad, el que empieza antes.
+    nonisolated static func suggestLoops(_ an: Analysis, _ bars: [Bar], want: Int, count: Int) -> [LoopSuggestion] {
+        guard let L = [want, 4, 2, 1].first(where: { bars.count >= $0 }) else { return [] }
+        let maxHit = max(1e-9, an.beatHit.max() ?? 0)
+        var cands: [(score: Double, bar: Int)] = []
+        for m in 0...(bars.count - L) {
+            let j0 = bars[m].beat, jN = j0 + 4 * L
+            var s = jN < an.beatChroma.count ? cos12(an.beatChroma[j0], an.beatChroma[jN]) : 0.5
+            if L >= 2 {
+                let half = (L / 2) * 4
+                var a = [Double](repeating: 0, count: 12), b = a
+                for k in 0..<half { for i in 0..<12 { a[i] += an.beatChroma[j0 + k][i]; b[i] += an.beatChroma[j0 + half + k][i] } }
+                s += 0.5 * cos12(a, b)
             }
+            let r0 = an.beatRMS[j0], r1 = jN - 1 < an.beatRMS.count ? an.beatRMS[jN - 1] : r0
+            if r0 > 1e-6 && r1 > 1e-6 && abs(20 * log10(r0 / r1)) > 6 { s -= 0.3 }
+            if j0 < an.beatHit.count { s += 0.25 * an.beatHit[j0] / maxHit }
+            s -= 0.01 * Double(m)
+            cands.append((s, m))
         }
-        guard let b = best else { return nil }
-        let sel = Array(bars[b.bar..<(b.bar + b.bars)])
-        return LoopSuggestion(bar: b.bar, bars: b.bars, start: sel[0].start, end: sel[sel.count - 1].end, chords: sel.map(\.label))
+        cands.sort { $0.score > $1.score }
+        var out: [LoopSuggestion] = []
+        for c in cands {
+            if out.count >= count { break }
+            if out.contains(where: { abs($0.bar - c.bar) < L }) { continue }       // que no se solapen
+            let sel = Array(bars[c.bar..<(c.bar + L)])
+            out.append(LoopSuggestion(bar: c.bar, bars: L, start: sel[0].start, end: sel[sel.count - 1].end, chords: sel.map(\.label), want: want, score: c.score))
+        }
+        return out
+    }
+
+    /// Más allá de este ajuste (en %) el BPM fijo se descarta: sería un cambio de tono audible, no una corrección.
+    nonisolated static let maxStretchPct = 8.0
+
+    /// BPM fijo para el loop: el detectado, redondeado a un entero (así el loop dura justo `compases × 4 × 60 / BPM` segundos).
+    nonisolated static func fixedBpm(_ bpm: Double) -> Int { max(1, Int(bpm.rounded())) }
+
+    /// Muestras que debe durar un loop de `bars` compases de 4 tiempos a `bpm`.
+    nonisolated static func loopLength(rate: Int, bpm: Int, bars: Int) -> Int { Int((Double(bars * 4 * 60 * rate) / Double(bpm)).rounded()) }
+
+    /// Cuánto hay que estirar o acortar (en %) un tramo de `len` muestras para que dure `target`. Positivo = se alarga.
+    nonisolated static func stretchPct(_ len: Int, _ target: Int) -> Double { len > 0 ? 100 * Double(target - len) / Double(len) : 0 }
+
+    /// Remuestrea `x` a exactamente `n` muestras (interpolación cúbica Catmull-Rom): cambios de duración de ±1 % no se oyen como tono.
+    nonisolated static func fitLength(_ x: [Float], _ n: Int) -> [Float] {
+        let len = x.count
+        guard n > 0, len > 0 else { return [] }
+        if n == len { return x }
+        let k = Double(len) / Double(n)
+        func at(_ i: Int) -> Double { Double(x[min(len - 1, max(0, i))]) }
+        return (0..<n).map { i in
+            let p = Double(i) * k, i0 = Int(p.rounded(.down)), t = p - Double(i0)
+            let a = at(i0 - 1), b = at(i0), c = at(i0 + 1), d = at(i0 + 2)
+            return Float(b + 0.5 * t * (c - a + t * (2 * a - 5 * b + 4 * c - d + t * (3 * (b - c) + d - a))))
+        }
     }
 
     /// Audio del loop: si hay sonido después del final, se funde por potencia constante con el principio (el salto de vuelta no se oye).
-    nonisolated static func makeLoop(_ x: [Float], start: Int, end: Int, rate: Int, fadeMs: Double = 15) -> [Float] {
+    /// Con `fix` el loop se ajusta a durar exactamente esos compases a ese BPM (para que encaje en una secuencia).
+    nonisolated static func makeLoop(_ x: [Float], start: Int, end: Int, rate: Int, fadeMs: Double = 15, fix: (bpm: Int, bars: Int)? = nil) -> [Float] {
+        let out = rawLoop(x, start: start, end: end, rate: rate, fadeMs: fadeMs)
+        guard let f = fix, !out.isEmpty else { return out }
+        let target = loopLength(rate: rate, bpm: f.bpm, bars: f.bars)
+        return abs(stretchPct(out.count, target)) > maxStretchPct ? out : fitLength(out, target)
+    }
+
+    nonisolated private static func rawLoop(_ x: [Float], start: Int, end: Int, rate: Int, fadeMs: Double) -> [Float] {
         let len = end - start
         guard len > 0, start >= 0, end <= x.count else { return [] }
         var out = Array(x[start..<end])

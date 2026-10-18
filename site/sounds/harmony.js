@@ -88,12 +88,13 @@ export function analyze(x, rate, bpm = null) {
   const norm = v => { const s = v.reduce((a, b) => a + b, 0) || 1; return v.map(a => a / s); }, nh = norm(hit.map((v, i) => v / cnt[i])), nc = norm(change.map((v, i) => v / cnt[i]));
   const score = nh.map((v, i) => v + nc[i]); let downbeat = 0; score.forEach((v, i) => { if (v > score[downbeat]) downbeat = i; });
   const confidence = Math.min(1, Math.max(0, (score[downbeat] - [...score].sort((a, b) => b - a)[1]) * 2 + 0.3));
-  const an = { bpm: 60 * rate / T, rate, period: T, first: fit.first, beats, beatChroma, beatRMS, length: x.length, confidence, downbeat };
+  const beatHit = beats.map(t => { const i = Math.round(t / hop); return Math.max(flux[i], flux[i - 1] || 0, flux[i + 1] || 0); });
+  const an = { bpm: 60 * rate / T, rate, period: T, first: fit.first, beats, beatChroma, beatRMS, beatHit, length: x.length, confidence, downbeat };
   return layout(an, downbeat);
 }
 
 /** Compases, acordes y loop sugerido para un tiempo 1 dado (0–3 tiempos desde el primero detectado). No vuelve a analizar el audio. */
-export function layout(an, downbeat) {
+export function layout(an, downbeat, want = 4) {
   const d = ((downbeat % 4) + 4) % 4, T = an.period, bars = [];
   for (let j = d; j + 4 <= an.beats.length; j += 4) {
     const a = j, h1 = new Float64Array(12), h2 = new Float64Array(12);
@@ -103,29 +104,75 @@ export function layout(an, downbeat) {
   }
   const label = b => { const [x, y] = b.chords; return !x && !y ? '—' : (x || '—') === (y || '—') ? (x || '—') : `${x || '—'} ${y || '—'}`; };
   bars.forEach(b => { b.label = label(b); });
-  return { ...an, downbeat: d, bars, loop: suggestLoop(an, bars) };
+  return { ...an, downbeat: d, bars, loop: suggestLoop(an, bars, want), loops: suggestLoops(an, bars, want, 3) };
 }
 
-/** El tramo de 4, 2 o 1 compases que mejor se repite: empieza y acaba en armonías parecidas y con volumen parejo. */
-function suggestLoop(an, bars) {
-  let best = null;
-  for (const L of [4, 2, 1]) {
-    if (bars.length < L) continue;
-    for (let m = 0; m + L <= bars.length; m++) {
-      const j0 = bars[m].beat, jN = j0 + 4 * L, next = jN < an.beatChroma.length ? an.beatChroma[jN] : null;
-      let s = next ? cos12(an.beatChroma[j0], next) : 0.5;
-      if (L >= 2) { const half = (L / 2) * 4, a = new Float64Array(12), b = new Float64Array(12); for (let k = 0; k < half; k++) for (let i = 0; i < 12; i++) { a[i] += an.beatChroma[j0 + k][i]; b[i] += an.beatChroma[j0 + half + k][i]; } s += 0.5 * cos12(a, b); }
-      const r0 = an.beatRMS[j0], r1 = an.beatRMS[jN - 1] || r0; if (r0 > 1e-6 && r1 > 1e-6 && Math.abs(20 * Math.log10(r0 / r1)) > 6) s -= 0.3;
-      s += (L === 4 ? 0.25 : L === 2 ? 0.12 : 0) - 0.01 * m;      // a igualdad, el que empieza antes
-      if (!best || s > best.score) best = { score: s, bar: m, bars: L };
-    }
+/**
+ * El tramo de `want` compases (por defecto 4) que mejor se repite como loop. Si la toma no llega a esa cantidad, el mayor de 4, 2 o 1 que quepa.
+ * Puntúa cuánto se parece el final al principio (armonía), que las dos mitades suenen igual, que empiece sobre un golpe claro
+ * del tiempo 1 y que el volumen no caiga entre el principio y el final; a igualdad, el que empieza antes.
+ */
+function suggestLoop(an, bars, want = 4) { return suggestLoops(an, bars, want, 1)[0] || null; }
+
+/** Los `n` mejores tramos distintos (sin solaparse) de `want` compases, de mejor a peor: alternativas para elegir si el primero no convence. */
+export function suggestLoops(an, bars, want = 4, n = 3) {
+  const L = [want, 4, 2, 1].find(k => bars.length >= k); if (!L) return [];
+  const maxHit = Math.max(1e-9, ...(an.beatHit || [0])), cands = [];
+  for (let m = 0; m + L <= bars.length; m++) {
+    const j0 = bars[m].beat, jN = j0 + 4 * L, next = jN < an.beatChroma.length ? an.beatChroma[jN] : null;
+    let s = next ? cos12(an.beatChroma[j0], next) : 0.5;
+    if (L >= 2) { const half = (L / 2) * 4, a = new Float64Array(12), b = new Float64Array(12); for (let k = 0; k < half; k++) for (let i = 0; i < 12; i++) { a[i] += an.beatChroma[j0 + k][i]; b[i] += an.beatChroma[j0 + half + k][i]; } s += 0.5 * cos12(a, b); }
+    const r0 = an.beatRMS[j0], r1 = an.beatRMS[jN - 1] || r0; if (r0 > 1e-6 && r1 > 1e-6 && Math.abs(20 * Math.log10(r0 / r1)) > 6) s -= 0.3;
+    if (an.beatHit) s += 0.25 * an.beatHit[j0] / maxHit;
+    s -= 0.01 * m;
+    cands.push({ score: s, bar: m });
   }
-  if (!best) return null;
-  return { bar: best.bar, bars: best.bars, start: bars[best.bar].start, end: bars[best.bar + best.bars - 1].end, chords: bars.slice(best.bar, best.bar + best.bars).map(b => b.label) };
+  cands.sort((p, q) => q.score - p.score);
+  const out = [];
+  for (const c of cands) {
+    if (out.length >= n) break;
+    if (out.some(o => Math.abs(o.bar - c.bar) < L)) continue;        // que no se solapen
+    out.push({ bar: c.bar, bars: L, want, score: c.score, start: bars[c.bar].start, end: bars[c.bar + L - 1].end, chords: bars.slice(c.bar, c.bar + L).map(b => b.label) });
+  }
+  return out;
 }
 
-/** Audio del loop: si hay sonido después del final, se funde por potencia constante con el principio (el salto de vuelta no se oye). */
-export function makeLoop(x, start, end, rate, fadeMs = 15) {
+/** Más allá de este ajuste (en %) el BPM fijo se descarta: sería un cambio de tono audible, no una corrección. */
+export const MAX_STRETCH_PCT = 8;
+
+/** BPM fijo para el loop: el detectado, redondeado a un entero (así el loop dura justo `compases × 4 × 60 / BPM` segundos). */
+export function fixedBpm(bpm) { return Math.max(1, Math.round(bpm)); }
+
+/** Muestras que debe durar un loop de `bars` compases de 4 tiempos a `bpm`. */
+export function loopLength(rate, bpm, bars) { return Math.round(bars * 4 * 60 * rate / bpm); }
+
+/** Cuánto hay que estirar o acortar (en %) un tramo de `len` muestras para que dure `target`. Positivo = se alarga. */
+export function stretchPct(len, target) { return len > 0 ? 100 * (target - len) / len : 0; }
+
+/** Remuestrea `x` a exactamente `n` muestras (interpolación cúbica Catmull-Rom): cambios de duración de ±1 % no se oyen como tono. */
+export function fitLength(x, n) {
+  const len = x.length; if (n <= 0 || len === 0) return new Float32Array(0);
+  if (n === len) return x.slice();
+  const out = new Float32Array(n), k = len / n, at = i => x[i < 0 ? 0 : i >= len ? len - 1 : i];
+  for (let i = 0; i < n; i++) {
+    const p = i * k, i0 = Math.floor(p), t = p - i0, a = at(i0 - 1), b = at(i0), c = at(i0 + 1), d = at(i0 + 2);
+    out[i] = b + 0.5 * t * (c - a + t * (2 * a - 5 * b + 4 * c - d + t * (3 * (b - c) + d - a)));
+  }
+  return out;
+}
+
+/**
+ * Audio del loop: si hay sonido después del final, se funde por potencia constante con el principio (el salto de vuelta no se oye).
+ * Con `fix = { bpm, bars }` el loop se ajusta a durar exactamente esos compases a ese BPM (para que encaje en una secuencia).
+ */
+export function makeLoop(x, start, end, rate, fadeMs = 15, fix = null) {
+  const out = rawLoop(x, start, end, rate, fadeMs);
+  if (!(fix && fix.bpm && fix.bars && out.length)) return out;
+  const target = loopLength(rate, fix.bpm, fix.bars);
+  return Math.abs(stretchPct(out.length, target)) > MAX_STRETCH_PCT ? out : fitLength(out, target);
+}
+
+function rawLoop(x, start, end, rate, fadeMs) {
   const len = end - start, F = Math.min(Math.round(fadeMs / 1000 * rate), len >> 2, Math.max(0, x.length - end));
   if (len <= 0) return new Float32Array(0);
   const out = x.slice(start, end);

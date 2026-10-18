@@ -15,7 +15,7 @@ function playSlice(audio, rate, [a, b]) {
 
 export function openChop(sample, audio) {
   const pads = app.ko2 ? 'pads' : 'cortes';
-  const S = { mode: 8, sens: 0.5, grid: false, harm: true, hm: false, an: null, lay: null, shift: 0, per: 1, ranges: [], selected: new Set(), bpm: sample.bpm || (dsp.estimateBPM(audio, sample.rate) || {}).bpm || null };
+  const S = { mode: 8, sens: 0.5, grid: false, harm: true, hm: false, an: null, lay: null, shift: 0, per: 1, want: 4, pick: null, fix: true, fixBpm: null, ranges: [], selected: new Set(), bpm: sample.bpm || (dsp.estimateBPM(audio, sample.rate) || {}).bpm || null };
   const peaks = dsp.peaks(audio, 56);
   const padEls = [];                       // botones de los pads, para iluminar el que está sonando
   let preview = null;                      // { src, raf } mientras suena «Escuchar selección»
@@ -37,7 +37,7 @@ export function openChop(sample, audio) {
       return out;
     };
     const padChord = i => { const g = S.lay.bars.slice(i * S.per, i * S.per + S.per); return g.length ? g.map(b => b.label).join(' · ') : null; };
-    const relayout = () => { S.lay = hm.layout(S.an, S.an.downbeat + S.shift); };
+    const relayout = () => { S.lay = hm.layout(S.an, S.an.downbeat + S.shift, S.want); };
     const recompute = () => {
       if (S.mode === -1 && S.lay) { relayout(); S.ranges = barRanges(); stopPreview(); S.selected = new Set(); return; }
       let starts = S.mode === 0 ? dsp.transients(audio, S.sens, Math.floor(sample.rate / 10), 11) : dsp.evenSlices(audio, S.mode);
@@ -46,7 +46,7 @@ export function openChop(sample, audio) {
       stopPreview(); S.selected = new Set();                   // al cambiar los cortes, los números ya no significan lo mismo
     };
     const chosen = () => [...S.selected].sort((a, b) => a - b).filter(i => i < S.ranges.length);
-    const drawWave = () => drawBars(canvas, peaks, [0, 1], null, S.selected.size ? dsp.highlightRanges(S.ranges, audio.length, S.selected) : null, S.ranges.slice(1).map(r => r[0] / audio.length));
+    const drawWave = () => drawBars(canvas, peaks, [0, 1], null, S.pick && !S.selected.size ? [[S.pick.start / audio.length, S.pick.end / audio.length]] : S.selected.size ? dsp.highlightRanges(S.ranges, audio.length, S.selected) : null, S.ranges.slice(1).map(r => r[0] / audio.length));
 
     const saveSelected = async () => {
       const ids = chosen();
@@ -61,27 +61,33 @@ export function openChop(sample, audio) {
     const analyzeWith = bpm => {
       const a = hm.analyze(audio, sample.rate, bpm);
       if (!a) { toast('No encuentro un pulso claro (o la toma tiene menos de 8 tiempos): no puedo detectar compases'); return false; }
-      S.an = a; S.shift = 0; S.lay = hm.layout(a, a.downbeat); S.per = autoPer(); S.mode = -1; return true;
+      S.an = a; S.shift = 0; S.fixBpm = null; S.lay = hm.layout(a, a.downbeat, S.want); S.pick = S.lay.loop; S.per = autoPer(); S.mode = -1; return true;
     };
     /** Rango de audio de la selección si son compases seguidos (para escuchar o guardar como loop). */
     const loopRange = () => {
       if (S.mode !== -1 || !S.lay) return null;
+      if (S.pick && !S.selected.size) return [S.pick.start, S.pick.end, S.pick.bars];
       const ids = chosen(); if (!ids.length || ids.some((v, k) => k && v !== ids[k - 1] + 1)) return null;
       return [S.ranges[ids[0]][0], S.ranges[ids[ids.length - 1]][1], ids.length * S.per];
     };
+    /** BPM al que se fija el loop: el que pone el usuario o el detectado, redondeado. */
+    const fmt = n => dsp.stamp(n / sample.rate), secs = n => (n / sample.rate).toFixed(2).replace(/\.?0+$/, '').replace('.', ',') + ' s';
+    const loopBpm = () => S.fixBpm || hm.fixedBpm(S.lay.bpm);
+    /** Ajuste de duración para el loop elegido, o null si no se fija el BPM o el cambio sería audible. */
+    const loopFix = r => S.fix && Math.abs(hm.stretchPct(r[1] - r[0], hm.loopLength(sample.rate, loopBpm(), Math.round(r[2])))) <= hm.MAX_STRETCH_PCT ? { bpm: loopBpm(), bars: Math.round(r[2]) } : null;
     const toggleLoop = () => {
       if (loopSrc) { stopLoop(); return paint(); }
       const r = loopRange(); if (!r) return; stopPreview();
       ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();
-      const lp = hm.makeLoop(audio, r[0], r[1], sample.rate), buf = ctx.createBuffer(1, lp.length, sample.rate); buf.copyToChannel(lp, 0);
+      const lp = hm.makeLoop(audio, r[0], r[1], sample.rate, 15, loopFix(r)), buf = ctx.createBuffer(1, lp.length, sample.rate); buf.copyToChannel(lp, 0);
       loopSrc = ctx.createBufferSource(); loopSrc.buffer = buf; loopSrc.loop = true; loopSrc.connect(ctx.destination); loopSrc.start(); paint();
     };
     const saveLoop = async () => {
       const r = loopRange(); if (!r) return;
-      const lp = hm.makeLoop(audio, r[0], r[1], sample.rate), bars = Math.round(r[2]), chords = S.lay.bars.filter(b => b.start >= r[0] && b.end <= r[1] + 1).map(b => b.label).join(' · ');
+      const fix = loopFix(r), lp = hm.makeLoop(audio, r[0], r[1], sample.rate, 15, fix), bars = Math.round(r[2]), chords = S.lay.bars.filter(b => b.start >= r[0] && b.end <= r[1] + 1).map(b => b.label).join(' · ');
       try {
-        await putSample(newSample(`${sample.name} · loop ${bars === 1 ? '1 compás' : bars + ' compases'}`, lp, sample.rate, { folder: sample.folder, subfolder: sample.subfolder, bpm: Math.round(S.lay.bpm * 10) / 10 }), lp);
-        await refreshSamples(); flash('guardar-loop'); toast(`Loop de ${bars === 1 ? '1 compás' : bars + ' compases'} guardado (${chords}) · ≈ ${Math.round(S.lay.bpm)} BPM`);
+        await putSample(newSample(`${sample.name} · loop ${bars === 1 ? '1 compás' : bars + ' compases'}${fix ? ' · ' + fix.bpm + ' BPM' : ''}`, lp, sample.rate, { folder: sample.folder, subfolder: sample.subfolder, bpm: fix ? fix.bpm : Math.round(S.lay.bpm * 10) / 10 }), lp);
+        await refreshSamples(); flash('guardar-loop'); toast(`Loop de ${bars === 1 ? '1 compás' : bars + ' compases'} guardado (${chords}) · ${fix ? fix.bpm + ' BPM fijos, dura ' + dsp.stamp(lp.length / sample.rate) : '≈ ' + Math.round(S.lay.bpm) + ' BPM'}`);
       } catch (e) { toast('No se pudo guardar (¿poco espacio en el dispositivo?)'); }
     };
     const harmonized = x => S.harm ? dsp.harmonize(x, sample.rate) : x;
@@ -122,7 +128,7 @@ export function openChop(sample, audio) {
     };
 
     const harmonyCard = () => {
-      const L = S.lay, bars = L.bars, redo = f => () => { f(); recompute(); paint(); };
+      const L = S.lay, bars = L.bars, redo = f => () => { f(); recompute(); S.pick = S.lay.loop; paint(); };
       const chords = bars.slice(0, 12).map(b => b.label).join(' · ') + (bars.length > 12 ? ' …' : '');
       return card([
         h('div', { class: 'between' }, h('b', {}, 'Armonía'), h('span', { class: 'amber small' }, `≈ ${Math.round(L.bpm)} BPM · 4/4 · ${bars.length} compases`)),
@@ -131,11 +137,20 @@ export function openChop(sample, audio) {
         h('div', { class: 'row2' }, btn('◀ 1 tiempo', { small: true, onclick: redo(() => { S.shift--; }) }), btn('1 tiempo ▶', { small: true, onclick: redo(() => { S.shift++; }) })),
         h('div', { class: 'row2' }, btn('Tempo ÷ 2', { small: true, onclick: () => { if (analyzeWith(L.bpm / 2)) { recompute(); } paint(); } }), btn('Tempo × 2', { small: true, onclick: () => { if (analyzeWith(L.bpm * 2)) { recompute(); } paint(); } })),
         S.mode === -1 && [1, 2, 4].some(p => p !== S.per) ? h('div', { class: 'wrap' }, [1, 2, 4].map(p => chip(p === 1 ? '1 compás por corte' : `${p} compases`, S.per === p, () => { S.per = p; recompute(); paint(); }))) : null,
-        L.loop ? btn(`Elegir el loop sugerido · ${L.loop.bars === 1 ? '1 compás' : L.loop.bars + ' compases'}`, { small: true, sel: true, onclick: () => {
-          S.mode = -1; S.per = 1; recompute();
-          S.selected = new Set(S.ranges.map((r, i) => i).filter(i => S.ranges[i][0] < L.loop.end && S.ranges[i][1] > L.loop.start)); paint();
-        } }) : null,
-        h('p', { class: 'muted tiny' }, L.loop ? `Sugerido: ${L.loop.chords.join(' · ')}` : 'No encontré un tramo que se repita bien.')]);
+        loopCard(L)]);
+    };
+    /** Loop de N compases sugerido (4 por defecto) sobre toda la toma, con alternativas y BPM fijo para pasarlo al K.O. */
+    const loopCard = L => {
+      const bpm = loopBpm(), counts = [1, 2, 4, 8].filter(n => n <= L.bars.length || n === S.want), r = loopRange();
+      const stretch = r ? hm.stretchPct(r[1] - r[0], hm.loopLength(sample.rate, bpm, Math.round(r[2]))) : 0, okFix = r && Math.abs(stretch) <= hm.MAX_STRETCH_PCT;
+      const setBpm = v => { S.fixBpm = Math.max(30, Math.min(300, v)); paint(); };
+      return h('div', { class: 'loop-card', 'aria-label': 'Loop sugerido' }, [
+        h('b', {}, 'Loop sugerido'),
+        h('div', { class: 'wrap' }, counts.map(n => chip(n === 1 ? '1 compás' : `${n} compases`, S.want === n, () => { S.want = n; recompute(); S.pick = S.lay.loop; paint(); }))),
+        L.loops && L.loops.length ? h('div', { class: 'wrap' }, L.loops.map((c, i) => chip(`${i === 0 ? 'Mejor' : 'Opción ' + (i + 1)} · ${fmt(c.start)}`, !!S.pick && S.pick.start === c.start && !S.selected.size, () => { S.selected = new Set(); S.pick = c; stopPreview(); paint(); }))) : null,
+        h('p', { class: 'muted tiny' }, S.pick && !S.selected.size ? `${S.pick.bars === 1 ? '1 compás' : S.pick.bars + ' compases'} de ${fmt(S.pick.start)} a ${fmt(S.pick.end)} · ${S.pick.chords.join(' · ')}` : L.loop ? 'Elegiste cortes a mano: el loop son esos compases seguidos.' : 'No encontré un tramo que se repita bien.'),
+        toggleRow('Fijar BPM', S.fix ? `${bpm} BPM: el loop dura justo ${r ? secs(hm.loopLength(sample.rate, bpm, Math.round(r[2]))) : '—'}${r && okFix ? ` (ajuste ${stretch >= 0 ? '+' : ''}${stretch.toFixed(2).replace('.', ',')} %)` : r ? ' · el ajuste sería muy grande: se deja sin fijar' : ''}` : 'El loop conserva su duración original', S.fix, v => { S.fix = v; paint(); }),
+        S.fix ? h('div', { class: 'row2' }, btn('BPM −1', { small: true, onclick: () => setBpm(bpm - 1) }), btn('BPM +1', { small: true, onclick: () => setBpm(bpm + 1) })) : null]);
     };
     const paint = () => {
       const n = S.selected.size, total = S.ranges.length;
@@ -147,7 +162,7 @@ export function openChop(sample, audio) {
         h('div', { class: 'wrap' }, [[4, '4'], [8, '8'], [12, '12'], [0, 'Auto'], ...(S.lay ? [[-1, 'Compases']] : [])].map(([m, t]) => chip(t, S.mode === m, () => { S.mode = m; recompute(); paint(); }))),
         S.mode === 0 ? sliderRow('Sensibilidad de golpes', { min: 0, max: 1, step: 0.01, value: S.sens, fmt: v => v < 0.34 ? 'Baja' : v < 0.67 ? 'Media' : 'Alta', onInput: v => { S.sens = v; }, onChange: () => { recompute(); paint(); } }) : null,
         toggleRow('Detectar acordes y compases', 'Aproximado: acordes mayores y menores, compás de 4 tiempos', S.hm, v => {
-          if (!v) { S.hm = false; S.an = S.lay = null; if (S.mode === -1) S.mode = 8; recompute(); return paint(); }
+          if (!v) { S.hm = false; S.an = S.lay = S.pick = null; if (S.mode === -1) S.mode = 8; recompute(); return paint(); }
           if (analyzeWith(S.bpm)) { S.hm = true; recompute(); } paint();
         }),
         S.lay ? harmonyCard() : null,
