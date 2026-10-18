@@ -59,7 +59,29 @@ final class LogicTests: XCTestCase {
 
     func testExportFileName() {
         var s = Sample(name: "Mi bombo!", sampleRate: 48_000); s.slot = 7
-        XCTAssertEqual(Exporter.fileName(for: s), "007_Mi_bombo_.wav")
+        XCTAssertEqual(Exporter.fileName(for: s, ko: true), "007_Mi_bombo_.wav")        // formato K.O. II (en pausa)
+        XCTAssertEqual(Exporter.fileName(for: s, ko: false), "Mi_bombo.wav")            // compartir: sin prefijo de slot ni símbolos sueltos
+        XCTAssertEqual(Exporter.fileName(for: Sample(name: "Pájaros del río", sampleRate: 48_000), ko: false), "Pajaros_del_rio.wav")
+        XCTAssertEqual(Exporter.fileName(for: Sample(name: "¡¡", sampleRate: 48_000), ko: false), "sonido.wav")
+        XCTAssertFalse(Features.koExport)                                              // el botón y el formato del K.O. II no se ven
+    }
+
+    func testShareExportIsARealWavAtItsOwnRate() throws {
+        let s = Sample(name: "Pájaros del río", sampleRate: 44_100)
+        let x = (0..<44_100).map { Float(0.3 * sin(Double($0) * 0.05)) }
+        let url = try Exporter.export(s, audio: x)
+        XCTAssertEqual(url.lastPathComponent, "Pajaros_del_rio.wav")
+        let d = try Data(contentsOf: url)
+        XCTAssertEqual(String(decoding: d.prefix(4), as: UTF8.self), "RIFF")
+        XCTAssertEqual(String(decoding: d[8..<12], as: UTF8.self), "WAVE")
+        let rate = d[24..<28].enumerated().reduce(0) { $0 | Int($1.element) << (8 * $1.offset) }
+        XCTAssertEqual(rate, 44_100)                                                    // su frecuencia original, no 46 875 Hz
+        XCTAssertGreaterThanOrEqual(d.count, 44 + 44_100 * 2)                           // mono, 16 bit: 2 bytes por muestra
+        XCTAssertEqual((d.count - 44) % 2, 0)
+        // elegir otra frecuencia
+        let u2 = try Exporter.export(s, audio: x, targetRate: 48_000)
+        let d2 = try Data(contentsOf: u2)
+        XCTAssertEqual(d2[24..<28].enumerated().reduce(0) { $0 | Int($1.element) << (8 * $1.offset) }, 48_000)
     }
 
     func testTrimSilence() {

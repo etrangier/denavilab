@@ -109,7 +109,7 @@ struct RecordView: View {
     private var firstTakeCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Primera toma guardada").font(Theme.font(16, weight: .bold)).foregroundColor(Theme.text)
-            Text("La encuentras en la Biblioteca. Desde ahí la recortas, le das carácter y la mandas al K.O. II.")
+            Text("La encuentras en la Biblioteca. Desde ahí la recortas, le das carácter y la compartes en WAV.")
                 .font(Theme.font(14)).foregroundColor(Theme.muted)
             Button("Ver la Biblioteca") { firstTakeDismissed = true; state.tab = .biblioteca }.buttonStyle(AmberButton())
             TextLink(title: "Entendido") { firstTakeDismissed = true }
@@ -156,7 +156,7 @@ struct RecordView: View {
                     .frame(width: 44, height: 44)
             }.accessibilityLabel("Guardado rápido")
             Button { state.tab = .exportar } label: {
-                Text("→ K.O. II").font(Theme.font(13, weight: .bold)).foregroundColor(Theme.amber)
+                Text("→ Compartir").font(Theme.font(13, weight: .bold)).foregroundColor(Theme.amber)
                     .padding(.horizontal, 12).frame(minHeight: 32)
                     .overlay(Capsule().stroke(Theme.amber, lineWidth: 1.5))
             }

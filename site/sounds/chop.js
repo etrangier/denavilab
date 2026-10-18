@@ -4,7 +4,7 @@ import { h, mount, fill, btn, link, chip, card, label, muted, toggleRow, sliderR
 import * as dsp from './dsp.js';
 import * as hm from './harmony.js';
 import { putSample, newSample } from './store.js';
-import { deliver, wavFromAudio, zipFiles } from './screens.js';
+import { deliverMany, wavFromAudio } from './screens.js';
 
 let ctx = null;
 function playSlice(audio, rate, [a, b]) {
@@ -121,10 +121,8 @@ export function openChop(sample, audio) {
     };
 
     const exportSelected = async () => {
-      const ids = chosen(), files = ids.map(i => wavFromAudio(dsp.pieceName(i, sample.name), harmonized(audio.slice(S.ranges[i][0], S.ranges[i][1])), sample.rate));
-      if (files.length === 1) return deliver(files[0]);
-      const zip = files.length ? await Promise.all(files.map(async f => ({ name: f.name, data: new Uint8Array(await f.arrayBuffer()) }))) : [];
-      await deliver(new File([zipFiles(zip)], 'denavilab-cortes.zip', { type: 'application/zip' }));
+      const ids = chosen(); if (!ids.length) return;
+      await deliverMany(ids.map(i => wavFromAudio(dsp.pieceName(i, sample.name), harmonized(audio.slice(S.ranges[i][0], S.ranges[i][1])), sample.rate)), 'denavilab-cortes.zip');
     };
 
     const harmonyCard = () => {
@@ -184,7 +182,7 @@ export function openChop(sample, audio) {
         S.lay ? btn(loopSrc ? 'Parar el loop' : 'Escuchar loop', { sel: !!loopSrc, disabled: !loopRange(), aria: loopSrc ? 'Parar el loop' : null, onclick: toggleLoop }) : null,
         S.lay ? btn('Guardar selección como loop', { sel: true, act: 'guardar-loop', disabled: !loopRange(), onclick: async () => { await saveLoop(); paint(); app.render(); } }) : null,
         btn('Guardar unidos en un solo sonido', { sel: true, act: 'guardar-unidos', disabled: n < 2, onclick: async () => { await saveJoined(); paint(); app.render(); } }),
-        btn(n ? (app.ko2 ? `Exportar ${n} para el K.O. II` : `Exportar ${n}`) : 'Exportar cortes', { sel: true, disabled: !n, onclick: exportSelected }));
+        btn(n ? `Compartir ${n} (WAV)` : 'Compartir cortes (WAV)', { sel: true, disabled: !n, onclick: exportSelected }));
       requestAnimationFrame(drawWave);
     };
     recompute(); paint(); return box;

@@ -6,7 +6,7 @@ import { FOLDERS, UNSORTED, folderDetail, folderOf } from './folders.js';
 import { getAudio, putSample, putMany, deleteSamples, newSample } from './store.js';
 import { manualFor } from './manual.js';
 import { makeZip, readZip } from './zip.js';
-import { rateLabel, exportRates } from './profile.js';
+import { rateLabel, exportRates, KO_EXPORT } from './profile.js';
 
 const ls = {
   get(k, d) { try { const v = localStorage.getItem('denavilab.sounds.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -80,7 +80,7 @@ export function renderHome(root) {
     h('div', { class: 'grid2' },
       shortcut('Biblioteca', n + (n === 1 ? ' grabación' : ' grabaciones'), '▤', () => go('biblioteca')),
       shortcut('Editar', last ? last.name : 'Sin grabaciones', '✂', () => last ? openSample(last) : go('biblioteca')),
-      shortcut('Exportar', app.ko2 ? 'Formato K.O. II' : 'WAV para compartir', '⇪', () => go('exportar')),
+      shortcut('Compartir', 'WAV por correo, Bluetooth o Drive', '⇪', () => go('exportar')),
       shortcut('Manual', 'Glosario técnico', '?', openManual)),
     isStandalone() || inst.done ? null : btn('📲 Instalar en mi celular', { sel: true, aria: 'Instalar la app en mi celular', onclick: instalar }),
     n ? h('div', { class: 'stack tight' }, label('Recientes'), app.samples.slice(0, 3).map(s => sampleRow(s))) : null,
@@ -119,7 +119,7 @@ export function renderRecord(root) {
       h('button', { type: 'button', class: 'brand', onclick: () => go('inicio'), 'aria-label': 'Ir al inicio' }, logo(26), h('span', {}, 'DenaviLab: Sounds')),
       h('span', { class: 'grow' }),
       h('button', { type: 'button', class: 'icon-btn', onclick: openQuick, 'aria-label': 'Guardado rápido' }, '⚡'),
-      pill(app.ko2 ? '→ K.O. II' : '→ Exportar', () => go('exportar'))),
+      pill('→ Compartir', () => go('exportar'))),
     h('div', { class: 'title-row' }, h('h1', {}, 'Grabar sample'),
       pill(m.mode === 'bar' ? `Con compás · ${m.bpm} BPM` : 'Libre', openMetro, 'Metrónomo')),
     denied,
@@ -132,7 +132,7 @@ export function renderRecord(root) {
         side('Escuchar', '🎧', e.monitoring, () => e.setMonitoring(!e.monitoring)),
         recBtn,
         side('Retro', '↺', null, openRetro)),
-      h('div', { class: 'format' }, `WAV · 16 bit · mono · ${hz(app.ko2 ? 46875 : exportRate())}`),
+      h('div', { class: 'format' }, `WAV · 16 bit · mono · ${hz(exportRate())}`),
       h('div', { class: 'center' }, link('Manual técnico', openManual)),
       e.error ? h('p', { class: 'err small center' }, e.error) : null,
       app.samples.length === 1 && !ls.get('firstTakeDismissed', false) && !rec ? card([
@@ -443,10 +443,11 @@ async function restoreBackup(file) {
 }
 
 // ====================================================================== EXPORTAR
+const koX = () => app.ko2 && KO_EXPORT;       // formato K.O. II en pausa
 const fileNameFor = s => {
   // sin tildes: algunos navegadores descartan el nombre si no es ASCII, y el K.O. II y otros programas lo prefieren
   const clean = s.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'sonido';
-  return app.ko2 ? (s.slot ? String(s.slot).padStart(3, '0') + '_' : '') + clean.slice(0, 24) + '.wav' : clean.slice(0, 60) + '.wav';
+  return koX() ? (s.slot ? String(s.slot).padStart(3, '0') + '_' : '') + clean.slice(0, 24) + '.wav' : clean.slice(0, 60) + '.wav';
 };
 /** WAV de un trozo de audio en memoria (nombre ya sin tildes), a la frecuencia de exportación actual. */
 export function wavFromAudio(name, audio, srcRate) {
@@ -462,18 +463,37 @@ export function download(file) {
   const a = h('a', { href: URL.createObjectURL(file), download: file.name });
   document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 15000);
 }
-/** En móvil, la hoja de compartir (Archivos, Drive, AirDrop…); si no, descarga. */
+/** ¿La hoja de compartir del sistema acepta estos archivos? (Android: correo, Bluetooth, Drive…; iPhone: Mail, AirDrop, Archivos…) */
+export const canShareFiles = files => !!(navigator.canShare && navigator.share && navigator.canShare({ files }));
+/** En móvil, la hoja de compartir con el archivo tal cual; si no, descarga. */
 export async function deliver(file) {
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+  if (canShareFiles([file])) {
     try { await navigator.share({ files: [file], title: file.name }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
   }
   download(file);
 }
+/** Varios WAV: se comparten como archivos sueltos; sin hoja de compartir, un ZIP con todos. */
+export async function deliverMany(files, zipName = 'denavilab-sonidos.zip') {
+  if (files.length === 1) return deliver(files[0]);
+  if (canShareFiles(files)) {
+    try { await navigator.share({ files, title: `${files.length} sonidos` }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+  const zip = await Promise.all(files.map(async f => ({ name: f.name, data: new Uint8Array(await f.arrayBuffer()) })));
+  download(new File([makeZip(zip)], zipName, { type: 'application/zip' }));
+}
+/** WAV ya preparado de la grabación abierta: compartir necesita un toque reciente, así que se deja listo antes de que lo pidan. */
+const ready = { key: '', file: null };
+const readyKey = (s, rate) => [s.id, rate, s.duration, s.name].join('|');
+async function wavReady(s, rate) {
+  const key = readyKey(s, rate);
+  if (ready.key === key && ready.file) return ready.file;
+  const f = await wavFile(s, rate); ready.key = key; ready.file = f; return f;
+}
 
 export function renderExport(root) {
-  mount(root, title(app.ko2 ? 'Formato K.O. II' : 'Exportar'));
+  mount(root, title(koX() ? 'Formato K.O. II' : 'Compartir'));
   if (!app.samples.length) {
-    mount(root, h('div', { class: 'empty' }, h('h2', {}, 'Aún no hay nada que exportar'), muted('Graba un sample y vuelve aquí.', 'center'), btn('Grabar', { kind: 'amber', onclick: () => go('grabar') })));
+    mount(root, h('div', { class: 'empty' }, h('h2', {}, 'Aún no hay nada que compartir'), muted('Graba un sample y vuelve aquí.', 'center'), btn('Grabar', { kind: 'amber', onclick: () => go('grabar') })));
     return;
   }
   const s = sampleById(app.selectedId) || app.samples[0], rate = exportRate(), mb = s.duration * rate * 2 / 1e6;
@@ -481,29 +501,46 @@ export function renderExport(root) {
     app.samples.map(x => h('option', { value: x.id, selected: x.id === s.id }, x.name)));
   const slotInput = h('input', { type: 'number', class: 'field num', min: 1, max: 999, value: s.slot || 600, 'aria-label': 'Slot de destino',
     onchange: async e => { const v = Math.min(999, Math.max(1, parseInt(e.target.value, 10) || 600)); await putSample({ ...s, slot: v }); await refreshSamples(); app.render(); } });
+  if (!koX()) wavReady(s, rate).catch(() => {});                       // deja el WAV listo: compartir necesita un toque reciente
   const bump = d => async () => { const v = Math.min(999, Math.max(1, (s.slot || 600) + d)); await putSample({ ...s, slot: v }); await refreshSamples(); app.render(); };
 
   mount(root, 
     app.samples.length > 1 ? h('div', { class: 'stack tight' }, label('Grabación'), pick) : card([h('b', {}, s.name)]),
     label('Frecuencia de muestreo'),
     h('div', { class: 'row3' }, exportRates().map(r => btn(rateLabel(r), { small: true, sel: r === rate, onclick: () => { ls.set('rate', r); app.render(); } }))),
-    app.ko2 ? muted('46 875 Hz es lo que usa el K.O. II · por confirmar con el aparato', 'small') : null,
+    koX() ? muted('46 875 Hz es lo que usa el K.O. II · por confirmar con el aparato', 'small') : null,
     label('Canales'), h('div', { class: 'row2' }, btn('Mono', { sel: true }), btn('Estéreo · próximamente', { small: true, disabled: true })),
-    label('Profundidad'), h('div', { class: 'row2' }, btn('16 bit', { sel: true }), btn(app.ko2 ? '24 bit · por confirmar' : '24 bit · próximamente', { small: true, disabled: true })),
-    app.ko2 ? card([h('div', { class: 'between' }, h('div', {}, h('b', {}, 'Slot de destino'), h('p', { class: 'muted small' }, 'Libres 600–999 · por confirmar')),
+    label('Profundidad'), h('div', { class: 'row2' }, btn('16 bit', { sel: true }), btn(koX() ? '24 bit · por confirmar' : '24 bit · próximamente', { small: true, disabled: true })),
+    koX() ? card([h('div', { class: 'between' }, h('div', {}, h('b', {}, 'Slot de destino'), h('p', { class: 'muted small' }, 'Libres 600–999 · por confirmar')),
       h('div', { class: 'stepper' }, h('button', { type: 'button', class: 'circle', 'aria-label': 'Slot anterior', onclick: bump(-1) }, '−'), slotInput, h('button', { type: 'button', class: 'circle', 'aria-label': 'Slot siguiente', onclick: bump(1) }, '+')))]) : null,
-    app.ko2 ? card([h('b', {}, 'Memoria'), h('p', { class: 'muted small' }, `${mb.toFixed(1).replace('.', ',')} MB · quedan ${Math.max(0, 128 - mb).toFixed(0)} MB de 128 MB`),
+    koX() ? card([h('b', {}, 'Memoria'), h('p', { class: 'muted small' }, `${mb.toFixed(1).replace('.', ',')} MB · quedan ${Math.max(0, 128 - mb).toFixed(0)} MB de 128 MB`),
       h('div', { class: 'meter' }, h('div', { class: 'meter-fill', style: { width: Math.max(2, Math.min(100, mb / 128 * 100)) + '%' } }))]) : null,
     card([h('div', { class: 'between' }, h('span', { class: 'muted small' }, 'Nombre'), h('span', { class: 'small file-name' }, fileNameFor(s)))]),
-    muted(app.ko2 ? 'Otras frecuencias y 24 bit no están confirmadas para el K.O. II.' : 'WAV mono de 16 bit, listo para cualquier programa o aparato.', 'small'),
-    btn(app.ko2 ? 'Guardar con este formato' : 'Guardar WAV', { kind: 'amber', onclick: async () => { download(await wavFile(s, rate)); toast('Archivo preparado: ' + fileNameFor(s)); } }),
-    navigator.canShare ? btn('Compartir…', { onclick: async () => deliver(await wavFile(s, rate)) }) : null,
-    (() => {
-      const kit = app.ko2 ? app.samples.filter(x => x.slot) : app.samples;
-      return btn(app.ko2 ? `Exportar kit (${kit.length} con slot)` : `Exportar todo (${kit.length})`, { disabled: !kit.length, onclick: async () => {
-        toast('Preparando el kit…');
-        const files = []; for (const x of kit) { const f = await wavFile(x, rate); files.push({ name: f.name, data: new Uint8Array(await f.arrayBuffer()) }); }
-        await deliver(new File([makeZip(files)], 'denavilab-kit.zip', { type: 'application/zip' }));
-      } });
-    })());
+    muted(koX() ? 'Otras frecuencias y 24 bit no están confirmadas para el K.O. II.' : 'Se envía un archivo .wav (mono, 16 bit): por correo, Bluetooth, Drive o la app que elijas.', 'small'),
+    ...(koX() ? koButtons(s, rate) : shareButtons(s, rate)));
+}
+const koButtons = (s, rate) => [
+  btn('Guardar con este formato', { kind: 'amber', onclick: async () => { download(await wavFile(s, rate)); toast('Archivo preparado: ' + fileNameFor(s)); } }),
+  navigator.canShare ? btn('Compartir…', { onclick: async () => deliver(await wavFile(s, rate)) }) : null,
+  (() => {
+    const kit = app.samples.filter(x => x.slot);
+    return btn(`Exportar kit (${kit.length} con slot)`, { disabled: !kit.length, onclick: async () => {
+      toast('Preparando el kit…');
+      const files = []; for (const x of kit) { const f = await wavFile(x, rate); files.push({ name: f.name, data: new Uint8Array(await f.arrayBuffer()) }); }
+      await deliver(new File([makeZip(files)], 'denavilab-kit.zip', { type: 'application/zip' }));
+    } });
+  })()];
+/** Compartir en WAV: la hoja del sistema (correo, Bluetooth, Drive…) con el archivo .wav; sin ella, se descarga. */
+const shareButtons = (s, rate) => [
+  btn('Compartir WAV', { kind: 'amber', act: 'compartir', onclick: async () => {
+    const f = ready.key === readyKey(s, rate) && ready.file ? ready.file : await wavReady(s, rate);
+    if (!canShareFiles([f])) toast('Este navegador no tiene hoja de compartir: se descargó el WAV');
+    await deliver(f);
+  } }),
+  btn('Guardar WAV', { onclick: async () => { download(await wavReady(s, rate)); toast('Archivo preparado: ' + fileNameFor(s)); } }),
+  (() => btn(`Compartir todo (${app.samples.length}) en WAV`, { disabled: !app.samples.length, onclick: async () => {
+    toast('Preparando los archivos…');
+    const files = []; for (const x of app.samples) files.push(await wavFile(x, rate));
+    await deliverMany(files, 'denavilab-sonidos.zip');
+  } }))()];
 }

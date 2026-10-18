@@ -19,7 +19,7 @@ struct HomeView: View {
                     shortcut("Editar", detail: lib.samples.first?.name ?? "Sin grabaciones", icon: "scissors") {
                         if let s = lib.samples.first { state.open(s) } else { state.tab = .biblioteca }
                     }
-                    shortcut("Exportar", detail: "Formato K.O. II", icon: "square.and.arrow.up") { state.tab = .exportar }
+                    shortcut("Compartir", detail: "WAV por correo, Bluetooth o Drive", icon: "square.and.arrow.up") { state.tab = .exportar }
                     shortcut("Manual", detail: "Glosario técnico", icon: "book.fill") { showManual = true }
                 }
                 if !lib.samples.isEmpty { recents }

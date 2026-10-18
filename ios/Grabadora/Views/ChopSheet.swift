@@ -163,7 +163,7 @@ struct ChopSheet: View {
             Button("Guardar unidos en un solo sonido") { saveJoined() }
                 .buttonStyle(OutlineButton(selected: true)).disabled(selected.count < 2).opacity(selected.count < 2 ? 0.4 : 1)
                 .actionFX("guardar-unidos", busy: nil, flash: fxFlash)
-            Button(selected.isEmpty ? "Exportar cortes" : "Exportar \(selected.count) para el K.O. II") { exportSelected() }
+            Button(selected.isEmpty ? "Compartir cortes (WAV)" : "Compartir \(selected.count) (WAV)") { exportSelected() }
                 .buttonStyle(OutlineButton(selected: true)).disabled(selected.isEmpty).opacity(selected.isEmpty ? 0.4 : 1)
         }
     }

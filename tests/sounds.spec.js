@@ -33,6 +33,13 @@ async function sembrar(page, nombres) {
   await page.reload();
 }
 const wavInfo = buf => ({ riff: buf.toString('ascii', 0, 4), canales: buf.readUInt16LE(22), rate: buf.readUInt32LE(24), bits: buf.readUInt16LE(34), datos: buf.readUInt32LE(40) });
+const espiar = page => page.evaluate(() => {
+  window.__compartido = [];
+  navigator.canShare = d => !!(d && d.files && d.files.length);
+  navigator.share = async d => { window.__compartido.push(await Promise.all(d.files.map(async f => ({ nombre: f.name, tipo: f.type, bytes: Array.from(new Uint8Array(await f.arrayBuffer()).slice(0, 12)), size: f.size })))); };
+});
+const riff = b => String.fromCharCode(...b.slice(0, 4)) + String.fromCharCode(...b.slice(8, 12));
+
 async function descargar(page, accion) { const [d] = await Promise.all([page.waitForEvent('download'), accion()]); return { buf: fs.readFileSync(await d.path()), nombre: d.suggestedFilename() }; }
 
 test.describe('núcleo de audio (dsp.js)', () => {
@@ -135,7 +142,7 @@ test.describe('chop con selección múltiple', () => {
     await escuchar.click(); await hoja.getByRole('button', { name: 'Parar la escucha de la selección', exact: true }).click();                    // se puede parar a mitad
     await expect(escuchar).toBeVisible(); await expect(hoja.locator('.pad.playing')).toHaveCount(0);
 
-    const { buf, nombre } = await descargar(page, () => hoja.getByRole('button', { name: 'Exportar 2 para el K.O. II' }).click());
+    const { buf, nombre } = await descargar(page, () => hoja.getByRole('button', { name: 'Compartir 2 (WAV)' }).click());
     expect(nombre).toBe('denavilab-cortes.zip');
     const texto = buf.toString('latin1');
     expect(texto).toContain('corte01_Percusion.wav'); expect(texto).toContain('corte03_Percusion.wav'); expect(texto).not.toContain('corte02_'); expect(texto).not.toContain('corte04_');
@@ -182,8 +189,20 @@ test.describe('chop con selección múltiple', () => {
     const hoja = await abrirChop(page, 'Chop');
     await expect(hoja.getByRole('heading', { name: 'Chop', exact: true })).toBeVisible();
     await hoja.getByRole('button', { name: 'Corte 1', exact: true }).click(); await hoja.getByRole('button', { name: 'Corte 3', exact: true }).click();
-    await expect(hoja.getByRole('button', { name: 'Exportar 2', exact: true })).toBeVisible();
+    await expect(hoja.getByRole('button', { name: 'Compartir 2 (WAV)', exact: true })).toBeVisible();
     await expect(hoja).not.toContainText(/K\.O\.|pads?\b|libres/i);
+  });
+
+  test('en Chop se comparten los cortes elegidos como WAV sueltos', async ({ page }) => {
+    await abrir(page, 'rolando'); await sembrarGolpes(page);
+    await abrirChop(page, 'Chop'); await espiar(page);
+    const hoja = page.locator('dialog.sheet');
+    await expect(hoja).not.toContainText(/K\.O\./);
+    await hoja.getByRole('button', { name: /^Pad 1/ }).click(); await hoja.getByRole('button', { name: /^Pad 3/ }).click();
+    await hoja.getByRole('button', { name: 'Compartir 2 (WAV)' }).click();
+    await expect.poll(() => page.evaluate(() => window.__compartido.length)).toBe(1);
+    const fs = (await page.evaluate(() => window.__compartido))[0];
+    expect(fs).toHaveLength(2); expect(fs.every(f => f.nombre.endsWith('.wav') && riff(f.bytes) === 'RIFFWAVE')).toBe(true);
   });
 });
 
@@ -209,7 +228,7 @@ test.describe('puerta de acceso', () => {
 });
 
 test.describe('de la grabación a la exportación (Rolando)', () => {
-  test('graba, guarda, edita y exporta a 46 875 Hz', async ({ page }) => {
+  test('graba, guarda, edita y comparte un WAV (el formato K.O. II está en pausa)', async ({ page }) => {
     const errores = vigilar(page);
     await abrir(page, 'rolando');
     await expect(page.getByRole('heading', { name: 'DenaviLab: Sounds' })).toBeVisible();
@@ -242,14 +261,14 @@ test.describe('de la grabación a la exportación (Rolando)', () => {
     await expect(page.locator('#toast')).toContainText('Guardado');
 
     await tab(page, 'exportar');
-    await expect(page.getByRole('heading', { name: 'Formato K.O. II' })).toBeVisible();
-    await page.getByLabel('Slot de destino').fill('612'); await page.getByLabel('Slot de destino').press('Tab');
-    await expect(page.getByLabel('Slot de destino')).toHaveValue('612');
-    const { buf, nombre } = await descargar(page, () => page.getByRole('button', { name: 'Guardar con este formato' }).click());
+    await expect(page.getByRole('heading', { name: 'Compartir', exact: true })).toBeVisible();
+    await expect(page.locator('#screen')).not.toContainText(/K\.O\.|slot|46 875|Memoria|128 MB/i);          // el botón y el formato del K.O. II no se ven
+    await expect(page.getByRole('button', { name: 'Compartir WAV' })).toBeVisible();
+    const { buf, nombre } = await descargar(page, () => page.getByRole('button', { name: 'Guardar WAV' }).click());
     const w = wavInfo(buf);
-    expect(nombre).toBe('612_Exterior.wav');
-    expect(w).toMatchObject({ riff: 'RIFF', canales: 1, rate: 46875, bits: 16 });
-    expect(w.datos).toBeGreaterThan(46875 * 2);                                        // más de 1 s de audio
+    expect(nombre).toBe('Exterior.wav');                                                  // sin prefijo de slot
+    expect(w).toMatchObject({ riff: 'RIFF', canales: 1, rate: 48000, bits: 16 });
+    expect(w.datos).toBeGreaterThan(48000 * 2);                                        // más de 1 s de audio
     let max = 0; for (let i = 44; i + 1 < buf.length; i += 2) max = Math.max(max, Math.abs(buf.readInt16LE(i)));
     expect(max).toBeGreaterThan(20000);                                                // suena: no está vacío
     expect(errores).toEqual([]);
@@ -273,7 +292,7 @@ test.describe('perfil sin K.O. II (Schair)', () => {
     await sembrar(page, ['Pájaros del río']);
     for (const t of ['inicio', 'grabar', 'biblioteca']) { await tab(page, t); await expect(page.locator('#screen')).not.toContainText(/K\.O\.|slot|46 875/i); }
     await tab(page, 'exportar');
-    await expect(page.getByRole('heading', { name: 'Exportar', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Compartir', exact: true })).toBeVisible();
     await expect(page.locator('#screen')).not.toContainText(/K\.O\.|slot|46 875|Memoria|128 MB/i);
     const { buf, nombre } = await descargar(page, () => page.getByRole('button', { name: 'Guardar WAV' }).click());
     expect(nombre).toBe('Pajaros_del_rio.wav');                                       // sin tildes ni prefijo de slot
@@ -286,8 +305,8 @@ test.describe('perfil sin K.O. II (Schair)', () => {
   });
   test('Rolando sí ve el K.O. II', async ({ page }) => {
     await abrir(page, 'rolando'); await tab(page, 'grabar');
-    await expect(page.locator('#screen')).toContainText('→ K.O. II');
-    await expect(page.locator('#screen')).toContainText('46 875 Hz');
+    await expect(page.locator('#screen')).toContainText('→ Compartir');
+    await expect(page.locator('#screen')).not.toContainText(/K\.O\.|46 875/);       // la exportación al K.O. II está en pausa
   });
 });
 
@@ -883,6 +902,43 @@ test.describe('acordes, compases y loop', () => {
     await expect(page.locator('#toast')).toContainText('No encuentro un pulso claro');
     await expect(hoja.getByLabel('Detectar acordes y compases')).not.toBeChecked();
   });
+});
+
+test.describe('compartir en WAV (correo, Bluetooth, Drive)', () => {
+  for (const perfil of ['rolando', 'schair']) {
+    test(`${perfil}: «Compartir WAV» abre la hoja del sistema con un archivo .wav de verdad`, async ({ page }) => {
+      const errores = vigilar(page);
+      await abrir(page, perfil); await sembrar(page, ['Pájaros del río']);
+      await tab(page, 'exportar'); await espiar(page);
+      await expect(page.locator('#screen')).not.toContainText(/K\.O\.|slot|46 875|Memoria/i);
+      await page.getByRole('button', { name: 'Compartir WAV' }).click();
+      await expect.poll(() => page.evaluate(() => window.__compartido.length)).toBe(1);
+      const [f] = (await page.evaluate(() => window.__compartido))[0];
+      expect(f.nombre).toBe('Pajaros_del_rio.wav'); expect(f.tipo).toBe('audio/wav');
+      expect(riff(f.bytes)).toBe('RIFFWAVE'); expect(f.size).toBeGreaterThan(44);
+      expect(errores).toEqual([]);
+    });
+  }
+
+  test('compartir todo manda cada grabación como su propio WAV (no un zip)', async ({ page }) => {
+    await abrir(page, 'schair'); await sembrar(page, ['uno', 'dos', 'tres']);
+    await tab(page, 'exportar'); await espiar(page);
+    await page.getByRole('button', { name: 'Compartir todo (3) en WAV' }).click();
+    await expect.poll(() => page.evaluate(() => window.__compartido.length)).toBe(1);
+    const fs = (await page.evaluate(() => window.__compartido))[0];
+    expect(fs.map(f => f.nombre).sort()).toEqual(['dos.wav', 'tres.wav', 'uno.wav']);
+    expect(fs.every(f => f.tipo === 'audio/wav' && riff(f.bytes) === 'RIFFWAVE')).toBe(true);
+  });
+
+  test('sin hoja de compartir (escritorio) se descarga el WAV y se avisa', async ({ page }) => {
+    await abrir(page, 'schair'); await sembrar(page, ['uno']);
+    await tab(page, 'exportar');
+    await page.evaluate(() => { delete navigator.share; delete navigator.canShare; Object.defineProperty(navigator, 'canShare', { value: undefined, configurable: true }); });
+    const { buf, nombre } = await descargar(page, () => page.getByRole('button', { name: 'Compartir WAV' }).click());
+    expect(nombre).toBe('uno.wav'); expect(wavInfo(buf)).toMatchObject({ riff: 'RIFF', canales: 1, bits: 16 });
+    await expect(page.locator('#toast')).toContainText('no tiene hoja de compartir');
+  });
+
 });
 
 test.describe('armonizar y unir cortes', () => {
