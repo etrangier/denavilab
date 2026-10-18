@@ -33,7 +33,7 @@ struct WelcomeView: View {
             Text("DenaviLab: Sounds").font(Theme.font(32, weight: .bold)).foregroundColor(Theme.text).padding(.top, 12).multilineTextAlignment(.center)
             Text("capturador de sonidos para sampling").font(Theme.font(13)).foregroundColor(Theme.muted).multilineTextAlignment(.center)
             VStack(spacing: 0) {
-                ForEach(Array(["Graba con el micrófono", "Corta y dale carácter", "Envíalo al K.O. II"].enumerated()), id: \.offset) { i, s in
+                ForEach(Array(["Graba con el micrófono", "Corta y dale carácter", "Compártelo en WAV"].enumerated()), id: \.offset) { i, s in
                     HStack(spacing: 16) {
                         Text("\(i + 1)").font(Theme.font(14, weight: .bold)).foregroundColor(Theme.amber).frame(width: 16)
                         Text(s).font(Theme.font(16)).foregroundColor(Theme.text)
@@ -42,7 +42,7 @@ struct WelcomeView: View {
                     Divider().overlay(Theme.line)
                 }
             }.padding(.top, 20)
-            Text("Rescata lo que acabas de tocar y mándalo al K.O. II.").font(Theme.font(13)).foregroundColor(Theme.muted).multilineTextAlignment(.center)
+            Text("Rescata lo que acabas de tocar y compártelo en WAV.").font(Theme.font(13)).foregroundColor(Theme.muted).multilineTextAlignment(.center)
             Button("Empezar") { step = 1 }.buttonStyle(AmberButton())
             TextLink(title: "Ver el manual") { showManual = true }
         }

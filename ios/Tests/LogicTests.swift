@@ -59,7 +59,29 @@ final class LogicTests: XCTestCase {
 
     func testExportFileName() {
         var s = Sample(name: "Mi bombo!", sampleRate: 48_000); s.slot = 7
-        XCTAssertEqual(Exporter.fileName(for: s), "007_Mi_bombo_.wav")
+        XCTAssertEqual(Exporter.fileName(for: s, ko: true), "007_Mi_bombo_.wav")        // formato K.O. II (en pausa)
+        XCTAssertEqual(Exporter.fileName(for: s, ko: false), "Mi_bombo.wav")            // compartir: sin prefijo de slot ni símbolos sueltos
+        XCTAssertEqual(Exporter.fileName(for: Sample(name: "Pájaros del río", sampleRate: 48_000), ko: false), "Pajaros_del_rio.wav")
+        XCTAssertEqual(Exporter.fileName(for: Sample(name: "¡¡", sampleRate: 48_000), ko: false), "sonido.wav")
+        XCTAssertFalse(Features.koExport)                                              // el botón y el formato del K.O. II no se ven
+    }
+
+    func testShareExportIsARealWavAtItsOwnRate() throws {
+        let s = Sample(name: "Pájaros del río", sampleRate: 44_100)
+        let x = (0..<44_100).map { Float(0.3 * sin(Double($0) * 0.05)) }
+        let url = try Exporter.export(s, audio: x)
+        XCTAssertEqual(url.lastPathComponent, "Pajaros_del_rio.wav")
+        let d = try Data(contentsOf: url)
+        XCTAssertEqual(String(decoding: d.prefix(4), as: UTF8.self), "RIFF")
+        XCTAssertEqual(String(decoding: d[8..<12], as: UTF8.self), "WAVE")
+        let rate = d[24..<28].enumerated().reduce(0) { $0 | Int($1.element) << (8 * $1.offset) }
+        XCTAssertEqual(rate, 44_100)                                                    // su frecuencia original, no 46 875 Hz
+        XCTAssertGreaterThanOrEqual(d.count, 44 + 44_100 * 2)                           // mono, 16 bit: 2 bytes por muestra
+        XCTAssertEqual((d.count - 44) % 2, 0)
+        // elegir otra frecuencia
+        let u2 = try Exporter.export(s, audio: x, targetRate: 48_000)
+        let d2 = try Data(contentsOf: u2)
+        XCTAssertEqual(d2[24..<28].enumerated().reduce(0) { $0 | Int($1.element) << (8 * $1.offset) }, 48_000)
     }
 
     func testTrimSilence() {
@@ -464,6 +486,28 @@ final class LogicTests: XCTestCase {
         let flat: [Float] = (0..<(rate * 6)).map { 0.3 * Float(sin(Double($0) * 0.05)) }
         XCTAssertNil(Harmony.analyze(flat, rate: rate))
         XCTAssertNil(Harmony.analyze(Array(x.prefix(rate * 2)), rate: rate, bpm: 100))
+    }
+
+    func testLoopByBarsAlternativesAndFixedBpm() throws {
+        let (x, rate) = progression()
+        let a = try XCTUnwrap(Harmony.analyze(x, rate: rate, bpm: 100))
+        func lay(_ n: Int) -> Harmony.Analysis { Harmony.layout(a, downbeat: a.downbeat, want: n) }
+        XCTAssertEqual([2, 4, 8, 16].map { lay($0).loop?.bars }, [2, 4, 8, 4])      // 16 no cabe en 10 compases
+        let l4 = lay(4), l2 = lay(2)
+        XCTAssertGreaterThanOrEqual(l4.loops.count, 1)
+        for (i, p) in l2.loops.enumerated() { for q in l2.loops.dropFirst(i + 1) { XCTAssertGreaterThanOrEqual(abs(p.bar - q.bar), 2) } }
+        XCTAssertEqual(l4.loops.map(\.score), l4.loops.map(\.score).sorted(by: >))
+        let lp = try XCTUnwrap(l4.loop)
+        // BPM fijo: dura justo compases × 4 × 60 / BPM
+        XCTAssertEqual(Harmony.makeLoop(x, start: lp.start, end: lp.end, rate: rate, fix: (100, 4)).count, 460800)
+        XCTAssertEqual(Harmony.makeLoop(x, start: lp.start, end: lp.end, rate: rate, fix: (98, 4)).count, Harmony.loopLength(rate: rate, bpm: 98, bars: 4))
+        // 60 BPM exigiría estirar un 67 %: se deja sin fijar
+        XCTAssertEqual(Harmony.makeLoop(x, start: lp.start, end: lp.end, rate: rate, fix: (60, 4)).count, lp.end - lp.start)
+        XCTAssertEqual([Harmony.fixedBpm(99.6), Harmony.fixedBpm(100.4), Harmony.fixedBpm(0.2)], [100, 100, 1])
+        XCTAssertEqual(Harmony.stretchPct(1000, 1010), 1, accuracy: 1e-9)
+        let ramp = (0..<1000).map { Float($0) / 1000 }, r2 = Harmony.fitLength(ramp, 1500)
+        XCTAssertEqual(r2.count, 1500); XCTAssertEqual(r2[0], 0); XCTAssertEqual(r2[750], 0.5, accuracy: 0.01)
+        XCTAssertEqual(Harmony.fitLength(ramp, 1000)[500], 0.5, accuracy: 1e-6)
     }
 
     // MARK: invertir

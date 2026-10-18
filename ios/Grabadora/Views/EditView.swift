@@ -125,7 +125,7 @@ struct EditorBody: View {
                         }
                 }
                 if let m = message { Text(m).font(Theme.font(13)).foregroundColor(Theme.muted).frame(maxWidth: .infinity, alignment: .center) }
-                Button("Exportar al K.O. II") { state.tab = .exportar }.buttonStyle(OutlineButton(selected: true))
+                Button("Compartir") { state.tab = .exportar }.buttonStyle(OutlineButton(selected: true))
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) { historyBar }

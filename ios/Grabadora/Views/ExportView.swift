@@ -1,10 +1,12 @@
 import SwiftUI
 
-/// Pestaña Exportar: formato K.O. II (pantalla 23).
+/// Pestaña Compartir: manda la grabación como archivo WAV por correo, Bluetooth/AirDrop, Drive u otra app.
+/// El formato K.O. II (slot, 46 875 Hz, memoria; pantalla 23) está en pausa: ver `Features.koExport`.
 struct ExportView: View {
     @EnvironmentObject var lib: LibraryStore
     @EnvironmentObject var state: AppState
     @AppStorage("exportRate") private var rate = 46_875
+    @AppStorage("shareRate") private var shareRate = 0          // 0 = la frecuencia original de la grabación
     @State private var sharing: [URL] = []
     @State private var showShare = false
     @State private var message: String?
@@ -14,10 +16,10 @@ struct ExportView: View {
     var body: some View {
         Screen {
             VStack(alignment: .leading, spacing: 14) {
-                ScreenTitle(title: "Formato K.O. II")
-                if let s = sample { content(s) } else {
+                ScreenTitle(title: Features.koExport ? "Formato K.O. II" : "Compartir")
+                if let s = sample { if Features.koExport { koContent(s) } else { shareContent(s) } } else {
                     VStack(spacing: 12) {
-                        Text("Aún no hay nada que exportar").font(Theme.font(18, weight: .bold)).foregroundColor(Theme.text)
+                        Text("Aún no hay nada que compartir").font(Theme.font(18, weight: .bold)).foregroundColor(Theme.text)
                         Text("Graba un sample y vuelve aquí.").font(Theme.font(14)).foregroundColor(Theme.muted)
                         Button("Grabar") { state.tab = .grabar }.buttonStyle(AmberButton(full: false))
                     }.frame(maxWidth: .infinity).padding(.top, 40)
@@ -27,7 +29,50 @@ struct ExportView: View {
         .sheet(isPresented: $showShare) { ShareSheet(items: sharing) }
     }
 
-    @ViewBuilder private func content(_ s: Sample) -> some View {
+    @ViewBuilder private func shareContent(_ s: Sample) -> some View {
+        let outRate = shareRate == 0 ? s.sampleRate : shareRate
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Grabación").font(Theme.font(13)).foregroundColor(Theme.muted)
+            Text(s.name).font(Theme.font(15, weight: .bold)).foregroundColor(Theme.text)
+            Text("WAV · mono · 16 bit · \(rateText(outRate)) · \(stamp(s.duration))").font(Theme.font(12)).foregroundColor(Theme.muted)
+        }.card()
+        SectionLabel("Frecuencia de muestreo")
+        HStack(spacing: 8) {
+            ForEach([(0, "Original"), (44_100, "44,1 kHz"), (48_000, "48 kHz")], id: \.0) { r in
+                Button(r.1) { shareRate = r.0 }.buttonStyle(OutlineButton(selected: shareRate == r.0)).font(Theme.font(13))
+            }
+        }
+        HStack {
+            Text("Nombre").font(Theme.font(14)).foregroundColor(Theme.muted)
+            Spacer()
+            Text(Exporter.fileName(for: s)).font(Theme.font(13)).foregroundColor(Theme.text).lineLimit(1)
+        }.card()
+        Text("Se envía un archivo .wav (mono, 16 bit): por correo, Bluetooth o AirDrop, Drive u otra app que elijas.")
+            .font(Theme.font(12)).foregroundColor(Theme.muted)
+        Button("Compartir WAV") { share(s) }.buttonStyle(AmberButton()).padding(.top, 6)
+        Button("Compartir todo (\(lib.samples.count)) en WAV") { shareAll() }
+            .buttonStyle(OutlineButton()).disabled(lib.samples.isEmpty)
+        if let m = message { Text(m).font(Theme.font(13)).foregroundColor(Theme.error) }
+    }
+
+    private func rateText(_ r: Int) -> String { r == 44_100 ? "44,1 kHz" : r % 1000 == 0 ? "\(r / 1000) kHz" : String(format: "%.1f kHz", Double(r) / 1000).replacingOccurrences(of: ".", with: ",") }
+
+    /// Un WAV de la grabación, a la frecuencia elegida, para la hoja de compartir del sistema.
+    private func share(_ s: Sample) {
+        do { sharing = [try Exporter.export(s, audio: lib.audio(for: s), targetRate: shareRate == 0 ? nil : shareRate)]; showShare = true; message = nil }
+        catch { message = "No se pudo preparar el archivo: \(error.localizedDescription)" }
+    }
+
+    /// Todas las grabaciones, cada una como su propio WAV.
+    private func shareAll() {
+        let list = lib.samples
+        Task {
+            do { sharing = try await Exporter.exportKit(list, targetRate: shareRate == 0 ? nil : shareRate) { lib.audio(for: $0) }; showShare = true; message = nil }
+            catch { message = "No se pudieron preparar los archivos: \(error.localizedDescription)" }
+        }
+    }
+
+    @ViewBuilder private func koContent(_ s: Sample) -> some View {
         SectionLabel("Frecuencia de muestreo")
         HStack(spacing: 8) {
             ForEach([(46_875, "46 875 Hz"), (44_100, "44,1 kHz"), (48_000, "48 kHz")], id: \.0) { r in

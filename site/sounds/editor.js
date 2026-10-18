@@ -191,7 +191,7 @@ export function renderEdit(root) {
           toast(igual ? `Se sobrescribió «${s.name}» (sin cambios)` : `Guardado: «${s.name}»`); app.render();
         } catch (e) { toast('No se pudo guardar (¿poco espacio en el dispositivo?)'); }
       } })),
-    btn(app.ko2 ? 'Exportar al K.O. II' : 'Exportar', { sel: true, onclick: () => go('exportar') }));
+    btn('Compartir', { sel: true, onclick: () => go('exportar') }));
 
   let raf = 0;
   const loop = () => {

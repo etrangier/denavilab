@@ -13,7 +13,7 @@ struct RootView: View {
             RecordView().tabItem { Label("Grabar", systemImage: "mic.fill") }.tag(AppState.Tab.grabar)
             LibraryView().tabItem { Label("Biblioteca", systemImage: "square.stack.fill") }.tag(AppState.Tab.biblioteca)
             EditView().tabItem { Label("Editar", systemImage: "scissors") }.tag(AppState.Tab.editar)
-            ExportView().tabItem { Label("Exportar", systemImage: "square.and.arrow.up") }.tag(AppState.Tab.exportar)
+            ExportView().tabItem { Label("Compartir", systemImage: "square.and.arrow.up") }.tag(AppState.Tab.exportar)
         }
         .tint(Theme.amber)
     }

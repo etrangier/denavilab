@@ -5,7 +5,7 @@ import { renderHome, renderRecord, renderLibrary, renderExport, finishTake, open
 import { renderEdit } from './editor.js';
 import { who, NAMES } from './profile.js';
 
-const TABS = [['inicio', 'Inicio', '⌂'], ['grabar', 'Grabar', '●'], ['biblioteca', 'Biblioteca', '▤'], ['editar', 'Editar', '✂'], ['exportar', 'Exportar', '⇪']];
+const TABS = [['inicio', 'Inicio', '⌂'], ['grabar', 'Grabar', '●'], ['biblioteca', 'Biblioteca', '▤'], ['editar', 'Editar', '✂'], ['exportar', 'Compartir', '⇪']];
 const SCREENS = { inicio: renderHome, grabar: renderRecord, biblioteca: renderLibrary, editar: renderEdit, exportar: renderExport };
 const screenEl = document.getElementById('screen'), tabsEl = document.getElementById('tabs');
 let cleanup = null, lastTab = null;
@@ -43,7 +43,7 @@ function welcome() {
   const ov = h('div', { class: 'welcome', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Bienvenida' });
   const step1 = () => fill(ov, h('div', { class: 'welcome-in' },
     h('div', { class: 'logo-box' }, logo(64)), h('h1', { class: 'big' }, 'DenaviLab: Sounds'), h('p', { class: 'muted small' }, 'capturador de sonidos para sampling'),
-    h('ol', { class: 'steps' }, ['Graba con el micrófono', 'Corta y dale carácter', app.ko2 ? 'Envíalo al K.O. II' : 'Expórtalo en WAV'].map((t, i) => h('li', {}, h('b', { class: 'amber' }, String(i + 1)), t))),
+    h('ol', { class: 'steps' }, ['Graba con el micrófono', 'Corta y dale carácter', 'Compártelo en WAV'].map((t, i) => h('li', {}, h('b', { class: 'amber' }, String(i + 1)), t))),
     muted('Rescata lo que acabas de tocar y guárdalo.', 'small center'),
     btn('Empezar', { kind: 'amber', onclick: step2 }), link('Ver el manual', openManual)));
   const step2 = () => fill(ov, h('div', { class: 'welcome-in' },
