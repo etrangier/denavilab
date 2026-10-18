@@ -436,17 +436,17 @@ final class LogicTests: XCTestCase {
     // MARK: acordes, compases y loop
 
     /// Am F C G en 4/4 a 100 BPM, 10 compases, con 0,37 s de silencio previo y un bombo en cada tiempo (más fuerte en el 1).
-    private func progression() -> (x: [Float], rate: Int) {
-        let rate = 48000, T = Double(rate) * 60 / 100, bars = 10, off = Int(Double(rate) * 0.37)
+    private func progression(sequence: [Int]? = nil, bars: Int = 10) -> (x: [Float], rate: Int) {
+        let rate = 48000, T = Double(rate) * 60 / 100, off = Int(Double(rate) * 0.37)
         let n = Int(T * 4 * Double(bars)) + off
-        let chords: [[Double]] = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]]       // Am F C G
+        let chords: [[Double]] = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62], [51, 55, 58]]       // Am F C G Eb
         var x = [Float](repeating: 0, count: n)
         for b in 0..<bars {
             for i in 0..<Int(4 * T) {
                 let t = off + b * Int(4 * T) + i
                 if t >= n { break }
                 var s = 0.0
-                for m in chords[b % 4] {
+                for m in chords[sequence?[b] ?? b % 4] {
                     let w = 2 * Double.pi * 440 * pow(2, (m - 69) / 12) * Double(i) / Double(rate)
                     s += 0.12 * sin(w) + 0.05 * sin(2 * w)
                 }
@@ -508,6 +508,27 @@ final class LogicTests: XCTestCase {
         let ramp = (0..<1000).map { Float($0) / 1000 }, r2 = Harmony.fitLength(ramp, 1500)
         XCTAssertEqual(r2.count, 1500); XCTAssertEqual(r2[0], 0); XCTAssertEqual(r2[750], 0.5, accuracy: 0.01)
         XCTAssertEqual(Harmony.fitLength(ramp, 1000)[500], 0.5, accuracy: 1e-6)
+    }
+
+    func testCombinedLoopSkipsTheWrongBar() throws {
+        // Am F Eb G Am F C G Am F C G: el tercer compás es un acorde «equivocado»; el C bueno está en el compás 7
+        let (x, rate) = progression(sequence: [0, 1, 4, 3, 0, 1, 2, 3, 0, 1, 2, 3], bars: 12)
+        let a = try XCTUnwrap(Harmony.analyze(x, rate: rate, bpm: 100))
+        XCTAssertEqual(Array(a.bars.prefix(4).map(\.label)), ["Am", "F", "D#", "G"])
+        let l = Harmony.layout(a, downbeat: a.downbeat, want: 4)
+        let c = try XCTUnwrap(l.combos.first)
+        XCTAssertEqual(c.chords, ["Am", "F", "C", "G"])
+        XCTAssertFalse(c.picks.contains(2))                                              // se salta el compás equivocado
+        XCTAssertGreaterThan(c.picks[3] - c.picks[0], 3)                                 // no es un tramo seguido
+        XCTAssertEqual(Set(l.combos.map(\.key)).count, l.combos.count)                  // progresiones distintas
+        XCTAssertFalse(l.combos.contains { $0.picks.last! - $0.picks.first! == $0.picks.count - 1 })
+        let fixed = Harmony.makeCombo(x, ranges: c.ranges, rate: rate, fix: (100, 4))
+        XCTAssertEqual(fixed.count, Harmony.loopLength(rate: rate, bpm: 100, bars: 4))
+        let free = Harmony.makeCombo(x, ranges: c.ranges, rate: rate)
+        XCTAssertLessThanOrEqual(free.count, c.len); XCTAssertGreaterThan(free.count, c.len - 12 * 48 * 4)
+        XCTAssertLessThan(fixed.prefix(40).map { abs($0) }.max() ?? 1, 0.05)               // entra suave
+        XCTAssertTrue(Harmony.suggestCombos(a, Array(a.bars.prefix(2)), want: 4, count: 3).isEmpty)
+        XCTAssertTrue(Harmony.layout(a, downbeat: a.downbeat, want: 2).combos.allSatisfy { $0.bars == 2 })
     }
 
     // MARK: invertir

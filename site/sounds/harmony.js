@@ -1,5 +1,5 @@
 // Armonía: pulso, compases, acordes y loop sugerido de una toma. Todo es aproximado (acordes mayores y menores, compás de 4 tiempos).
-import { fftInPlace, estimateBPM, cosFade } from './dsp.js';
+import { fftInPlace, estimateBPM, cosFade, joinPieces } from './dsp.js';
 
 export const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const CH_N = 4096, CH_HOP = 2048;
@@ -100,11 +100,12 @@ export function layout(an, downbeat, want = 4) {
     const a = j, h1 = new Float64Array(12), h2 = new Float64Array(12);
     for (let i = 0; i < 12; i++) { h1[i] = an.beatChroma[a][i] + an.beatChroma[a + 1][i]; h2[i] = an.beatChroma[a + 2][i] + an.beatChroma[a + 3][i]; }
     const c1 = matchChord(h1), c2 = matchChord(h2);
-    bars.push({ beat: a, start: Math.round(an.beats[a]), end: Math.round(an.beats[a] + 4 * T), chords: [c1 && c1.name, c2 && c2.name] });
+    const vec = new Float64Array(12); for (let k = 0; k < 4; k++) for (let i = 0; i < 12; i++) vec[i] += an.beatChroma[a + k][i];
+    bars.push({ beat: a, vec, start: Math.round(an.beats[a]), end: Math.round(an.beats[a] + 4 * T), chords: [c1 && c1.name, c2 && c2.name] });
   }
   const label = b => { const [x, y] = b.chords; return !x && !y ? '—' : (x || '—') === (y || '—') ? (x || '—') : `${x || '—'} ${y || '—'}`; };
   bars.forEach(b => { b.label = label(b); });
-  return { ...an, downbeat: d, bars, loop: suggestLoop(an, bars, want), loops: suggestLoops(an, bars, want, 3) };
+  return { ...an, downbeat: d, bars, loop: suggestLoop(an, bars, want), loops: suggestLoops(an, bars, want, 3), combos: suggestCombos(an, bars, want, 3) };
 }
 
 /**
@@ -135,6 +136,57 @@ export function suggestLoops(an, bars, want = 4, n = 3) {
     out.push({ bar: c.bar, bars: L, want, score: c.score, start: bars[c.bar].start, end: bars[c.bar + L - 1].end, chords: bars.slice(c.bar, c.bar + L).map(b => b.label) });
   }
   return out;
+}
+
+/**
+ * Loops combinados: `want` compases (por defecto 4) elegidos entre todos los de la toma, en su orden original pero no necesariamente seguidos
+ * (por ejemplo los compases 1, 3, 5 y 8). Sirve cuando el mejor compás de cada acorde está en un sitio distinto de la toma.
+ * Puntúa que cada empalme suene continuo (armonía y volumen del final de uno con el principio del siguiente, también al volver al primero),
+ * que la secuencia de acordes sea una progresión que se repite en la toma, que haya movimiento armónico, que cada compás sea representativo
+ * de su acorde, que empiece sobre golpe y que el volumen sea parejo. Los tramos seguidos se dejan a `suggestLoops`.
+ */
+export function suggestCombos(an, bars, want = 4, n = 3) {
+  const N = bars.length, L = [want, 4, 2].find(k => k >= 2 && N >= k + 1); if (!L || N > 48) return [];
+  const maxHit = Math.max(1e-9, ...(an.beatHit || [0])), db = v => 20 * Math.log10(Math.max(v, 1e-6));
+  const f = bars.map(b => ({ vec: b.vec, first: an.beatChroma[b.beat], last: an.beatChroma[b.beat + 3], r0: an.beatRMS[b.beat], r3: an.beatRMS[b.beat + 3],
+    avg: (an.beatRMS[b.beat] + an.beatRMS[b.beat + 1] + an.beatRMS[b.beat + 2] + an.beatRMS[b.beat + 3]) / 4, hit: an.beatHit ? an.beatHit[b.beat] / maxHit : 0 }));
+  // acordes de la toma: se agrupan los compases con armonía casi igual
+  const cls = [], reps = [], cen = [];
+  f.forEach((b, i) => { let c = reps.findIndex(r => cos12(r, b.vec) >= 0.9); if (c < 0) { c = reps.length; reps.push(b.vec); cen.push(new Float64Array(12)); } cls[i] = c; for (let k = 0; k < 12; k++) cen[c][k] += b.vec[k]; });
+  const repr = f.map((b, i) => cos12(b.vec, cen[cls[i]]));
+  const join = (i, j) => { const lv = 1 - Math.min(1, Math.abs(db(f[i].r3) - db(f[j].r0)) / 12); return 0.5 * cos12(f[i].last, f[j].first) + 0.5 * lv; };
+  const occurrences = seq => { let c = 0; for (let i = 0; i + seq.length <= N; i++) if (seq.every((v, k) => cls[i + k] === v)) { c++; i += seq.length - 1; } return c; };
+  // búsqueda en haz: se van añadiendo compases hacia delante, quedándose con los mejores empalmes
+  let beam = f.map((_, i) => ({ idx: [i], s: repr[i] * 0.2 }));
+  for (let k = 1; k < L; k++) {
+    const next = [];
+    for (const st of beam) { const last = st.idx[st.idx.length - 1]; for (let j = last + 1; j <= N - (L - k); j++) next.push({ idx: [...st.idx, j], s: st.s + join(last, j) + repr[j] * 0.2 }); }
+    next.sort((a, b) => b.s - a.s); beam = next.slice(0, 300);
+  }
+  const scored = beam.filter(st => st.idx[L - 1] - st.idx[0] !== L - 1).map(st => {
+    const p = st.idx; let mj = 0; for (let k = 1; k < L; k++) mj += join(p[k - 1], p[k]); mj /= L - 1;
+    const seq = p.map(i => cls[i]), occ = occurrences(seq), distinct = new Set(seq).size;
+    const lv = p.map(i => db(f[i].avg)), mean = lv.reduce((a, b) => a + b, 0) / L, sd = Math.sqrt(lv.reduce((a, b) => a + (b - mean) ** 2, 0) / L);
+    const score = 0.9 * mj + 0.6 * join(p[L - 1], p[0]) + 0.6 * Math.min(1, (occ - 1) / 2) + 0.15 * (distinct - 1) / (L - 1) + 0.2 * p.reduce((a, i) => a + f[i].hit, 0) / L + 0.2 * p.reduce((a, i) => a + repr[i], 0) / L - (sd > 6 ? 0.3 : 0) + (cls[p[0]] === cls[0] ? 0.15 : 0) - 0.01 * p[0] / N;      // a igualdad, que empiece como la toma
+    return { picks: p, score, key: seq.join('>') };
+  }).sort((a, b) => b.score - a.score);
+  const out = [];
+  for (const c of scored) {
+    if (out.length >= n) break;
+    if (out.some(o => o.key === c.key || o.picks.filter(i => c.picks.includes(i)).length >= L - 1)) continue;      // otra progresión, no la misma con otros compases
+    const ranges = c.picks.map(i => [bars[i].start, bars[i].end]);
+    out.push({ kind: 'combo', key: c.key, picks: c.picks, bars: L, want, score: c.score, ranges, start: ranges[0][0], end: ranges[L - 1][1], len: ranges.reduce((a, r) => a + r[1] - r[0], 0), chords: c.picks.map(i => bars[i].label) });
+  }
+  return out;
+}
+
+/** Audio de un loop combinado: los tramos `ranges` ([inicio, fin] en muestras) pegados en orden, con el volumen igualado y fundidos cortos; `fix` fija su duración como en `makeLoop`. */
+export function makeCombo(x, ranges, rate, fix = null) {
+  const joined = joinPieces(ranges.map(r => x.slice(r[0], r[1])), rate); if (!joined.length) return joined;
+  const out = cosFade(joined, Math.round(rate * 0.003), Math.round(rate * 0.003));
+  if (!(fix && fix.bpm && fix.bars)) return out;
+  const target = loopLength(rate, fix.bpm, fix.bars);
+  return Math.abs(stretchPct(out.length, target)) > MAX_STRETCH_PCT ? out : fitLength(out, target);
 }
 
 /** Más allá de este ajuste (en %) el BPM fijo se descarta: sería un cambio de tono audible, no una corrección. */

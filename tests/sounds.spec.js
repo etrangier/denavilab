@@ -822,9 +822,10 @@ test.describe('acordes, compases y loop', () => {
       return m ? { dur: m.duration, bpm: m.bpm } : null;
     });
     expect(lp).not.toBeNull(); expect(lp.dur).toBeGreaterThan(9.5); expect(lp.dur).toBeLessThan(9.7); expect(lp.bpm).toBe(100);
-    // corte 2 y 4 no son seguidos: ni escuchar ni guardar como loop
+    // cortes sueltos (2 y 4): se combinan en un loop de 2 compases
     await hoja.getByRole('button', { name: /^Corte 2/ }).click(); await hoja.getByRole('button', { name: /^Corte 4/ }).click();
-    await expect(hoja.getByRole('button', { name: 'Guardar selección como loop' })).toBeDisabled();
+    await expect(hoja.getByRole('button', { name: 'Guardar selección como loop' })).toBeEnabled();
+    await expect(tarjeta).toContainText('Elegiste cortes a mano');
     // mover el 1 un tiempo cambia los acordes; apagar la detección vuelve a los cortes normales
     await hoja.getByRole('button', { name: '1 tiempo ▶' }).click();
     await expect(hoja.getByRole('button', { name: /^Corte 3, C G/ })).toBeVisible();
@@ -884,6 +885,61 @@ test.describe('acordes, compases y loop', () => {
     // sin fijar el BPM, el loop conserva su duración original
     await t.getByLabel('Fijar BPM').uncheck();
     await expect(t).toContainText('conserva su duración original');
+  });
+
+  // Am F Eb G Am F C G Am F C G: el tercer compás es un acorde «equivocado»; el C bueno está en el compás 7
+  const progresionEb = progresion.replace('bars = 10', 'bars = 12').replace('acordes[prog[b % 4]]', "acordes[['Am', 'F', 'Eb', 'G', 'Am', 'F', 'C', 'G', 'Am', 'F', 'C', 'G'][b]]").replace('G: [55, 59, 62] }', 'G: [55, 59, 62], Eb: [51, 55, 58] }');
+
+  test('loops combinados: compases sueltos, en su orden, que forman la progresión y empalman bien', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async src => {
+      const hm = await import('/sounds/harmony.js'), { x, rate } = new Function(src + '; return { x, rate };')();
+      const a = hm.analyze(x, rate, 100), l = hm.layout(a, a.downbeat, 4), c = l.combos[0];
+      const fijo = hm.makeCombo(x, c.ranges, rate, { bpm: 100, bars: 4 }), libre = hm.makeCombo(x, c.ranges, rate);
+      const cortos = hm.layout(hm.analyze(x.slice(0, Math.round(rate * 0.37 + 4 * 4 * rate * 0.6)), rate, 100) || a, a.downbeat, 4);
+      let max = 0; for (let i = 0; i < 40; i++) max = Math.max(max, Math.abs(fijo[i]), Math.abs(fijo[fijo.length - 1 - i]));
+      return { etiquetas: a.bars.map(b => b.label), seguido: l.loop.chords, n: l.combos.length, picks: c.picks, chords: c.chords, bars: c.bars, claves: l.combos.map(v => v.key),
+        ninguno: l.combos.some(v => v.picks[v.picks.length - 1] - v.picks[0] === v.picks.length - 1), fijo: fijo.length, esperado: hm.loopLength(rate, 100, 4), libre: libre.length, suma: c.len, bordes: max,
+        pocos: hm.suggestCombos(a, a.bars.slice(0, 2), 4).length, de2: hm.layout(a, a.downbeat, 2).combos.every(v => v.bars === 2) };
+    }, progresionEb);
+    expect(r.etiquetas.slice(0, 4)).toEqual(['Am', 'F', 'D#', 'G']);
+    expect(r.chords).toEqual(['Am', 'F', 'C', 'G']); expect(r.picks).not.toContain(2);       // se salta el compás equivocado
+    expect(r.picks[3] - r.picks[0]).toBeGreaterThan(3);                                         // no es un tramo seguido
+    expect(r.ninguno).toBe(false); expect(new Set(r.claves).size).toBe(r.n); expect(r.n).toBeGreaterThanOrEqual(2);
+    expect(r.fijo).toBe(r.esperado); expect(r.libre).toBeGreaterThan(r.suma - 12 * 48 * 4); expect(r.libre).toBeLessThanOrEqual(r.suma);
+    expect(r.bordes).toBeLessThan(0.05);                                                       // entra y sale suave
+    expect(r.pocos).toBe(0); expect(r.de2).toBe(true);
+  });
+
+  test('en Chop: «Combinado 1» elige los compases sueltos, se escucha y se guarda como loop combinado a BPM fijo', async ({ page }) => {
+    await abrir(page, 'schair');
+    await page.evaluate(async src => {
+      const st = await import('/sounds/store.js'), { x, rate } = new Function(src + '; return { x, rate };')();
+      await st.putSample(st.newSample('Progresión', x, rate, { bpm: 100 }), x);
+    }, progresionEb);
+    await page.reload();
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Progresión' }).click();
+    await page.getByRole('button', { name: 'Chop', exact: true }).click();
+    const hoja = page.locator('dialog.sheet'), t = hoja.getByLabel('Loop sugerido');
+    await hoja.getByLabel('Detectar acordes y compases').check();
+    await expect(t).toContainText('Combinaciones');
+    const c1 = t.getByRole('button', { name: /^Combinado 1 · Am F C G$/ });
+    await c1.click();
+    await expect(c1).toHaveAttribute('aria-pressed', 'true');
+    await expect(t).toContainText('Combinado de 4 compases: los compases'); await expect(t).toContainText('100 BPM: el loop dura justo 9,6 s');
+    await hoja.getByRole('button', { name: 'Escuchar loop' }).click();
+    await expect(hoja.getByRole('button', { name: 'Parar el loop', exact: true })).toBeVisible();
+    await hoja.getByRole('button', { name: 'Parar el loop', exact: true }).click();
+    await hoja.getByRole('button', { name: 'Guardar selección como loop' }).click();
+    await expect(page.locator('#toast')).toContainText('Loop combinado de 4 compases guardado'); await expect(page.locator('#toast')).toContainText('100 BPM fijos');
+    const lp = await page.evaluate(async () => { const st = await import('/sounds/store.js'), m = (await st.listSamples()).find(v => v.name.includes('loop combinado')); return m ? { dur: m.duration, bpm: m.bpm, name: m.name } : null; });
+    expect(lp.name).toContain('loop combinado 4 compases · 100 BPM'); expect(lp.dur).toBeCloseTo(9.6, 1); expect(lp.bpm).toBe(100);
+    // a mano: los cortes 1, 6 y 8 también se combinan
+    await hoja.getByRole('button', { name: /^Corte 1,/ }).click(); await hoja.getByRole('button', { name: /^Corte 6,/ }).click(); await hoja.getByRole('button', { name: /^Corte 8,/ }).click();
+    await expect(t).toContainText('Elegiste cortes a mano');
+    await hoja.getByRole('button', { name: 'Guardar selección como loop' }).click();
+    await expect(page.locator('#toast')).toContainText('Loop combinado de 3 compases guardado');
   });
 
   test('sin pulso claro no detecta compases y lo avisa', async ({ page }) => {

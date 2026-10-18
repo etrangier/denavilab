@@ -195,7 +195,8 @@ struct ChopSheet: View {
     private var waveHighlights: [ClosedRange<Double>]? {
         if selected.isEmpty {
             guard let p = pick, audio.count > 0 else { return nil }
-            return [(Double(p.start) / Double(audio.count))...(Double(p.end) / Double(audio.count))]
+            let spans = p.picks.isEmpty ? [p.start..<p.end] : p.ranges
+            return spans.map { (Double($0.lowerBound) / Double(audio.count))...(Double($0.upperBound) / Double(audio.count)) }
         }
         return Editing.highlightRanges(ranges, total: audio.count, selected: selected)
     }
@@ -341,13 +342,21 @@ struct ChopSheet: View {
         }.card()
     }
 
+    /// ¿Es éste el loop sugerido que está elegido (y no hay cortes elegidos a mano)?
+    private func isPicked(_ c: Harmony.LoopSuggestion) -> Bool {
+        guard let p = pick, selected.isEmpty else { return false }
+        return p.start == c.start && p.bars == c.bars && p.picks == c.picks
+    }
+
     private func loopBpm(_ l: Harmony.Analysis) -> Int { fixBpmValue ?? Harmony.fixedBpm(l.bpm) }
 
     /// Ajuste de duración para el loop elegido, o nil si no se fija el BPM o el cambio sería audible.
-    private func loopFix(_ r: (start: Int, end: Int, bars: Int), _ l: Harmony.Analysis) -> (bpm: Int, bars: Int)? {
+    private typealias LoopSel = (start: Int, end: Int, bars: Int, len: Int, spans: [Range<Int>]?)    // spans: compases sueltos combinados
+
+    private func loopFix(_ r: LoopSel, _ l: Harmony.Analysis) -> (bpm: Int, bars: Int)? {
         guard fixOn else { return nil }
         let bpm = loopBpm(l), target = Harmony.loopLength(rate: sample.sampleRate, bpm: bpm, bars: r.bars)
-        if abs(Harmony.stretchPct(r.end - r.start, target)) > Harmony.maxStretchPct { return nil }
+        if abs(Harmony.stretchPct(r.len, target)) > Harmony.maxStretchPct { return nil }
         return (bpm: bpm, bars: r.bars)
     }
 
@@ -363,7 +372,7 @@ struct ChopSheet: View {
     /// Loop de N compases sugerido (4 por defecto) sobre toda la toma, con alternativas y BPM fijo para pasarlo al K.O.
     private func loopCard(_ l: Harmony.Analysis) -> some View {
         let bpm = loopBpm(l), r = loopRange
-        let stretch = r.map { Harmony.stretchPct($0.end - $0.start, Harmony.loopLength(rate: sample.sampleRate, bpm: bpm, bars: $0.bars)) } ?? 0
+        let stretch = r.map { Harmony.stretchPct($0.len, Harmony.loopLength(rate: sample.sampleRate, bpm: bpm, bars: $0.bars)) } ?? 0
         let okFix = r != nil && abs(stretch) <= Harmony.maxStretchPct
         let counts = [1, 2, 4, 8].filter { $0 <= l.bars.count || $0 == wantBars }
         var fixText = "El loop conserva su duración original"
@@ -372,8 +381,10 @@ struct ChopSheet: View {
             fixText += okFix ? " (ajuste \(stretch >= 0 ? "+" : "")\(String(format: "%.2f", stretch).replacingOccurrences(of: ".", with: ",")) %)" : " · el ajuste sería muy grande: se deja sin fijar"
         } else if fixOn { fixText = "\(bpm) BPM" }
         var info = "No encontré un tramo que se repita bien."
-        if let p = pick, selected.isEmpty { info = "\(barsWord(p.bars)) de \(stamp(Double(p.start) / Double(l.rate))) a \(stamp(Double(p.end) / Double(l.rate))) · " + p.chords.joined(separator: " · ") }
-        else if l.loop != nil { info = "Elegiste cortes a mano: el loop son esos compases seguidos." }
+        if let p = pick, selected.isEmpty, !p.picks.isEmpty {
+            info = "Combinado de \(p.bars) compases: los compases " + p.picks.map { String($0 + 1) }.joined(separator: ", ") + " de la toma · " + p.chords.joined(separator: " · ")
+        } else if let p = pick, selected.isEmpty { info = "\(barsWord(p.bars)) de \(stamp(Double(p.start) / Double(l.rate))) a \(stamp(Double(p.end) / Double(l.rate))) · " + p.chords.joined(separator: " · ") }
+        else if l.loop != nil { info = "Elegiste cortes a mano: el loop son esos compases, seguidos o combinados en su orden." }
         return VStack(alignment: .leading, spacing: 8) {
             Text("Loop sugerido").font(Theme.font(15, weight: .medium)).foregroundColor(Theme.text)
             HStack(spacing: 8) {
@@ -385,7 +396,16 @@ struct ChopSheet: View {
                 HStack(spacing: 8) {
                     ForEach(Array(l.loops.enumerated()), id: \.offset) { i, c in
                         Chip(title: (i == 0 ? "Mejor" : "Opción \(i + 1)") + " · " + stamp(Double(c.start) / Double(l.rate)),
-                             selected: pick?.start == c.start && selected.isEmpty) { stopPreview(); selected = []; pick = c }
+                             selected: isPicked(c)) { stopPreview(); selected = []; pick = c }
+                    }
+                }
+            }
+            if !l.combos.isEmpty {
+                Text("Combinaciones: compases sueltos de la toma, en su orden, que juntos forman una progresión que empalma bien")
+                    .font(Theme.font(12)).foregroundColor(Theme.muted)
+                HStack(spacing: 8) {
+                    ForEach(Array(l.combos.enumerated()), id: \.offset) { i, c in
+                        Chip(title: "Combinado \(i + 1) · " + c.chords.joined(separator: " "), selected: isPicked(c)) { stopPreview(); selected = []; pick = c }
                     }
                 }
             }
@@ -400,20 +420,32 @@ struct ChopSheet: View {
         }.padding(.top, 6)
     }
 
-    /// Rango de audio de la selección si son compases seguidos (para escuchar o guardar como loop).
-    private var loopRange: (start: Int, end: Int, bars: Int)? {
-        guard mode == -1, lay != nil else { return nil }
-        if let p = pick, selected.isEmpty { return (p.start, p.end, p.bars) }
+    /// Rango de audio de la selección: compases seguidos o, si son cortes sueltos (1, 3 y 5…), los compases combinados en su orden.
+    private var loopRange: LoopSel? {
+        guard mode == -1, let l = lay else { return nil }
+        if let p = pick, selected.isEmpty {
+            return p.picks.isEmpty ? (p.start, p.end, p.bars, p.end - p.start, nil) : (p.start, p.end, p.bars, p.len, p.ranges)
+        }
         let ids = selected.sorted().filter { $0 < ranges.count }
-        guard let f = ids.first, let l = ids.last, ids.count == l - f + 1 else { return nil }
-        return (ranges[f].lowerBound, ranges[l].upperBound, ids.count * perPad)
+        guard let f = ids.first, let last = ids.last else { return nil }
+        if ids.count != last - f + 1 {
+            let rs = ids.map { ranges[$0] }, len = rs.reduce(0) { $0 + $1.count }
+            return (rs[0].lowerBound, rs[rs.count - 1].upperBound, max(1, Int((Double(len) / (4 * l.period)).rounded())), len, rs)
+        }
+        return (ranges[f].lowerBound, ranges[last].upperBound, ids.count * perPad, ranges[last].upperBound - ranges[f].lowerBound, nil)
+    }
+
+    /// Audio del loop elegido: tramo seguido o, si son compases sueltos, los compases combinados.
+    private func loopAudio(_ r: LoopSel, _ fix: (bpm: Int, bars: Int)?) -> [Float] {
+        if let sp = r.spans { return Harmony.makeCombo(audio, ranges: sp, rate: sample.sampleRate, fix: fix) }
+        return Harmony.makeLoop(audio, start: r.start, end: r.end, rate: sample.sampleRate, fix: fix)
     }
 
     private func toggleLoop() {
         if loopPlayer != nil { loopPlayer?.stop(); loopPlayer = nil; return }
         guard let r = loopRange else { return }
         stopPreview()
-        let fix = lay.flatMap { loopFix(r, $0) }, lp = Harmony.makeLoop(audio, start: r.start, end: r.end, rate: sample.sampleRate, fix: fix)
+        let fix = lay.flatMap { loopFix(r, $0) }, lp = loopAudio(r, fix)
         guard !lp.isEmpty else { return }
         do {
             try AudioSessionConfig.activate()
@@ -425,14 +457,15 @@ struct ChopSheet: View {
 
     private func saveLoop() {
         guard let r = loopRange, let l = lay else { return }
-        let fix = loopFix(r, l), lp = Harmony.makeLoop(audio, start: r.start, end: r.end, rate: sample.sampleRate, fix: fix)
+        let fix = loopFix(r, l), lp = loopAudio(r, fix)
         guard !lp.isEmpty else { return }
         let word = r.bars == 1 ? "1 compás" : "\(r.bars) compases"
-        let chords = l.bars.filter { $0.start >= r.start && $0.end <= r.end + 1 }.map(\.label).joined(separator: " · ")
-        if var x = lib.add(name: "\(sample.name) · loop \(word)" + (fix.map { " · \($0.bpm) BPM" } ?? ""), audio: lp, sampleRate: sample.sampleRate) {
+        let spans = r.spans ?? [r.start..<r.end]
+        let chords = l.bars.filter { b in spans.contains { b.start >= $0.lowerBound && b.end <= $0.upperBound + 1 } }.map(\.label).joined(separator: " · ")
+        if var x = lib.add(name: "\(sample.name) · loop\(r.spans != nil ? " combinado" : "") \(word)" + (fix.map { " · \($0.bpm) BPM" } ?? ""), audio: lp, sampleRate: sample.sampleRate) {
             x.folder = lib.folder(of: sample); x.subfolder = sample.subfolder; x.bpm = fix.map { Double($0.bpm) } ?? (l.bpm * 10).rounded() / 10; lib.update(x)
             flashFX("guardar-loop")
-            message = "Loop de \(word) guardado (\(chords)) · " + (fix.map { "\($0.bpm) BPM fijos, dura \(secs(lp.count))" } ?? "≈ \(Int(l.bpm.rounded())) BPM")
+            message = "Loop\(r.spans != nil ? " combinado" : "") de \(word) guardado (\(chords)) · " + (fix.map { "\($0.bpm) BPM fijos, dura \(secs(lp.count))" } ?? "≈ \(Int(l.bpm.rounded())) BPM")
         }
     }
 
