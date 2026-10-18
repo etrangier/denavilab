@@ -531,6 +531,16 @@ final class LogicTests: XCTestCase {
         XCTAssertTrue(Harmony.layout(a, downbeat: a.downbeat, want: 2).combos.allSatisfy { $0.bars == 2 })
     }
 
+    func testHistoryIsCappedAndKeepsTheOriginal() {
+        var undo: [[Float]] = (0..<30).map { [Float($0)] }, labels = (0..<30).map { "c\($0)" }
+        Editing.trimHistory(&undo, &labels)
+        XCTAssertEqual(undo.count, Editing.historyMaxSteps); XCTAssertEqual(labels.count, Editing.historyMaxSteps)
+        XCTAssertEqual(undo.first, [0]); XCTAssertEqual(undo.last, [29]); XCTAssertEqual(labels.last, "c29")
+        var few: [[Float]] = [[1], [2]], fewL = ["a", "b"]
+        Editing.trimHistory(&few, &fewL)
+        XCTAssertEqual(few.count, 2)
+    }
+
     // MARK: invertir
 
     func testReverse() {

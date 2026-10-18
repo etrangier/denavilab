@@ -996,6 +996,44 @@ test.describe('compartir en WAV (correo, Bluetooth, Drive)', () => {
 
 });
 
+test.describe('depuración: historial acotado y lo compartido siempre al día', () => {
+  test('el historial de cambios tiene tope por cantidad y por memoria, y conserva el original', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async () => {
+      const ed = await import('/sounds/editor.js'), mk = (n, v) => new Float32Array(n).fill(v);
+      const a = { undo: Array.from({ length: 30 }, (_, i) => mk(10, i)), labels: Array.from({ length: 30 }, (_, i) => 'c' + i) };
+      ed.trimHistory(a);
+      const grandes = { undo: Array.from({ length: 8 }, (_, i) => ({ length: 20e6, v: i })), labels: Array.from({ length: 8 }, (_, i) => 'g' + i) };   // 8 × 80 MB
+      ed.trimHistory(grandes);
+      const pocos = { undo: [mk(4, 1), mk(4, 2)], labels: ['a', 'b'] }; ed.trimHistory(pocos);
+      return { n: a.undo.length, l: a.labels.length, orig: a.undo[0][0], ultimo: a.undo[a.undo.length - 1][0], ult: a.labels[a.labels.length - 1], max: ed.HISTORY_MAX_STEPS,
+        gn: grandes.undo.length, gorig: grandes.undo[0].v, gultimo: grandes.undo[grandes.undo.length - 1].v, pn: pocos.undo.length };
+    });
+    expect(r.n).toBe(r.max); expect(r.l).toBe(r.max);
+    expect(r.orig).toBe(0); expect(r.ultimo).toBe(29); expect(r.ult).toBe('c29');        // el original y lo último siguen ahí
+    expect(r.gn).toBe(2); expect(r.gorig).toBe(0); expect(r.gultimo).toBe(7);              // por memoria: sólo caben el original y el último
+    expect(r.pn).toBe(2);
+  });
+
+  test('cada guardado renueva la versión: lo preparado para compartir nunca queda viejo', async ({ page }) => {
+    await abrir(page, 'schair'); await sembrar(page, ['uno']);
+    await page.evaluate(() => { window.__c = []; navigator.canShare = d => !!(d && d.files && d.files.length); navigator.share = async d => { const b = new Uint8Array(await d.files[0].arrayBuffer()); let m = 0; for (let i = 44; i + 1 < b.length; i += 2) m = Math.max(m, Math.abs(new Int16Array(b.buffer, i, 1)[0] || 0)); window.__c.push(m); }; });
+    await tab(page, 'exportar');
+    await page.getByRole('button', { name: 'Compartir WAV' }).click();
+    await expect.poll(() => page.evaluate(() => window.__c.length)).toBe(1);
+    // misma duración y mismo nombre, pero con el volumen cambiado: debe compartirse la versión nueva
+    await page.evaluate(async () => {
+      const st = await import('/sounds/store.js'), stt = await import('/sounds/state.js'), m = (await st.listSamples())[0], a = await st.getAudio(m.id);
+      await st.putSample(m, a.map(v => v * 0.1)); await stt.refreshSamples();
+    });
+    await tab(page, 'inicio'); await tab(page, 'exportar');
+    await page.getByRole('button', { name: 'Compartir WAV' }).click();
+    await expect.poll(() => page.evaluate(() => window.__c.length)).toBe(2);
+    const [antes, despues] = await page.evaluate(() => window.__c);
+    expect(despues).toBeLessThan(antes * 0.2);
+  });
+});
+
 test.describe('armonizar y unir cortes', () => {
   test('armonizar quita el desvío y suaviza bordes; unir iguala el volumen y no deja saltos', async ({ page }) => {
     await abrir(page);

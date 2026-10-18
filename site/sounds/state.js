@@ -16,7 +16,7 @@ export const app = {
   repaint: () => {},      // actualiza sin reconstruir (lo pone cada pantalla)
 };
 
-export async function refreshSamples() { app.samples = await listSamples(); return app.samples; }
+export async function refreshSamples() { app.samples = await listSamples(); app.rev = (app.rev || 0) + 1; return app.samples; }    // rev: cambia con cada guardado (invalida lo preparado)
 export const sampleById = id => app.samples.find(s => s.id === id);
 
 /** Cambia de pestaña. Si es Grabar, arranca el micrófono en el mismo gesto (iOS y Safari lo exigen). */

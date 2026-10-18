@@ -351,7 +351,7 @@ struct EditorBody: View {
         let out = f(audio)
         guard !out.isEmpty else { message = "La selección quedó vacía"; return }
         guard out != audio else { message = "No hay nada que cambiar: la selección es muy corta para eso"; return }
-        undo.append(audio); undoLabels.append(label); redo = []; redoLabels = []; audio = out; message = nil
+        undo.append(audio); undoLabels.append(label); Editing.trimHistory(&undo, &undoLabels); redo = []; redoLabels = []; audio = out; message = nil
         refreshPeaks()
     }
 

@@ -483,7 +483,7 @@ export async function deliverMany(files, zipName = 'denavilab-sonidos.zip') {
 }
 /** WAV ya preparado de la grabación abierta: compartir necesita un toque reciente, así que se deja listo antes de que lo pidan. */
 const ready = { key: '', file: null };
-const readyKey = (s, rate) => [s.id, rate, s.duration, s.name].join('|');
+const readyKey = (s, rate) => [s.id, rate, s.duration, s.name, app.rev].join('|');
 async function wavReady(s, rate) {
   const key = readyKey(s, rate);
   if (ready.key === key && ready.file) return ready.file;

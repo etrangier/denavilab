@@ -24,6 +24,12 @@ function play() {
 }
 
 function setAudio(a) { ed.audio = a; ed.peaks = dsp.peaks(a, 56); }
+/** El historial guarda copias enteras del audio: se limita por cantidad y por memoria, y siempre se conserva el original (el primero). */
+export const HISTORY_MAX_STEPS = 20, HISTORY_MAX_BYTES = 160e6;
+export function trimHistory(h = ed) {
+  const bytes = () => h.undo.reduce((a, x) => a + x.length * 4, 0);
+  while (h.undo.length > 2 && (h.undo.length > HISTORY_MAX_STEPS || bytes() > HISTORY_MAX_BYTES)) { h.undo.splice(1, 1); h.labels.splice(1, 1); }
+}
 /** Aplica un cambio al audio (deshacible). Con `key`, el botón correspondiente se ilumina al terminar; devuelve si se aplicó. */
 function apply(fn, key, label = 'Cambio') {
   const fail = msg => { fx.busy = null; if (key) app.render(); toast(msg); return false; };
@@ -31,7 +37,7 @@ function apply(fn, key, label = 'Cambio') {
   if (!out.length) return fail('La selección quedó vacía');
   if (out === ed.audio) return fail('No hay nada que cambiar: la selección es muy corta para eso');
   fx.busy = null; if (key) flash(key);
-  stopPlay(); ed.undo.push(ed.audio); ed.labels.push(label); ed.redo = []; ed.rlabels = []; setAudio(out); ed.start = 0; ed.end = 1; app.render();
+  stopPlay(); ed.undo.push(ed.audio); ed.labels.push(label); trimHistory(); ed.redo = []; ed.rlabels = []; setAudio(out); ed.start = 0; ed.end = 1; app.render();
   return true;
 }
 const LABELS = { recortar: 'Recortar', normalizar: 'Normalizar', fundido: 'Fundido', armonizar: 'Armonizar bordes', invertir: 'Invertir', colchon4: 'Colchón ×4', colchon8: 'Colchón ×8', colchon16: 'Colchón ×16',

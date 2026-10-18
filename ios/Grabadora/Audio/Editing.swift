@@ -154,6 +154,17 @@ enum Editing {
         return lo..<(lo + w)
     }
 
+    /// El historial guarda copias enteras del audio: se limita por cantidad y por memoria, y siempre se conserva el original (el primero).
+    nonisolated static let historyMaxSteps = 20
+    nonisolated static let historyMaxBytes = 160_000_000
+    nonisolated static func trimHistory(_ undo: inout [[Float]], _ labels: inout [String]) {
+        func bytes() -> Int { undo.reduce(0) { $0 + $1.count * 4 } }
+        while undo.count > 2 && (undo.count > historyMaxSteps || bytes() > historyMaxBytes) {
+            undo.remove(at: 1)
+            if labels.count > 1 { labels.remove(at: 1) }
+        }
+    }
+
     /// Posición final de un marcador: dentro del audio y, si se pide, en el cruce por cero más cercano.
     nonisolated static func snapMarker(_ x: [Float], to i: Int, zeroCross: Bool) -> Int {
         let c = min(max(i, 0), max(x.count - 1, 0))
