@@ -543,4 +543,3 @@ const shareButtons = (s, rate) => [
     const files = []; for (const x of app.samples) files.push(await wavFile(x, rate));
     await deliverMany(files, 'denavilab-sonidos.zip');
   } }))()];
-}
