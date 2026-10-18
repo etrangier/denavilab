@@ -822,9 +822,10 @@ test.describe('acordes, compases y loop', () => {
       return m ? { dur: m.duration, bpm: m.bpm } : null;
     });
     expect(lp).not.toBeNull(); expect(lp.dur).toBeGreaterThan(9.5); expect(lp.dur).toBeLessThan(9.7); expect(lp.bpm).toBe(100);
-    // corte 2 y 4 no son seguidos: ni escuchar ni guardar como loop
+    // cortes sueltos (2 y 4): se combinan en un loop de 2 compases
     await hoja.getByRole('button', { name: /^Corte 2/ }).click(); await hoja.getByRole('button', { name: /^Corte 4/ }).click();
-    await expect(hoja.getByRole('button', { name: 'Guardar selección como loop' })).toBeDisabled();
+    await expect(hoja.getByRole('button', { name: 'Guardar selección como loop' })).toBeEnabled();
+    await expect(tarjeta).toContainText('Elegiste cortes a mano');
     // mover el 1 un tiempo cambia los acordes; apagar la detección vuelve a los cortes normales
     await hoja.getByRole('button', { name: '1 tiempo ▶' }).click();
     await expect(hoja.getByRole('button', { name: /^Corte 3, C G/ })).toBeVisible();
@@ -886,6 +887,61 @@ test.describe('acordes, compases y loop', () => {
     await expect(t).toContainText('conserva su duración original');
   });
 
+  // Am F Eb G Am F C G Am F C G: el tercer compás es un acorde «equivocado»; el C bueno está en el compás 7
+  const progresionEb = progresion.replace('bars = 10', 'bars = 12').replace('acordes[prog[b % 4]]', "acordes[['Am', 'F', 'Eb', 'G', 'Am', 'F', 'C', 'G', 'Am', 'F', 'C', 'G'][b]]").replace('G: [55, 59, 62] }', 'G: [55, 59, 62], Eb: [51, 55, 58] }');
+
+  test('loops combinados: compases sueltos, en su orden, que forman la progresión y empalman bien', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async src => {
+      const hm = await import('/sounds/harmony.js'), { x, rate } = new Function(src + '; return { x, rate };')();
+      const a = hm.analyze(x, rate, 100), l = hm.layout(a, a.downbeat, 4), c = l.combos[0];
+      const fijo = hm.makeCombo(x, c.ranges, rate, { bpm: 100, bars: 4 }), libre = hm.makeCombo(x, c.ranges, rate);
+      const cortos = hm.layout(hm.analyze(x.slice(0, Math.round(rate * 0.37 + 4 * 4 * rate * 0.6)), rate, 100) || a, a.downbeat, 4);
+      let max = 0; for (let i = 0; i < 40; i++) max = Math.max(max, Math.abs(fijo[i]), Math.abs(fijo[fijo.length - 1 - i]));
+      return { etiquetas: a.bars.map(b => b.label), seguido: l.loop.chords, n: l.combos.length, picks: c.picks, chords: c.chords, bars: c.bars, claves: l.combos.map(v => v.key),
+        ninguno: l.combos.some(v => v.picks[v.picks.length - 1] - v.picks[0] === v.picks.length - 1), fijo: fijo.length, esperado: hm.loopLength(rate, 100, 4), libre: libre.length, suma: c.len, bordes: max,
+        pocos: hm.suggestCombos(a, a.bars.slice(0, 2), 4).length, de2: hm.layout(a, a.downbeat, 2).combos.every(v => v.bars === 2) };
+    }, progresionEb);
+    expect(r.etiquetas.slice(0, 4)).toEqual(['Am', 'F', 'D#', 'G']);
+    expect(r.chords).toEqual(['Am', 'F', 'C', 'G']); expect(r.picks).not.toContain(2);       // se salta el compás equivocado
+    expect(r.picks[3] - r.picks[0]).toBeGreaterThan(3);                                         // no es un tramo seguido
+    expect(r.ninguno).toBe(false); expect(new Set(r.claves).size).toBe(r.n); expect(r.n).toBeGreaterThanOrEqual(2);
+    expect(r.fijo).toBe(r.esperado); expect(r.libre).toBeGreaterThan(r.suma - 12 * 48 * 4); expect(r.libre).toBeLessThanOrEqual(r.suma);
+    expect(r.bordes).toBeLessThan(0.05);                                                       // entra y sale suave
+    expect(r.pocos).toBe(0); expect(r.de2).toBe(true);
+  });
+
+  test('en Chop: «Combinado 1» elige los compases sueltos, se escucha y se guarda como loop combinado a BPM fijo', async ({ page }) => {
+    await abrir(page, 'schair');
+    await page.evaluate(async src => {
+      const st = await import('/sounds/store.js'), { x, rate } = new Function(src + '; return { x, rate };')();
+      await st.putSample(st.newSample('Progresión', x, rate, { bpm: 100 }), x);
+    }, progresionEb);
+    await page.reload();
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Progresión' }).click();
+    await page.getByRole('button', { name: 'Chop', exact: true }).click();
+    const hoja = page.locator('dialog.sheet'), t = hoja.getByLabel('Loop sugerido');
+    await hoja.getByLabel('Detectar acordes y compases').check();
+    await expect(t).toContainText('Combinaciones');
+    const c1 = t.getByRole('button', { name: /^Combinado 1 · Am F C G$/ });
+    await c1.click();
+    await expect(c1).toHaveAttribute('aria-pressed', 'true');
+    await expect(t).toContainText('Combinado de 4 compases: los compases'); await expect(t).toContainText('100 BPM: el loop dura justo 9,6 s');
+    await hoja.getByRole('button', { name: 'Escuchar loop' }).click();
+    await expect(hoja.getByRole('button', { name: 'Parar el loop', exact: true })).toBeVisible();
+    await hoja.getByRole('button', { name: 'Parar el loop', exact: true }).click();
+    await hoja.getByRole('button', { name: 'Guardar selección como loop' }).click();
+    await expect(page.locator('#toast')).toContainText('Loop combinado de 4 compases guardado'); await expect(page.locator('#toast')).toContainText('100 BPM fijos');
+    const lp = await page.evaluate(async () => { const st = await import('/sounds/store.js'), m = (await st.listSamples()).find(v => v.name.includes('loop combinado')); return m ? { dur: m.duration, bpm: m.bpm, name: m.name } : null; });
+    expect(lp.name).toContain('loop combinado 4 compases · 100 BPM'); expect(lp.dur).toBeCloseTo(9.6, 1); expect(lp.bpm).toBe(100);
+    // a mano: los cortes 1, 6 y 8 también se combinan
+    await hoja.getByRole('button', { name: /^Corte 1,/ }).click(); await hoja.getByRole('button', { name: /^Corte 6,/ }).click(); await hoja.getByRole('button', { name: /^Corte 8,/ }).click();
+    await expect(t).toContainText('Elegiste cortes a mano');
+    await hoja.getByRole('button', { name: 'Guardar selección como loop' }).click();
+    await expect(page.locator('#toast')).toContainText('Loop combinado de 3 compases guardado');
+  });
+
   test('sin pulso claro no detecta compases y lo avisa', async ({ page }) => {
     await abrir(page, 'schair');
     await page.evaluate(async () => {
@@ -938,6 +994,101 @@ test.describe('compartir en WAV (correo, Bluetooth, Drive)', () => {
     await expect(page.locator('#toast')).toContainText('no tiene hoja de compartir');
   });
 
+});
+
+test.describe('depuración: historial acotado y lo compartido siempre al día', () => {
+  test('el historial de cambios tiene tope por cantidad y por memoria, y conserva el original', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async () => {
+      const ed = await import('/sounds/editor.js'), mk = (n, v) => new Float32Array(n).fill(v);
+      const a = { undo: Array.from({ length: 30 }, (_, i) => mk(10, i)), labels: Array.from({ length: 30 }, (_, i) => 'c' + i) };
+      ed.trimHistory(a);
+      const grandes = { undo: Array.from({ length: 8 }, (_, i) => ({ length: 20e6, v: i })), labels: Array.from({ length: 8 }, (_, i) => 'g' + i) };   // 8 × 80 MB
+      ed.trimHistory(grandes);
+      const pocos = { undo: [mk(4, 1), mk(4, 2)], labels: ['a', 'b'] }; ed.trimHistory(pocos);
+      return { n: a.undo.length, l: a.labels.length, orig: a.undo[0][0], ultimo: a.undo[a.undo.length - 1][0], ult: a.labels[a.labels.length - 1], max: ed.HISTORY_MAX_STEPS,
+        gn: grandes.undo.length, gorig: grandes.undo[0].v, gultimo: grandes.undo[grandes.undo.length - 1].v, pn: pocos.undo.length };
+    });
+    expect(r.n).toBe(r.max); expect(r.l).toBe(r.max);
+    expect(r.orig).toBe(0); expect(r.ultimo).toBe(29); expect(r.ult).toBe('c29');        // el original y lo último siguen ahí
+    expect(r.gn).toBe(2); expect(r.gorig).toBe(0); expect(r.gultimo).toBe(7);              // por memoria: sólo caben el original y el último
+    expect(r.pn).toBe(2);
+  });
+
+  test('los cálculos largos van a un hilo aparte: dan lo mismo que en el principal y la pantalla sigue viva', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async () => {
+      const w = await import('/sounds/work.js'), d = await import('/sounds/dsp.js'), rate = 48000;
+      let seed = 3; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32 - 0.5; };
+      const x = new Float32Array(rate * 20).map((_, i) => 0.05 * rnd() + (i % 24000 < 6000 ? 0.4 * Math.sin(i * 0.07) : 0));
+      const ref = d.cleanNoise(x, rate, 'strong');
+      let ticks = 0; const t = setInterval(() => ticks++, 16);
+      const out = await w.compute('cleanNoise', [x, rate, 'strong']);
+      clearInterval(t);
+      let dif = 0; for (let i = 0; i < ref.length; i++) dif = Math.max(dif, Math.abs(ref[i] - out[i]));
+      const pad = await w.compute('padStretch', [x.slice(0, rate), 4, rate, true]), padRef = d.padStretch(x.slice(0, rate), 4, rate, true);
+      return { worker: w.usesWorker(), igual: out.length === ref.length && dif < 1e-6, ticks, padIgual: pad.length === padRef.length && pad[1000] === padRef[1000], intacto: x[0] === x[0] };
+    });
+    expect(r.worker).toBe(true); expect(r.igual).toBe(true); expect(r.padIgual).toBe(true);
+    expect(r.ticks).toBeGreaterThan(5);                               // mientras calculaba, el hilo principal seguía atendiendo
+  });
+
+  test('sin soporte de hilos el cálculo se hace igualmente en el principal', async ({ page }) => {
+    await page.addInitScript(() => { delete window.Worker; });
+    await abrir(page);
+    const r = await page.evaluate(async () => {
+      const w = await import('/sounds/work.js'), d = await import('/sounds/dsp.js'), x = new Float32Array(48000).map((_, i) => 0.3 * Math.sin(i * 0.05)), out = await w.compute('cleanNoise', [x, 48000, 'soft']);
+      return { worker: w.usesWorker(), igual: out.length === d.cleanNoise(x, 48000, 'soft').length };
+    });
+    expect(r.worker).toBe(false); expect(r.igual).toBe(true);
+  });
+
+  test('el análisis de acordes de una misma toma se reutiliza (Tempo ÷ 2, × 2…)', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async () => {
+      const hm = await import('/sounds/harmony.js'), x = new Float32Array(48000 * 6).map((_, i) => 0.3 * Math.sin(i * 0.05)), y = x.slice();
+      const a = hm.chromaFrames(x, 48000);
+      return { mismo: hm.chromaFrames(x, 48000) === a, otraToma: hm.chromaFrames(y, 48000) !== a, otraFrecuencia: hm.chromaFrames(x, 44100) !== a };
+    });
+    expect(r).toEqual({ mismo: true, otraToma: true, otraFrecuencia: true });
+  });
+
+  test('en el editor, «Fuerte» trabaja en segundo plano: el botón pulsa, la pantalla responde y al terminar se aplica y se puede deshacer', async ({ page }) => {
+    const errores = vigilar(page);
+    await abrir(page, 'schair');
+    await page.evaluate(async () => {
+      const st = await import('/sounds/store.js'), rate = 48000; let seed = 7; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32 - 0.5; };
+      const a = new Float32Array(rate * 15).map((_, i) => 0.05 * rnd() + ((i / rate) % 3 > 1 && (i / rate) % 3 < 2 ? 0.4 * Math.sin(i * 0.07) : 0));
+      await st.putSample(st.newSample('Ruidosa', a, rate), a);
+    });
+    await page.reload();
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Ruidosa' }).click();
+    await page.getByRole('button', { name: 'Fuerte', exact: true }).click();
+    await expect(page.locator('#toast')).toContainText('Listo: ruido reducido (fuerte)', { timeout: 20000 });
+    await expect(page.getByRole('button', { name: /Deshacer/ })).toBeEnabled();
+    await page.getByRole('button', { name: /Deshacer/ }).click();
+    await expect(page.getByRole('button', { name: /Deshacer/ })).toBeDisabled();
+    expect(errores).toEqual([]);
+  });
+
+  test('cada guardado renueva la versión: lo preparado para compartir nunca queda viejo', async ({ page }) => {
+    await abrir(page, 'schair'); await sembrar(page, ['uno']);
+    await page.evaluate(() => { window.__c = []; navigator.canShare = d => !!(d && d.files && d.files.length); navigator.share = async d => { const b = new Uint8Array(await d.files[0].arrayBuffer()); let m = 0; for (let i = 44; i + 1 < b.length; i += 2) m = Math.max(m, Math.abs(new Int16Array(b.buffer, i, 1)[0] || 0)); window.__c.push(m); }; });
+    await tab(page, 'exportar');
+    await page.getByRole('button', { name: 'Compartir WAV' }).click();
+    await expect.poll(() => page.evaluate(() => window.__c.length)).toBe(1);
+    // misma duración y mismo nombre, pero con el volumen cambiado: debe compartirse la versión nueva
+    await page.evaluate(async () => {
+      const st = await import('/sounds/store.js'), stt = await import('/sounds/state.js'), m = (await st.listSamples())[0], a = await st.getAudio(m.id);
+      await st.putSample(m, a.map(v => v * 0.1)); await stt.refreshSamples();
+    });
+    await tab(page, 'inicio'); await tab(page, 'exportar');
+    await page.getByRole('button', { name: 'Compartir WAV' }).click();
+    await expect.poll(() => page.evaluate(() => window.__c.length)).toBe(2);
+    const [antes, despues] = await page.evaluate(() => window.__c);
+    expect(despues).toBeLessThan(antes * 0.2);
+  });
 });
 
 test.describe('armonizar y unir cortes', () => {

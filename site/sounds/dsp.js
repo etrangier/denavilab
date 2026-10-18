@@ -496,12 +496,6 @@ export function windowRange(count, width, center) {
   return [lo, lo + w];
 }
 
-/** Posición final de un marcador: dentro del audio y, si se pide, en el cruce por cero más cercano. */
-export function snapMarker(x, i, zeroCross) {
-  const c = Math.min(Math.max(i, 0), Math.max(x.length - 1, 0));
-  return zeroCross ? nearestZeroCross(x, c, 2048) : c;
-}
-
 // ---------- tempo ----------
 
 /** Tempo estimado por autocorrelación de la subida de energía. null si hay menos de 2 s o no hay pulso claro. */
@@ -541,16 +535,6 @@ export function tapTempo(taps, t, maxTaps = 6) {
   if (taps.length < 2) return null;
   let sum = 0; for (let i = 1; i < taps.length; i++) sum += taps[i] - taps[i - 1];
   return Math.min(300, Math.max(30, 60 / (sum / (taps.length - 1))));
-}
-
-/** Un compás de metrónomo: `beats` clics, el primero más agudo y fuerte. */
-export function barSamples(bpm, beats, rate) {
-  const beatLen = Math.round(rate * 60 / bpm), out = new Float32Array(beatLen * Math.max(beats, 1)), clickLen = Math.min(beatLen, Math.floor(rate * 0.02));
-  for (let b = 0; b < Math.max(beats, 1); b++) {
-    const [freq, amp] = b === 0 ? [1800, 0.9] : (beats === 6 && b === 3 ? [1500, 0.75] : [1200, 0.6]);
-    for (let i = 0; i < clickLen; i++) out[b * beatLen + i] = Math.sin(2 * Math.PI * freq * i / rate) * (1 - i / clickLen) * amp;
-  }
-  return out;
 }
 
 /** Muestras de una toma de `bars` compases; null si no hay límite. */

@@ -1,6 +1,7 @@
 // Pestaña Editar: onda con dos marcadores, reproducción, recorte, fundido, normalizado, deshacer, tempo y carpeta.
 import { app, go, refreshSamples, sampleById } from './state.js';
 import { h, mount, fill, btn, link, chip, card, label, muted, title, toggleRow, sliderRow, logo, confirmSheet, toast, folderPicker, drawBars, fx, flash } from './ui.js';
+import { compute } from './work.js';
 import * as dsp from './dsp.js';
 import { putSample, getAudio, deleteSamples } from './store.js';
 import { openChop } from './chop.js';
@@ -24,6 +25,12 @@ function play() {
 }
 
 function setAudio(a) { ed.audio = a; ed.peaks = dsp.peaks(a, 56); }
+/** El historial guarda copias enteras del audio: se limita por cantidad y por memoria, y siempre se conserva el original (el primero). */
+export const HISTORY_MAX_STEPS = 20, HISTORY_MAX_BYTES = 160e6;
+export function trimHistory(h = ed) {
+  const bytes = () => h.undo.reduce((a, x) => a + x.length * 4, 0);
+  while (h.undo.length > 2 && (h.undo.length > HISTORY_MAX_STEPS || bytes() > HISTORY_MAX_BYTES)) { h.undo.splice(1, 1); h.labels.splice(1, 1); }
+}
 /** Aplica un cambio al audio (deshacible). Con `key`, el botón correspondiente se ilumina al terminar; devuelve si se aplicó. */
 function apply(fn, key, label = 'Cambio') {
   const fail = msg => { fx.busy = null; if (key) app.render(); toast(msg); return false; };
@@ -31,7 +38,7 @@ function apply(fn, key, label = 'Cambio') {
   if (!out.length) return fail('La selección quedó vacía');
   if (out === ed.audio) return fail('No hay nada que cambiar: la selección es muy corta para eso');
   fx.busy = null; if (key) flash(key);
-  stopPlay(); ed.undo.push(ed.audio); ed.labels.push(label); ed.redo = []; ed.rlabels = []; setAudio(out); ed.start = 0; ed.end = 1; app.render();
+  stopPlay(); ed.undo.push(ed.audio); ed.labels.push(label); trimHistory(); ed.redo = []; ed.rlabels = []; setAudio(out); ed.start = 0; ed.end = 1; app.render();
   return true;
 }
 const LABELS = { recortar: 'Recortar', normalizar: 'Normalizar', fundido: 'Fundido', armonizar: 'Armonizar bordes', invertir: 'Invertir', colchon4: 'Colchón ×4', colchon8: 'Colchón ×8', colchon16: 'Colchón ×16',
@@ -41,6 +48,16 @@ function run(key, fn, { slow = false, done = null } = {}) {
   const go = () => { if (apply(fn, key, LABELS[key] || key) && done) toast(typeof done === 'function' ? done() : done); };
   if (!slow) return go();
   fx.busy = key; app.render(); setTimeout(go, 90);
+}
+/** Acción lenta en un hilo aparte (la pantalla no se congela): el botón pulsa mientras trabaja y, si la toma sigue igual al terminar, se aplica el resultado. */
+function runWorker(key, op, args, { done = null, onApplied = null } = {}) {
+  if (fx.busy) return;                                              // ya hay una acción trabajando
+  const base = ed.audio, id = ed.id;
+  fx.busy = key; app.render();
+  compute(op, args).then(out => {
+    if (ed.audio !== base || ed.id !== id) { fx.busy = null; app.render(); return toast('La toma cambió mientras trabajaba: no se aplicó'); }
+    if (apply(() => out, key, LABELS[key] || key)) { if (onApplied) { onApplied(); app.render(); } if (done) toast(typeof done === 'function' ? done() : done); }
+  }).catch(() => { fx.busy = null; app.render(); toast('No se pudo completar la acción'); });
 }
 function stepRaw(from, to, lfrom, lto) {
   const x = from.pop(); if (!x) return false;
@@ -141,7 +158,7 @@ export function renderEdit(root) {
       if (b - a < s.rate / 10) return toast('Marca al menos 0,1 s (o no marques nada para usar toda la toma)');
       if ((b - a) * f > s.rate * 600) return toast('Quedaría demasiado largo (más de 10 minutos): marca un tramo más corto');
       toast('Creando el colchón…');
-      run('colchon' + f, x => dsp.padStretch(x.slice(a, b), f, s.rate, ed.sustain), { slow: true, done: () => `Listo: colchón ×${f} · dura ${dsp.stamp(ed.audio.length / s.rate)}` });
+      runWorker('colchon' + f, 'padStretch', [ed.audio.slice(a, b), f, s.rate, ed.sustain], { done: () => `Listo: colchón ×${f} · dura ${dsp.stamp(ed.audio.length / s.rate)}` });
     } }))),
     toggleRow('Sostener el nivel', 'Sube las colas que se apagan para que el colchón no se desvanezca', ed.sustain, v => { ed.sustain = v; }),
     muted('Estira la selección (o toda la toma) sin cambiar el tono y la difumina en un sonido continuo, ideal para notas de cuerda, pads y ambientes. Se queda sólo con lo estirado; puedes deshacer.', 'tiny'),
@@ -153,21 +170,21 @@ export function renderEdit(root) {
       const [a, b] = sel();
       if (b - a < s.rate / 2) return toast('Marca al menos 0,5 s (o no marques nada para usar toda la toma)');
       toast('Creando el loop…');
-      run('loop', x => { ed.loop = true; return dsp.loopSeamless(x, a, b, s.rate, ed.cross, ed.refine); }, { slow: true, done: () => `Listo: loop de ${dsp.stamp(ed.audio.length / s.rate)} · pulsa ▶ para oírlo` });
+      runWorker('loop', 'loopSeamless', [ed.audio, a, b, s.rate, ed.cross, ed.refine], { onApplied: () => { ed.loop = true; }, done: () => `Listo: loop de ${dsp.stamp(ed.audio.length / s.rate)} · pulsa ▶ para oírlo` });
     } }),
     muted('Une el final con el principio para que el tramo se repita sin saltos, aunque no tenga ritmo: pads, cuerdas, ambientes. Se queda sólo con el loop; ya queda activado «Repetir» para oírlo con ▶. Puedes deshacer.', 'tiny'),
     label('Limpiar ruido'),
     h('div', { class: 'row2' },
-      btn('Suave', { small: true, act: 'ruido-suave', onclick: () => run('ruido-suave', x => dsp.cleanNoise(x, s.rate, 'soft'), { slow: true, done: 'Listo: ruido reducido (suave)' }) }),
-      btn('Fuerte', { small: true, act: 'ruido-fuerte', onclick: () => run('ruido-fuerte', x => dsp.cleanNoise(x, s.rate, 'strong'), { slow: true, done: 'Listo: ruido reducido (fuerte)' }) })),
+      btn('Suave', { small: true, act: 'ruido-suave', onclick: () => runWorker('ruido-suave', 'cleanNoise', [ed.audio, s.rate, 'soft'], { done: 'Listo: ruido reducido (suave)' }) }),
+      btn('Fuerte', { small: true, act: 'ruido-fuerte', onclick: () => runWorker('ruido-fuerte', 'cleanNoise', [ed.audio, s.rate, 'strong'], { done: 'Listo: ruido reducido (fuerte)' }) })),
     h('div', { class: 'row2' },
       btn('Quitar ruido de fondo', { small: true, act: 'ruido-fondo', onclick: () => {
         const w = dsp.quietestWindows(ed.audio, s.rate); if (!w.length) return toast('No hay una parte tranquila: marca una con los marcadores y usa «Con la selección»');
-        run('ruido-fondo', x => dsp.denoise(x, w.map(([a, b]) => x.slice(a, b)), ed.noiseAmt), { slow: true, done: 'Listo: ruido de fondo quitado' });
+        runWorker('ruido-fondo', 'denoise', [ed.audio, w.map(([a, b]) => ed.audio.slice(a, b)), ed.noiseAmt], { done: 'Listo: ruido de fondo quitado' });
       } }),
       btn('Con la selección', { small: true, act: 'ruido-sel', onclick: () => {
         const [a, b] = sel(); if (b - a < s.rate / 10) return toast('Marca una parte de solo ruido de al menos 0,1 s');
-        run('ruido-sel', x => dsp.denoise(x, x.slice(a, b), ed.noiseAmt), { slow: true, done: 'Listo: ruido de la selección quitado' });
+        runWorker('ruido-sel', 'denoise', [ed.audio, ed.audio.slice(a, b), ed.noiseAmt], { done: 'Listo: ruido de la selección quitado' });
       } })),
     sliderRow('Intensidad', { min: 0.5, max: 3, step: 0.1, value: ed.noiseAmt, fmt: v => v < 1.2 ? 'Suave' : v < 2.2 ? 'Normal' : 'Fuerte', onInput: v => { ed.noiseAmt = v; } }),
     muted('Suave y Fuerte cortan graves (respiración, soplidos) y apagan lo que suena bajito entre sonidos. «Quitar ruido de fondo» aprende el ruido de la parte más tranquila; «Con la selección» lo aprende de lo que marques. Puedes deshacer.', 'tiny'),

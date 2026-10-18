@@ -9,6 +9,7 @@ enum Harmony {
         var end: Int
         var chords: [String?]
         var label: String
+        var vec: [Double] = []
     }
 
     struct LoopSuggestion {
@@ -19,6 +20,10 @@ enum Harmony {
         var chords: [String]
         var want = 4
         var score = 0.0
+        var picks: [Int] = []             // loop combinado: compases elegidos (índices en `bars`), en su orden
+        var ranges: [Range<Int>] = []     // loop combinado: tramo de audio de cada compás elegido
+        var len = 0                       // loop combinado: suma de las duraciones de esos tramos
+        var key = ""                      // loop combinado: secuencia de acordes, para no repetir la misma progresión
     }
 
     struct Analysis {
@@ -36,6 +41,7 @@ enum Harmony {
         var bars: [Bar] = []
         var loop: LoopSuggestion?
         var loops: [LoopSuggestion] = []
+        var combos: [LoopSuggestion] = []
     }
 
     nonisolated static let notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
@@ -201,12 +207,15 @@ enum Harmony {
             let c1 = matchChord(h1)?.name, c2 = matchChord(h2)?.name
             let x = c1 ?? "—", y = c2 ?? "—"
             let label = c1 == nil && c2 == nil ? "—" : (x == y ? x : "\(x) \(y)")
-            bars.append(Bar(beat: j, start: Int(an.beats[j].rounded()), end: Int((an.beats[j] + 4 * T).rounded()), chords: [c1, c2], label: label))
+            var vec = [Double](repeating: 0, count: 12)
+            for k in 0..<4 { for i in 0..<12 { vec[i] += an.beatChroma[j + k][i] } }
+            bars.append(Bar(beat: j, start: Int(an.beats[j].rounded()), end: Int((an.beats[j] + 4 * T).rounded()), chords: [c1, c2], label: label, vec: vec))
             j += 4
         }
         var out = an
         out.downbeat = d; out.bars = bars
         out.loops = suggestLoops(an, bars, want: want, count: 3); out.loop = out.loops.first
+        out.combos = suggestCombos(an, bars, want: want, count: 3)
         return out
     }
 
@@ -241,6 +250,94 @@ enum Harmony {
             out.append(LoopSuggestion(bar: c.bar, bars: L, start: sel[0].start, end: sel[sel.count - 1].end, chords: sel.map(\.label), want: want, score: c.score))
         }
         return out
+    }
+
+    /// Loops combinados: `want` compases (por defecto 4) elegidos entre todos los de la toma, en su orden original pero no necesariamente seguidos
+    /// (por ejemplo los compases 1, 3, 5 y 8). Puntúa que cada empalme suene continuo (armonía y volumen), que la secuencia de acordes sea una
+    /// progresión que se repite en la toma, que haya movimiento armónico, que cada compás sea representativo de su acorde, que empiece sobre golpe
+    /// y que el volumen sea parejo. Los tramos seguidos se dejan a `suggestLoops`.
+    nonisolated static func suggestCombos(_ an: Analysis, _ bars: [Bar], want: Int, count: Int) -> [LoopSuggestion] {
+        let N = bars.count
+        guard let L = [want, 4, 2].first(where: { $0 >= 2 && N >= $0 + 1 }), N <= 48 else { return [] }
+        let maxHit = max(1e-9, an.beatHit.max() ?? 0)
+        func db(_ v: Double) -> Double { 20 * log10(max(v, 1e-6)) }
+        struct F { var vec: [Double]; var first: [Double]; var last: [Double]; var r0: Double; var r3: Double; var avg: Double; var hit: Double }
+        let rr = an.beatRMS
+        let f: [F] = bars.map { b in
+            let avg = (rr[b.beat] + rr[b.beat + 1] + rr[b.beat + 2] + rr[b.beat + 3]) / 4
+            let hit = b.beat < an.beatHit.count ? an.beatHit[b.beat] / maxHit : 0
+            return F(vec: b.vec, first: an.beatChroma[b.beat], last: an.beatChroma[b.beat + 3], r0: rr[b.beat], r3: rr[b.beat + 3], avg: avg, hit: hit)
+        }
+        // acordes de la toma: se agrupan los compases con armonía casi igual
+        var cls: [Int] = [], reps: [[Double]] = [], cen: [[Double]] = []
+        for b in f {
+            var c = reps.firstIndex(where: { cos12($0, b.vec) >= 0.9 }) ?? -1
+            if c < 0 { c = reps.count; reps.append(b.vec); cen.append([Double](repeating: 0, count: 12)) }
+            cls.append(c)
+            for k in 0..<12 { cen[c][k] += b.vec[k] }
+        }
+        let repr: [Double] = (0..<N).map { cos12(f[$0].vec, cen[cls[$0]]) }
+        func join(_ i: Int, _ j: Int) -> Double {
+            let lv = 1 - min(1, abs(db(f[i].r3) - db(f[j].r0)) / 12)
+            return 0.5 * cos12(f[i].last, f[j].first) + 0.5 * lv
+        }
+        func occurrences(_ seq: [Int]) -> Int {
+            var c = 0, i = 0
+            while i + seq.count <= N {
+                if (0..<seq.count).allSatisfy({ cls[i + $0] == seq[$0] }) { c += 1; i += seq.count } else { i += 1 }
+            }
+            return c
+        }
+        // búsqueda en haz: se van añadiendo compases hacia delante, quedándose con los mejores empalmes
+        var beam: [(idx: [Int], s: Double)] = (0..<N).map { ([$0], repr[$0] * 0.2) }
+        for k in 1..<L {
+            var next: [(idx: [Int], s: Double)] = []
+            for st in beam {
+                let last = st.idx[st.idx.count - 1], top = N - (L - k)
+                if last + 1 > top { continue }
+                for j in (last + 1)...top { next.append((st.idx + [j], st.s + join(last, j) + repr[j] * 0.2)) }
+            }
+            next.sort { $0.s > $1.s }
+            beam = Array(next.prefix(300))
+        }
+        var scored: [(picks: [Int], score: Double, key: String)] = []
+        for st in beam where st.idx[L - 1] - st.idx[0] != L - 1 {
+            let p = st.idx
+            var mj = 0.0
+            for k in 1..<L { mj += join(p[k - 1], p[k]) }
+            mj /= Double(L - 1)
+            let seq = p.map { cls[$0] }, occ = occurrences(seq), distinct = Set(seq).count
+            let lv = p.map { db(f[$0].avg) }, mean = lv.reduce(0, +) / Double(L)
+            let sd = (lv.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(L)).squareRoot()
+            var score = 0.9 * mj + 0.6 * join(p[L - 1], p[0]) + 0.6 * min(1, Double(occ - 1) / 2) + 0.15 * Double(distinct - 1) / Double(L - 1)
+            score += 0.2 * p.reduce(0) { $0 + f[$1].hit } / Double(L) + 0.2 * p.reduce(0) { $0 + repr[$1] } / Double(L)
+            score -= sd > 6 ? 0.3 : 0
+            score += (cls[p[0]] == cls[0] ? 0.15 : 0) - 0.01 * Double(p[0]) / Double(N)       // a igualdad, que empiece como la toma
+            scored.append((p, score, seq.map(String.init).joined(separator: ">")))
+        }
+        scored.sort { $0.score > $1.score }
+        var out: [LoopSuggestion] = []
+        for c in scored {
+            if out.count >= count { break }
+            if out.contains(where: { $0.key == c.key || $0.picks.filter({ c.picks.contains($0) }).count >= L - 1 }) { continue }   // otra progresión, no la misma con otros compases
+            let ranges = c.picks.map { bars[$0].start..<max(bars[$0].start + 1, min(an.length, bars[$0].end)) }
+            let len = ranges.reduce(0) { $0 + $1.count }
+            out.append(LoopSuggestion(bar: c.picks[0], bars: L, start: ranges[0].lowerBound, end: ranges[L - 1].upperBound, chords: c.picks.map { bars[$0].label },
+                                      want: want, score: c.score, picks: c.picks, ranges: ranges, len: len, key: c.key))
+        }
+        return out
+    }
+
+    /// Audio de un loop combinado: los tramos pegados en orden, con el volumen igualado y fundidos cortos; `fix` fija su duración como en `makeLoop`.
+    nonisolated static func makeCombo(_ x: [Float], ranges: [Range<Int>], rate: Int, fix: (bpm: Int, bars: Int)? = nil) -> [Float] {
+        let pieces = ranges.filter { $0.lowerBound >= 0 && $0.upperBound <= x.count && !$0.isEmpty }.map { Array(x[$0]) }
+        let joined = Harmonize.join(pieces, rate: rate)
+        guard !joined.isEmpty else { return joined }
+        let c = Int((Double(rate) * 0.003).rounded())
+        let out = Harmonize.cosFade(joined, inSamples: c, outSamples: c)
+        guard let f = fix else { return out }
+        let target = loopLength(rate: rate, bpm: f.bpm, bars: f.bars)
+        return abs(stretchPct(out.count, target)) > maxStretchPct ? out : fitLength(out, target)
     }
 
     /// Más allá de este ajuste (en %) el BPM fijo se descarta: sería un cambio de tono audible, no una corrección.

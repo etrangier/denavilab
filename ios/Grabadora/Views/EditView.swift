@@ -196,9 +196,7 @@ struct EditorBody: View {
         guard b - a >= sample.sampleRate / 2 else { message = "Marca al menos 0,5 s (o no marques nada para usar toda la toma)"; return }
         let rate = sample.sampleRate, cross = loopCross, refine = loopRefine
         message = "Creando el loop…"
-        let before = undo.count
-        run("loop", slow: true, done: "Listo: loop · pulsa ▶ para oírlo en bucle") { Creative.loopSeamless($0, from: a, to: b, rate: rate, crossSec: cross, refine: refine) }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { if undo.count > before { loop = true } }
+        run("loop", slow: true, done: "Listo: loop · pulsa ▶ para oírlo en bucle", onApplied: { loop = true }) { Creative.loopSeamless($0, from: a, to: b, rate: rate, crossSec: cross, refine: refine) }
     }
 
     private func makePad(_ factor: Int) {
@@ -351,7 +349,7 @@ struct EditorBody: View {
         let out = f(audio)
         guard !out.isEmpty else { message = "La selección quedó vacía"; return }
         guard out != audio else { message = "No hay nada que cambiar: la selección es muy corta para eso"; return }
-        undo.append(audio); undoLabels.append(label); redo = []; redoLabels = []; audio = out; message = nil
+        undo.append(audio); undoLabels.append(label); Editing.trimHistory(&undo, &undoLabels); redo = []; redoLabels = []; audio = out; message = nil
         refreshPeaks()
     }
 
@@ -366,14 +364,27 @@ struct EditorBody: View {
         "invertir": "Invertir", "loop": "Loop continuo", "ruido-suave": "Ruido (suave)", "ruido-fuerte": "Ruido (fuerte)", "ruido-fondo": "Quitar ruido de fondo",
         "ruido-sel": "Ruido de la selección"]
 
-    private func run(_ key: String, slow: Bool = false, done: String, _ f: @escaping ([Float]) -> [Float]) {
-        let go = {
+    /// Contenedor para pasar a otro hilo un cierre que sólo captura valores (números, listas): lo que ya hacían los cálculos largos.
+    private struct Unchecked<T>: @unchecked Sendable { let v: T }
+
+    /// Acción con respuesta visible. Las lentas (`slow`) se calculan fuera del hilo principal: la pantalla no se congela y el botón pulsa mientras trabaja.
+    /// Si la toma cambió mientras tanto, el resultado no se aplica.
+    private func run(_ key: String, slow: Bool = false, done: String, onApplied: (() -> Void)? = nil, _ f: @escaping ([Float]) -> [Float]) {
+        let finish: ([Float]) -> Void = { out in
             let before = undo.count
-            apply(f, label: Self.fxLabels[key] ?? "Cambio")
+            apply({ _ in out }, label: Self.fxLabels[key] ?? "Cambio")
             fxBusy = nil
-            if undo.count > before { flashFX(key); message = done }
+            if undo.count > before { flashFX(key); message = done; onApplied?() }
         }
-        if slow { fxBusy = key; DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { go() } } else { go() }
+        guard slow else { finish(f(audio)); return }
+        guard fxBusy == nil else { return }                                 // ya hay una acción trabajando
+        fxBusy = key
+        let input = audio, box = Unchecked(v: f)
+        Task {
+            let out = await Task.detached { box.v(input) }.value
+            if audio != input { fxBusy = nil; message = "La toma cambió mientras trabajaba: no se aplicó"; return }
+            finish(out)
+        }
     }
 
     private func refreshPeaks() { peaks = Editing.peaks(audio, buckets: 56); peakDB = Editing.peakDB(audio) }
