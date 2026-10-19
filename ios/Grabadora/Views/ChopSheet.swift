@@ -30,6 +30,8 @@ struct ChopSheet: View {
     @State private var perPad = 1
     @State private var wantBars = 4                        // compases del loop sugerido (4 por defecto)
     @State private var pick: Harmony.LoopSuggestion?       // el loop sugerido que está elegido (mientras no se elijan cortes a mano)
+    @State private var style: Harmony.Style = .libre       // estilo de las sugerencias: libre, Daft Punk o Cerati
+    @State private var pumpOn = false                      // bombeo (sidechain) del estilo Daft Punk
     @State private var fixOn = true                        // fijar el BPM: el loop dura justo sus compases a ese BPM
     @State private var fixBpmValue: Int?                   // BPM fijo elegido por el usuario (nil = el detectado, redondeado)
     @State private var loopPlayer: AVAudioPlayer?
@@ -38,7 +40,7 @@ struct ChopSheet: View {
 
     private func recompute() {
         if mode == -1, let b = base {
-            let l = Harmony.layout(b, downbeat: b.downbeat + shift, want: wantBars)
+            let l = Harmony.layout(b, downbeat: b.downbeat + shift, want: wantBars, style: style)
             lay = l
             ranges = barRanges(l)
             stopPreview()
@@ -305,8 +307,8 @@ struct ChopSheet: View {
             message = "No encuentro un pulso claro (o la toma tiene menos de 8 tiempos): no puedo detectar compases"
             harmonyOn = lay != nil; return
         }
-        let laid = Harmony.layout(a, downbeat: a.downbeat, want: wantBars)
-        base = a; shift = 0; lay = laid; pick = laid.loop; fixBpmValue = nil; harmonyOn = true
+        let laid = Harmony.layout(a, downbeat: a.downbeat, want: wantBars, style: style)
+        base = a; shift = 0; lay = laid; pick = firstPick(laid); fixBpmValue = nil; harmonyOn = true
         perPad = autoPer(a)
         if mode == -1 { recompute() } else { mode = -1 }       // al cambiar `mode` se recalculan los cortes
     }
@@ -324,8 +326,8 @@ struct ChopSheet: View {
                     .font(Theme.font(12)).foregroundColor(Theme.muted)
             }
             HStack(spacing: 8) {
-                Button("◀ 1 tiempo") { shift -= 1; recompute(); pick = lay?.loop }
-                Button("1 tiempo ▶") { shift += 1; recompute(); pick = lay?.loop }
+                Button("◀ 1 tiempo") { shift -= 1; recompute(); pick = lay.flatMap(firstPick) }
+                Button("1 tiempo ▶") { shift += 1; recompute(); pick = lay.flatMap(firstPick) }
             }.buttonStyle(OutlineButton()).font(Theme.font(13))
             HStack(spacing: 8) {
                 Button("Tempo ÷ 2") { analyzeWith(l.bpm / 2) }
@@ -345,7 +347,17 @@ struct ChopSheet: View {
     /// ¿Es éste el loop sugerido que está elegido (y no hay cortes elegidos a mano)?
     private func isPicked(_ c: Harmony.LoopSuggestion) -> Bool {
         guard let p = pick, selected.isEmpty else { return false }
-        return p.start == c.start && p.bars == c.bars && p.picks == c.picks
+        return p.kind == c.kind && p.name == c.name && p.start == c.start && p.bars == c.bars && p.picks == c.picks
+    }
+
+    /// Lo que se sugiere al abrir o cambiar de estilo: el loop de siempre, o el primer arreglo / patrón detectado del estilo.
+    private func firstPick(_ l: Harmony.Analysis) -> Harmony.LoopSuggestion? {
+        style == .libre ? l.loop : (l.arranged.first ?? l.bestPattern ?? l.loop)
+    }
+
+    private func setStyle(_ st: Harmony.Style) {
+        style = st; wantBars = st.want; pumpOn = st.pump > 0; selected = []
+        recompute(); stopPreview(); pick = lay.flatMap(firstPick)
     }
 
     private func loopBpm(_ l: Harmony.Analysis) -> Int { fixBpmValue ?? Harmony.fixedBpm(l.bpm) }
@@ -374,22 +386,28 @@ struct ChopSheet: View {
         let bpm = loopBpm(l), r = loopRange
         let stretch = r.map { Harmony.stretchPct($0.len, Harmony.loopLength(rate: sample.sampleRate, bpm: bpm, bars: $0.bars)) } ?? 0
         let okFix = r != nil && abs(stretch) <= Harmony.maxStretchPct
-        let counts = [1, 2, 4, 8].filter { $0 <= l.bars.count || $0 == wantBars }
+        let counts = [1, 2, 3, 4, 8].filter { $0 <= l.bars.count || $0 == wantBars }
         var fixText = "El loop conserva su duración original"
         if fixOn, let r = r {
             fixText = "\(bpm) BPM: el loop dura justo \(secs(Harmony.loopLength(rate: sample.sampleRate, bpm: bpm, bars: r.bars)))"
             fixText += okFix ? " (ajuste \(stretch >= 0 ? "+" : "")\(String(format: "%.2f", stretch).replacingOccurrences(of: ".", with: ",")) %)" : " · el ajuste sería muy grande: se deja sin fijar"
         } else if fixOn { fixText = "\(bpm) BPM" }
         var info = "No encontré un tramo que se repita bien."
-        if let p = pick, selected.isEmpty, !p.picks.isEmpty {
+        if let p = pick, selected.isEmpty, p.kind == "pattern" {
+            info = "Patrón de \(barsWord(p.bars)) (compases " + p.picks.map { String($0 + 1) }.joined(separator: ", ") + " de la toma, los más típicos de cada posición) · " + p.chords.joined(separator: " · ")
+        } else if let p = pick, selected.isEmpty, p.kind == "arreglo" {
+            info = "Arreglo \(p.name): compases " + p.picks.map { String($0 + 1) }.joined(separator: ", ") + " de la toma · " + p.chords.joined(separator: " · ")
+        } else if let p = pick, selected.isEmpty, !p.picks.isEmpty {
             info = "Combinado de \(p.bars) compases: los compases " + p.picks.map { String($0 + 1) }.joined(separator: ", ") + " de la toma · " + p.chords.joined(separator: " · ")
         } else if let p = pick, selected.isEmpty { info = "\(barsWord(p.bars)) de \(stamp(Double(p.start) / Double(l.rate))) a \(stamp(Double(p.end) / Double(l.rate))) · " + p.chords.joined(separator: " · ") }
         else if l.loop != nil { info = "Elegiste cortes a mano: el loop son esos compases, seguidos o combinados en su orden." }
         return VStack(alignment: .leading, spacing: 8) {
             Text("Loop sugerido").font(Theme.font(15, weight: .medium)).foregroundColor(Theme.text)
+            styleChips
+            patternBlock(l)
             HStack(spacing: 8) {
                 ForEach(counts, id: \.self) { n in
-                    Chip(title: barsWord(n), selected: wantBars == n) { wantBars = n; recompute(); pick = lay?.loop }
+                    Chip(title: barsWord(n), selected: wantBars == n) { wantBars = n; recompute(); pick = lay.flatMap(firstPick) }
                 }
             }
             if !l.loops.isEmpty {
@@ -420,11 +438,50 @@ struct ChopSheet: View {
         }.padding(.top, 6)
     }
 
+    private var styleChips: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                ForEach(Harmony.Style.allCases, id: \.self) { st in Chip(title: st.title, selected: style == st) { setStyle(st) } }
+            }
+            if style == .daftpunk {
+                Text("Daft Punk: trozos cortos con groove y golpe en el 1, cortes secos, repetidos en bucle con una variación al final y bombeo (sidechain)").font(Theme.font(12)).foregroundColor(Theme.muted)
+            } else if style == .cerati {
+                Text("Cerati: texturas largas que cambian de armonía con suavidad, empalmes largos y forma A B A C").font(Theme.font(12)).foregroundColor(Theme.muted)
+            }
+        }
+    }
+
+    /// Patrón detectado y sus opciones de 1 a 4 compases, más los arreglos del estilo elegido.
+    @ViewBuilder
+    private func patternBlock(_ l: Harmony.Analysis) -> some View {
+        if let best = l.bestPattern {
+            let pct = Int((max(0, min(1, best.strength)) * 100).rounded())
+            Text("Patrón detectado: \(barsWord(best.period)) (se repite \(best.repeats) \(best.repeats == 1 ? "vez" : "veces"), similitud \(pct) %)")
+                .font(Theme.font(13)).foregroundColor(Theme.text)
+            HStack(spacing: 8) {
+                ForEach(Array(l.patterns.enumerated()), id: \.offset) { _, c in
+                    Chip(title: "Patrón de " + barsWord(c.period) + (c.period == best.period ? " ★" : ""), selected: isPicked(c)) { stopPreview(); selected = []; pick = c }
+                }
+            }
+            if !l.arranged.isEmpty {
+                Text("Arreglos del estilo, armados con compases de la toma").font(Theme.font(12)).foregroundColor(Theme.muted)
+                HStack(spacing: 8) {
+                    ForEach(Array(l.arranged.enumerated()), id: \.offset) { _, c in
+                        Chip(title: "Arreglo " + c.name, selected: isPicked(c)) { stopPreview(); selected = []; pick = c }
+                    }
+                }
+            }
+            if style == .daftpunk {
+                ToggleRow(title: "Bombeo (sidechain)", subtitle: "Baja el volumen en cada tiempo y lo recupera, como la compresión sobre el bombo", isOn: $pumpOn)
+            }
+        }
+    }
+
     /// Rango de audio de la selección: compases seguidos o, si son cortes sueltos (1, 3 y 5…), los compases combinados en su orden.
     private var loopRange: LoopSel? {
         guard mode == -1, let l = lay else { return nil }
         if let p = pick, selected.isEmpty {
-            return p.picks.isEmpty ? (p.start, p.end, p.bars, p.end - p.start, nil) : (p.start, p.end, p.bars, p.len, p.ranges)
+            return p.picks.isEmpty ? (p.start, p.end, p.bars, p.end - p.start, nil) : (p.start, p.end, p.bars, p.len, p.ranges.count > 1 ? p.ranges : nil)
         }
         let ids = selected.sorted().filter { $0 < ranges.count }
         guard let f = ids.first, let last = ids.last else { return nil }
@@ -437,8 +494,20 @@ struct ChopSheet: View {
 
     /// Audio del loop elegido: tramo seguido o, si son compases sueltos, los compases combinados.
     private func loopAudio(_ r: LoopSel, _ fix: (bpm: Int, bars: Int)?) -> [Float] {
-        if let sp = r.spans { return Harmony.makeCombo(audio, ranges: sp, rate: sample.sampleRate, fix: fix) }
-        return Harmony.makeLoop(audio, start: r.start, end: r.end, rate: sample.sampleRate, fix: fix)
+        let base: [Float]
+        if let sp = r.spans { base = Harmony.makeCombo(audio, ranges: sp, rate: sample.sampleRate, fix: fix, crossfadeMs: style.crossfadeMs) }
+        else { base = Harmony.makeLoop(audio, start: r.start, end: r.end, rate: sample.sampleRate, fix: fix) }
+        guard pumpOn, style.pump > 0, let l = lay else { return base }
+        return Harmony.pump(base, rate: sample.sampleRate, bpm: fix.map { Double($0.bpm) } ?? l.bpm, depth: style.pump)
+    }
+
+    /// Cómo se llama lo que se guarda: loop, loop combinado, patrón o arreglo.
+    private func pickName(_ r: LoopSel) -> String {
+        if let p = pick, selected.isEmpty {
+            if p.kind == "pattern" { return "Patrón" }
+            if p.kind == "arreglo" { return "Arreglo \(p.name)" }
+        }
+        return r.spans != nil ? "Loop combinado" : "Loop"
     }
 
     private func toggleLoop() {
@@ -462,10 +531,11 @@ struct ChopSheet: View {
         let word = r.bars == 1 ? "1 compás" : "\(r.bars) compases"
         let spans = r.spans ?? [r.start..<r.end]
         let chords = l.bars.filter { b in spans.contains { b.start >= $0.lowerBound && b.end <= $0.upperBound + 1 } }.map(\.label).joined(separator: " · ")
-        if var x = lib.add(name: "\(sample.name) · loop\(r.spans != nil ? " combinado" : "") \(word)" + (fix.map { " · \($0.bpm) BPM" } ?? ""), audio: lp, sampleRate: sample.sampleRate) {
+        let nm = pickName(r), tag = style == .libre ? "" : " · " + style.title
+        if var x = lib.add(name: "\(sample.name) · \(nm.lowercased()) \(word)\(tag)" + (fix.map { " · \($0.bpm) BPM" } ?? ""), audio: lp, sampleRate: sample.sampleRate) {
             x.folder = lib.folder(of: sample); x.subfolder = sample.subfolder; x.bpm = fix.map { Double($0.bpm) } ?? (l.bpm * 10).rounded() / 10; lib.update(x)
             flashFX("guardar-loop")
-            message = "Loop\(r.spans != nil ? " combinado" : "") de \(word) guardado (\(chords)) · " + (fix.map { "\($0.bpm) BPM fijos, dura \(secs(lp.count))" } ?? "≈ \(Int(l.bpm.rounded())) BPM")
+            message = "\(nm) de \(word) guardado (\(chords)) · " + (fix.map { "\($0.bpm) BPM fijos, dura \(secs(lp.count))" } ?? "≈ \(Int(l.bpm.rounded())) BPM")
         }
     }
 

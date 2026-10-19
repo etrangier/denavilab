@@ -564,6 +564,43 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(best.chords, ["Am", "F", "C", "G"]); XCTAssertTrue(best.picks.allSatisfy { $0 < 4 || $0 >= 8 })
     }
 
+    func testPatternsFindPeriodAndIgnoreOddBar() throws {
+        let (x, rate) = progression(bars: 10)
+        let a = try XCTUnwrap(Harmony.analyze(x, rate: rate, bpm: 100))
+        let best = try XCTUnwrap(a.bestPattern)
+        XCTAssertEqual(best.period, 4); XCTAssertEqual(a.patterns.map(\.period), [1, 2, 3, 4])
+        XCTAssertEqual(a.patterns[3].chords, ["Am", "F", "C", "G"]); XCTAssertEqual(a.patterns[0].chords.count, 1)
+        XCTAssertGreaterThan(a.patterns[3].strength, a.patterns[0].strength + 0.05)
+        XCTAssertGreaterThan(a.patterns[3].strength, a.patterns[1].strength + 0.05)
+        XCTAssertGreaterThanOrEqual(best.repeats, 2)
+        // Am F Eb G Am F C G Am F C G: el Eb queda fuera, manda el compás típico de cada posición
+        let (y, r2) = progression(sequence: [0, 1, 4, 3, 0, 1, 2, 3, 0, 1, 2, 3], bars: 12)
+        let e = try XCTUnwrap(Harmony.analyze(y, rate: r2, bpm: 100))
+        XCTAssertEqual(e.bestPattern?.period, 4); XCTAssertEqual(e.patterns[3].chords, ["Am", "F", "C", "G"]); XCTAssertFalse(e.patterns[3].picks.contains(2))
+        XCTAssertEqual(Harmony.mergeRanges([0..<10, 10..<20, 30..<40]), [0..<20, 30..<40])
+        XCTAssertNil(Harmony.detectPatterns(a, Array(a.bars.prefix(1))).best)
+    }
+
+    func testStylesBuildArrangementsAndPump() throws {
+        let (x, rate) = progression(sequence: [0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3], bars: 12, hatBars: 4..<8)
+        let a = try XCTUnwrap(Harmony.analyze(x, rate: rate, bpm: 100))
+        let dp = Harmony.layout(a, downbeat: a.downbeat, want: Harmony.Style.daftpunk.want, style: .daftpunk)
+        let ce = Harmony.layout(a, downbeat: a.downbeat, want: Harmony.Style.cerati.want, style: .cerati)
+        let li = Harmony.layout(a, downbeat: a.downbeat, want: 4, style: .libre)
+        XCTAssertEqual(dp.arranged.map(\.name), ["A A A B", "A A B B"])
+        let d = dp.arranged[0].picks
+        XCTAssertEqual(d.count, 4); XCTAssertEqual(Array(d[0..<3]), [d[0], d[0], d[0]]); XCTAssertNotEqual(d[3], d[0])
+        XCTAssertNotEqual(dp.bars[d[0]].rhy, dp.bars[d[3]].rhy)
+        XCTAssertTrue(dp.combos.allSatisfy { $0.bars == 2 }); XCTAssertTrue(ce.combos.allSatisfy { $0.bars == 4 })
+        let c = try XCTUnwrap(ce.arranged.first)
+        XCTAssertEqual(c.name, "A B A C"); XCTAssertEqual(c.picks[0], c.picks[2]); XCTAssertEqual(Set([c.picks[0], c.picks[1], c.picks[3]]).count, 3)
+        XCTAssertTrue(li.arranged.isEmpty); XCTAssertEqual(li.combos.first?.bars, 4)
+        let env = Harmony.pump([Float](repeating: 1, count: 48_000), rate: 48_000, bpm: 120, depth: 0.6)
+        XCTAssertEqual(Double(env[0]), 0.4, accuracy: 0.01); XCTAssertGreaterThan(env[12_000], 0.95); XCTAssertGreaterThan(env[23_999], 0.95); XCTAssertEqual(Double(env[24_000]), 0.4, accuracy: 0.01)
+        let fixed = Harmony.makeCombo(x, ranges: dp.arranged[0].ranges, rate: rate, fix: (bpm: 100, bars: 4), crossfadeMs: 4)
+        XCTAssertEqual(fixed.count, Harmony.loopLength(rate: rate, bpm: 100, bars: 4))
+    }
+
     func testFixedBpmKeepsPitchWithWsola() {
         let rate = 48_000
         let x = (0..<(rate * 4)).map { Float(0.5 * sin(2 * Double.pi * 440 * Double($0) / Double(rate))) }
