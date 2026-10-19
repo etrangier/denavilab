@@ -31,6 +31,9 @@ struct ChopSheet: View {
     @State private var wantBars = 4                        // compases del loop sugerido (4 por defecto)
     @State private var pick: Harmony.LoopSuggestion?       // el loop sugerido que está elegido (mientras no se elijan cortes a mano)
     @State private var style: Harmony.Style = .libre       // estilo de las sugerencias: libre, Daft Punk o Cerati
+    @State private var autoSave = true                     // al tocar una sugerencia queda guardada de inmediato
+    @State private var savedLoops: [String: String] = [:]  // nombre → mensaje de lo ya guardado (no se duplica)
+    @State private var gridBrush = 0                       // corte activo para pintar la grilla
     @State private var pumpOn = false                      // bombeo (sidechain) del estilo Daft Punk
     @State private var fixOn = true                        // fijar el BPM: el loop dura justo sus compases a ese BPM
     @State private var fixBpmValue: Int?                   // BPM fijo elegido por el usuario (nil = el detectado, redondeado)
@@ -88,6 +91,7 @@ struct ChopSheet: View {
                         Button("Ninguno") { stopPreview(); selected = [] }.buttonStyle(OutlineButton()).disabled(selected.isEmpty)
                     }.font(Theme.font(13))
                     padGrid
+                    gridPanel
                     if ranges.count < 12 { Text("Pads \(ranges.count + 1)–12 libres").font(Theme.font(12)).foregroundColor(Theme.muted).frame(maxWidth: .infinity, alignment: .center) }
                     actionButtons
                     if let m = message { Text(m).font(Theme.font(13)).foregroundColor(Theme.muted).frame(maxWidth: .infinity, alignment: .center) }
@@ -132,6 +136,7 @@ struct ChopSheet: View {
         return Button {
             guard live else { return }
             stopPreview()
+            gridBrush = i
             if on { selected.remove(i) } else { selected.insert(i) }
             play(i)
         } label: {
@@ -308,8 +313,9 @@ struct ChopSheet: View {
             harmonyOn = lay != nil; return
         }
         let laid = Harmony.layout(a, downbeat: a.downbeat, want: wantBars, style: style)
-        base = a; shift = 0; lay = laid; pick = firstPick(laid); fixBpmValue = nil; harmonyOn = true
+        base = a; shift = 0; lay = laid; pick = firstPick(laid); fixOn = true; fixBpmValue = Harmony.fixedBpm(a.bpm); harmonyOn = true
         perPad = autoPer(a)
+        if let p = pick { message = "Loop sugerido listo: \(barsWord(p.bars)) a \(Harmony.fixedBpm(a.bpm)) BPM fijos" }
         if mode == -1 { recompute() } else { mode = -1 }       // al cambiar `mode` se recalculan los cortes
     }
 
@@ -353,6 +359,12 @@ struct ChopSheet: View {
     /// Lo que se sugiere al abrir o cambiar de estilo: el loop de siempre, o el primer arreglo / patrón detectado del estilo.
     private func firstPick(_ l: Harmony.Analysis) -> Harmony.LoopSuggestion? {
         style == .libre ? l.loop : (l.arranged.first ?? l.bestPattern ?? l.loop)
+    }
+
+    /// Elige una sugerencia; con «Guardar al elegir» encendido queda guardada en la Biblioteca de inmediato.
+    private func choose(_ c: Harmony.LoopSuggestion) {
+        stopPreview(); selected = []; pick = c
+        if autoSave { saveLoop() }
     }
 
     private func setStyle(_ st: Harmony.Style) {
@@ -414,7 +426,7 @@ struct ChopSheet: View {
                 HStack(spacing: 8) {
                     ForEach(Array(l.loops.enumerated()), id: \.offset) { i, c in
                         Chip(title: (i == 0 ? "Mejor" : "Opción \(i + 1)") + " · " + stamp(Double(c.start) / Double(l.rate)),
-                             selected: isPicked(c)) { stopPreview(); selected = []; pick = c }
+                             selected: isPicked(c)) { choose(c) }
                     }
                 }
             }
@@ -423,11 +435,12 @@ struct ChopSheet: View {
                     .font(Theme.font(12)).foregroundColor(Theme.muted)
                 HStack(spacing: 8) {
                     ForEach(Array(l.combos.enumerated()), id: \.offset) { i, c in
-                        Chip(title: "Combinado \(i + 1) · " + c.chords.joined(separator: " "), selected: isPicked(c)) { stopPreview(); selected = []; pick = c }
+                        Chip(title: "Combinado \(i + 1) · " + c.chords.joined(separator: " "), selected: isPicked(c)) { choose(c) }
                     }
                 }
             }
             Text(info).font(Theme.font(12)).foregroundColor(Theme.muted)
+            ToggleRow(title: "Guardar al elegir", subtitle: "Al tocar una sugerencia (loop, patrón, arreglo o combinado) queda guardada en la Biblioteca sin pulsar nada más", isOn: $autoSave)
             ToggleRow(title: "Fijar BPM", subtitle: fixText, isOn: $fixOn)
             if fixOn {
                 HStack(spacing: 8) {
@@ -460,14 +473,14 @@ struct ChopSheet: View {
                 .font(Theme.font(13)).foregroundColor(Theme.text)
             HStack(spacing: 8) {
                 ForEach(Array(l.patterns.enumerated()), id: \.offset) { _, c in
-                    Chip(title: "Patrón de " + barsWord(c.period) + (c.period == best.period ? " ★" : ""), selected: isPicked(c)) { stopPreview(); selected = []; pick = c }
+                    Chip(title: "Patrón de " + barsWord(c.period) + (c.period == best.period ? " ★" : ""), selected: isPicked(c)) { choose(c) }
                 }
             }
             if !l.arranged.isEmpty {
                 Text("Arreglos del estilo, armados con compases de la toma").font(Theme.font(12)).foregroundColor(Theme.muted)
                 HStack(spacing: 8) {
                     ForEach(Array(l.arranged.enumerated()), id: \.offset) { _, c in
-                        Chip(title: "Arreglo " + c.name, selected: isPicked(c)) { stopPreview(); selected = []; pick = c }
+                        Chip(title: "Arreglo " + c.name, selected: isPicked(c)) { choose(c) }
                     }
                 }
             }
@@ -526,16 +539,52 @@ struct ChopSheet: View {
 
     private func saveLoop() {
         guard let r = loopRange, let l = lay else { return }
-        let fix = loopFix(r, l), lp = loopAudio(r, fix)
+        let fix = loopFix(r, l), word = r.bars == 1 ? "1 compás" : "\(r.bars) compases"
+        let nm = pickName(r), tag = style == .libre ? "" : " · " + style.title, pumped = pumpOn && style.pump > 0
+        let full = "\(sample.name) · \(nm.lowercased()) \(word)\(tag)\(pumped ? " · bombeo" : "")" + (fix.map { " · \($0.bpm) BPM" } ?? "")
+        if let msg = savedLoops[full] { message = msg; return }              // ya guardado (al elegir): no se duplica
+        let lp = loopAudio(r, fix)
         guard !lp.isEmpty else { return }
-        let word = r.bars == 1 ? "1 compás" : "\(r.bars) compases"
         let spans = r.spans ?? [r.start..<r.end]
         let chords = l.bars.filter { b in spans.contains { b.start >= $0.lowerBound && b.end <= $0.upperBound + 1 } }.map(\.label).joined(separator: " · ")
-        let nm = pickName(r), tag = style == .libre ? "" : " · " + style.title
-        if var x = lib.add(name: "\(sample.name) · \(nm.lowercased()) \(word)\(tag)" + (fix.map { " · \($0.bpm) BPM" } ?? ""), audio: lp, sampleRate: sample.sampleRate) {
+        if var x = lib.add(name: full, audio: lp, sampleRate: sample.sampleRate) {
             x.folder = lib.folder(of: sample); x.subfolder = sample.subfolder; x.bpm = fix.map { Double($0.bpm) } ?? (l.bpm * 10).rounded() / 10; lib.update(x)
             flashFX("guardar-loop")
-            message = "\(nm) de \(word) guardado (\(chords)) · " + (fix.map { "\($0.bpm) BPM fijos, dura \(secs(lp.count))" } ?? "≈ \(Int(l.bpm.rounded())) BPM")
+            let msg = "\(nm) de \(word) guardado (\(chords)) · " + (fix.map { "\($0.bpm) BPM fijos, dura \(secs(lp.count))" } ?? "≈ \(Int(l.bpm.rounded())) BPM")
+            savedLoops[full] = msg; message = msg
+        }
+    }
+
+    // MARK: grilla
+
+    private var gridBpm: Int { fixBpmValue ?? Harmony.fixedBpm(lay?.bpm ?? bpm ?? 100) }
+
+    private func gridChops() -> [[Float]] { ranges.indices.map { pieceAudio($0) } }
+
+    private var gridPanel: some View {
+        GridPanel(chopCount: ranges.count, bpm: gridBpm, rate: sample.sampleRate, brush: $gridBrush, isPlaying: loopPlayer != nil,
+                  render: { cells, bars in GridSeq.renderGrid(gridChops(), cells: cells, bars: bars, bpm: gridBpm, rate: sample.sampleRate) },
+                  onPlay: { playLoopAudio($0) }, onStop: { loopPlayer?.stop(); loopPlayer = nil },
+                  onSave: { saveGrid($0, bars: $1) }, onAudition: { if $0 < ranges.count { play($0) } })
+    }
+
+    private func playLoopAudio(_ lp: [Float]) {
+        stopPreview()
+        guard !lp.isEmpty else { return }
+        do {
+            try AudioSessionConfig.activate()
+            var s = sample; s.id = UUID(); s.slot = nil; s.effects = EffectParams(); s.name = "loop_\(sample.name)"
+            let url = try Exporter.export(s, audio: lp, targetRate: sample.sampleRate)
+            let p = try AVAudioPlayer(contentsOf: url); p.numberOfLoops = -1; p.play(); loopPlayer = p
+        } catch { message = "No se pudo reproducir: \(error.localizedDescription)" }
+    }
+
+    private func saveGrid(_ lp: [Float], bars: Int) {
+        let bpmFixed = gridBpm
+        if var x = lib.add(name: "\(sample.name) · grilla \(barsWord(bars)) · \(bpmFixed) BPM", audio: lp, sampleRate: sample.sampleRate) {
+            x.folder = lib.folder(of: sample); x.subfolder = sample.subfolder; x.bpm = Double(bpmFixed); lib.update(x)
+            flashFX("guardar-grilla")
+            message = "Grilla de \(barsWord(bars)) guardada · \(bpmFixed) BPM fijos, dura \(secs(lp.count))"
         }
     }
 

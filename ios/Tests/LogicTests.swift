@@ -601,6 +601,32 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(fixed.count, Harmony.loopLength(rate: rate, bpm: 100, bars: 4))
     }
 
+    func testGridRendersExactLengthAndEditsCells() {
+        let rate = 48_000
+        let chops: [[Float]] = [[Float](repeating: 0.5, count: 20_000), [Float](repeating: -0.25, count: 100_000)]
+        var cells = GridSeq.emptyCells(bars: 2, steps: 8)
+        cells[0] = 0; cells[4] = 1; cells[8] = 0
+        let out = GridSeq.renderGrid(chops, cells: cells, bars: 2, bpm: 120, rate: rate)
+        let total = 2 * 4 * 60 * rate / 120, paso = Double(total) / 16
+        XCTAssertEqual(out.count, total)
+        XCTAssertEqual(Double(out[100]), 0.5, accuracy: 0.1)
+        XCTAssertEqual(out[Int(paso * 3)], 0)                                   // el corte corto deja silencio hasta la siguiente casilla
+        XCTAssertEqual(Double(out[Int(paso * 4) + 500]), -0.25, accuracy: 0.1)
+        XCTAssertLessThan(abs(out[Int(paso * 8) - 1000]), 0.3)                  // el largo se corta donde entra el siguiente
+        XCTAssertEqual(Double(out[Int(paso * 8) + 100]), 0.5, accuracy: 0.1)
+        let clip = GridSeq.copyCells(cells, [0, 4])
+        XCTAssertEqual(clip?.items, [GridSeq.Clip.Item(offset: 0, cell: 0), GridSeq.Clip.Item(offset: 4, cell: 1)])
+        let pegada = GridSeq.pasteCells(cells, clip, at: 10), limite = GridSeq.pasteCells(cells, clip, at: 14)
+        XCTAssertEqual(pegada[10], 0); XCTAssertEqual(pegada[14], 1); XCTAssertEqual(pegada[0], 0)
+        XCTAssertEqual(limite[14], 0); XCTAssertNil(limite[15]); XCTAssertEqual(limite.count, 16)       // lo que se sale se descarta
+        let corte = GridSeq.clearCells(cells, [4])
+        XCTAssertNil(corte[4]); XCTAssertEqual(corte[0], 0)
+        let gr = GridSeq.resizeCells(cells, bars: 2, steps: 16, oldBars: 2, oldSteps: 8)
+        XCTAssertEqual(gr[0], 0); XCTAssertEqual(gr[8], 1); XCTAssertEqual(gr[16], 0)
+        XCTAssertEqual(GridSeq.resizeCells(cells, bars: 1, steps: 8, oldBars: 2, oldSteps: 8).count, 8)
+        XCTAssertNil(GridSeq.copyCells(cells, []))
+    }
+
     func testFixedBpmKeepsPitchWithWsola() {
         let rate = 48_000
         let x = (0..<(rate * 4)).map { Float(0.5 * sin(2 * Double.pi * 440 * Double($0) / Double(rate))) }
