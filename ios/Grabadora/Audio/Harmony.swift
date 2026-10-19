@@ -26,6 +26,30 @@ enum Harmony {
         var ranges: [Range<Int>] = []     // loop combinado: tramo de audio de cada compás elegido
         var len = 0                       // loop combinado: suma de las duraciones de esos tramos
         var key = ""                      // loop combinado: secuencia de acordes, para no repetir la misma progresión
+        var kind = ""                     // "pattern", "arreglo" o "" (loop seguido / combinado)
+        var name = ""                     // arreglo: su forma (A A A B…)
+        var period = 0                    // patrón: cada cuántos compases se repite
+        var strength = 0.0                // patrón: similitud media entre compases separados por el período (0–1)
+        var repeats = 0                   // patrón: cuántas veces cabe en la toma
+    }
+
+    /// Estilos para sugerir: largo de partida, empalme entre trozos y peso de cada criterio al elegir combinaciones.
+    /// Daft Punk (Homework, Discovery): trozos cortos con groove y golpe en el 1, cortes secos, bombeo (sidechain) y una variación al final del ciclo.
+    /// Cerati (Bocanada, Siempre es hoy): texturas largas que cambian de armonía con suavidad, empalmes largos y forma A B A C.
+    enum Style: String, CaseIterable {
+        case libre, daftpunk, cerati
+        nonisolated var title: String { self == .libre ? "Libre" : self == .daftpunk ? "Daft Punk" : "Cerati" }
+        nonisolated var want: Int { self == .daftpunk ? 2 : 4 }
+        nonisolated var crossfadeMs: Double { self == .daftpunk ? 4 : self == .cerati ? 90 : 12 }
+        nonisolated var pump: Double { self == .daftpunk ? 0.55 : 0 }
+        /// Pesos: empalme, groove, golpe, movimiento armónico, balance espectral.
+        nonisolated var w: (join: Double, groove: Double, hit: Double, move: Double, balance: Double) {
+            switch self {
+            case .libre: return (1, 1, 1, 1, 1)
+            case .daftpunk: return (1, 2, 2, 0.3, 1)
+            case .cerati: return (1.3, 0.3, 0.5, 2, 1.3)
+            }
+        }
     }
 
     struct Analysis {
@@ -46,6 +70,10 @@ enum Harmony {
         var loop: LoopSuggestion?
         var loops: [LoopSuggestion] = []
         var combos: [LoopSuggestion] = []
+        var style: Style = .libre
+        var patterns: [LoopSuggestion] = []      // patrón de 1, 2, 3 y 4 compases
+        var bestPattern: LoopSuggestion?         // el período más corto cuya fuerza queda a menos de 0,02 de la mayor
+        var arranged: [LoopSuggestion] = []      // arreglos del estilo (A A A B, A B A C…)
     }
 
     nonisolated static let notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
@@ -226,7 +254,7 @@ enum Harmony {
     }
 
     /// Compases, acordes y loop sugerido para un tiempo 1 dado (0–3 tiempos desde el primero detectado). No vuelve a analizar el audio.
-    nonisolated static func layout(_ an: Analysis, downbeat: Int, want: Int = 4) -> Analysis {
+    nonisolated static func layout(_ an: Analysis, downbeat: Int, want: Int = 4, style: Style = .libre) -> Analysis {
         let d = ((downbeat % 4) + 4) % 4, T = an.period
         var bars: [Bar] = []
         var j = d
@@ -250,7 +278,11 @@ enum Harmony {
         var out = an
         out.downbeat = d; out.bars = bars
         out.loops = suggestLoops(an, bars, want: want, count: 3); out.loop = out.loops.first
-        out.combos = suggestCombos(an, bars, want: want, count: 3)
+        out.combos = suggestCombos(an, bars, want: want, count: 3, style: style)
+        out.style = style
+        let pat = detectPatterns(an, bars)
+        out.patterns = pat.options; out.bestPattern = pat.best
+        out.arranged = arrangements(an, bars, style: style, combos: out.combos)
         return out
     }
 
@@ -287,6 +319,16 @@ enum Harmony {
         return out
     }
 
+    /// Distancia entre repartos grave/medio/agudo (0–1).
+    nonisolated private static func tv(_ p: [Double], _ q: [Double]) -> Double { 0.5 * (abs(p[0] - q[0]) + abs(p[1] - q[1]) + abs(p[2] - q[2])) }
+    /// Coseno entre dos vectores de cualquier largo (1 si ambos son casi silencio).
+    nonisolated private static func cosv(_ p: [Double], _ q: [Double]) -> Double {
+        var d = 0.0, a = 0.0, b = 0.0
+        for i in 0..<min(p.count, q.count) { d += p[i] * q[i]; a += p[i] * p[i]; b += q[i] * q[i] }
+        if a < 1e-4 && b < 1e-4 { return 1 }
+        return a < 1e-12 || b < 1e-12 ? 0 : d / (a * b).squareRoot()
+    }
+
     /// Modelo de costos de los loops combinados: costo de concatenación entre compases (1 = empalma como si fueran seguidos) y puntuación completa.
     private struct ComboModel {
         let n: Int
@@ -297,17 +339,10 @@ enum Harmony {
         let fullScore: ([Int]) -> Double
     }
 
-    nonisolated private static func comboModel(_ an: Analysis, _ bars: [Bar], _ L: Int) -> ComboModel {
-        let N = bars.count
+    nonisolated private static func comboModel(_ an: Analysis, _ bars: [Bar], _ L: Int, _ style: Style = .libre) -> ComboModel {
+        let N = bars.count, W = style.w
         let maxHit = max(1e-9, an.beatHit.max() ?? 0)
         func db(_ v: Double) -> Double { 20 * log10(max(v, 1e-6)) }
-        func tv(_ p: [Double], _ q: [Double]) -> Double { 0.5 * (abs(p[0] - q[0]) + abs(p[1] - q[1]) + abs(p[2] - q[2])) }   // distancia entre repartos grave/medio/agudo (0–1)
-        func cosv(_ p: [Double], _ q: [Double]) -> Double {
-            var d = 0.0, a = 0.0, b = 0.0
-            for i in 0..<min(p.count, q.count) { d += p[i] * q[i]; a += p[i] * p[i]; b += q[i] * q[i] }
-            if a < 1e-4 && b < 1e-4 { return 1 }
-            return a < 1e-12 || b < 1e-12 ? 0 : d / (a * b).squareRoot()
-        }
         struct F { var vec: [Double]; var first: [Double]; var last: [Double]; var r0: Double; var r3: Double; var avg: Double; var hit: Double
                    var bal: [Double]; var rhy: [Double]; var firstBal: [Double]; var lastBal: [Double] }
         let rr = an.beatRMS
@@ -333,7 +368,7 @@ enum Harmony {
                 J[i][j] = 0.4 * cos12(f[i].last, f[j].first) + 0.2 * lv + 0.2 * (1 - tv(f[i].lastBal, f[j].firstBal)) + 0.2 * cosv(f[i].rhy, f[j].rhy)
             }
         }
-        let unary: [Double] = (0..<N).map { 0.2 * (f[$0].hit + repr[$0]) / Double(L) }
+        let unary: [Double] = (0..<N).map { 0.2 * (W.hit * f[$0].hit + repr[$0]) / Double(L) }
         func occurrences(_ seq: [Int]) -> Int {
             var c = 0, i = 0
             while i + seq.count <= N {
@@ -350,9 +385,9 @@ enum Harmony {
             let sd = (lv.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(L)).squareRoot()
             var groove = 0.0, balance = 0.0, pairs = 0.0
             for a in 0..<L { for b in (a + 1)..<L { groove += cosv(f[p[a]].rhy, f[p[b]].rhy); balance += 1 - tv(f[p[a]].bal, f[p[b]].bal); pairs += 1 } }
-            var score = 0.9 * mj + 0.6 * J[p[L - 1]][p[0]] + 0.6 * min(1, Double(occ - 1) / 2) + 0.15 * Double(distinct - 1) / Double(L - 1)
-            score += 0.2 * p.reduce(0) { $0 + f[$1].hit } / Double(L) + 0.2 * p.reduce(0) { $0 + repr[$1] } / Double(L)
-            score += 0.6 * groove / pairs + 0.4 * balance / pairs - (sd > 6 ? 0.3 : 0)
+            var score = W.join * (0.9 * mj + 0.6 * J[p[L - 1]][p[0]]) + 0.6 * min(1, Double(occ - 1) / 2) + W.move * 0.15 * Double(distinct - 1) / Double(L - 1)
+            score += W.hit * 0.2 * p.reduce(0) { $0 + f[$1].hit } / Double(L) + 0.2 * p.reduce(0) { $0 + repr[$1] } / Double(L)
+            score += W.groove * 0.6 * groove / pairs + W.balance * 0.4 * balance / pairs - (sd > 6 ? 0.3 : 0)
             score += (cls[p[0]] == cls[0] ? 0.15 : 0) - 0.01 * Double(p[0]) / Double(N)       // a igualdad, que empiece como la toma
             return score
         }
@@ -360,8 +395,8 @@ enum Harmony {
     }
 
     /// Puntuación de un loop combinado concreto (índices de compás en orden): la misma que usa la búsqueda. Sirve para comparar y para pruebas.
-    nonisolated static func scoreCombo(_ an: Analysis, _ bars: [Bar], picks: [Int]) -> Double {
-        comboModel(an, bars, picks.count).fullScore(picks)
+    nonisolated static func scoreCombo(_ an: Analysis, _ bars: [Bar], picks: [Int], style: Style = .libre) -> Double {
+        comboModel(an, bars, picks.count, style).fullScore(picks)
     }
 
     /// Loops combinados: `want` compases (por defecto 4) elegidos entre todos los de la toma, en su orden original pero no necesariamente seguidos
@@ -371,10 +406,10 @@ enum Harmony {
     /// movimiento armónico, que la secuencia sea una progresión de la toma, que empiece sobre golpe y que el volumen sea parejo.
     /// La parte aditiva se resuelve de forma exacta (programación dinámica, un camino óptimo por cada primer y último compás) y se completa con una
     /// búsqueda en haz; las candidatas se puntúan con todos los términos. Los tramos seguidos se dejan a `suggestLoops`.
-    nonisolated static func suggestCombos(_ an: Analysis, _ bars: [Bar], want: Int, count: Int) -> [LoopSuggestion] {
+    nonisolated static func suggestCombos(_ an: Analysis, _ bars: [Bar], want: Int, count: Int, style: Style = .libre) -> [LoopSuggestion] {
         let N = bars.count
         guard let L = [want, 4, 2].first(where: { $0 >= 2 && N >= $0 + 1 }), N <= 48 else { return [] }
-        let m = comboModel(an, bars, L)
+        let m = comboModel(an, bars, L, style), wj = style.w.join
         var cands: [String: [Int]] = [:]
         func add(_ p: [Int]) { if p[L - 1] - p[0] != L - 1 { cands[p.map(String.init).joined(separator: ",")] = p } }
         // parte aditiva exacta: para cada primer compás, el mejor camino hasta cada último compás
@@ -385,7 +420,7 @@ enum Harmony {
             for k in 1..<L {
                 for j in (first + k)...(N - (L - k)) {
                     for i in (first + k - 1)..<j where best[k - 1][i] > -.infinity {
-                        let s = best[k - 1][i] + 0.9 / Double(L - 1) * m.join[i][j] + m.unary[j]
+                        let s = best[k - 1][i] + wj * 0.9 / Double(L - 1) * m.join[i][j] + m.unary[j]
                         if s > best[k][j] { best[k][j] = s; from[k][j] = i }
                     }
                 }
@@ -424,15 +459,112 @@ enum Harmony {
     }
 
     /// Audio de un loop combinado: los tramos pegados en orden, con el volumen igualado y fundidos cortos; `fix` fija su duración como en `makeLoop`.
-    nonisolated static func makeCombo(_ x: [Float], ranges: [Range<Int>], rate: Int, fix: (bpm: Int, bars: Int)? = nil) -> [Float] {
+    nonisolated static func makeCombo(_ x: [Float], ranges: [Range<Int>], rate: Int, fix: (bpm: Int, bars: Int)? = nil, crossfadeMs: Double = 12) -> [Float] {
         let pieces = ranges.filter { $0.lowerBound >= 0 && $0.upperBound <= x.count && !$0.isEmpty }.map { Array(x[$0]) }
-        let joined = Harmonize.join(pieces, rate: rate)
+        let joined = Harmonize.join(pieces, rate: rate, crossfadeMs: crossfadeMs)
         guard !joined.isEmpty else { return joined }
         let c = Int((Double(rate) * 0.003).rounded())
         let out = Harmonize.cosFade(joined, inSamples: c, outSamples: c)
         guard let f = fix else { return out }
         let target = loopLength(rate: rate, bpm: f.bpm, bars: f.bars)
         return abs(stretchPct(out.count, target)) > maxStretchPct ? out : fitTempo(out, target, rate: rate)
+    }
+
+    // MARK: Patrones y estilos
+
+    nonisolated private static func sim(_ a: Bar, _ b: Bar) -> Double {
+        0.5 * cos12(a.vec, b.vec) + 0.3 * cosv(a.rhy, b.rhy) + 0.2 * (1 - tv(a.bal, b.bal))
+    }
+
+    /// Junta tramos que son seguidos en el audio (un patrón de compases seguidos suena como un solo corte).
+    nonisolated static func mergeRanges(_ ranges: [Range<Int>]) -> [Range<Int>] {
+        var out: [Range<Int>] = []
+        for r in ranges {
+            if let last = out.last, abs(r.lowerBound - last.upperBound) <= 1 { out[out.count - 1] = last.lowerBound..<r.upperBound } else { out.append(r) }
+        }
+        return out
+    }
+
+        nonisolated private static func suggestion(_ bars: [Bar], length: Int, picks: [Int], kind: String, name: String = "", bars n: Int) -> LoopSuggestion {
+        let ranges = mergeRanges(picks.map { bars[$0].start..<max(bars[$0].start + 1, min(length, bars[$0].end)) })
+        return LoopSuggestion(bar: picks[0], bars: n, start: ranges[0].lowerBound, end: ranges[ranges.count - 1].upperBound, chords: picks.map { bars[$0].label },
+                              picks: picks, ranges: ranges, len: ranges.reduce(0) { $0 + $1.count }, kind: kind, name: name)
+    }
+
+    /// Patrones: ¿cada cuántos compases se repite la toma? Para P = 1…4 se mide cuánto se parece cada compás al que está P compases después
+    /// (armonía, dibujo rítmico y balance espectral). Cada P ofrece un patrón armado con el compás más típico de cada posición del ciclo, así
+    /// un compás distinto no lo estropea. `best` es el P más corto cuya fuerza queda a menos de 0,02 de la mayor.
+    nonisolated static func detectPatterns(_ an: Analysis, _ bars: [Bar]) -> (best: LoopSuggestion?, options: [LoopSuggestion]) {
+        let N = bars.count
+        var out: [LoopSuggestion] = []
+        for P in 1...4 where N >= P + 1 {
+            var lag = 0.0
+            for i in 0..<(N - P) { lag += sim(bars[i], bars[i + P]) }
+            lag /= Double(N - P)
+            var best: (o: Int, reps: [Int], q: Double)?
+            var o = 0
+            while o < P && o + P <= N {
+                var reps: [Int] = [], cons: [Double] = []
+                for s in 0..<P {
+                    let g = Array(stride(from: o + s, to: N, by: P))
+                    let m: [Double] = g.map { i in g.count < 2 ? 1.0 : g.filter { $0 != i }.reduce(0.0) { $0 + sim(bars[i], bars[$1]) } / Double(g.count - 1) }
+                    var b = 0
+                    for (k, v) in m.enumerated() where v > m[b] + 1e-9 { b = k }
+                    reps.append(g[b]); cons.append(m[b])
+                }
+                let q = cons.reduce(0, +) / Double(P)
+                if best == nil || q > best!.q + 0.05 { best = (o, reps, q) }       // a igualdad, el ciclo que empieza en el compás 1
+                o += 1
+            }
+            guard let b = best else { continue }
+            var sg = suggestion(bars, length: an.length, picks: b.reps, kind: "pattern", bars: P)
+            sg.period = P; sg.strength = lag; sg.repeats = (N - b.o) / P; sg.score = b.q
+            out.append(sg)
+        }
+        guard let top = out.map(\.strength).max() else { return (nil, []) }
+        return (out.first { $0.strength >= top - 0.02 }, out)
+    }
+
+    /// Arreglos con la forma del estilo. Daft Punk: A = compás con más groove y golpe en el 1; B = compás de armonía compatible y groove más distinto
+    /// (A A A B y A A B B). Cerati: a partir de las mejores combinaciones, A B A C.
+    nonisolated static func arrangements(_ an: Analysis, _ bars: [Bar], style: Style, combos: [LoopSuggestion]) -> [LoopSuggestion] {
+        let N = bars.count
+        var out: [LoopSuggestion] = []
+        if style == .daftpunk && N >= 3 {
+            let maxHit = max(1e-9, an.beatHit.max() ?? 0)
+            func score(_ i: Int) -> Double {
+                let h = i < bars.count && bars[i].beat < an.beatHit.count ? an.beatHit[bars[i].beat] / maxHit : 0
+                var t = 0.0
+                for j in 0..<N where j != i { t += sim(bars[i], bars[j]) }
+                return 0.5 * h + 0.5 * t / Double(N - 1)
+            }
+            var A = 0
+            for i in 1..<N where score(i) > score(A) + 1e-9 { A = i }
+            var B = -1, worst = 2.0
+            for j in 0..<N where j != A && cos12(bars[A].vec, bars[j].vec) >= 0.75 {
+                let c = cosv(bars[A].rhy, bars[j].rhy)
+                if c < worst { worst = c; B = j }
+            }
+            if B >= 0 {
+                out.append(suggestion(bars, length: an.length, picks: [A, A, A, B], kind: "arreglo", name: "A A A B", bars: 4))
+                out.append(suggestion(bars, length: an.length, picks: [A, A, B, B], kind: "arreglo", name: "A A B B", bars: 4))
+            }
+        }
+        if style == .cerati {
+            for c in combos.filter({ $0.picks.count >= 3 }).prefix(2) {
+                out.append(suggestion(bars, length: an.length, picks: [c.picks[0], c.picks[1], c.picks[0], c.picks[2]], kind: "arreglo", name: "A B A C", bars: 4))
+            }
+        }
+        return out
+    }
+
+    /// Bombeo tipo sidechain: baja el volumen en cada tiempo (a `depth`, 0–1) y lo recupera en unos 150 ms, como la compresión sobre el bombo del house francés.
+    nonisolated static func pump(_ x: [Float], rate: Int, bpm: Double, depth: Double = 0.55) -> [Float] {
+        let beat = 60 * Double(rate) / bpm
+        return x.enumerated().map { i, v in
+            let ph = (Double(i).truncatingRemainder(dividingBy: beat)) / beat
+            return v * Float(1 - depth * exp(-6 * ph))
+        }
     }
 
     /// Más allá de este ajuste (en %) el BPM fijo se descarta: sería un cambio de tono audible, no una corrección.

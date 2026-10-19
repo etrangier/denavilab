@@ -983,6 +983,167 @@ test.describe('acordes, compases y loop', () => {
     await expect(page.locator('#toast')).toContainText('Loop combinado de 3 compases guardado');
   });
 
+  test('patrones: detecta cada cuántos compases se repite la toma y ofrece 1, 2, 3 y 4 compases sin dejarse engañar por un compás distinto', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async ([a, b]) => {
+      const hm = await import('/sounds/harmony.js'), mk = src => new Function(src + '; return { x, rate };')();
+      const { x, rate } = mk(a), an = hm.analyze(x, rate, 100), P = an.patterns, eb = mk(b), ae = hm.analyze(eb.x, eb.rate, 100);
+      return { best: P.best.period, rep: P.best.repeats, fuerza: P.options.map(o => +o.strength.toFixed(2)), periodos: P.options.map(o => o.period), cuatro: P.options[3].chords, un: P.options[0].chords.length,
+        eb: { best: ae.patterns.best.period, cuatro: ae.patterns.options[3].chords, picks: ae.patterns.options[3].picks, largo: ae.patterns.options[3].len, uno: ae.patterns.options[3].ranges.length },
+        junta: hm.mergeRanges([[0, 10], [10, 20], [30, 40]]), vacio: hm.detectPatterns(an, an.bars.slice(0, 1)) };
+    }, [progresion, progresionEb]);
+    expect(r.best).toBe(4); expect(r.periodos).toEqual([1, 2, 3, 4]); expect(r.cuatro).toEqual(['Am', 'F', 'C', 'G']); expect(r.un).toBe(1);
+    expect(r.fuerza[3]).toBeGreaterThan(r.fuerza[0] + 0.05); expect(r.fuerza[3]).toBeGreaterThan(r.fuerza[1] + 0.05); expect(r.rep).toBeGreaterThanOrEqual(2);
+    expect(r.eb.best).toBe(4); expect(r.eb.cuatro).toEqual(['Am', 'F', 'C', 'G']); expect(r.eb.picks).not.toContain(2);       // el Eb queda fuera: manda el compás típico de cada posición
+    expect(r.eb.uno).toBeGreaterThanOrEqual(1);
+    expect(r.junta).toEqual([[0, 20], [30, 40]]); expect(r.vacio).toEqual({ best: null, options: [] });
+  });
+
+  test('estilos: Daft Punk arma A A A B con groove y cortes secos; Cerati arma A B A C con empalmes largos; ambos cambian lo que se sugiere', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async src => {
+      const hm = await import('/sounds/harmony.js'), { x, rate } = new Function(src + '; return { x, rate };')();
+      const a = hm.analyze(x, rate, 100), dp = hm.layout(a, a.downbeat, hm.STYLES.daftpunk.want, 'daftpunk'), ce = hm.layout(a, a.downbeat, hm.STYLES.cerati.want, 'cerati'), li = hm.layout(a, a.downbeat, 4, 'libre');
+      const cc = ce.arranged[0], dd = dp.arranged[0], b = dd && dd.picks;
+      const env = hm.pump(new Float32Array(48000).fill(1), 48000, 120, 0.6), beat = 24000;
+      const largo = ra => ra.ranges.reduce((s, q) => s + q[1] - q[0], 0);
+      const sec = hm.makeCombo(x, dd.ranges, rate, null, { crossfadeMs: 4 }), sua = hm.makeCombo(x, dd.ranges, rate, null, { crossfadeMs: 200 });
+      return { dp: dp.arranged.map(v => v.name), dpPicks: dd.picks, dpBars: dd.bars, dpChords: dd.chords, dpGroove: [dp.bars[b[0]].rhy.join() === dp.bars[b[3]].rhy.join()], dpLargo: largo(dd) === dd.len,
+        dpCombos: dp.combos.every(v => v.bars === 2), ce: ce.arranged.map(v => v.name), cePicks: cc.picks, ceChords: cc.chords, ceCombos: ce.combos.every(v => v.bars === 4), li: li.arranged.length, li4: li.combos[0].bars,
+        env: [env[0], env[Math.round(beat * 0.5)], env[beat - 1], env[beat]], distintos: dp.combos[0].key !== ce.combos[0].key || dp.combos[0].bars !== ce.combos[0].bars,
+        fijo: hm.makeCombo(x, dd.ranges, rate, { bpm: 100, bars: 4 }, { crossfadeMs: 4 }).length, esperado: hm.loopLength(rate, 100, 4), suave: sua.length <= sec.length, pad: (() => { const pad = new Float32Array(rate * 4).map((_, i) => 0.3 * (0.5 - 0.5 * Math.cos(2 * Math.PI * i / rate)) * Math.sin(2 * Math.PI * 220 * i / rate)); return [hm.makeCombo(pad, [[0, rate], [2 * rate, 3 * rate]], rate, null, { crossfadeMs: 4 }).length, hm.makeCombo(pad, [[0, rate], [2 * rate, 3 * rate]], rate, null, { crossfadeMs: 90 }).length]; })(), estilos: Object.keys(hm.STYLES) };
+    }, grooves);
+    expect(r.estilos).toEqual(['libre', 'daftpunk', 'cerati']);
+    expect(r.dp).toEqual(['A A A B', 'A A B B']); expect(r.dpBars).toBe(4); expect(r.dpPicks.slice(0, 3)).toEqual([r.dpPicks[0], r.dpPicks[0], r.dpPicks[0]]);
+    expect(r.dpPicks[3]).not.toBe(r.dpPicks[0]); expect(r.dpGroove[0]).toBe(false); expect(r.dpLargo).toBe(true); expect(r.dpCombos).toBe(true);
+    expect(r.ce).toEqual(['A B A C', 'A B A C'].slice(0, r.ce.length)); expect(r.ce.length).toBeGreaterThanOrEqual(1);
+    expect(r.cePicks[0]).toBe(r.cePicks[2]); expect(new Set([r.cePicks[0], r.cePicks[1], r.cePicks[3]]).size).toBe(3); expect(r.ceCombos).toBe(true);
+    expect(r.li).toBe(0); expect(r.li4).toBe(4);
+    expect(r.env[0]).toBeCloseTo(0.4, 2); expect(r.env[1]).toBeGreaterThan(0.95); expect(r.env[2]).toBeGreaterThan(0.95); expect(r.env[3]).toBeCloseTo(0.4, 2);       // se hunde en el tiempo y se recupera
+    expect(r.fijo).toBe(r.esperado); expect(r.suave).toBe(true);
+    expect(r.pad[0] - r.pad[1]).toBeGreaterThan(48000 * 0.07);                      // en un colchón suave, el empalme largo de Cerati solapa más que el seco de Daft Punk
+  });
+
+  test('en Chop: estilos y patrones — Daft Punk ofrece arreglos y bombeo, Cerati arreglos A B A C, y el patrón de N compases se guarda a BPM fijo', async ({ page }) => {
+    await abrir(page, 'schair');
+    await page.evaluate(async src => {
+      const st = await import('/sounds/store.js'), { x, rate } = new Function(src + '; return { x, rate };')();
+      await st.putSample(st.newSample('Groove', x, rate, { bpm: 100 }), x);
+    }, grooves);
+    await page.reload();
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Groove' }).click();
+    await page.getByRole('button', { name: 'Chop', exact: true }).click();
+    const hoja = page.locator('dialog.sheet'), t = hoja.getByLabel('Loop sugerido');
+    await hoja.getByLabel('Detectar acordes y compases').check();
+    await expect(t).toContainText('Patrón detectado: 4 compases');
+    for (const n of ['1 compás', '2 compases', '3 compases', '4 compases']) await expect(t.getByRole('button', { name: new RegExp(`^Patrón de ${n}`) })).toBeVisible();
+    await t.getByRole('button', { name: /^Patrón de 3 compases/ }).click();
+    await expect(t).toContainText('Patrón de 3 compases');
+    await hoja.getByRole('button', { name: 'Guardar selección como loop' }).click();
+    await expect(page.locator('#toast')).toContainText('Patrón de 3 compases guardado'); await expect(page.locator('#toast')).toContainText('100 BPM fijos, dura 00:07.20');
+    // Daft Punk
+    await t.getByRole('button', { name: 'Daft Punk', exact: true }).click();
+    await expect(t.getByRole('button', { name: 'Daft Punk', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(t).toContainText('Daft Punk: trozos cortos'); await expect(t.getByRole('button', { name: 'Arreglo A A A B' })).toBeVisible();
+    await expect(t.getByLabel('Bombeo (sidechain)')).toBeChecked();
+    await expect(t.getByRole('button', { name: '2 compases', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await hoja.getByRole('button', { name: 'Guardar selección como loop' }).click();
+    await expect(page.locator('#toast')).toContainText('Arreglo A A A B de 4 compases guardado');
+    await t.getByLabel('Bombeo (sidechain)').uncheck();
+    // Cerati
+    await t.getByRole('button', { name: 'Cerati', exact: true }).click();
+    await expect(t).toContainText('Cerati: texturas largas'); await expect(t.getByLabel('Bombeo (sidechain)')).toHaveCount(0);
+    await expect(t.getByRole('button', { name: 'Arreglo A B A C' }).first()).toBeVisible();
+    await expect(t.getByRole('button', { name: '4 compases', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await hoja.getByRole('button', { name: 'Guardar selección como loop' }).click();
+    await expect(page.locator('#toast')).toContainText('Arreglo A B A C de 4 compases guardado');
+    const nombres = await page.evaluate(async () => (await (await import('/sounds/store.js')).listSamples()).map(m => ({ n: m.name, d: m.duration, b: m.bpm })));
+    const dp = nombres.find(v => v.n.includes('arreglo a a a b')), ce = nombres.find(v => v.n.includes('arreglo a b a c')), pa = nombres.find(v => v.n.includes('patrón 3 compases'));
+    expect(dp.n).toContain('Daft Punk · bombeo · 100 BPM'); expect(dp.d).toBeCloseTo(9.6, 1); expect(ce.n).toContain('Cerati · 100 BPM'); expect(ce.d).toBeCloseTo(9.6, 1); expect(pa.d).toBeCloseTo(7.2, 1);
+  });
+
+  test('al detectar compases el loop sugerido queda elegido con el BPM fijo, y al tocar una sugerencia se guarda sin pulsar nada más', async ({ page }) => {
+    await abrir(page, 'schair');
+    await page.evaluate(async src => {
+      const st = await import('/sounds/store.js'), { x, rate } = new Function(src + '; return { x, rate };')();
+      await st.putSample(st.newSample('Groove', x, rate, { bpm: 100 }), x);
+    }, grooves);
+    await page.reload();
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Groove' }).click();
+    await page.getByRole('button', { name: 'Chop', exact: true }).click();
+    const hoja = page.locator('dialog.sheet'), t = hoja.getByLabel('Loop sugerido');
+    await hoja.getByLabel('Detectar acordes y compases').check();
+    await expect(page.locator('#toast')).toContainText('Loop sugerido listo: 4 compases a 100 BPM fijos');
+    await expect(t.getByLabel('Fijar BPM')).toBeChecked(); await expect(t).toContainText('100 BPM: el loop dura justo 9,6 s');
+    await expect(hoja.getByRole('button', { name: 'Guardar selección como loop' })).toBeEnabled();       // ya hay un loop elegido
+    const n = () => page.evaluate(async () => (await (await import('/sounds/store.js')).listSamples()).filter(m => m.name.includes('loop')).length);
+    expect(await n()).toBe(0);
+    await t.getByRole('button', { name: /^Opción 2/ }).click();
+    await expect.poll(n).toBe(1); await expect(page.locator('#toast')).toContainText('guardado');
+    await hoja.getByRole('button', { name: 'Guardar selección como loop' }).click();                  // ya estaba guardado: no se duplica
+    expect(await n()).toBe(1);
+    await t.getByLabel('Guardar al elegir').uncheck();
+    await t.getByRole('button', { name: /^Mejor/ }).click(); await page.waitForTimeout(400);
+    expect(await n()).toBe(1);
+  });
+
+  test('grilla: se pinta con cortes, se copia, corta y pega por casillas, y se guarda como loop de duración exacta', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async () => {
+      const gd = await import('/sounds/grid.js'), rate = 48000, mk = (v, n) => new Float32Array(n).fill(v), chops = [mk(0.5, 20000), mk(-0.25, 100000)];
+      let cells = gd.emptyCells(2, 8); cells[0] = 0; cells[4] = 1; cells[8] = 0;
+      const out = gd.renderGrid(chops, cells, { bars: 2, steps: 8, bpm: 120, rate }), total = 2 * 4 * 60 * rate / 120, paso = total / 16;
+      const clip = gd.copyCells(cells, new Set([0, 4])), pegada = gd.pasteCells(cells, clip, 10), limite = gd.pasteCells(cells, clip, 14), corte = gd.clearCells(cells, new Set([4]));
+      const gr = gd.resizeCells(cells, 2, 16, 2, 8), uno = gd.resizeCells(cells, 1, 8, 2, 8);
+      return { largo: out.length, esperado: total, a: out[100], silencio: out[Math.round(paso * 3)], b: out[Math.round(paso * 4 + 500)], cortado: out[Math.round(paso * 8 - 1000)], c: out[Math.round(paso * 8 + 100)],
+        clip: clip.items, pegada: [pegada[10], pegada[14], pegada[0]], limite: [limite[14], limite[15], limite.length], corte: [corte[4], corte[0]], gr: [gr[0], gr[8], gr[16]], uno: [uno.length, uno[0], uno[4]], vacio: gd.copyCells(cells, new Set()) };
+    });
+    expect(r.largo).toBe(r.esperado); expect(r.a).toBeCloseTo(0.5, 1); expect(r.silencio).toBe(0);            // el corte corto deja silencio hasta la siguiente casilla
+    expect(r.b).toBeCloseTo(-0.25, 1); expect(Math.abs(r.cortado)).toBeLessThan(0.3); expect(r.c).toBeCloseTo(0.5, 1);       // el largo se corta donde entra el siguiente
+    expect(r.clip).toEqual([[0, 0], [4, 1]]); expect(r.pegada).toEqual([0, 1, 0]); expect(r.limite).toEqual([0, null, 16]); expect(r.corte).toEqual([null, 0]);
+    expect(r.gr).toEqual([0, 1, 0]); expect(r.uno[0]).toBe(8); expect(r.vacio).toBeNull();
+    // en pantalla
+    await abrir(page, 'schair');
+    await page.evaluate(async src => {
+      const st = await import('/sounds/store.js'), { x, rate } = new Function(src + '; return { x, rate };')();
+      await st.putSample(st.newSample('Groove', x, rate, { bpm: 100 }), x);
+    }, grooves);
+    await page.reload();
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Groove' }).click();
+    await page.getByRole('button', { name: 'Chop', exact: true }).click();
+    const hoja = page.locator('dialog.sheet'), cel = k => hoja.getByRole('button', { name: new RegExp(`^Casilla ${k}[,]`) });
+    await expect(hoja.getByLabel('Armar en grilla')).not.toBeChecked();
+    await hoja.getByLabel('Armar en grilla').check();
+    await expect(hoja.getByRole('button', { name: 'Guardar grilla como loop' })).toBeDisabled();
+    await cel(1).click(); await expect(cel(1)).toContainText('1');
+    await hoja.getByRole('button', { name: 'Pincel 3', exact: true }).click(); await cel(5).click(); await expect(cel(5)).toContainText('3');
+    await cel(5).click(); await expect(cel(5)).toContainText('·');                                      // tocar otra vez vacía
+    await cel(5).click();
+    await hoja.getByRole('button', { name: 'Seleccionar casillas', exact: true }).click();
+    await cel(1).click(); await cel(5).click();
+    await hoja.getByRole('button', { name: 'Copiar', exact: true }).click();
+    await cel(1).click(); await cel(5).click(); await cel(9).click();                                    // deselecciona y elige el destino
+    await hoja.getByRole('button', { name: 'Pegar', exact: true }).click();
+    await expect(cel(9)).toContainText('1'); await expect(cel(13)).toContainText('3');
+    await cel(9).click(); await cel(13).click();
+    await cel(1).click();
+    await hoja.getByRole('button', { name: 'Cortar', exact: true }).click();
+    await expect(cel(1)).toContainText('·');
+    await hoja.getByRole('button', { name: 'Quitar selección', exact: true }).click();
+    await cel(2).click(); await hoja.getByRole('button', { name: 'Pegar', exact: true }).click();                    // lo cortado vuelve a otro lugar
+    await expect(cel(2)).toContainText('1'); await expect(cel(6)).toContainText('·');       // se cortó una sola casilla
+    await hoja.getByRole('button', { name: 'Escuchar grilla' }).click();
+    await expect(hoja.getByRole('button', { name: 'Parar la grilla' })).toBeVisible();
+    await hoja.getByRole('button', { name: 'Parar la grilla' }).click();
+    await hoja.getByRole('button', { name: 'Guardar grilla como loop' }).click();
+    await expect(page.locator('#toast')).toContainText('Grilla de 2 compases guardada'); await expect(page.locator('#toast')).toContainText('100 BPM fijos');
+    const g = await page.evaluate(async () => { const m = (await (await import('/sounds/store.js')).listSamples()).find(v => v.name.includes('grilla')); return m ? { n: m.name, d: m.duration, b: m.bpm } : null; });
+    expect(g.n).toContain('grilla 2 compases · 100 BPM'); expect(g.d).toBeCloseTo(4.8, 1); expect(g.b).toBe(100);
+  });
+
   test('sin pulso claro no detecta compases y lo avisa', async ({ page }) => {
     await abrir(page, 'schair');
     await page.evaluate(async () => {

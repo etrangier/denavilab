@@ -176,3 +176,8 @@ dialog.sheet { margin: auto auto 0; width: min(100%, 600px); max-width: 100%; ma
 
 /* loop sugerido por compases */
 .loop-card { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--line, #322e3f); }
+
+.seq { display: grid; gap: 4px; }
+.pad.cell { min-height: 40px; font-size: 15px; border-radius: 10px; }
+.pad.cell.bar0 { box-shadow: inset 3px 0 0 var(--amber); }
+.pad.cell.picked { outline: 2px solid var(--amber); outline-offset: -2px; }

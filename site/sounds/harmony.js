@@ -114,8 +114,12 @@ export function analyze(x, rate, bpm = null) {
   return layout(an, downbeat);
 }
 
+/** Distancia entre repartos grave/medio/agudo (0–1). */
+const tv = (p, q) => 0.5 * (Math.abs(p[0] - q[0]) + Math.abs(p[1] - q[1]) + Math.abs(p[2] - q[2]));
+const cosv = (p, q) => { let d = 0, a = 0, b = 0; for (let i = 0; i < p.length; i++) { d += p[i] * q[i]; a += p[i] * p[i]; b += q[i] * q[i]; } return a < 1e-4 && b < 1e-4 ? 1 : a < 1e-12 || b < 1e-12 ? 0 : d / Math.sqrt(a * b); };
+
 /** Compases, acordes y loop sugerido para un tiempo 1 dado (0–3 tiempos desde el primero detectado). No vuelve a analizar el audio. */
-export function layout(an, downbeat, want = 4) {
+export function layout(an, downbeat, want = 4, style = 'libre') {
   const d = ((downbeat % 4) + 4) % 4, T = an.period, bars = [];
   for (let j = d; j + 4 <= an.beats.length; j += 4) {
     const a = j, h1 = new Float64Array(12), h2 = new Float64Array(12);
@@ -127,7 +131,8 @@ export function layout(an, downbeat, want = 4) {
   }
   const label = b => { const [x, y] = b.chords; return !x && !y ? '—' : (x || '—') === (y || '—') ? (x || '—') : `${x || '—'} ${y || '—'}`; };
   bars.forEach(b => { b.label = label(b); });
-  return { ...an, downbeat: d, bars, loop: suggestLoop(an, bars, want), loops: suggestLoops(an, bars, want, 3), combos: suggestCombos(an, bars, want, 3) };
+  const combos = suggestCombos(an, bars, want, 3, style);
+  return { ...an, downbeat: d, bars, loop: suggestLoop(an, bars, want), loops: suggestLoops(an, bars, want, 3), combos, style, patterns: detectPatterns(an, bars), arranged: arrangements(an, bars, style, combos) };
 }
 
 /**
@@ -170,11 +175,10 @@ export function suggestLoops(an, bars, want = 4, n = 3) {
  * La parte aditiva se resuelve de forma exacta (programación dinámica, un camino óptimo por cada primer y último compás) y se completa con una
  * búsqueda en haz; las candidatas se puntúan con todos los términos. Los tramos seguidos se dejan a `suggestLoops`.
  */
-function comboModel(an, bars, L) {
+function comboModel(an, bars, L, style = 'libre') {
+  const W = (STYLES[style] || STYLES.libre).w;
   const N = bars.length;
   const maxHit = Math.max(1e-9, ...(an.beatHit || [0])), db = v => 20 * Math.log10(Math.max(v, 1e-6));
-  const tv = (p, q) => 0.5 * (Math.abs(p[0] - q[0]) + Math.abs(p[1] - q[1]) + Math.abs(p[2] - q[2]));      // distancia entre repartos grave/medio/agudo (0–1)
-  const cosv = (p, q) => { let d = 0, a = 0, b = 0; for (let i = 0; i < p.length; i++) { d += p[i] * q[i]; a += p[i] * p[i]; b += q[i] * q[i]; } return a < 1e-4 && b < 1e-4 ? 1 : a < 1e-12 || b < 1e-12 ? 0 : d / Math.sqrt(a * b); };
   const f = bars.map(b => ({ vec: b.vec, first: an.beatChroma[b.beat], last: an.beatChroma[b.beat + 3], r0: an.beatRMS[b.beat], r3: an.beatRMS[b.beat + 3],
     avg: (an.beatRMS[b.beat] + an.beatRMS[b.beat + 1] + an.beatRMS[b.beat + 2] + an.beatRMS[b.beat + 3]) / 4, hit: an.beatHit ? an.beatHit[b.beat] / maxHit : 0,
     bal: b.bal, rhy: b.rhy, firstBal: fractions(an.beatBands[b.beat]), lastBal: fractions(an.beatBands[b.beat + 3]) }));
@@ -187,25 +191,106 @@ function comboModel(an, bars, L) {
     const lv = 1 - Math.min(1, Math.abs(db(f[i].r3) - db(f[j].r0)) / 12);
     return 0.4 * cos12(f[i].last, f[j].first) + 0.2 * lv + 0.2 * (1 - tv(f[i].lastBal, f[j].firstBal)) + 0.2 * cosv(f[i].rhy, f[j].rhy);
   }));
-  const unary = i => 0.2 * (f[i].hit + repr[i]) / L;
+  const unary = i => 0.2 * (W.hit * f[i].hit + repr[i]) / L;
   const occurrences = seq => { let c = 0; for (let i = 0; i + seq.length <= N; i++) if (seq.every((v, k) => cls[i + k] === v)) { c++; i += seq.length - 1; } return c; };
   const fullScore = p => {
     let mj = 0; for (let k = 1; k < L; k++) mj += J[p[k - 1]][p[k]]; mj /= L - 1;
     const seq = p.map(i => cls[i]), occ = occurrences(seq), distinct = new Set(seq).size;
     const lv = p.map(i => db(f[i].avg)), mean = lv.reduce((a, b) => a + b, 0) / L, sd = Math.sqrt(lv.reduce((a, b) => a + (b - mean) ** 2, 0) / L);
     let groove = 0, balance = 0, pairs = 0; for (let a = 0; a < L; a++) for (let b = a + 1; b < L; b++) { groove += cosv(f[p[a]].rhy, f[p[b]].rhy); balance += 1 - tv(f[p[a]].bal, f[p[b]].bal); pairs++; }
-    return 0.9 * mj + 0.6 * J[p[L - 1]][p[0]] + 0.6 * Math.min(1, (occ - 1) / 2) + 0.15 * (distinct - 1) / (L - 1) + 0.2 * p.reduce((a, i) => a + f[i].hit, 0) / L + 0.2 * p.reduce((a, i) => a + repr[i], 0) / L
-      + 0.6 * groove / pairs + 0.4 * balance / pairs - (sd > 6 ? 0.3 : 0) + (cls[p[0]] === cls[0] ? 0.15 : 0) - 0.01 * p[0] / N;      // a igualdad, que empiece como la toma
+    return W.join * (0.9 * mj + 0.6 * J[p[L - 1]][p[0]]) + 0.6 * Math.min(1, (occ - 1) / 2) + W.move * 0.15 * (distinct - 1) / (L - 1) + W.hit * 0.2 * p.reduce((a, i) => a + f[i].hit, 0) / L + 0.2 * p.reduce((a, i) => a + repr[i], 0) / L
+      + W.groove * 0.6 * groove / pairs + W.balance * 0.4 * balance / pairs - (sd > 6 ? 0.3 : 0) + (cls[p[0]] === cls[0] ? 0.15 : 0) - 0.01 * p[0] / N;      // a igualdad, que empiece como la toma
   };
   return { N, J, unary, repr, cls, fullScore };
 }
 
-/** Puntuación de un loop combinado concreto (índices de compás en orden): la misma que usa la búsqueda. Sirve para comparar y para pruebas. */
-export function scoreCombo(an, bars, picks) { return comboModel(an, bars, picks.length).fullScore(picks); }
+/**
+ * Estilos para sugerir: el largo de partida (en compases), el empalme entre trozos y cuánto pesa cada criterio al elegir combinaciones.
+ * Daft Punk (Homework, Discovery): trozos cortos de disco/funk repetidos en bucle, con el groove y el golpe del tiempo 1 por delante, cortes
+ * secos y bombeo de compresión sobre el bombo (sidechain); la variación llega al final del ciclo.
+ * Cerati (Bocanada, Siempre es hoy): texturas largas (colchones, cuerdas, ambientes) que cambian de armonía con suavidad: empalmes muy
+ * largos, peso al movimiento armónico y al balance espectral, y una forma A B A C en vez de un bucle seco.
+ */
+export const STYLES = {
+  libre: { want: 4, crossfadeMs: 12, pump: 0, w: { join: 1, groove: 1, hit: 1, move: 1, balance: 1 } },
+  daftpunk: { want: 2, crossfadeMs: 4, pump: 0.55, w: { join: 1, groove: 2, hit: 2, move: 0.3, balance: 1 } },
+  cerati: { want: 4, crossfadeMs: 90, pump: 0, w: { join: 1.3, groove: 0.3, hit: 0.5, move: 2, balance: 1.3 } },
+};
 
-export function suggestCombos(an, bars, want = 4, n = 3) {
+const sim = (a, b) => 0.5 * cos12(a.vec, b.vec) + 0.3 * cosv(a.rhy, b.rhy) + 0.2 * (1 - tv(a.bal, b.bal));
+
+/** Junta tramos [inicio, fin] que son seguidos en el audio (para que un patrón de compases seguidos suene como un solo corte). */
+export function mergeRanges(ranges) {
+  const out = [];
+  for (const r of ranges) { const last = out[out.length - 1]; if (last && Math.abs(r[0] - last[1]) <= 1) last[1] = r[1]; else out.push([r[0], r[1]]); }
+  return out;
+}
+
+/**
+ * Patrones: ¿cada cuántos compases se repite la toma? Para P = 1, 2, 3 y 4 se mide cuánto se parece cada compás al que está P compases
+ * después (armonía, dibujo rítmico y reparto de graves/medios/agudos). Cada P ofrece un patrón de P compases armado con el compás más
+ * típico de cada posición del ciclo (el que más se parece a los demás en esa posición), así un compás distinto no lo estropea.
+ * `best` es el P más corto cuya fuerza queda a menos de 0,02 de la mayor: un patrón de 2 compases que se repite también se repite cada 4.
+ */
+export function detectPatterns(an, bars) {
+  const N = bars.length, out = [];
+  for (let P = 1; P <= 4; P++) {
+    if (N < P + 1) continue;
+    let lag = 0; for (let i = 0; i + P < N; i++) lag += sim(bars[i], bars[i + P]); lag /= N - P;
+    let best = null;
+    for (let o = 0; o < P && o + P <= N; o++) {
+      const reps = [], cons = [];
+      for (let s = 0; s < P; s++) {
+        const g = []; for (let i = o + s; i < N; i += P) g.push(i);
+        const m = g.map(i => g.length < 2 ? 1 : g.filter(j => j !== i).reduce((a, j) => a + sim(bars[i], bars[j]), 0) / (g.length - 1));
+        let b = 0; m.forEach((v, k) => { if (v > m[b] + 1e-9) b = k; });
+        reps.push(g[b]); cons.push(m[b]);
+      }
+      const q = cons.reduce((a, v) => a + v, 0) / P; if (!best || q > best.q + 0.05) best = { o, reps, q };      // a igualdad, el ciclo que empieza en el compás 1
+    }
+    const ranges = mergeRanges(best.reps.map(i => [bars[i].start, bars[i].end]));
+    out.push({ kind: 'pattern', period: P, bars: P, strength: lag, consistency: best.q, repeats: Math.floor((N - best.o) / P), offset: best.o, picks: best.reps, ranges, start: ranges[0][0], end: ranges[ranges.length - 1][1],
+      len: ranges.reduce((a, r) => a + r[1] - r[0], 0), chords: best.reps.map(i => bars[i].label) });
+  }
+  if (!out.length) return { best: null, options: [] };
+  const top = Math.max(...out.map(o => o.strength)), best = out.find(o => o.strength >= top - 0.02);
+  return { best, options: out };
+}
+
+/**
+ * Arreglos con la forma del estilo. Daft Punk: A = el compás con más groove y golpe en el tiempo 1; B = un compás con armonía compatible
+ * y el groove más distinto; ofrece A A A B (tres vueltas y una variación) y A A B B. Cerati: a partir de las mejores combinaciones,
+ * A B A C (el primer compás vuelve a la mitad y el cierre cambia). Cada uno es una lista de compases de la toma, con repeticiones.
+ */
+export function arrangements(an, bars, style, combos = []) {
+  const N = bars.length, out = [];
+  if (style === 'daftpunk' && N >= 3) {
+    const maxHit = Math.max(1e-9, ...(an.beatHit || [0])), score = i => 0.5 * (an.beatHit ? an.beatHit[bars[i].beat] / maxHit : 0) + 0.5 * bars.reduce((a, b, j) => a + (j === i ? 0 : sim(bars[i], b)), 0) / (N - 1);
+    let A = 0; for (let i = 1; i < N; i++) if (score(i) > score(A) + 1e-9) A = i;
+    let B = -1, worst = 2; for (let j = 0; j < N; j++) { if (j === A || cos12(bars[A].vec, bars[j].vec) < 0.75) continue; const c = cosv(bars[A].rhy, bars[j].rhy); if (c < worst) { worst = c; B = j; } }
+    if (B >= 0) for (const [name, picks] of [['A A A B', [A, A, A, B]], ['A A B B', [A, A, B, B]]]) out.push(arrangement(bars, picks, name));
+  }
+  if (style === 'cerati') for (const c of combos.filter(c => c.picks.length >= 3).slice(0, 2)) out.push(arrangement(bars, [c.picks[0], c.picks[1], c.picks[0], c.picks[2]], 'A B A C'));
+  return out;
+}
+function arrangement(bars, picks, name) {
+  const ranges = mergeRanges(picks.map(i => [bars[i].start, bars[i].end]));
+  return { kind: 'arreglo', name, picks, bars: picks.length, ranges, start: ranges[0][0], end: ranges[ranges.length - 1][1], len: ranges.reduce((a, r) => a + r[1] - r[0], 0), chords: picks.map(i => bars[i].label) };
+}
+
+/** Bombeo tipo sidechain: baja el volumen en cada tiempo (a `depth`, 0–1) y lo recupera en unos 150 ms, como la compresión sobre el bombo en el house francés. */
+export function pump(x, rate, bpm, depth = 0.55) {
+  const beat = 60 * rate / bpm, out = new Float32Array(x.length);
+  for (let i = 0; i < x.length; i++) { const ph = (i % beat) / beat; out[i] = x[i] * (1 - depth * Math.exp(-6 * ph)); }
+  return out;
+}
+
+/** Puntuación de un loop combinado concreto (índices de compás en orden): la misma que usa la búsqueda. Sirve para comparar y para pruebas. */
+export function scoreCombo(an, bars, picks, style = 'libre') { return comboModel(an, bars, picks.length, style).fullScore(picks); }
+
+export function suggestCombos(an, bars, want = 4, n = 3, style = 'libre') {
   const N = bars.length, L = [want, 4, 2].find(k => k >= 2 && N >= k + 1); if (!L || N > 48) return [];
-  const { J, unary, repr, cls, fullScore } = comboModel(an, bars, L), f = bars;
+  const { J, unary, repr, cls, fullScore } = comboModel(an, bars, L, style), f = bars, wj = (STYLES[style] || STYLES.libre).w.join;
   const cands = new Map(), add = p => { if (p[L - 1] - p[0] !== L - 1) cands.set(p.join(','), p); };
   // parte aditiva exacta: para cada primer compás, el mejor camino hasta cada último compás
   for (let first = 0; first <= N - L; first++) {
@@ -213,7 +298,7 @@ export function suggestCombos(an, bars, want = 4, n = 3) {
     best[0][first] = unary(first);
     for (let k = 1; k < L; k++) for (let j = first + k; j <= N - (L - k); j++) for (let i = first + k - 1; i < j; i++) {
       if (best[k - 1][i] === -Infinity) continue;
-      const s = best[k - 1][i] + 0.9 / (L - 1) * J[i][j] + unary(j); if (s > best[k][j]) { best[k][j] = s; from[k][j] = i; }
+      const s = best[k - 1][i] + wj * 0.9 / (L - 1) * J[i][j] + unary(j); if (s > best[k][j]) { best[k][j] = s; from[k][j] = i; }
     }
     for (let last = first + L - 1; last < N; last++) {
       if (best[L - 1][last] === -Infinity) continue;
@@ -240,8 +325,8 @@ export function suggestCombos(an, bars, want = 4, n = 3) {
 }
 
 /** Audio de un loop combinado: los tramos `ranges` ([inicio, fin] en muestras) pegados en orden, con el volumen igualado y fundidos cortos; `fix` fija su duración como en `makeLoop`. */
-export function makeCombo(x, ranges, rate, fix = null) {
-  const joined = joinPieces(ranges.map(r => x.slice(r[0], r[1])), rate); if (!joined.length) return joined;
+export function makeCombo(x, ranges, rate, fix = null, { crossfadeMs = 12 } = {}) {
+  const joined = joinPieces(ranges.map(r => x.slice(r[0], r[1])), rate, { crossfadeMs }); if (!joined.length) return joined;
   const out = cosFade(joined, Math.round(rate * 0.003), Math.round(rate * 0.003));
   if (!(fix && fix.bpm && fix.bars)) return out;
   const target = loopLength(rate, fix.bpm, fix.bars);
