@@ -207,7 +207,7 @@ function showSave(audio, rate) {
     go2.addEventListener('click', async () => {
       const out = dsp.quickProcess(audio, rate, loadQuick());
       try {
-        const s = newSample(name.value.trim() || stampName, out, rate, { folder: st.folder, subfolder: st.sub });
+        const kind = ls.get('kind', 'libre'), s = newSample(name.value.trim() || stampName, out, rate, { folder: st.folder, subfolder: st.sub, ...(dsp.SOUND_KINDS[kind] && kind !== 'libre' ? { kind } : {}) });
         await putSample(s, out); await refreshSamples(); toast('Guardada en ' + (st.sub ? st.folder + ' › ' + st.sub : st.folder));
       } catch (err) { toast('No se pudo guardar (¿poco espacio en el dispositivo?)'); }
       close(); app.render();

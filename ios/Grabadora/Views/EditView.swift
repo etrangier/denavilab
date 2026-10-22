@@ -39,6 +39,7 @@ struct EditorBody: View {
     @State private var confirmOverwrite = false
     @State private var peaks: [Float] = []
     @State private var peakDB: Float = 0
+    @State private var levelDBValue = -99                 // nivel típico (se calcula al cambiar la toma, no en cada dibujo)
     @State private var undo: [[Float]] = []
     @State private var redo: [[Float]] = []
     @State private var undoLabels: [String] = []         // nombre de cada cambio, para la barra de historial
@@ -77,7 +78,7 @@ struct EditorBody: View {
                 ScreenTitle(title: "Escuchar y editar")
                 VStack(alignment: .leading, spacing: 2) {
                     TextField("Nombre", text: $sample.name).font(Theme.font(16, weight: .bold)).foregroundColor(Theme.text)
-                    Text("\(stamp(total)) · mono · \(sample.sampleRate) Hz · pico \(Int(peakDB)) dB · nivel \(max(-99, Int(Level.levelDB(audio, rate: sample.sampleRate)))) dB").font(Theme.font(12)).foregroundColor(Theme.muted)
+                    Text("\(stamp(total)) · mono · \(sample.sampleRate) Hz · pico \(Int(peakDB)) dB · nivel \(levelDBValue) dB").font(Theme.font(12)).foregroundColor(Theme.muted)
                     if peakDB < -30 && !audio.isEmpty { Text("Nivel muy bajo: usa Normalizar para oírla bien.").font(Theme.font(12)).foregroundColor(Theme.amber) }
                 }
                 waveEditor
@@ -424,7 +425,7 @@ struct EditorBody: View {
         }
     }
 
-    private func refreshPeaks() { peaks = Editing.peaks(audio, buckets: 56); peakDB = Editing.peakDB(audio) }
+    private func refreshPeaks() { peaks = Editing.peaks(audio, buckets: 56); peakDB = Editing.peakDB(audio); levelDBValue = max(-99, Int(Level.levelDB(audio, rate: sample.sampleRate))) }
 
     private func step(from a: inout [[Float]], to b: inout [[Float]], labelsFrom lf: inout [String], labelsTo lt: inout [String]) {
         guard let x = a.popLast() else { return }
