@@ -4,6 +4,8 @@ struct LibraryView: View {
     @EnvironmentObject var lib: LibraryStore
     @EnvironmentObject var state: AppState
     @State private var toDelete: Sample?
+    @State private var showImporter = false
+    @State private var importNote: String?
 
     private var searching: Bool { !lib.query.trimmingCharacters(in: .whitespaces).isEmpty }
 
@@ -29,6 +31,7 @@ struct LibraryView: View {
                     if lib.samples.isEmpty { empty }
                     else if searching { results }
                     else { folders; recents }
+                    importSection
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
@@ -37,9 +40,41 @@ struct LibraryView: View {
         .confirmationDialog("¿Borrar esta grabación?", isPresented: Binding(get: { toDelete != nil }, set: { if !$0 { toDelete = nil } }), titleVisibility: .visible) {
             Button("Borrar", role: .destructive) { if let s = toDelete { lib.delete(s) }; toDelete = nil }
         }
+        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.audio], allowsMultipleSelection: true) { result in
+            if case .success(let urls) = result { importFiles(urls) }
+        }
         .alert("Error", isPresented: Binding(get: { lib.errorMessage != nil }, set: { _ in lib.errorMessage = nil })) {
             Button("OK", role: .cancel) {}
         } message: { Text(lib.errorMessage ?? "") }
+    }
+
+    /// Importar sonidos desde Archivos: entran a Sin clasificar, en mono y a su frecuencia original.
+    private var importSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button("Importar sonidos") { showImporter = true }.buttonStyle(OutlineButton()).font(Theme.font(13))
+            Text("Trae WAV (también MP3, M4A…) desde Archivos o Drive. Entran a Sin clasificar, a su frecuencia original y en mono.")
+                .font(Theme.font(12)).foregroundColor(Theme.muted)
+            if let n = importNote { Text(n).font(Theme.font(13)).foregroundColor(Theme.amber) }
+        }.padding(.top, 8)
+    }
+
+    private func importFiles(_ urls: [URL]) {
+        importNote = urls.count == 1 ? "Importando…" : "Importando \(urls.count) archivos…"
+        Task {
+            var ok = 0
+            var bad: [String] = []
+            for u in urls {
+                let access = u.startAccessingSecurityScopedResource()
+                defer { if access { u.stopAccessingSecurityScopedResource() } }
+                do {
+                    let item = try await Task.detached { try AudioImport.read(u) }.value
+                    if lib.add(name: item.name, audio: item.samples, sampleRate: item.rate) != nil { ok += 1 }
+                } catch { bad.append(u.lastPathComponent) }
+            }
+            var msg = (ok == 1 ? "1 sonido importado" : "\(ok) sonidos importados") + " en Sin clasificar"
+            if !bad.isEmpty { msg += " · no se pudo leer: " + bad.prefix(3).joined(separator: ", ") + (bad.count > 3 ? "…" : "") + " (sólo hasta 5 min)" }
+            importNote = msg
+        }
     }
 
     private var empty: some View {
@@ -49,6 +84,7 @@ struct LibraryView: View {
             Text("Graba tu primer sample y aparecerá aquí, ordenado por carpeta.")
                 .font(Theme.font(14)).foregroundColor(Theme.muted).multilineTextAlignment(.center)
             Button("Grabar") { state.tab = .grabar }.buttonStyle(AmberButton(full: false))
+            Button("Importar sonidos") { showImporter = true }.buttonStyle(OutlineButton()).font(Theme.font(13))
             SectionLabel("Carpetas").frame(maxWidth: .infinity, alignment: .leading).padding(.top, 24)
             FlowChips(items: LibraryStore.folderInfo.map(\.name))
         }.frame(maxWidth: .infinity)

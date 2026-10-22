@@ -3,7 +3,7 @@ import Foundation
 /// Volumen parejo: lleva el nivel típico de un sonido (no el pico) a un objetivo, para que un golpe seco y un pad no suenen uno muy bajo y otro muy fuerte.
 /// Mismo algoritmo y mismos números que `levelTo` en `dsp.js` de la PWA.
 enum Level {
-    nonisolated static let defaultTargetDB = -24.0           // por calibrar con el aparato (ajustable en Compartir)
+    nonisolated static let defaultTargetDB = -30.0           // por calibrar con el aparato (ajustable en Compartir)
     nonisolated static let ceilingDB = -3.0                  // techo del pico al nivelar
 
     /// Nivel objetivo elegido por el usuario (entre −40 y −6 dB).

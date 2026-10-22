@@ -8,7 +8,7 @@ struct ExportView: View {
     @AppStorage("exportRate") private var rate = 46_875
     @AppStorage("shareRate") private var shareRate = 0          // 0 = la frecuencia original de la grabación
     @AppStorage("levelExport") private var levelExport = true    // nivelar el volumen al compartir
-    @AppStorage("levelTarget") private var levelTarget = -24.0   // nivel típico objetivo (dB)
+    @AppStorage("levelTarget") private var levelTarget = -30.0   // nivel típico objetivo (dB)
     @State private var sharing: [URL] = []
     @State private var showShare = false
     @State private var message: String?
