@@ -261,10 +261,17 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(QuickSave.process(x, rate: 48_000, s).count, x.count)
     }
 
-    func testQuietTakeIsNormalizedByDefault() {
+    func testQuietTakeIsNormalizedWhenLevelingIsOff() {
         let x = [Float](repeating: 0.004, count: 48_000)    // ≈ −48 dB
+        var s = QuickSave.Settings(); s.level = false
+        XCTAssertGreaterThan(QuickSave.process(x, rate: 48_000, s).map(abs).max() ?? 0, 0.5)
+    }
+
+    func testQuietTakeIsLeveledByDefault() {
+        let x = [Float](repeating: 0.004, count: 48_000)    // ≈ −48 dB: sube hasta el nivel objetivo, sin pasar del techo
         let y = QuickSave.process(x, rate: 48_000, QuickSave.Settings())
-        XCTAssertGreaterThan(y.map(abs).max() ?? 0, 0.5)
+        XCTAssertGreaterThan(y.map(abs).max() ?? 0, 0.02)
+        XCTAssertLessThanOrEqual(y.map(abs).max() ?? 0, Float(pow(10, Level.ceilingDB / 20)) + 1e-3)
     }
 
     @MainActor func testAppOpensOnHome() {
