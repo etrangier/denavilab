@@ -1437,3 +1437,55 @@ test.describe('limpieza de ruido', () => {
     await expect(page.locator('dialog.sheet').getByRole('button', { name: 'Fuerte', exact: true })).toHaveClass(/\bsel\b/);
   });
 });
+
+test.describe('scratch', () => {
+  test('núcleo: baby, chirp, tape stop y stutter mueven la aguja como un vinilo', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async () => {
+      const sc = await import('/sounds/scratch.js'), rate = 48000, x = new Float32Array(rate * 2).map((_, i) => 0.5 * Math.sin(2 * Math.PI * 440 * i / rate));
+      const zc = (y, a, b) => { let c = 0; for (let i = a + 1; i < b; i++) if (y[i - 1] < 0 && y[i] >= 0) c++; return c / ((b - a) / rate); };
+      const rms = (y, a, b) => { let s = 0; for (let i = a; i < b; i++) s += y[i] * y[i]; return Math.sqrt(s / (b - a)); };
+      const beat = Math.round(60 * rate / 120), o = { bpm: 120, beats: 4 };
+      const baby = sc.scratch(x, 0, x.length, rate, { ...o, kind: 'baby', depth: 0.8 }), chirp = sc.scratch(x, 0, x.length, rate, { ...o, kind: 'chirp', depth: 0.8 });
+      const tape = sc.scratch(x, 0, x.length, rate, { ...o, kind: 'tape' }), stut = sc.scratch(x, 0, x.length, rate, { ...o, kind: 'stutter' });
+      const finito = y => y.every(Number.isFinite) && Math.max(...y.map(Math.abs)) <= 0.6;
+      const tonos = []; for (let k = 0; k < 8; k++) tonos.push(zc(baby, Math.round(k * beat / 8), Math.round((k + 1) * beat / 8)));
+      return { n: [baby.length, chirp.length, tape.length, stut.length], beat, tonos,
+        chirpAbierto: rms(chirp, Math.round(beat * 0.1), Math.round(beat * 0.4)), chirpCerrado: rms(chirp, Math.round(beat * 0.6), Math.round(beat * 0.9)),
+        tapeIni: zc(tape, 0, Math.round(beat * 0.5)), tapeFin: zc(tape, Math.round(beat * 3), Math.round(beat * 3.8)),
+        stutAbierto: rms(stut, Math.round(beat / 4 * 0.1), Math.round(beat / 4 * 0.6)), stutCerrado: rms(stut, Math.round(beat / 4 * 0.8), Math.round(beat / 4 * 0.97)),
+        finitos: [baby, chirp, tape, stut].every(finito), corto: sc.scratch(x, 0, 500, rate).length, tramo: sc.scratch(x, 1000, 30000, rate, { ...o, kind: 'baby' }).length, tipos: sc.SCRATCH_KINDS.map(k => k[0]) };
+    });
+    expect(r.n).toEqual([4 * r.beat, 4 * r.beat, 4 * r.beat, 4 * r.beat]); expect(r.tipos).toEqual(['baby', 'chirp', 'tape', 'stutter']);
+    expect(Math.max(...r.tonos)).toBeGreaterThan(Math.min(...r.tonos) * 2);        // el tono sube y baja con la velocidad de la aguja
+    expect(r.chirpAbierto).toBeGreaterThan(0.1); expect(r.chirpCerrado).toBeLessThan(0.01);       // volumen cerrado al volver
+    expect(r.tapeFin).toBeLessThan(r.tapeIni * 0.7);                                // el plato se frena: el tono cae
+    expect(r.stutAbierto).toBeGreaterThan(0.1); expect(r.stutCerrado).toBeLessThan(0.01);
+    expect(r.finitos).toBe(true); expect(r.corto).toBe(0); expect(r.tramo).toBe(4 * r.beat);
+  });
+
+  test('Editar: Scratchear convierte la toma en un scratch de N tiempos al BPM de la toma, se guarda y se deshace', async ({ page }) => {
+    const errores = vigilar(page);
+    await abrir(page, 'schair');
+    await page.evaluate(async () => {
+      const st = await import('/sounds/store.js'), a = new Float32Array(48000 * 3).map((_, i) => 0.5 * Math.sin(2 * Math.PI * 300 * i / 48000));
+      await st.putSample(st.newSample('Tono', a, 48000, { bpm: 120 }), a);
+    });
+    await page.reload();
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Tono' }).click();
+    const largo = () => page.evaluate(async () => { const st = await import('/sounds/store.js'), m = (await st.listSamples()).find(v => v.name === 'Tono'); return (await st.getAudio(m.id)).length; });
+    await page.getByRole('button', { name: 'Chirp', exact: true }).click();
+    await page.getByRole('button', { name: '8 tiempos', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Chirp', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await page.getByRole('button', { name: 'Scratchear', exact: true }).click();
+    await expect(page.locator('#toast')).toContainText('scratch de 8 tiempos a 120 BPM · dura 00:04.00');
+    await page.getByRole('button', { name: 'Guardar', exact: true }).click(); await expect(page.locator('#toast')).toContainText('Guardado');
+    expect(await largo()).toBe(8 * 24000);
+    await page.getByRole('button', { name: 'Deshacer' }).click();
+    await page.getByRole('button', { name: 'Guardar', exact: true }).click(); await expect(page.locator('#toast')).toContainText('Guardado');
+    expect(await largo()).toBe(48000 * 3);
+    await expect(page.locator('#screen')).not.toContainText(/K\.O\.|slot|46 875/i);
+    expect(errores).toEqual([]);
+  });
+});

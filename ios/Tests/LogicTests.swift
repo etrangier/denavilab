@@ -627,6 +627,25 @@ final class LogicTests: XCTestCase {
         XCTAssertNil(GridSeq.copyCells(cells, []))
     }
 
+    func testScratchMovesTheNeedleLikeAVinyl() {
+        let rate = 48_000
+        let x = (0..<(rate * 2)).map { Float(0.5 * sin(2 * Double.pi * 440 * Double($0) / Double(rate))) }
+        func zc(_ y: [Float], _ a: Int, _ b: Int) -> Double { var c = 0; for i in (a + 1)..<b where y[i - 1] < 0 && y[i] >= 0 { c += 1 }; return Double(c) / (Double(b - a) / Double(rate)) }
+        func rms(_ y: [Float], _ a: Int, _ b: Int) -> Double { (y[a..<b].reduce(0.0) { $0 + Double($1) * Double($1) } / Double(b - a)).squareRoot() }
+        let beat = Int((60.0 * Double(rate) / 120).rounded())
+        func go(_ k: Scratch.Kind, depth: Double = 0.8) -> [Float] { Scratch.scratch(x, from: 0, to: x.count, rate: rate, kind: k, bpm: 120, beats: 4, depth: depth) }
+        let baby = go(.baby), chirp = go(.chirp), tape = go(.tape), stut = go(.stutter)
+        XCTAssertEqual([baby.count, chirp.count, tape.count, stut.count], [4 * beat, 4 * beat, 4 * beat, 4 * beat])
+        let tonos = (0..<8).map { zc(baby, $0 * beat / 8, ($0 + 1) * beat / 8) }
+        XCTAssertGreaterThan(tonos.max()!, tonos.min()! * 2)                      // el tono sube y baja con la velocidad de la aguja
+        XCTAssertGreaterThan(rms(chirp, beat / 10, beat * 4 / 10), 0.1); XCTAssertLessThan(rms(chirp, beat * 6 / 10, beat * 9 / 10), 0.01)
+        XCTAssertLessThan(zc(tape, beat * 3, beat * 38 / 10), zc(tape, 0, beat / 2) * 0.7)       // el plato se frena: el tono cae
+        let q = beat / 4
+        XCTAssertGreaterThan(rms(stut, q / 10, q * 6 / 10), 0.1); XCTAssertLessThan(rms(stut, q * 8 / 10, q * 97 / 100), 0.01)
+        XCTAssertTrue(Scratch.scratch(x, from: 0, to: 500, rate: rate).isEmpty)
+        XCTAssertEqual(Scratch.scratch(x, from: 1000, to: 30000, rate: rate, kind: .baby, bpm: 120, beats: 4).count, 4 * beat)
+    }
+
     func testFixedBpmKeepsPitchWithWsola() {
         let rate = 48_000
         let x = (0..<(rate * 4)).map { Float(0.5 * sin(2 * Double.pi * 440 * Double($0) / Double(rate))) }

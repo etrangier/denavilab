@@ -47,6 +47,9 @@ struct EditorBody: View {
     @State private var fxBusy: String?                    // acción trabajando (borde amarillo)
     @State private var fxFlash: String?                   // acción recién hecha (destello)
     @State private var loopCross = 1.0
+    @State private var scratchKind: Scratch.Kind = .baby
+    @State private var scratchBeats = 4
+    @State private var scratchDepth = 0.6
     @State private var loopRefine = true
     @State private var start = 0.0
     @State private var end = 1.0
@@ -158,6 +161,7 @@ struct EditorBody: View {
                 .actionFX("invertir", busy: fxBusy, flash: fxFlash)
             Text("Da la vuelta a la selección (o a toda la toma): una cola que se apaga pasa a ser un crescendo que «chupa» hacia el golpe.")
                 .font(Theme.font(12)).foregroundColor(Theme.muted)
+            scratchTools
             SectionLabel("Colchón sostenido")
             HStack(spacing: 8) {
                 ForEach([4, 8, 16], id: \.self) { f in
@@ -168,6 +172,26 @@ struct EditorBody: View {
             Text("Estira la selección (o toda la toma) sin cambiar el tono y la difumina en un sonido continuo, ideal para notas de cuerda, pads y ambientes. Se queda sólo con lo estirado; puedes deshacer.")
                 .font(Theme.font(12)).foregroundColor(Theme.muted)
         }
+    }
+
+    private var scratchTools: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel("Scratch")
+            HStack(spacing: 8) { ForEach(Scratch.Kind.allCases, id: \.self) { k in Chip(title: k.title, selected: scratchKind == k) { scratchKind = k } } }
+            HStack(spacing: 8) { ForEach([2, 4, 8], id: \.self) { n in Chip(title: "\(n) tiempos", selected: scratchBeats == n) { scratchBeats = n } } }
+            SliderRow(title: "Recorrido de la aguja", valueText: "\(Int((scratchDepth * 100).rounded())) %", value: $scratchDepth, range: 0.2...1)
+            Button("Scratchear") { makeScratch() }.buttonStyle(OutlineButton()).font(Theme.font(13))
+                .actionFX("scratch", busy: fxBusy, flash: fxFlash)
+            Text("Mueve la aguja sobre la selección (o toda la toma) como en un vinilo: el tono sube y baja con la velocidad y al volver suena hacia atrás. Dura los tiempos elegidos al BPM de la toma (\(Int((sample.bpm ?? 100).rounded()))\(sample.bpm == nil ? ", porque aún no está detectado" : "")). Se queda sólo con el scratch; puedes deshacer y guardarlo como cualquier sonido.")
+                .font(Theme.font(12)).foregroundColor(Theme.muted)
+        }
+    }
+
+    private func makeScratch() {
+        let a = selA, b = selB, rate = sample.sampleRate, kind = scratchKind, beats = scratchBeats, depth = scratchDepth, bpm = (sample.bpm ?? 100).rounded()
+        guard Double(b - a) >= Double(rate) * 0.05 else { message = "Marca al menos 0,05 s (o no marques nada para usar toda la toma)"; return }
+        let secs = String(format: "%.2f", Double(beats) * 60 / bpm).replacingOccurrences(of: ".", with: ",")
+        run("scratch", done: "Listo: scratch de \(beats) tiempos a \(Int(bpm)) BPM · dura \(secs) s") { Scratch.scratch($0, from: a, to: b, rate: rate, kind: kind, bpm: bpm, beats: beats, depth: depth) }
     }
 
     private var loopTools: some View {
@@ -361,7 +385,7 @@ struct EditorBody: View {
 
     /// Acción con respuesta visible: si es lenta, el botón se ilumina mientras trabaja; al terminar destella y avisa «Listo».
     private static let fxLabels: [String: String] = ["recortar": "Recortar", "normalizar": "Normalizar", "fundido": "Fundido", "armonizar": "Armonizar bordes",
-        "invertir": "Invertir", "loop": "Loop continuo", "ruido-suave": "Ruido (suave)", "ruido-fuerte": "Ruido (fuerte)", "ruido-fondo": "Quitar ruido de fondo",
+        "invertir": "Invertir", "scratch": "Scratch", "loop": "Loop continuo", "ruido-suave": "Ruido (suave)", "ruido-fuerte": "Ruido (fuerte)", "ruido-fondo": "Quitar ruido de fondo",
         "ruido-sel": "Ruido de la selección"]
 
     /// Contenedor para pasar a otro hilo un cierre que sólo captura valores (números, listas): lo que ya hacían los cálculos largos.
