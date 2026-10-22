@@ -261,10 +261,17 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(QuickSave.process(x, rate: 48_000, s).count, x.count)
     }
 
-    func testQuietTakeIsNormalizedByDefault() {
+    func testQuietTakeIsNormalizedWhenLevelingIsOff() {
         let x = [Float](repeating: 0.004, count: 48_000)    // ≈ −48 dB
+        var s = QuickSave.Settings(); s.level = false
+        XCTAssertGreaterThan(QuickSave.process(x, rate: 48_000, s).map(abs).max() ?? 0, 0.5)
+    }
+
+    func testQuietTakeIsLeveledByDefault() {
+        let x = [Float](repeating: 0.004, count: 48_000)    // ≈ −48 dB: sube hasta el nivel objetivo, sin pasar del techo
         let y = QuickSave.process(x, rate: 48_000, QuickSave.Settings())
-        XCTAssertGreaterThan(y.map(abs).max() ?? 0, 0.5)
+        XCTAssertGreaterThan(y.map(abs).max() ?? 0, 0.02)
+        XCTAssertLessThanOrEqual(y.map(abs).max() ?? 0, Float(pow(10, Level.ceilingDB / 20)) + 1e-3)
     }
 
     @MainActor func testAppOpensOnHome() {
@@ -625,6 +632,43 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(gr[0], 0); XCTAssertEqual(gr[8], 1); XCTAssertEqual(gr[16], 0)
         XCTAssertEqual(GridSeq.resizeCells(cells, bars: 1, steps: 8, oldBars: 2, oldSteps: 8).count, 8)
         XCTAssertNil(GridSeq.copyCells(cells, []))
+    }
+
+    func testScratchMovesTheNeedleLikeAVinyl() {
+        let rate = 48_000
+        let x = (0..<(rate * 2)).map { Float(0.5 * sin(2 * Double.pi * 440 * Double($0) / Double(rate))) }
+        func zc(_ y: [Float], _ a: Int, _ b: Int) -> Double { var c = 0; for i in (a + 1)..<b where y[i - 1] < 0 && y[i] >= 0 { c += 1 }; return Double(c) / (Double(b - a) / Double(rate)) }
+        func rms(_ y: [Float], _ a: Int, _ b: Int) -> Double { (y[a..<b].reduce(0.0) { $0 + Double($1) * Double($1) } / Double(b - a)).squareRoot() }
+        let beat = Int((60.0 * Double(rate) / 120).rounded())
+        func go(_ k: Scratch.Kind, depth: Double = 0.8) -> [Float] { Scratch.scratch(x, from: 0, to: x.count, rate: rate, kind: k, bpm: 120, beats: 4, depth: depth) }
+        let baby = go(.baby), chirp = go(.chirp), tape = go(.tape), stut = go(.stutter)
+        XCTAssertEqual([baby.count, chirp.count, tape.count, stut.count], [4 * beat, 4 * beat, 4 * beat, 4 * beat])
+        let tonos = (0..<8).map { zc(baby, $0 * beat / 8, ($0 + 1) * beat / 8) }
+        XCTAssertGreaterThan(tonos.max()!, tonos.min()! * 2)                      // el tono sube y baja con la velocidad de la aguja
+        XCTAssertGreaterThan(rms(chirp, beat / 10, beat * 4 / 10), 0.1); XCTAssertLessThan(rms(chirp, beat * 6 / 10, beat * 9 / 10), 0.01)
+        XCTAssertLessThan(zc(tape, beat * 3, beat * 38 / 10), zc(tape, 0, beat / 2) * 0.7)       // el plato se frena: el tono cae
+        let q = beat / 4
+        XCTAssertGreaterThan(rms(stut, q / 10, q * 6 / 10), 0.1); XCTAssertLessThan(rms(stut, q * 8 / 10, q * 97 / 100), 0.01)
+        XCTAssertTrue(Scratch.scratch(x, from: 0, to: 500, rate: rate).isEmpty)
+        XCTAssertEqual(Scratch.scratch(x, from: 1000, to: 30000, rate: rate, kind: .baby, bpm: 120, beats: 4).count, 4 * beat)
+    }
+
+    func testLevelingEqualizesTypicalLevelAndRespectsCeiling() {
+        let rate = 48_000
+        let pad = (0..<(rate * 3)).map { Float(0.5 * sin(2 * Double.pi * 220 * Double($0) / Double(rate))) }
+        var golpe = [Float](repeating: 0, count: rate * 3)
+        for i in 0..<4000 { golpe[i] = Float(0.9 * sin(2 * Double.pi * 120 * Double(i) / Double(rate)) * exp(-Double(i) / 700)) }
+        let suave = (0..<(rate * 2)).map { Float(0.02 * sin(2 * Double.pi * 330 * Double($0) / Double(rate))) }
+        let a = Level.levelTo(pad, rate: rate), b = Level.levelTo(golpe, rate: rate), c = Level.levelTo(suave, rate: rate)
+        XCTAssertEqual(a.afterDB, Level.defaultTargetDB, accuracy: 0.6); XCTAssertEqual(c.afterDB, Level.defaultTargetDB, accuracy: 0.6)
+        XCTAssertGreaterThan(b.afterDB, Level.defaultTargetDB - 10); XCTAssertLessThanOrEqual(b.afterDB, a.afterDB + 1)
+        let ceil = Float(pow(10, Level.ceilingDB / 20))
+        for r in [a, b, c] { XCTAssertLessThanOrEqual(r.audio.map { abs($0) }.max() ?? 0, ceil + 1e-3) }
+        XCTAssertFalse(a.limited); XCTAssertFalse(c.limited); XCTAssertTrue(b.audio.allSatisfy { $0.isFinite })
+        XCTAssertEqual(Level.levelTo([Float](repeating: 0, count: 1000), rate: rate).gainDB, 0)
+        XCTAssertEqual(Level.levelTo(pad, rate: rate, targetDB: -30).afterDB, -30, accuracy: 0.6)
+        XCTAssertEqual(Level.Kind.allCases.map(\.rawValue), ["libre", "textura", "bajo", "bateria"])
+        XCTAssertEqual(QuickSave.autoName(count: 2, prefix: "textura"), "textura_003")
     }
 
     func testFixedBpmKeepsPitchWithWsola() {

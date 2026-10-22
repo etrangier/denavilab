@@ -5,8 +5,9 @@ import { compute } from './work.js';
 import * as dsp from './dsp.js';
 import { putSample, getAudio, deleteSamples } from './store.js';
 import { openChop } from './chop.js';
+import * as sc from './scratch.js';
 
-const ed = { id: null, audio: null, saved: null, labels: [], rlabels: [], peaks: [], undo: [], redo: [], start: 0, end: 1, fadeMs: 10, loop: false, noiseAmt: dsp.DENOISE_AMOUNT, sustain: true, cross: 1, refine: true };
+const ed = { id: null, audio: null, saved: null, labels: [], rlabels: [], peaks: [], undo: [], redo: [], start: 0, end: 1, fadeMs: 10, loop: false, noiseAmt: dsp.DENOISE_AMOUNT, sustain: true, cross: 1, refine: true, scratch: { kind: 'baby', beats: 4, depth: 0.6 } };
 let playCtx = null, src = null, t0 = 0, dur = 0;
 
 const stopPlay = () => { if (src) { try { src.onended = null; src.stop(); } catch (e) {} src = null; } };
@@ -41,7 +42,7 @@ function apply(fn, key, label = 'Cambio') {
   stopPlay(); ed.undo.push(ed.audio); ed.labels.push(label); trimHistory(); ed.redo = []; ed.rlabels = []; setAudio(out); ed.start = 0; ed.end = 1; app.render();
   return true;
 }
-const LABELS = { recortar: 'Recortar', normalizar: 'Normalizar', fundido: 'Fundido', armonizar: 'Armonizar bordes', invertir: 'Invertir', colchon4: 'Colchón ×4', colchon8: 'Colchón ×8', colchon16: 'Colchón ×16',
+const LABELS = { recortar: 'Recortar', normalizar: 'Normalizar', fundido: 'Fundido', armonizar: 'Armonizar bordes', invertir: 'Invertir', scratch: 'Scratch', nivelar: 'Nivelar volumen', colchon4: 'Colchón ×4', colchon8: 'Colchón ×8', colchon16: 'Colchón ×16',
   loop: 'Loop continuo', 'ruido-suave': 'Ruido (suave)', 'ruido-fuerte': 'Ruido (fuerte)', 'ruido-fondo': 'Quitar ruido de fondo', 'ruido-sel': 'Ruido de la selección' };
 /** Acción con respuesta visible: si es lenta, el botón pulsa en amarillo mientras trabaja; al terminar destella y avisa «Listo». */
 function run(key, fn, { slow = false, done = null } = {}) {
@@ -135,7 +136,7 @@ export function renderEdit(root) {
         btn('↷ Rehacer', { small: true, disabled: !ed.redo.length, aria: 'Rehacer', onclick: () => step(ed.redo, ed.undo, ed.rlabels, ed.labels) }),
         btn('⟲ Original', { small: true, act: 'original', disabled: !ed.undo.length, aria: 'Volver al original', onclick: toOriginal })),
       h('p', { class: 'muted tiny undo-note' }, ed.undo.length ? `Último cambio: ${ed.labels[ed.labels.length - 1]} · ${ed.undo.length} desde que abriste la toma` : 'Sin cambios todavía: aquí podrás deshacer o volver al original')),
-    h('div', { class: 'stack tight' }, nameInput, h('p', { class: 'muted small' }, `${dsp.stamp(total)} · mono · ${s.rate} Hz · pico ${Math.round(pk)} dB`),
+    h('div', { class: 'stack tight' }, nameInput, h('p', { class: 'muted small' }, `${dsp.stamp(total)} · mono · ${s.rate} Hz · pico ${Math.round(pk)} dB · nivel ${Math.max(-99, Math.round(dsp.levelDB(ed.audio, s.rate)))} dB`),
       pk < -30 ? h('p', { class: 'amber small' }, 'Nivel muy bajo: usa Normalizar para oírla bien.') : null),
     wrap, times,
     h('div', { class: 'controls' },
@@ -147,11 +148,29 @@ export function renderEdit(root) {
       btn('Recortar', { small: true, act: 'recortar', onclick: () => { const [a, b] = sel(); run('recortar', x => dsp.fade(dsp.trim(x, a, b), fade, fade), { done: 'Listo: recortado' }); } }),
       btn('Normalizar', { small: true, act: 'normalizar', onclick: () => run('normalizar', x => dsp.normalize(x), { done: 'Listo: normalizado a −1 dB' }) }),
       btn('Fundido', { small: true, act: 'fundido', onclick: () => run('fundido', x => dsp.fade(x, fade, fade), { done: 'Listo: fundido aplicado' }) })),
+    btn('Nivelar volumen', { small: true, act: 'nivelar', onclick: () => {
+      const r = dsp.levelTo(ed.audio, s.rate);
+      if (r.beforeDB < -80) return toast('La toma está casi en silencio: no hay nada que nivelar');
+      const f = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(1).replace('.', ',');
+      run('nivelar', () => r.audio, { done: `Listo: nivel típico de ${Math.round(r.beforeDB)} a ${Math.round(r.afterDB)} dB (${f(r.gainDB)} dB)${r.short ? ' · los picos no dejan subir más: queda algo bajo' : r.limited ? ' · picos suavizados' : ''}` });
+    } }),
+    muted(`Lleva el volumen típico de la toma a ${dsp.levelTarget()} dB (no el pico): así un golpe seco y un pad suenan igual de fuertes. El nivel se cambia en Compartir. Puedes deshacer.`, 'tiny'),
     btn('Armonizar bordes (sin clics)', { small: true, act: 'armonizar', onclick: () => run('armonizar', x => dsp.harmonize(x, s.rate), { done: 'Listo: bordes armonizados' }) }),
     muted('Centra la onda y suaviza el inicio y el final a medida, para que un recorte no suene «cortado». Puedes deshacer.', 'tiny'),
     label('Creativo'),
     btn('Invertir', { small: true, act: 'invertir', onclick: () => { const [a, b] = sel(); run('invertir', x => dsp.reverseRange(x, a, b), { done: 'Listo: invertido' }); } }),
     muted('Da la vuelta a la selección (o a toda la toma): una cola que se apaga pasa a ser un crescendo que «chupa» hacia el golpe.', 'tiny'),
+    label('Scratch'),
+    h('div', { class: 'wrap' }, sc.SCRATCH_KINDS.map(([k, name]) => chip(name, ed.scratch.kind === k, () => { ed.scratch.kind = k; app.render(); }))),
+    h('div', { class: 'wrap' }, [2, 4, 8].map(n => chip(`${n} tiempos`, ed.scratch.beats === n, () => { ed.scratch.beats = n; app.render(); }))),
+    sliderRow('Recorrido de la aguja', { min: 0.2, max: 1, step: 0.05, value: ed.scratch.depth, fmt: v => Math.round(v * 100) + ' %', onInput: v => { ed.scratch.depth = v; } }),
+    btn('Scratchear', { small: true, act: 'scratch', onclick: () => {
+      const [a, b] = sel(), bpm = Math.round(s.bpm || 100);
+      if (b - a < s.rate * 0.05) return toast('Marca al menos 0,05 s (o no marques nada para usar toda la toma)');
+      const { kind, beats, depth } = ed.scratch;
+      run('scratch', x => sc.scratch(x, a, b, s.rate, { kind, bpm, beats, depth }), { done: () => `Listo: scratch de ${beats} tiempos a ${bpm} BPM · dura ${dsp.stamp(ed.audio.length / s.rate)}` });
+    } }),
+    muted(`Mueve la aguja sobre la selección (o toda la toma) como en un vinilo: el tono sube y baja con la velocidad y al volver suena hacia atrás. Dura los tiempos elegidos al BPM de la toma (${Math.round(s.bpm || 100)}${s.bpm ? '' : ', porque aún no está detectado'}). Se queda sólo con el scratch; puedes deshacer y guardarlo como cualquier sonido.`, 'tiny'),
     label('Colchón sostenido'),
     h('div', { class: 'row3' }, [4, 8, 16].map(f => btn('Colchón ×' + f, { small: true, act: 'colchon' + f, onclick: () => {
       const [a, b] = sel();

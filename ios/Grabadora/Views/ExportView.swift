@@ -7,6 +7,8 @@ struct ExportView: View {
     @EnvironmentObject var state: AppState
     @AppStorage("exportRate") private var rate = 46_875
     @AppStorage("shareRate") private var shareRate = 0          // 0 = la frecuencia original de la grabación
+    @AppStorage("levelExport") private var levelExport = true    // nivelar el volumen al compartir
+    @AppStorage("levelTarget") private var levelTarget = -24.0   // nivel típico objetivo (dB)
     @State private var sharing: [URL] = []
     @State private var showShare = false
     @State private var message: String?
@@ -47,6 +49,7 @@ struct ExportView: View {
             Spacer()
             Text(Exporter.fileName(for: s)).font(Theme.font(13)).foregroundColor(Theme.text).lineLimit(1)
         }.card()
+        levelControls
         Text("Se envía un archivo .wav (mono, 16 bit): por correo, Bluetooth o AirDrop, Drive u otra app que elijas.")
             .font(Theme.font(12)).foregroundColor(Theme.muted)
         Button("Compartir WAV") { share(s) }.buttonStyle(AmberButton()).padding(.top, 6)
@@ -55,11 +58,22 @@ struct ExportView: View {
         if let m = message { Text(m).font(Theme.font(13)).foregroundColor(Theme.error) }
     }
 
+    private var levelControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ToggleRow(title: "Nivelar volumen", subtitle: "Lleva el sonido al mismo nivel que los demás (\(Int(levelTarget)) dB de nivel típico) para que no suene muy fuerte ni muy bajo; el pico queda bajo \(Int(Level.ceilingDB)) dB", isOn: $levelExport)
+            if levelExport {
+                SliderRow(title: "Nivel objetivo", valueText: "\(Int(levelTarget)) dB", value: $levelTarget, range: -36 ... -12)
+                Text("Más a la izquierda, más bajo. Si en el aparato suenan más fuertes que sus sonidos de fábrica, baja este nivel hasta que igualen.")
+                    .font(Theme.font(12)).foregroundColor(Theme.muted)
+            }
+        }
+    }
+
     private func rateText(_ r: Int) -> String { r == 44_100 ? "44,1 kHz" : r % 1000 == 0 ? "\(r / 1000) kHz" : String(format: "%.1f kHz", Double(r) / 1000).replacingOccurrences(of: ".", with: ",") }
 
     /// Un WAV de la grabación, a la frecuencia elegida, para la hoja de compartir del sistema.
     private func share(_ s: Sample) {
-        do { sharing = [try Exporter.export(s, audio: lib.audio(for: s), targetRate: shareRate == 0 ? nil : shareRate)]; showShare = true; message = nil }
+        do { sharing = [try Exporter.export(s, audio: lib.audio(for: s), targetRate: shareRate == 0 ? nil : shareRate, level: levelExport)]; showShare = true; message = nil }
         catch { message = "No se pudo preparar el archivo: \(error.localizedDescription)" }
     }
 

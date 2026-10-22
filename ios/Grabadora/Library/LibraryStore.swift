@@ -18,6 +18,7 @@ struct Sample: Identifiable, Codable, Equatable {
     var effects = EffectParams()
     var created = Date()
     var duration: Double = 0
+    var kind: String?                 // tipo de sonido al grabar: textura, bajo, bateria (nil = libre)
     var fileName: String { "\(id.uuidString).wav" }
 }
 

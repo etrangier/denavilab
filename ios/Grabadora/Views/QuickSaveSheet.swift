@@ -6,6 +6,7 @@ struct QuickSaveSheet: View {
     @AppStorage("qsTrim") private var trim = true
     @AppStorage("qsFades") private var fades = true
     @AppStorage("qsNormalize") private var normalize = true
+    @AppStorage("qsLevel") private var level = true
     @AppStorage("qsSuggest") private var suggest = true
     @AppStorage("qsThreshold") private var threshold = -48.0
     @AppStorage("qsDenoise") private var denoise = "off"
@@ -22,7 +23,8 @@ struct QuickSaveSheet: View {
                     ToggleRow(title: "Carpeta sugerida", subtitle: "Usa la clasificación automática", isOn: $suggest)
                     ToggleRow(title: "Fundidos cortos", subtitle: "5 ms al inicio y al final, sin clics", isOn: $fades)
                     noiseRow
-                    ToggleRow(title: "Normalizar volumen", subtitle: "Sube el nivel hasta −1 dB", isOn: $normalize)
+                    ToggleRow(title: "Nivelar volumen", subtitle: "Lleva el nivel típico a \(Int(Level.target)) dB, sin pasar de \(Int(Level.ceilingDB)) dB en el pico", isOn: $level)
+                    ToggleRow(title: "Normalizar volumen", subtitle: "Sube el pico hasta −1 dB (si Nivelar está apagado)", isOn: $normalize)
                     SliderRow(title: "Umbral de silencio", valueText: "\(Int(threshold)) dB", value: $threshold, range: -80 ... -20)
                     Text("El nombre es automático (grabacion_001…) y va a la carpeta sugerida, o a Sin clasificar si no hay sugerencia. Puedes cambiar nombre, carpeta y recorte después.")
                         .font(Theme.font(13)).foregroundColor(Theme.muted).frame(maxWidth: .infinity, alignment: .center)

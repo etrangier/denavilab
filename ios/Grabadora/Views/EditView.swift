@@ -39,6 +39,7 @@ struct EditorBody: View {
     @State private var confirmOverwrite = false
     @State private var peaks: [Float] = []
     @State private var peakDB: Float = 0
+    @State private var levelDBValue = -99                 // nivel típico (se calcula al cambiar la toma, no en cada dibujo)
     @State private var undo: [[Float]] = []
     @State private var redo: [[Float]] = []
     @State private var undoLabels: [String] = []         // nombre de cada cambio, para la barra de historial
@@ -47,6 +48,9 @@ struct EditorBody: View {
     @State private var fxBusy: String?                    // acción trabajando (borde amarillo)
     @State private var fxFlash: String?                   // acción recién hecha (destello)
     @State private var loopCross = 1.0
+    @State private var scratchKind: Scratch.Kind = .baby
+    @State private var scratchBeats = 4
+    @State private var scratchDepth = 0.6
     @State private var loopRefine = true
     @State private var start = 0.0
     @State private var end = 1.0
@@ -74,7 +78,7 @@ struct EditorBody: View {
                 ScreenTitle(title: "Escuchar y editar")
                 VStack(alignment: .leading, spacing: 2) {
                     TextField("Nombre", text: $sample.name).font(Theme.font(16, weight: .bold)).foregroundColor(Theme.text)
-                    Text("\(stamp(total)) · mono · \(sample.sampleRate) Hz · pico \(Int(peakDB)) dB").font(Theme.font(12)).foregroundColor(Theme.muted)
+                    Text("\(stamp(total)) · mono · \(sample.sampleRate) Hz · pico \(Int(peakDB)) dB · nivel \(levelDBValue) dB").font(Theme.font(12)).foregroundColor(Theme.muted)
                     if peakDB < -30 && !audio.isEmpty { Text("Nivel muy bajo: usa Normalizar para oírla bien.").font(Theme.font(12)).foregroundColor(Theme.amber) }
                 }
                 waveEditor
@@ -96,6 +100,10 @@ struct EditorBody: View {
                         .actionFX("fundido", busy: fxBusy, flash: fxFlash)
                     Button("Efectos") { showEffects = true }.buttonStyle(OutlineButton(selected: !sample.effects.isNeutral))
                 }.buttonStyle(OutlineButton()).font(Theme.font(13))
+                Button("Nivelar volumen (parejo)") { levelOut() }.buttonStyle(OutlineButton()).font(Theme.font(13))
+                    .actionFX("nivelar", busy: fxBusy, flash: fxFlash)
+                Text("Lleva el volumen típico de la toma a \(Int(Level.target)) dB (no el pico): así un golpe seco y un pad suenan igual de fuertes. El nivel se cambia en Compartir. Puedes deshacer.")
+                    .font(Theme.font(12)).foregroundColor(Theme.muted)
                 Button("Edición precisa (zoom)") { showPrecise = true }.buttonStyle(OutlineButton(selected: true))
                 Button("Chop en pads") { showChop = true }.buttonStyle(OutlineButton())
                 Button("Armonizar bordes (sin clics)") { let r = sample.sampleRate; run("armonizar", done: "Listo: bordes armonizados") { Harmonize.harmonize($0, rate: r) } }.buttonStyle(OutlineButton()).font(Theme.font(13))
@@ -158,6 +166,7 @@ struct EditorBody: View {
                 .actionFX("invertir", busy: fxBusy, flash: fxFlash)
             Text("Da la vuelta a la selección (o a toda la toma): una cola que se apaga pasa a ser un crescendo que «chupa» hacia el golpe.")
                 .font(Theme.font(12)).foregroundColor(Theme.muted)
+            scratchTools
             SectionLabel("Colchón sostenido")
             HStack(spacing: 8) {
                 ForEach([4, 8, 16], id: \.self) { f in
@@ -168,6 +177,35 @@ struct EditorBody: View {
             Text("Estira la selección (o toda la toma) sin cambiar el tono y la difumina en un sonido continuo, ideal para notas de cuerda, pads y ambientes. Se queda sólo con lo estirado; puedes deshacer.")
                 .font(Theme.font(12)).foregroundColor(Theme.muted)
         }
+    }
+
+    private var scratchTools: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel("Scratch")
+            HStack(spacing: 8) { ForEach(Scratch.Kind.allCases, id: \.self) { k in Chip(title: k.title, selected: scratchKind == k) { scratchKind = k } } }
+            HStack(spacing: 8) { ForEach([2, 4, 8], id: \.self) { n in Chip(title: "\(n) tiempos", selected: scratchBeats == n) { scratchBeats = n } } }
+            SliderRow(title: "Recorrido de la aguja", valueText: "\(Int((scratchDepth * 100).rounded())) %", value: $scratchDepth, range: 0.2...1)
+            Button("Scratchear") { makeScratch() }.buttonStyle(OutlineButton()).font(Theme.font(13))
+                .actionFX("scratch", busy: fxBusy, flash: fxFlash)
+            Text("Mueve la aguja sobre la selección (o toda la toma) como en un vinilo: el tono sube y baja con la velocidad y al volver suena hacia atrás. Dura los tiempos elegidos al BPM de la toma (\(Int((sample.bpm ?? 100).rounded()))\(sample.bpm == nil ? ", porque aún no está detectado" : "")). Se queda sólo con el scratch; puedes deshacer y guardarlo como cualquier sonido.")
+                .font(Theme.font(12)).foregroundColor(Theme.muted)
+        }
+    }
+
+    /// Lleva el nivel típico de la toma al objetivo (no el pico): un golpe seco y un pad quedan igual de fuertes.
+    private func levelOut() {
+        let r = Level.levelTo(audio, rate: sample.sampleRate)
+        guard r.beforeDB >= -80 else { message = "La toma está casi en silencio: no hay nada que nivelar"; return }
+        let g = (r.gainDB >= 0 ? "+" : "−") + String(format: "%.1f", abs(r.gainDB)).replacingOccurrences(of: ".", with: ",")
+        let extra = r.short ? " · los picos no dejan subir más: queda algo bajo" : (r.limited ? " · picos suavizados" : "")
+        run("nivelar", done: "Listo: nivel típico de \(Int(r.beforeDB.rounded())) a \(Int(r.afterDB.rounded())) dB (\(g) dB)\(extra)") { _ in r.audio }
+    }
+
+    private func makeScratch() {
+        let a = selA, b = selB, rate = sample.sampleRate, kind = scratchKind, beats = scratchBeats, depth = scratchDepth, bpm = (sample.bpm ?? 100).rounded()
+        guard Double(b - a) >= Double(rate) * 0.05 else { message = "Marca al menos 0,05 s (o no marques nada para usar toda la toma)"; return }
+        let secs = String(format: "%.2f", Double(beats) * 60 / bpm).replacingOccurrences(of: ".", with: ",")
+        run("scratch", done: "Listo: scratch de \(beats) tiempos a \(Int(bpm)) BPM · dura \(secs) s") { Scratch.scratch($0, from: a, to: b, rate: rate, kind: kind, bpm: bpm, beats: beats, depth: depth) }
     }
 
     private var loopTools: some View {
@@ -361,7 +399,7 @@ struct EditorBody: View {
 
     /// Acción con respuesta visible: si es lenta, el botón se ilumina mientras trabaja; al terminar destella y avisa «Listo».
     private static let fxLabels: [String: String] = ["recortar": "Recortar", "normalizar": "Normalizar", "fundido": "Fundido", "armonizar": "Armonizar bordes",
-        "invertir": "Invertir", "loop": "Loop continuo", "ruido-suave": "Ruido (suave)", "ruido-fuerte": "Ruido (fuerte)", "ruido-fondo": "Quitar ruido de fondo",
+        "invertir": "Invertir", "scratch": "Scratch", "nivelar": "Nivelar volumen", "loop": "Loop continuo", "ruido-suave": "Ruido (suave)", "ruido-fuerte": "Ruido (fuerte)", "ruido-fondo": "Quitar ruido de fondo",
         "ruido-sel": "Ruido de la selección"]
 
     /// Contenedor para pasar a otro hilo un cierre que sólo captura valores (números, listas): lo que ya hacían los cálculos largos.
@@ -387,7 +425,7 @@ struct EditorBody: View {
         }
     }
 
-    private func refreshPeaks() { peaks = Editing.peaks(audio, buckets: 56); peakDB = Editing.peakDB(audio) }
+    private func refreshPeaks() { peaks = Editing.peaks(audio, buckets: 56); peakDB = Editing.peakDB(audio); levelDBValue = max(-99, Int(Level.levelDB(audio, rate: sample.sampleRate))) }
 
     private func step(from a: inout [[Float]], to b: inout [[Float]], labelsFrom lf: inout [String], labelsTo lt: inout [String]) {
         guard let x = a.popLast() else { return }
