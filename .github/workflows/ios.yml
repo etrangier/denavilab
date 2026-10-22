@@ -43,7 +43,8 @@ jobs:
         run: |
           xcodebuild build -project DenaviGrabadora.xcodeproj -scheme DenaviGrabadora \
             -configuration Release -sdk iphoneos -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" > build.log 2>&1 \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} > build.log 2>&1 \
             || { grep -E "error:" build.log | sort -u | head -60; exit 1; }
           mkdir -p Payload
           cp -R build/Build/Products/Release-iphoneos/DenaviGrabadora.app Payload/

@@ -1,5 +1,5 @@
 // Pantallas: Inicio, Grabar, Biblioteca, Exportar, y las hojas (retroactiva, guardar, metrónomo, manual…).
-import { app, go, openSample, refreshSamples, sampleById, VERSION, inst, isStandalone, platform, installApp } from './state.js';
+import { app, go, openSample, refreshSamples, sampleById, VERSION, BUILD, inst, isStandalone, platform, installApp } from './state.js';
 import { h, mount, fill, btn, link, chip, card, label, muted, title, toggleRow, sliderRow, logo, sheet, confirmSheet, promptSheet, toast, folderPicker, drawBars } from './ui.js';
 import * as dsp from './dsp.js';
 import { FOLDERS, UNSORTED, folderDetail, folderOf } from './folders.js';
@@ -86,7 +86,7 @@ export function renderHome(root) {
       shortcut('Manual', 'Glosario técnico', '?', openManual)),
     isStandalone() || inst.done ? null : btn('📲 Instalar en mi celular', { sel: true, aria: 'Instalar la app en mi celular', onclick: instalar }),
     n ? h('div', { class: 'stack tight' }, label('Recientes'), app.samples.slice(0, 3).map(s => sampleRow(s))) : null,
-    h('p', { class: 'muted tiny center' }, `Beta ${VERSION} · Desarrollado por: Rolando Chaparro Gehren`),
+    h('p', { class: 'muted tiny center' }, `Beta ${VERSION} · versión ${BUILD} · Desarrollado por: Rolando Chaparro Gehren`),
     sesion ? (sesion.hidden = false, sesion) : null);
 }
 

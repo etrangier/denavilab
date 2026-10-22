@@ -29,6 +29,8 @@ export function go(tab, id) {
 export const openSample = (s, tab = 'editar') => go(tab, s.id);
 
 export const VERSION = '0.1.0';
+/** Número de publicación: coincide con el de sw.js (sounds-vN). Se muestra en Inicio para saber de un vistazo si la PWA está al día. */
+export const BUILD = 23;
 
 // ---------- Instalar como app (acceso directo en la pantalla de inicio del celular) ----------
 export const inst = { evt: null, done: false };      // `evt`: aviso de instalación que ofrece Chrome en Android

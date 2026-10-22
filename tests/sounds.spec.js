@@ -1560,3 +1560,15 @@ test.describe('volumen parejo y tipos de sonido', () => {
     expect(errores).toEqual([]);
   });
 });
+
+test.describe('versión visible', () => {
+  test('Inicio muestra el número de versión y coincide con el de la caché del service worker', async ({ page }) => {
+    await abrir(page, 'schair');
+    const r = await page.evaluate(async () => {
+      const st = await import('/sounds/state.js'), sw = await (await fetch('/sounds/sw.js')).text();
+      return { build: st.BUILD, cache: Number((sw.match(/const VERSION = 'sounds-v(\d+)'/) || [])[1]) };
+    });
+    expect(r.build).toBeGreaterThan(0); expect(r.build).toBe(r.cache);
+    await expect(page.locator('#screen')).toContainText(`Beta 0.1.0 · versión ${r.build}`);
+  });
+});
