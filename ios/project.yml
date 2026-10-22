@@ -18,6 +18,8 @@ targets:
       path: Grabadora/Info.plist
       properties:
         CFBundleDisplayName: "DenaviLab: Sounds"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"          # el CI pone aquí el número de ejecución (compilación)
         NSMicrophoneUsageDescription: "DenaviLab: Sounds necesita el micrófono para grabar tus samples."
         UIBackgroundModes: [audio]
         UILaunchScreen: {}
