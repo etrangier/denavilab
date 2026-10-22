@@ -8,6 +8,8 @@ struct HomeView: View {
     @State private var showManual = false
 
     private var version: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0" }
+    /// Número de compilación (el de la ejecución de GitHub que generó el .ipa): sirve para saber de un vistazo si la app instalada es la última.
+    private var build: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1" }
 
     var body: some View {
         Screen {
@@ -23,7 +25,7 @@ struct HomeView: View {
                     shortcut("Manual", detail: "Glosario técnico", icon: "book.fill") { showManual = true }
                 }
                 if !lib.samples.isEmpty { recents }
-                Text("Beta \(version) · Desarrollado por: Rolando Chaparro Gehren")
+                Text("Beta \(version) · compilación \(build) · Desarrollado por: Rolando Chaparro Gehren")
                     .font(Theme.font(11)).foregroundColor(Theme.muted).multilineTextAlignment(.center).padding(.top, 6)
             }
         }

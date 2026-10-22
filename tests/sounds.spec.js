@@ -269,7 +269,7 @@ test.describe('de la grabación a la exportación (Rolando)', () => {
     expect(w).toMatchObject({ riff: 'RIFF', canales: 1, rate: 48000, bits: 16 });
     expect(w.datos).toBeGreaterThan(48000 * 2);                                        // más de 1 s de audio
     let max = 0; for (let i = 44; i + 1 < buf.length; i += 2) max = Math.max(max, Math.abs(buf.readInt16LE(i)));
-    expect(max).toBeGreaterThan(2000);                                                 // suena: no está vacío (nivelado, no al máximo)
+    expect(max).toBeGreaterThan(500); expect(max).toBeLessThan(12000);                  // suena (no está vacío) y sale nivelado a −30 dB típicos, lejos del máximo
     expect(errores).toEqual([]);
   });
 
@@ -1513,13 +1513,13 @@ test.describe('volumen parejo y tipos de sonido', () => {
   });
 
   test('el nivel objetivo se ajusta en Compartir y manda sobre el de fábrica', async ({ page }) => {
-    await abrir(page, 'schair', { 'denavilab.sounds.levelTarget': '-30' });
+    await abrir(page, 'schair', { 'denavilab.sounds.levelTarget': '-20' });
     const r = await page.evaluate(async () => {
       const d = await import('/sounds/dsp.js'), x = new Float32Array(48000).map((_, i) => 0.5 * Math.sin(2 * Math.PI * 220 * i / 48000));
       const a = d.levelTo(x, 48000).afterDB; localStorage.setItem('denavilab.sounds.levelTarget', '5'); const tope = d.levelTarget(); localStorage.setItem('denavilab.sounds.levelTarget', '"x"');
       return { guardado: a, tope, basura: d.levelTarget(), fabrica: d.LEVEL_TARGET_DB };
     });
-    expect(r.guardado).toBeCloseTo(-30, 0); expect(r.tope).toBe(-6); expect(r.basura).toBe(r.fabrica); expect(r.fabrica).toBe(-24);
+    expect(r.guardado).toBeCloseTo(-20, 0); expect(r.tope).toBe(-6); expect(r.basura).toBe(r.fabrica); expect(r.fabrica).toBe(-30);
   });
 
   test('Editar: Nivelar volumen lleva la toma al nivel objetivo y se deshace; Compartir tiene el interruptor encendido', async ({ page }) => {
@@ -1534,8 +1534,8 @@ test.describe('volumen parejo y tipos de sonido', () => {
     await page.locator('.row-btn', { hasText: 'Pad fuerte' }).click();
     await expect(page.locator('#screen')).toContainText('nivel -9 dB');
     await page.getByRole('button', { name: 'Nivelar volumen', exact: true }).click();
-    await expect(page.locator('#toast')).toContainText('nivel típico de -9 a -24 dB (−15,0 dB)');
-    await expect(page.locator('#screen')).toContainText('nivel -24 dB');
+    await expect(page.locator('#toast')).toContainText('nivel típico de -9 a -30 dB (−21,0 dB)');
+    await expect(page.locator('#screen')).toContainText('nivel -30 dB');
     await page.getByRole('button', { name: 'Deshacer' }).click();
     await expect(page.locator('#screen')).toContainText('nivel -9 dB');
     await tab(page, 'exportar');
@@ -1557,6 +1557,69 @@ test.describe('volumen parejo y tipos de sonido', () => {
     await page.waitForTimeout(1500);
     await page.getByRole('button', { name: 'Parar grabación' }).click();
     await expect.poll(() => page.evaluate(async () => (await (await import('/sounds/store.js')).listSamples()).map(m => m.name + '|' + m.kind))).toEqual(['textura_001|textura']);
+    expect(errores).toEqual([]);
+  });
+});
+
+test.describe('versión visible', () => {
+  test('Inicio muestra el número de versión y coincide con el de la caché del service worker', async ({ page }) => {
+    await abrir(page, 'schair');
+    const r = await page.evaluate(async () => {
+      const st = await import('/sounds/state.js'), sw = await (await fetch('/sounds/sw.js')).text();
+      return { build: st.BUILD, cache: Number((sw.match(/const VERSION = 'sounds-v(\d+)'/) || [])[1]) };
+    });
+    expect(r.build).toBeGreaterThan(0); expect(r.build).toBe(r.cache);
+    await expect(page.locator('#screen')).toContainText(`Beta 0.1.0 · versión ${r.build}`);
+  });
+});
+
+test.describe('importar sonidos', () => {
+  test('núcleo: lee WAV de 8, 16, 24 y 32 bits, flotantes y estéreo, salta bloques extra y rechaza lo que no entiende', async ({ page }) => {
+    await abrir(page, 'schair');
+    const r = await page.evaluate(async () => {
+      const im = await import('/sounds/importer.js');
+      const wav = ({ format = 1, channels = 1, rate = 44100, bits = 16, frames = 4, frame, extra = false, ext = false }) => {
+        const bps = bits / 8, dataLen = frames * channels * bps, fmtLen = ext ? 40 : 16, extraLen = extra ? 8 + 6 : 0, total = 12 + 8 + fmtLen + extraLen + 8 + dataLen, b = new Uint8Array(total), v = new DataView(b.buffer);
+        const tag = (o, t) => [...t].forEach((c, i) => { b[o + i] = c.charCodeAt(0); });
+        tag(0, 'RIFF'); v.setUint32(4, total - 8, true); tag(8, 'WAVE'); tag(12, 'fmt '); v.setUint32(16, fmtLen, true);
+        v.setUint16(20, ext ? 0xFFFE : format, true); v.setUint16(22, channels, true); v.setUint32(24, rate, true); v.setUint32(28, rate * channels * bps, true); v.setUint16(32, channels * bps, true); v.setUint16(34, bits, true);
+        if (ext) { v.setUint16(36, 22, true); v.setUint16(38, bits, true); v.setUint32(40, 3, true); v.setUint16(44, format, true); }
+        let o = 20 + fmtLen; if (extra) { tag(o, 'LIST'); v.setUint32(o + 4, 6, true); o += 14; }
+        tag(o, 'data'); v.setUint32(o + 4, dataLen, true); o += 8;
+        for (let i = 0; i < frames; i++) for (let c = 0; c < channels; c++) { const x = frame(i, c), p = o + (i * channels + c) * bps;
+          if (format === 3) v.setFloat32(p, x, true); else if (bits === 8) b[p] = Math.round(x * 127 + 128); else if (bits === 16) v.setInt16(p, Math.round(x * 32767), true);
+          else if (bits === 24) { const n = Math.round(x * 8388607); b[p] = n & 255; b[p + 1] = (n >> 8) & 255; b[p + 2] = (n >> 16) & 255; } else v.setInt32(p, Math.round(x * 2147483647), true); }
+        return b;
+      };
+      const near = (a, b) => Math.abs(a - b) < 0.02, vals = [0.5, -0.25, 0.75, 0], f = i => vals[i];
+      const out = {};
+      for (const bits of [8, 16, 24, 32]) { const w = im.parseWav(wav({ bits, frame: f })); out['pcm' + bits] = !!w && w.rate === 44100 && w.samples.length === 4 && vals.every((x, i) => near(w.samples[i], x)); }
+      const fl = im.parseWav(wav({ format: 3, bits: 32, frame: f })), st = im.parseWav(wav({ channels: 2, rate: 48000, frame: (i, c) => c ? 0.25 : 0.75 })), ex = im.parseWav(wav({ extra: true, frame: f })), xt = im.parseWav(wav({ ext: true, bits: 24, frame: f }));
+      out.float = !!fl && vals.every((x, i) => near(fl.samples[i], x)); out.estereo = !!st && st.rate === 48000 && st.channels === 2 && st.samples.every(v => near(v, 0.5));
+      out.extra = !!ex && ex.samples.length === 4 && near(ex.samples[2], 0.75); out.extensible = !!xt && near(xt.samples[0], 0.5);
+      out.noWav = [im.parseWav(new Uint8Array(10)), im.parseWav(new Uint8Array(100)), im.parseWav(wav({ bits: 16, frame: f }).slice(0, 30)), im.parseWav(wav({ format: 85, bits: 16, frame: f }))].map(v => v === null);
+      out.nombres = [im.baseName('Pearls_Sade.wav'), im.baseName('a.b.c.mp3'), im.baseName('.wav'), im.baseName('')];
+      return out;
+    });
+    expect(r.pcm8).toBe(true); expect(r.pcm16).toBe(true); expect(r.pcm24).toBe(true); expect(r.pcm32).toBe(true); expect(r.float).toBe(true); expect(r.estereo).toBe(true);
+    expect(r.extra).toBe(true); expect(r.extensible).toBe(true); expect(r.noWav).toEqual([true, true, true, true]);
+    expect(r.nombres).toEqual(['Pearls Sade', 'a.b.c', 'Sonido importado', 'Sonido importado']);
+  });
+
+  test('Biblioteca: «Importar sonidos» trae varios WAV a Sin clasificar con su nombre y frecuencia, y avisa de los que no se pueden leer', async ({ page }) => {
+    const errores = vigilar(page);
+    await abrir(page, 'schair');
+    await tab(page, 'biblioteca');
+    await expect(page.getByRole('button', { name: 'Importar sonidos' })).toBeVisible();
+    const wav = (rate, n, amp) => { const b = Buffer.alloc(44 + n * 2); b.write('RIFF', 0); b.writeUInt32LE(36 + n * 2, 4); b.write('WAVEfmt ', 8); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22); b.writeUInt32LE(rate, 24); b.writeUInt32LE(rate * 2, 28); b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write('data', 36); b.writeUInt32LE(n * 2, 40); for (let i = 0; i < n; i++) b.writeInt16LE(Math.round(amp * 32767 * Math.sin(i * 0.05)), 44 + i * 2); return b; };
+    await page.locator('input[aria-label="Elegir sonidos para importar"]').setInputFiles([
+      { name: 'Pearls_Sade.wav', mimeType: 'audio/wav', buffer: wav(44100, 44100, 0.5) }, { name: 'Camel_Supertwister.wav', mimeType: 'audio/wav', buffer: wav(48000, 24000, 0.8) },
+      { name: 'roto.wav', mimeType: 'audio/wav', buffer: Buffer.from('esto no es audio') }]);
+    await expect(page.locator('#toast')).toContainText('2 sonidos importados en Sin clasificar'); await expect(page.locator('#toast')).toContainText('no se pudo leer: roto.wav');
+    const m = await page.evaluate(async () => (await (await import('/sounds/store.js')).listSamples()).map(v => ({ n: v.name, r: v.rate, d: Math.round(v.duration * 100) / 100, f: v.folder })).sort((a, b) => a.n.localeCompare(b.n)));
+    expect(m).toEqual([{ n: 'Camel Supertwister', r: 48000, d: 0.5, f: 'Sin clasificar' }, { n: 'Pearls Sade', r: 44100, d: 1, f: 'Sin clasificar' }]);
+    await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await expect(page.locator('.row-btn', { hasText: 'Pearls Sade' })).toBeVisible();
     expect(errores).toEqual([]);
   });
 });

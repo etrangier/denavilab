@@ -1,4 +1,5 @@
 import XCTest
+import AVFoundation
 @testable import DenaviGrabadora
 
 final class LogicTests: XCTestCase {
@@ -669,6 +670,28 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(Level.levelTo(pad, rate: rate, targetDB: -30).afterDB, -30, accuracy: 0.6)
         XCTAssertEqual(Level.Kind.allCases.map(\.rawValue), ["libre", "textura", "bajo", "bateria"])
         XCTAssertEqual(QuickSave.autoName(count: 2, prefix: "textura"), "textura_003")
+    }
+
+    func testImportReadsStereoAsMonoKeepingRateAndNamesFromFile() throws {
+        let rate = 44_100.0, n = 4_410
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("Pearls_Sade.wav")
+        try? FileManager.default.removeItem(at: url)
+        do {
+            let settings: [String: Any] = [AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: rate, AVNumberOfChannelsKey: 2, AVLinearPCMBitDepthKey: 16,
+                                           AVLinearPCMIsFloatKey: false, AVLinearPCMIsBigEndianKey: false]
+            let file = try AVAudioFile(forWriting: url, settings: settings)
+            let buf = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(n)))
+            buf.frameLength = AVAudioFrameCount(n)
+            let l = try XCTUnwrap(buf.floatChannelData)
+            for i in 0..<n { l[0][i] = 0.75; l[1][i] = 0.25 }
+            try file.write(from: buf)
+        }
+        let item = try AudioImport.read(url)
+        XCTAssertEqual(item.rate, 44_100); XCTAssertEqual(item.samples.count, n); XCTAssertEqual(item.name, "Pearls Sade")
+        XCTAssertEqual(Double(item.samples[100]), 0.5, accuracy: 0.01)                  // estéreo → mono (promedio)
+        XCTAssertEqual(AudioImport.baseName("a.b.c.mp3"), "a.b.c"); XCTAssertEqual(AudioImport.baseName(".wav"), "Sonido importado"); XCTAssertEqual(AudioImport.baseName(""), "Sonido importado")
+        XCTAssertThrowsError(try AudioImport.read(FileManager.default.temporaryDirectory.appendingPathComponent("no-existe.wav")))
+        XCTAssertEqual(Level.defaultTargetDB, -30)
     }
 
     func testFixedBpmKeepsPitchWithWsola() {

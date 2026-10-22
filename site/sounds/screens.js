@@ -1,11 +1,12 @@
 // Pantallas: Inicio, Grabar, Biblioteca, Exportar, y las hojas (retroactiva, guardar, metrónomo, manual…).
-import { app, go, openSample, refreshSamples, sampleById, VERSION, inst, isStandalone, platform, installApp } from './state.js';
+import { app, go, openSample, refreshSamples, sampleById, VERSION, BUILD, inst, isStandalone, platform, installApp } from './state.js';
 import { h, mount, fill, btn, link, chip, card, label, muted, title, toggleRow, sliderRow, logo, sheet, confirmSheet, promptSheet, toast, folderPicker, drawBars } from './ui.js';
 import * as dsp from './dsp.js';
 import { FOLDERS, UNSORTED, folderDetail, folderOf } from './folders.js';
 import { getAudio, putSample, putMany, deleteSamples, newSample } from './store.js';
 import { manualFor } from './manual.js';
 import { makeZip, readZip } from './zip.js';
+import { decodeFile, baseName, MAX_SECONDS } from './importer.js';
 import { rateLabel, exportRates, KO_EXPORT } from './profile.js';
 
 const ls = {
@@ -86,7 +87,7 @@ export function renderHome(root) {
       shortcut('Manual', 'Glosario técnico', '?', openManual)),
     isStandalone() || inst.done ? null : btn('📲 Instalar en mi celular', { sel: true, aria: 'Instalar la app en mi celular', onclick: instalar }),
     n ? h('div', { class: 'stack tight' }, label('Recientes'), app.samples.slice(0, 3).map(s => sampleRow(s))) : null,
-    h('p', { class: 'muted tiny center' }, `Beta ${VERSION} · Desarrollado por: Rolando Chaparro Gehren`),
+    h('p', { class: 'muted tiny center' }, `Beta ${VERSION} · versión ${BUILD} · Desarrollado por: Rolando Chaparro Gehren`),
     sesion ? (sesion.hidden = false, sesion) : null);
 }
 
@@ -331,7 +332,7 @@ export function renderLibrary(root) {
     const q = L.query.trim().toLowerCase();
     if (!n) {
       fill(results, h('div', { class: 'empty' }, logo(56), h('h2', {}, 'Aún no hay samples'),
-        muted('Graba tu primer sample y aparecerá aquí, ordenado por carpeta.', 'center'), btn('Grabar', { kind: 'amber', onclick: () => go('grabar') }),
+        muted('Graba tu primer sample y aparecerá aquí, ordenado por carpeta.', 'center'), btn('Grabar', { kind: 'amber', onclick: () => go('grabar') }), btn('Importar sonidos', { small: true, act: 'importar', onclick: () => importInput.click() }),
         label('Carpetas'), h('div', { class: 'wrap' }, FOLDERS.map(f => h('span', { class: 'chip static' }, f.name)))));
     } else if (q) {
       const found = app.samples.filter(s => s.name.toLowerCase().includes(q) || (s.tags || []).some(t => t.toLowerCase().includes(q)));
@@ -344,15 +345,18 @@ export function renderLibrary(root) {
             h('span', { class: 'dot' }), h('span', { class: 'rb-text' }, h('b', { class: hl ? 'amber' : '' }, f.name), h('small', {}, folderDetail(f))), h('b', { class: 'amber' }, String(c)));
         }),
         label('Recientes'), app.samples.slice(0, 5).map(s => sampleRow(s, { listen: true })),
+        btn('Importar sonidos', { small: true, act: 'importar', onclick: () => importInput.click() }),
+        muted('Trae WAV (también MP3, M4A…) desde Archivos o Drive. Entran a Sin clasificar, a su frecuencia original y en mono.', 'tiny'),
         h('div', { class: 'row2 backup' }, btn('Copia de seguridad', { small: true, onclick: backupAll }), btn('Restaurar', { small: true, onclick: () => fileInput.click() })));
     }
   };
   const fileInput = h('input', { type: 'file', accept: '.zip,application/zip', hidden: true, onchange: e => restoreBackup(e.target.files[0]) });
+  const importInput = h('input', { type: 'file', accept: 'audio/*,.wav,.mp3,.m4a,.aac,.aif,.aiff,.flac,.ogg', multiple: true, hidden: true, 'aria-label': 'Elegir sonidos para importar', onchange: e => { importFiles([...e.target.files]); e.target.value = ''; } });
   mount(root, 
     title('Biblioteca', null, h('span', { class: 'row-gap' }, h('span', { class: 'muted small' }, `${n} ${n === 1 ? 'grabación' : 'grabaciones'}`),
       n ? link('Seleccionar', () => { L.folder = '*'; L.selecting = true; L.sel = new Set(); app.render(); }) : null)),
     h('input', { type: 'search', class: 'field', placeholder: 'Buscar sonido…', value: L.query, 'aria-label': 'Buscar sonido', oninput: e => { L.query = e.target.value; paint(); } }),
-    results, fileInput);
+    results, fileInput, importInput);
   paint();
 }
 
@@ -432,6 +436,22 @@ async function backupAll() {
   for (const s of app.samples) files.push({ name: `audio/${s.id}.wav`, data: dsp.encodeWav(await getAudio(s.id), s.rate) });
   const d = new Date(), stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   await deliver(new File([makeZip(files)], `denavilab-sounds-copia-${stamp}.zip`, { type: 'application/zip' }));
+}
+
+/** Importa archivos de audio como sonidos nuevos: mono, a su frecuencia original, en Sin clasificar. Los muy largos o ilegibles se saltan y se avisa. */
+async function importFiles(files) {
+  if (!files.length) return;
+  toast(files.length === 1 ? 'Importando…' : `Importando ${files.length} archivos…`);
+  let ok = 0; const bad = [];
+  for (const f of files) {
+    try {
+      const d = await decodeFile(f);
+      if (!d.samples.length || d.samples.length / d.rate > MAX_SECONDS) throw new Error('largo');
+      await putSample(newSample(baseName(f.name), d.samples, d.rate), d.samples); ok++;
+    } catch (err) { bad.push(f.name); }
+  }
+  await refreshSamples(); app.render();
+  toast(`${ok === 1 ? '1 sonido importado' : ok + ' sonidos importados'} en Sin clasificar` + (bad.length ? ` · no se pudo leer: ${bad.slice(0, 3).join(', ')}${bad.length > 3 ? '…' : ''} (sólo hasta ${MAX_SECONDS / 60} min)` : ''));
 }
 
 async function restoreBackup(file) {

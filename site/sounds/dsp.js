@@ -317,7 +317,7 @@ export function activeRMS(x, rate) {
 }
 
 /** Nivel objetivo (en dB) del volumen típico de un sonido: así los pads y los golpes salen parejos. Por calibrar con el aparato. */
-export const LEVEL_TARGET_DB = -24;
+export const LEVEL_TARGET_DB = -30;
 /** Techo del pico (dB) al nivelar. */
 export const LEVEL_CEILING_DB = -3;
 /** Nivel objetivo elegido por el usuario (se guarda en el dispositivo); en un hilo sin almacenamiento, el de fábrica. */
