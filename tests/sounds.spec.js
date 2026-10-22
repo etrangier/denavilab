@@ -56,7 +56,7 @@ test.describe('núcleo de audio (dsp.js)', () => {
       return {
         wav: [w.length, back.rate, Math.abs(back.samples[1] - .5) < 1e-3], res: d.resample(new Float32Array(48000), 48000, 46875).length,
         baja: d.quickProcess(quiet, 48000, s).length / quiet.length, clic: d.quickProcess(click, 48000, s).length,
-        norm: Math.max(...d.quickProcess(new Float32Array(48000).fill(.004), 48000, d.QUICK_DEFAULTS)),
+        norm: Math.max(...d.quickProcess(new Float32Array(48000).fill(.004), 48000, { ...d.QUICK_DEFAULTS, level: false })),
         bpm100: d.estimateBPM(track(100, 10), 44100).bpm, bpm120: d.estimateBPM(track(120, 10), 44100).bpm, silencio: d.estimateBPM(new Float32Array(100000), 44100),
         nombres: d.names('Kick', 3), ventana: [d.windowRange(1000, 250, 10), d.windowRange(1000, 250, 990)],
         compases: [d.takeSamples(2, 4, 120, 48000), d.takeSamples(0, 4, 120, 48000)], zip: [zip.length, zip[0].name, zip[0].data.length],
@@ -269,7 +269,7 @@ test.describe('de la grabación a la exportación (Rolando)', () => {
     expect(w).toMatchObject({ riff: 'RIFF', canales: 1, rate: 48000, bits: 16 });
     expect(w.datos).toBeGreaterThan(48000 * 2);                                        // más de 1 s de audio
     let max = 0; for (let i = 44; i + 1 < buf.length; i += 2) max = Math.max(max, Math.abs(buf.readInt16LE(i)));
-    expect(max).toBeGreaterThan(20000);                                                // suena: no está vacío
+    expect(max).toBeGreaterThan(2000);                                                 // suena: no está vacío (nivelado, no al máximo)
     expect(errores).toEqual([]);
   });
 
@@ -1275,7 +1275,7 @@ test.describe('depuración: historial acotado y lo compartido siempre al día', 
   });
 
   test('cada guardado renueva la versión: lo preparado para compartir nunca queda viejo', async ({ page }) => {
-    await abrir(page, 'schair'); await sembrar(page, ['uno']);
+    await abrir(page, 'schair', { 'denavilab.sounds.levelExport': 'false' }); await sembrar(page, ['uno']);
     await page.evaluate(() => { window.__c = []; navigator.canShare = d => !!(d && d.files && d.files.length); navigator.share = async d => { const b = new Uint8Array(await d.files[0].arrayBuffer()); let m = 0; for (let i = 44; i + 1 < b.length; i += 2) m = Math.max(m, Math.abs(new Int16Array(b.buffer, i, 1)[0] || 0)); window.__c.push(m); }; });
     await tab(page, 'exportar');
     await page.getByRole('button', { name: 'Compartir WAV' }).click();
@@ -1486,6 +1486,77 @@ test.describe('scratch', () => {
     await page.getByRole('button', { name: 'Guardar', exact: true }).click(); await expect(page.locator('#toast')).toContainText('Guardado');
     expect(await largo()).toBe(48000 * 3);
     await expect(page.locator('#screen')).not.toContainText(/K\.O\.|slot|46 875/i);
+    expect(errores).toEqual([]);
+  });
+});
+
+test.describe('volumen parejo y tipos de sonido', () => {
+  test('núcleo: un pad y un golpe con el mismo pico quedan al mismo nivel; los picos no pasan del techo', async ({ page }) => {
+    await abrir(page);
+    const r = await page.evaluate(async () => {
+      const d = await import('/sounds/dsp.js'), rate = 48000;
+      const pad = new Float32Array(rate * 3).map((_, i) => 0.5 * Math.sin(2 * Math.PI * 220 * i / rate));                          // sostenido: pico = nivel
+      const golpe = new Float32Array(rate * 3); for (let i = 0; i < 4000; i++) golpe[i] = 0.9 * Math.sin(2 * Math.PI * 120 * i / rate) * Math.exp(-i / 700);  // seco: pico >> nivel
+      const suave = new Float32Array(rate * 2).map((_, i) => 0.02 * Math.sin(2 * Math.PI * 330 * i / rate));
+      const pk = y => { let m = 0; for (const v of y) m = Math.max(m, Math.abs(v)); return m; }, a = d.levelTo(pad, rate), b = d.levelTo(golpe, rate), c = d.levelTo(suave, rate), n = d.normalize(golpe);
+      return { antes: [d.levelDB(pad, rate), d.levelDB(golpe, rate)], despues: [a.afterDB, b.afterDB, c.afterDB], picos: [pk(a.audio), pk(b.audio), pk(c.audio)], flags: [a.limited, b.limited, b.short, c.limited],
+        normalizado: [d.levelDB(d.normalize(pad), rate), d.levelDB(n, rate)], silencio: d.levelTo(new Float32Array(1000), rate).gainDB, objetivo: d.LEVEL_TARGET_DB, finito: Array.from(b.audio).every(Number.isFinite),
+        tipos: Object.keys(d.SOUND_KINDS), nombre: d.autoName(2, 'textura'), quick: [d.QUICK_DEFAULTS.level, pk(d.quickProcess(pad, rate, { trim: false, fades: false, level: true })) < 0.9] };
+    });
+    expect(Math.abs(r.antes[0] - r.antes[1])).toBeGreaterThan(2);                  // con el mismo pico, el nivel típico del pad y del golpe difiere
+    expect(r.despues[0]).toBeCloseTo(r.objetivo, 0); expect(r.despues[2]).toBeCloseTo(r.objetivo, 0);       // pad y sonido suave quedan en el objetivo
+    expect(r.despues[1]).toBeGreaterThan(r.objetivo - 10); expect(r.despues[1]).toBeLessThanOrEqual(r.despues[0] + 1);   // el golpe sube cuanto los picos permiten
+    expect(Math.max(...r.picos)).toBeLessThanOrEqual(0.7080 + 1e-3);              // techo de −3 dB
+    expect(r.flags[0]).toBe(false); expect(r.flags[3]).toBe(false); expect(r.finito).toBe(true);
+    expect(Math.abs(r.normalizado[0] - r.normalizado[1])).toBeGreaterThan(2);      // lo que pasaba antes: mismo pico, niveles distintos
+    expect(r.silencio).toBe(0); expect(r.tipos).toEqual(['libre', 'textura', 'bajo', 'bateria']); expect(r.nombre).toBe('textura_003'); expect(r.quick[0]).toBe(true);
+  });
+
+  test('el nivel objetivo se ajusta en Compartir y manda sobre el de fábrica', async ({ page }) => {
+    await abrir(page, 'schair', { 'denavilab.sounds.levelTarget': '-30' });
+    const r = await page.evaluate(async () => {
+      const d = await import('/sounds/dsp.js'), x = new Float32Array(48000).map((_, i) => 0.5 * Math.sin(2 * Math.PI * 220 * i / 48000));
+      const a = d.levelTo(x, 48000).afterDB; localStorage.setItem('denavilab.sounds.levelTarget', '5'); const tope = d.levelTarget(); localStorage.setItem('denavilab.sounds.levelTarget', '"x"');
+      return { guardado: a, tope, basura: d.levelTarget(), fabrica: d.LEVEL_TARGET_DB };
+    });
+    expect(r.guardado).toBeCloseTo(-30, 0); expect(r.tope).toBe(-6); expect(r.basura).toBe(r.fabrica); expect(r.fabrica).toBe(-24);
+  });
+
+  test('Editar: Nivelar volumen lleva la toma al nivel objetivo y se deshace; Compartir tiene el interruptor encendido', async ({ page }) => {
+    const errores = vigilar(page);
+    await abrir(page, 'schair');
+    await page.evaluate(async () => {
+      const st = await import('/sounds/store.js'), a = new Float32Array(48000 * 2).map((_, i) => 0.5 * Math.sin(2 * Math.PI * 220 * i / 48000));
+      await st.putSample(st.newSample('Pad fuerte', a, 48000), a);
+    });
+    await page.reload();
+    await tab(page, 'biblioteca'); await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
+    await page.locator('.row-btn', { hasText: 'Pad fuerte' }).click();
+    await expect(page.locator('#screen')).toContainText('nivel -9 dB');
+    await page.getByRole('button', { name: 'Nivelar volumen', exact: true }).click();
+    await expect(page.locator('#toast')).toContainText('nivel típico de -9 a -24 dB (−15,0 dB)');
+    await expect(page.locator('#screen')).toContainText('nivel -24 dB');
+    await page.getByRole('button', { name: 'Deshacer' }).click();
+    await expect(page.locator('#screen')).toContainText('nivel -9 dB');
+    await tab(page, 'exportar');
+    await expect(page.getByLabel('Nivelar volumen')).toBeChecked();
+    await expect(page.getByLabel('Nivel objetivo')).toBeVisible();
+    expect(errores).toEqual([]);
+  });
+
+  test('Grabar: el tipo de sonido guía la toma, nombra el archivo y se guarda nivelado', async ({ page }) => {
+    const errores = vigilar(page);
+    await abrir(page, 'rolando', { 'denavilab.sounds.quick': JSON.stringify({ enabled: true }) });
+    await tab(page, 'grabar');
+    await expect(page.getByText('Tipo de sonido')).toBeVisible();
+    for (const t of ['Libre', 'Textura', 'Bajo', 'Batería']) await expect(page.getByRole('button', { name: t, exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Textura', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Textura', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#screen')).toContainText('1 o 2 notas sostenidas, de 2 a 8 s');
+    await page.getByRole('button', { name: 'Grabar', exact: true }).click();
+    await page.waitForTimeout(1500);
+    await page.getByRole('button', { name: 'Parar grabación' }).click();
+    await expect.poll(() => page.evaluate(async () => (await (await import('/sounds/store.js')).listSamples()).map(m => m.name + '|' + m.kind))).toEqual(['textura_001|textura']);
     expect(errores).toEqual([]);
   });
 });

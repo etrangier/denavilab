@@ -14,6 +14,8 @@ const ls = {
 };
 const hz = r => String(r).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' Hz';
 const pathOf = s => [folderOf(s), s.subfolder].filter(Boolean).join(' › ');
+/** ¿Nivelar el volumen al compartir? Encendido por defecto: los sonidos salen parejos, no unos muy fuertes y otros muy bajos. */
+export const levelOn = () => ls.get('levelExport', true);
 export const exportRate = () => { const r = ls.get('rate', exportRates()[0]); return exportRates().includes(r) ? r : exportRates()[0]; };
 export const loadQuick = () => ({ ...dsp.QUICK_DEFAULTS, ...ls.get('quick', {}) });
 
@@ -105,6 +107,7 @@ export function renderRecord(root) {
   const side = (name, icon, on, onclick) => h('div', { class: 'side' },
     h('button', { type: 'button', class: 'circle' + (on ? ' on' : ''), onclick, 'aria-pressed': on == null ? null : String(!!on), 'aria-label': name }, icon),
     h('span', { class: 'muted tiny' }, name));
+  const kind = dsp.SOUND_KINDS[ls.get('kind', 'libre')] ? ls.get('kind', 'libre') : 'libre', maxSec = dsp.SOUND_KINDS[kind].maxSec;
   const first = app.samples.length === 0 && listening;
   const recBtn = h('button', { type: 'button', class: 'rec-btn' + (rec ? ' on' : '') + (first && !rec ? ' first' : ''), 'aria-label': rec ? 'Parar grabación' : 'Grabar', onclick: onRecord },
     h('span', { class: 'rec-in' }));
@@ -125,6 +128,9 @@ export function renderRecord(root) {
     denied,
     denied ? null : [
       card([h('b', {}, 'Entrada · Micrófono del dispositivo')]),
+      card([h('b', {}, 'Tipo de sonido'),
+        h('div', { class: 'wrap' }, Object.entries(dsp.SOUND_KINDS).map(([k, v]) => chip(v.label, kind === k, () => { ls.set('kind', k); app.render(); }))),
+        h('p', { class: 'muted tiny' }, dsp.SOUND_KINDS[kind].hint)]),
       card([h('div', { class: 'sr-head' }, h('span', { class: 'muted small' }, 'Nivel'), db), h('div', { class: 'meter' }, levelFill)]),
       waveCard, timer, dots, notice, buffer,
       first ? h('div', { class: 'center' }, h('span', { class: 'pill static' }, '↓ Empieza aquí')) : null,
@@ -165,7 +171,7 @@ export function renderRecord(root) {
     drawBars(wave, live ? e.liveWave : [], [0, 1]);
     waveCard.classList.toggle('flash', m.flashing && m.flash);
     fill(dots, ...(m.running && m.mode === 'bar' ? Array.from({ length: m.beats }, (_, i) => h('i', { class: i === m.beat ? 'on' : '' })) : []));
-    notice.textContent = e.clipped ? 'Clip: baja la ganancia de entrada' : '';
+    notice.textContent = e.clipped ? 'Clip: baja la ganancia de entrada' : maxSec && rec && e.elapsed > maxSec ? `Ya pasa de ${maxSec} s: para ${dsp.SOUND_KINDS[kind].label.toLowerCase()} conviene parar y grabar otra toma más corta` : '';
     raf = requestAnimationFrame(paint);
   };
   paint();
@@ -178,9 +184,10 @@ export async function finishTake(audio) {
   if (!audio || !audio.length) return;
   const rate = app.engine.rate, q = loadQuick();
   if (!q.enabled) return showSave(audio, rate);
-  const out = dsp.quickProcess(audio, rate, q), name = dsp.autoName(app.samples.length);
+  const kind = ls.get('kind', 'libre'), kd = dsp.SOUND_KINDS[kind] || dsp.SOUND_KINDS.libre;
+  const out = dsp.quickProcess(audio, rate, q), name = dsp.autoName(app.samples.length, kd.prefix);
   try {
-    await putSample(newSample(name, out, rate), out);
+    await putSample(newSample(name, out, rate, kind === 'libre' ? {} : { kind }), out);
     await refreshSamples();
     toast(`Guardada: ${name} · ${dsp.stamp(audio.length / rate)} → ${dsp.stamp(out.length / rate)}`);
   } catch (err) { toast('No se pudo guardar (¿poco espacio en el dispositivo?)'); }
@@ -259,7 +266,8 @@ function openQuick() {
       toggleRow('Recortar silencios', 'Quita el vacío al inicio y al final', q.trim, v => set('trim', v)),
       toggleRow('Fundidos cortos', '5 ms al inicio y al final, sin clics', q.fades, v => set('fades', v)),
       noiseRow(q, set),
-      toggleRow('Normalizar volumen', 'Sube el nivel hasta −1 dB', q.normalize, v => set('normalize', v)),
+      toggleRow('Nivelar volumen', `Lleva el nivel típico a ${dsp.levelTarget()} dB, sin pasar de ${dsp.LEVEL_CEILING_DB} dB en el pico`, q.level, v => set('level', v)),
+      toggleRow('Normalizar volumen', 'Sube el pico hasta −1 dB (si Nivelar está apagado)', q.normalize, v => set('normalize', v)),
       sliderRow('Umbral de silencio', { min: -80, max: -20, step: 1, value: q.thresholdDB, fmt: v => v + ' dB', onInput: v => set('thresholdDB', v) }),
       muted('El nombre es automático (grabacion_001…) y va a Sin clasificar. Puedes cambiar nombre, carpeta y recorte después.', 'center small'),
       btn('Listo', { kind: 'amber', onclick: close }));
@@ -451,12 +459,12 @@ const fileNameFor = s => {
 };
 /** WAV de un trozo de audio en memoria (nombre ya sin tildes), a la frecuencia de exportación actual. */
 export function wavFromAudio(name, audio, srcRate) {
-  const rate = exportRate(), out = dsp.resample(audio, srcRate, rate);
+  const rate = exportRate(), out = dsp.resample(levelOn() ? dsp.levelTo(audio, srcRate).audio : audio, srcRate, rate);
   return new File([dsp.encodeWav(out, rate)], fileNameFor({ name, slot: null }), { type: 'audio/wav' });
 }
 export { makeZip as zipFiles };
 async function wavFile(s, rate) {
-  const out = dsp.resample(await getAudio(s.id), s.rate, rate);
+  const raw = await getAudio(s.id), out = dsp.resample(levelOn() ? dsp.levelTo(raw, s.rate).audio : raw, s.rate, rate);
   return new File([dsp.encodeWav(out, rate)], fileNameFor(s), { type: 'audio/wav' });
 }
 export function download(file) {
@@ -483,7 +491,7 @@ export async function deliverMany(files, zipName = 'denavilab-sonidos.zip') {
 }
 /** WAV ya preparado de la grabación abierta: compartir necesita un toque reciente, así que se deja listo antes de que lo pidan. */
 const ready = { key: '', file: null };
-const readyKey = (s, rate) => [s.id, rate, s.duration, s.name, app.rev].join('|');
+const readyKey = (s, rate) => [s.id, rate, s.duration, s.name, app.rev, levelOn()].join('|');
 async function wavReady(s, rate) {
   const key = readyKey(s, rate);
   if (ready.key === key && ready.file) return ready.file;
@@ -516,6 +524,9 @@ export function renderExport(root) {
     koX() ? card([h('b', {}, 'Memoria'), h('p', { class: 'muted small' }, `${mb.toFixed(1).replace('.', ',')} MB · quedan ${Math.max(0, 128 - mb).toFixed(0)} MB de 128 MB`),
       h('div', { class: 'meter' }, h('div', { class: 'meter-fill', style: { width: Math.max(2, Math.min(100, mb / 128 * 100)) + '%' } }))]) : null,
     card([h('div', { class: 'between' }, h('span', { class: 'muted small' }, 'Nombre'), h('span', { class: 'small file-name' }, fileNameFor(s)))]),
+    toggleRow('Nivelar volumen', `Lleva el sonido al mismo nivel que los demás (${dsp.levelTarget()} dB de nivel típico) para que no suene muy fuerte ni muy bajo; el pico queda bajo ${dsp.LEVEL_CEILING_DB} dB`, levelOn(), v => { ls.set('levelExport', v); ready.key = ''; app.render(); }),
+    levelOn() ? sliderRow('Nivel objetivo', { min: -36, max: -12, step: 1, value: dsp.levelTarget(), fmt: v => v + ' dB', onInput: v => { ls.set('levelTarget', v); ready.key = ''; } }) : null,
+    levelOn() ? muted('Más a la izquierda, más bajo. Si en el aparato suenan más fuertes que sus sonidos de fábrica, baja este nivel hasta que igualen.', 'tiny') : null,
     muted(koX() ? 'Otras frecuencias y 24 bit no están confirmadas para el K.O. II.' : 'Se envía un archivo .wav (mono, 16 bit): por correo, Bluetooth, Drive o la app que elijas.', 'small'),
     ...(koX() ? koButtons(s, rate) : shareButtons(s, rate)));
 }

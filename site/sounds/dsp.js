@@ -316,6 +316,39 @@ export function activeRMS(x, rate) {
   return c ? Math.sqrt(e / c) : 0;
 }
 
+/** Nivel objetivo (en dB) del volumen típico de un sonido: así los pads y los golpes salen parejos. Por calibrar con el aparato. */
+export const LEVEL_TARGET_DB = -24;
+/** Techo del pico (dB) al nivelar. */
+export const LEVEL_CEILING_DB = -3;
+/** Nivel objetivo elegido por el usuario (se guarda en el dispositivo); en un hilo sin almacenamiento, el de fábrica. */
+export function levelTarget() { try { const v = JSON.parse(localStorage.getItem('denavilab.sounds.levelTarget')); return Number.isFinite(v) ? Math.max(-40, Math.min(-6, v)) : LEVEL_TARGET_DB; } catch (e) { return LEVEL_TARGET_DB; } }
+/** Nivel típico de un sonido en dB: la energía de sus partes activas (no cuenta los silencios ni las colas). −120 si es silencio. */
+export function levelDB(x, rate) { const r = activeRMS(x, rate); return r > 1e-6 ? toDB(r) : -120; }
+/**
+ * Lleva el nivel típico del sonido a `targetDB` (no el pico: un golpe seco y un pad con el mismo pico no suenan igual de fuerte).
+ * Si subir el nivel haría pasar el techo (`ceilingDB` en el pico), se deja subir hasta 6 dB más con un limitador suave
+ * (tanh sobre el 70 % del techo; −3 dB por defecto) y, si aun así no llega, queda por debajo del objetivo (`short`) en vez de distorsionar. Nunca sube más de 24 dB.
+ */
+export function levelTo(x, rate, targetDB = levelTarget(), ceilingDB = LEVEL_CEILING_DB) {
+  const before = levelDB(x, rate), p = peakOf(x);
+  if (before < -80 || p === 0) return { audio: x, beforeDB: before, afterDB: before, gainDB: 0, limited: false, short: false };
+  const ceil = Math.pow(10, ceilingDB / 20), want = Math.min(Math.pow(10, (targetDB - before) / 20), Math.pow(10, 24 / 20)), fit = ceil / p;
+  const g = want <= fit ? want : Math.min(want, fit * 2), limited = g > fit, y = new Float32Array(x.length), knee = ceil * 0.7;
+  for (let i = 0; i < x.length; i++) {
+    const v = x[i] * g, a = Math.abs(v);
+    y[i] = limited && a > knee ? Math.sign(v) * (knee + (ceil - knee) * Math.tanh((a - knee) / (ceil - knee))) : v;
+  }
+  return { audio: y, beforeDB: before, afterDB: levelDB(y, rate), gainDB: 20 * Math.log10(g), limited, short: g < want * 0.999 };
+}
+
+/** Tipos de sonido para grabar: la app está pensada para sonidos cortos (texturas, bajos, baterías), no para tomas largas. */
+export const SOUND_KINDS = {
+  libre: { label: 'Libre', maxSec: 0, prefix: 'grabacion', hint: 'Graba lo que quieras.' },
+  textura: { label: 'Textura', maxSec: 8, prefix: 'textura', hint: 'Textura para pad: 1 o 2 notas sostenidas, de 2 a 8 s, sin ruido de fondo.' },
+  bajo: { label: 'Bajo', maxSec: 4, prefix: 'bajo', hint: 'Bajo: una nota por toma, con ataque claro, de 1 a 4 s.' },
+  bateria: { label: 'Batería', maxSec: 2, prefix: 'bateria', hint: 'Batería: un golpe por toma (bombo, caja, hi-hat), hasta 2 s.' },
+};
+
 /**
  * Une piezas en un solo audio, sin saltos: iguala el volumen (hasta ±6 dB hacia el típico del grupo) y en cada empalme
  * funde por coseno. Si la pieza que entra arranca en pleno golpe, la anterior se apaga justo antes (el ataque queda intacto);
@@ -462,7 +495,7 @@ export function seamJump(x) {
 }
 
 /** Guardado rápido: recorte relativo al nivel, fundidos cortos y normalizado. */
-export const QUICK_DEFAULTS = { enabled: false, denoise: 'off', trim: true, fades: true, normalize: true, thresholdDB: -48 };
+export const QUICK_DEFAULTS = { enabled: false, denoise: 'off', trim: true, fades: true, normalize: true, level: true, thresholdDB: -48 };
 export function quickProcess(x, rate, s = QUICK_DEFAULTS) {
   let y = x;
   if (s.denoise && s.denoise !== 'off') y = cleanNoise(y, rate, s.denoise);
@@ -474,11 +507,12 @@ export function quickProcess(x, rate, s = QUICK_DEFAULTS) {
     if (t.length >= rate / 10) y = t;   // si quedara menos de 0,1 s, no se recorta
   }
   if (s.fades) { const f = Math.floor(rate * 5 / 1000); y = fade(y, f, f); }
-  if (s.normalize) y = normalize(y);
+  if (s.level) y = levelTo(y, rate, s.targetDB ?? levelTarget()).audio;           // volumen parejo (nivel típico), con techo de pico
+  else if (s.normalize) y = normalize(y);
   return y;
 }
 
-export const autoName = count => 'grabacion_' + String(count + 1).padStart(3, '0');
+export const autoName = (count, prefix = 'grabacion') => prefix + '_' + String(count + 1).padStart(3, '0');
 
 /** Nombres para un cambio de nombre: uno solo tal cual; varios, numerados («nombre 01», «nombre 02»…). */
 export function names(base, count) {
