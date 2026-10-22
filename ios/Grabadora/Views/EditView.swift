@@ -77,7 +77,7 @@ struct EditorBody: View {
                 ScreenTitle(title: "Escuchar y editar")
                 VStack(alignment: .leading, spacing: 2) {
                     TextField("Nombre", text: $sample.name).font(Theme.font(16, weight: .bold)).foregroundColor(Theme.text)
-                    Text("\(stamp(total)) · mono · \(sample.sampleRate) Hz · pico \(Int(peakDB)) dB").font(Theme.font(12)).foregroundColor(Theme.muted)
+                    Text("\(stamp(total)) · mono · \(sample.sampleRate) Hz · pico \(Int(peakDB)) dB · nivel \(max(-99, Int(Level.levelDB(audio, rate: sample.sampleRate)))) dB").font(Theme.font(12)).foregroundColor(Theme.muted)
                     if peakDB < -30 && !audio.isEmpty { Text("Nivel muy bajo: usa Normalizar para oírla bien.").font(Theme.font(12)).foregroundColor(Theme.amber) }
                 }
                 waveEditor
@@ -99,6 +99,10 @@ struct EditorBody: View {
                         .actionFX("fundido", busy: fxBusy, flash: fxFlash)
                     Button("Efectos") { showEffects = true }.buttonStyle(OutlineButton(selected: !sample.effects.isNeutral))
                 }.buttonStyle(OutlineButton()).font(Theme.font(13))
+                Button("Nivelar volumen (parejo)") { levelOut() }.buttonStyle(OutlineButton()).font(Theme.font(13))
+                    .actionFX("nivelar", busy: fxBusy, flash: fxFlash)
+                Text("Lleva el volumen típico de la toma a \(Int(Level.target)) dB (no el pico): así un golpe seco y un pad suenan igual de fuertes. El nivel se cambia en Compartir. Puedes deshacer.")
+                    .font(Theme.font(12)).foregroundColor(Theme.muted)
                 Button("Edición precisa (zoom)") { showPrecise = true }.buttonStyle(OutlineButton(selected: true))
                 Button("Chop en pads") { showChop = true }.buttonStyle(OutlineButton())
                 Button("Armonizar bordes (sin clics)") { let r = sample.sampleRate; run("armonizar", done: "Listo: bordes armonizados") { Harmonize.harmonize($0, rate: r) } }.buttonStyle(OutlineButton()).font(Theme.font(13))
@@ -185,6 +189,15 @@ struct EditorBody: View {
             Text("Mueve la aguja sobre la selección (o toda la toma) como en un vinilo: el tono sube y baja con la velocidad y al volver suena hacia atrás. Dura los tiempos elegidos al BPM de la toma (\(Int((sample.bpm ?? 100).rounded()))\(sample.bpm == nil ? ", porque aún no está detectado" : "")). Se queda sólo con el scratch; puedes deshacer y guardarlo como cualquier sonido.")
                 .font(Theme.font(12)).foregroundColor(Theme.muted)
         }
+    }
+
+    /// Lleva el nivel típico de la toma al objetivo (no el pico): un golpe seco y un pad quedan igual de fuertes.
+    private func levelOut() {
+        let r = Level.levelTo(audio, rate: sample.sampleRate)
+        guard r.beforeDB >= -80 else { message = "La toma está casi en silencio: no hay nada que nivelar"; return }
+        let g = (r.gainDB >= 0 ? "+" : "−") + String(format: "%.1f", abs(r.gainDB)).replacingOccurrences(of: ".", with: ",")
+        let extra = r.short ? " · los picos no dejan subir más: queda algo bajo" : (r.limited ? " · picos suavizados" : "")
+        run("nivelar", done: "Listo: nivel típico de \(Int(r.beforeDB.rounded())) a \(Int(r.afterDB.rounded())) dB (\(g) dB)\(extra)") { _ in r.audio }
     }
 
     private func makeScratch() {
@@ -385,7 +398,7 @@ struct EditorBody: View {
 
     /// Acción con respuesta visible: si es lenta, el botón se ilumina mientras trabaja; al terminar destella y avisa «Listo».
     private static let fxLabels: [String: String] = ["recortar": "Recortar", "normalizar": "Normalizar", "fundido": "Fundido", "armonizar": "Armonizar bordes",
-        "invertir": "Invertir", "scratch": "Scratch", "loop": "Loop continuo", "ruido-suave": "Ruido (suave)", "ruido-fuerte": "Ruido (fuerte)", "ruido-fondo": "Quitar ruido de fondo",
+        "invertir": "Invertir", "scratch": "Scratch", "nivelar": "Nivelar volumen", "loop": "Loop continuo", "ruido-suave": "Ruido (suave)", "ruido-fuerte": "Ruido (fuerte)", "ruido-fondo": "Quitar ruido de fondo",
         "ruido-sel": "Ruido de la selección"]
 
     /// Contenedor para pasar a otro hilo un cierre que sólo captura valores (números, listas): lo que ya hacían los cálculos largos.

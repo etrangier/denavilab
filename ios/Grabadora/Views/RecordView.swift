@@ -20,6 +20,9 @@ struct RecordView: View {
     @AppStorage("firstTakeDismissed") private var firstTakeDismissed = false
     @Environment(\.scenePhase) private var scenePhase
     @State private var savedNote: String?
+    @AppStorage("soundKind") private var kindRaw = "libre"          // tipo de sonido: libre, textura, bajo, batería
+
+    private var kind: Level.Kind { Level.Kind(rawValue: kindRaw) ?? .libre }
 
     private var recording: Bool { rec.state == .recording }
     private var db: Double { rec.level > 0.0001 ? Double(20 * log10(rec.level)) : -60 }
@@ -39,6 +42,7 @@ struct RecordView: View {
                 }
                 if rec.micDenied { deniedCard } else {
                     Text("Entrada · Micrófono del iPhone").font(Theme.font(14, weight: .medium)).foregroundColor(Theme.text).card()
+                    kindCard
                     levelCard
                     waveCard
                     Text(timerText).font(Theme.font(44, weight: .bold)).foregroundColor(recording ? Theme.text : Theme.muted)
@@ -54,6 +58,10 @@ struct RecordView: View {
                         .frame(maxWidth: .infinity, minHeight: 48)
                         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.amber, lineWidth: 1.5))
                     if rec.clipped { Text("Clip: baja la ganancia de entrada").font(Theme.font(13)).foregroundColor(Theme.error) }
+                    else if recording, kind.maxSec > 0, rec.elapsed > kind.maxSec {
+                        Text("Ya pasa de \(Int(kind.maxSec)) s: para \(kind.title.lowercased()) conviene parar y grabar otra toma más corta")
+                            .font(Theme.font(13)).foregroundColor(Theme.amber).multilineTextAlignment(.center)
+                    }
                 }
                 if let m = rec.errorMessage { Text(m).font(Theme.font(13)).foregroundColor(Theme.error) }
                 if lib.samples.count == 1 && !firstTakeDismissed && rec.state != .recording { firstTakeCard }
@@ -88,19 +96,30 @@ struct RecordView: View {
         let s = QuickSave.Settings.load()
         guard s.enabled else { take = Take(audio: a, rate: rec.sampleRate); return }
         let out = QuickSave.process(a, rate: rec.sampleRate, s)
-        let name = QuickSave.autoName(count: lib.samples.count)
-        let rate = rec.sampleRate
+        let name = QuickSave.autoName(count: lib.samples.count, prefix: kind.prefix)
+        let rate = rec.sampleRate, kindTag: String? = kind == .libre ? nil : kind.rawValue
         let before = Double(a.count) / Double(rate), after = Double(out.count) / Double(rate)
         Task {
             var sug: Suggestion?
             if s.suggest { sug = FolderMapper.suggest(from: await SoundClassifier.classify(out, rate: rate)) }
             guard var x = lib.add(name: name, audio: out, sampleRate: rate) else { return }
-            x.folder = sug?.folder ?? LibraryStore.unsorted; x.subfolder = sug?.sub
+            x.folder = sug?.folder ?? LibraryStore.unsorted; x.subfolder = sug?.sub; x.kind = kindTag
             lib.update(x)
             savedNote = "Guardada: \(name) · \(stamp(before)) → \(stamp(after))" + (sug.map { " · \($0.title)" } ?? "")
             try? await Task.sleep(nanoseconds: 5_000_000_000)
             savedNote = nil
         }
+    }
+
+    /// Tipo de sonido: la app está pensada para sonidos cortos (texturas, bajos, baterías).
+    private var kindCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Tipo de sonido").font(Theme.font(14, weight: .medium)).foregroundColor(Theme.text)
+            HStack(spacing: 8) {
+                ForEach(Level.Kind.allCases, id: \.self) { k in Chip(title: k.title, selected: kind == k) { kindRaw = k.rawValue } }
+            }
+            Text(kind.hint).font(Theme.font(12)).foregroundColor(Theme.muted)
+        }.card()
     }
 
     /// Aún no hay ninguna grabación: el diseño pide la burbuja y el halo del botón.

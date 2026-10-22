@@ -20,8 +20,9 @@ enum Exporter {
     }
 
     /// Renderiza efectos, remuestrea al objetivo y escribe un WAV mono 16-bit en la carpeta temporal.
-    static func export(_ s: Sample, audio: [Float], targetRate: Int? = nil, into dir: URL = FileManager.default.temporaryDirectory, unique: Bool = false) throws -> URL {
-        let wet = try EffectRenderer.render(audio, sampleRate: s.sampleRate, params: s.effects)
+    static func export(_ s: Sample, audio: [Float], targetRate: Int? = nil, into dir: URL = FileManager.default.temporaryDirectory, unique: Bool = false, level: Bool = false) throws -> URL {
+        var wet = try EffectRenderer.render(audio, sampleRate: s.sampleRate, params: s.effects)
+        if level { wet = Level.levelTo(wet, rate: s.sampleRate).audio }          // volumen parejo al compartir
         let rate = targetRate ?? (Features.koExport ? 46_875 : s.sampleRate)
         let out = WavIO.resample(wet, from: s.sampleRate, to: rate)
         let url = unique ? uniqueURL(dir.appendingPathComponent(fileName(for: s))) : dir.appendingPathComponent(fileName(for: s))
@@ -35,7 +36,7 @@ enum Exporter {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         var urls: [URL] = []
         for s in samples {
-            let url = try export(s, audio: await store(s), targetRate: targetRate ?? s.sampleRate, into: dir, unique: true)
+            let url = try export(s, audio: await store(s), targetRate: targetRate ?? s.sampleRate, into: dir, unique: true, level: Level.exportOn)
             urls.append(url)
         }
         return urls
