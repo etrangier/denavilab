@@ -51,6 +51,19 @@
         "¿El ajuste de volumen se guarda por pad dentro del proyecto?"
       ],
       "leccion_relacionada": 5
+    },
+    {
+      "id": "keys-octava",
+      "tema": "Cambiar la octava de un sonido en el modo KEYS",
+      "estado": "confirmado, nuevo (no estaba en el libro)",
+      "combo": "Elige el pad (un bajo, por ejemplo) y pulsa KEYS; pulsa KEYS otra vez y cambia con las flechas (+ / −) de C1 a C3",
+      "nota": "KEYS reparte el sonido en los 12 pads. Con un sonido de bajo, la escala por defecto arranca en C1. Al volver a pulsar KEYS, las flechas mueven el rango (Rolando lo llevó de C1 a C3), así que se toca el mismo bajo más agudo o más grave sin cambiar el sonido. La lección 13 del libro sólo explicaba activar KEYS y los códigos de escala (310 cromática, 311 mayor, 312 menor, 318 y 319 pentatónicas, 320–331 tonalidad), no el cambio de octava.",
+      "pendiente": [
+        "¿Las flechas son los botones + y −, y cada paso es una octava o un semitono?",
+        "¿La nota de arranque por defecto depende del sonido (su nota raíz) o siempre es C1?",
+        "¿Se guarda con el pad dentro del proyecto?"
+      ],
+      "leccion_relacionada": 13
     }
   ],
   "pendientes_por_confirmar": [
@@ -76,6 +89,8 @@
     "Capítulo de proyectos: 9 proyectos, qué guarda cada uno y qué es compartido.",
     "Capítulo de patrones largos: alargar, copiar compases, copiar patrón entero y cambiar de patrón en vivo.",
     "Cuadro de rejillas con ejemplos de hat (repetición de nota) en cada una.",
-    "Glosario: proyecto, grupo, patrón, escena, canción."
-  ]
+    "Glosario: proyecto, grupo, patrón, escena, canción.",
+    "Ampliar el capítulo de KEYS: octava (C1 a C3 con KEYS + flechas), escalas, y bajos y acordes con un mismo sonido."
+  ],
+  "regla_de_trabajo": "Todo lo que Rolando descubre en el aparato se agrega a este borrador, con su estado; lo que ya estaba en las lecciones se marca «del libro»."
 }
