@@ -15,7 +15,10 @@
       "estado": "confirmado",
       "combo": "SHIFT + RECORD, luego +",
       "nota": "Funcionó para pasar un bombo de 1 compás a 2 compases. El libro (lección 9) describe otra secuencia: detenido, tocar RECORD (armado) y luego mantener SHIFT + +. Hay que reconciliar las dos en la versión 2.0 y anotar cuál es la del firmware de Rolando.",
-      "pendiente": ["¿La reproducción siguió sonando o hubo que parar?", "¿Copia el patrón entero o sólo el compás actual?"],
+      "pendiente": [
+        "¿La reproducción siguió sonando o hubo que parar?",
+        "¿Copia el patrón entero o sólo el compás actual?"
+      ],
       "leccion_relacionada": 9
     },
     {
@@ -32,8 +35,22 @@
       "estado": "confirmado, del libro",
       "combo": "Mantén TIMING + pad (con RECORD y el patrón sonando para grabarlo)",
       "nota": "La velocidad de la repetición depende de la rejilla (perilla naranja en TIMING): 1/8, 1/8T, 1/16 (de fábrica), 1/16T y 1/32. El swing (perilla negra) sólo actúa en 1/8 y 1/16. Con pads sensibles a la fuerza (301) un hat repetido tocando flojo sale casi inaudible.",
-      "pendiente": ["¿La rejilla se puede cambiar mientras se mantiene el pad, o hay que elegirla antes?"],
+      "pendiente": [
+        "¿La rejilla se puede cambiar mientras se mantiene el pad, o hay que elegirla antes?"
+      ],
       "leccion_relacionada": 8
+    },
+    {
+      "id": "volumen-del-pad",
+      "tema": "Bajar (o subir) el volumen de un pad",
+      "estado": "confirmado, del libro",
+      "combo": "Toca el pad, pulsa SOUND y gira la perilla naranja",
+      "nota": "En SOUND la perilla naranja es el volumen del pad y la negra el tono (lección 5). La misma perilla naranja sirve para el tempo en TEMPO (lección 6), por eso Rolando la llama «la perilla naranja de BPM»: lo que hace depende del modo en que estés. Útil para igualar el nivel de los pads al mezclar packs distintos (por ejemplo RD-8 y RD-6 en el grupo A).",
+      "cuidado": "Girar las perillas en SOUND «para ver qué hacen» cambia volumen y tono del pad. Se arregla con SHIFT + B, o dejando el tono en 0.",
+      "pendiente": [
+        "¿El ajuste de volumen se guarda por pad dentro del proyecto?"
+      ],
+      "leccion_relacionada": 5
     }
   ],
   "pendientes_por_confirmar": [
