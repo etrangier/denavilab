@@ -1,0 +1,64 @@
+{
+  "version": "2.0-borrador",
+  "estado": "borrador: NO se publica (está fuera de site/). Se completa con lo que Rolando va descubriendo en el aparato antes de armar el libro 2.0.",
+  "base": "Lecciones 1–16 de site/ko2-manual.json (guías «K.O. II desde cero», semanas 1 y 2). Aquí sólo van los hallazgos nuevos y las dudas.",
+  "marcas": {
+    "confirmado": "Lo probó Rolando en su aparato.",
+    "del libro": "Ya estaba en las guías; Rolando lo confirmó o lo nombró distinto.",
+    "por confirmar": "Pendiente de probar en el aparato.",
+    "sin probar": "Conocimiento general del aparato, no verificado con el aparato de Rolando."
+  },
+  "hallazgos": [
+    {
+      "id": "alargar-compases",
+      "tema": "Alargar un patrón de 1 a 2 compases copiándolo",
+      "estado": "confirmado",
+      "combo": "SHIFT + RECORD, luego +",
+      "nota": "Funcionó para pasar un bombo de 1 compás a 2 compases. El libro (lección 9) describe otra secuencia: detenido, tocar RECORD (armado) y luego mantener SHIFT + +. Hay que reconciliar las dos en la versión 2.0 y anotar cuál es la del firmware de Rolando.",
+      "pendiente": ["¿La reproducción siguió sonando o hubo que parar?", "¿Copia el patrón entero o sólo el compás actual?"],
+      "leccion_relacionada": 9
+    },
+    {
+      "id": "cambiar-proyecto",
+      "tema": "Cambiar de proyecto en vivo",
+      "estado": "confirmado, del libro",
+      "combo": "Mantén MAIN + pad 1–9",
+      "nota": "Rolando lo descubrió por su cuenta y lo llamó «canción»; en el aparato y en el libro se llama proyecto (9 en total; el 6 al 9 vienen vacíos). «Canción» es el encadenado de escenas dentro de un proyecto. Con el aparato sonando, el cambio espera al final del compás (según el libro).",
+      "leccion_relacionada": 3
+    },
+    {
+      "id": "repeticion-de-nota-velocidades",
+      "tema": "Repetición de nota (hi-hat) a distintas velocidades",
+      "estado": "confirmado, del libro",
+      "combo": "Mantén TIMING + pad (con RECORD y el patrón sonando para grabarlo)",
+      "nota": "La velocidad de la repetición depende de la rejilla (perilla naranja en TIMING): 1/8, 1/8T, 1/16 (de fábrica), 1/16T y 1/32. El swing (perilla negra) sólo actúa en 1/8 y 1/16. Con pads sensibles a la fuerza (301) un hat repetido tocando flojo sale casi inaudible.",
+      "pendiente": ["¿La rejilla se puede cambiar mientras se mantiene el pad, o hay que elegirla antes?"],
+      "leccion_relacionada": 8
+    }
+  ],
+  "pendientes_por_confirmar": [
+    {
+      "tema": "Pasar de A.01 a A.02 con el beat sonando",
+      "estado": "por confirmar",
+      "combo_candidato": "Mantener el botón del grupo A y usar + / −",
+      "nota": "El libro sólo dice que mantener el botón del grupo muestra el patrón de ese grupo (lección 4). Además: un patrón nuevo parte vacío; para llevarse el beat se copia el patrón entero con SHIFT + C (dos veces) y se pega con SHIFT + D en el destino (lección 9). Otra vía documentada: las escenas (MAIN + +/−)."
+    },
+    {
+      "tema": "Alargar un patrón sin detener la reproducción",
+      "estado": "por confirmar",
+      "combo_candidato": "Mantener RECORD + + (agrega un compás vacío) y sobregrabar con RECORD + pad",
+      "nota": "El libro describe los pasos de copia con el aparato detenido; no dice que RECORD + + exija pararlo."
+    },
+    {
+      "tema": "Los proyectos guardan sus propios pads; los sonidos son memoria compartida",
+      "estado": "sin probar",
+      "nota": "El libro dice que todo se guarda solo y que los proyectos 1–5 traen demos con kits distintos. Cada proyecto recordaría qué sonido usa cada pad; el sonido (por ejemplo el slot 460) sería una sola copia compartida, así que sobrescribir o borrar ese slot afecta a todos los proyectos que lo usen. Prueba sugerida: anotar un pad del proyecto 1, cambiarlo en el proyecto 2 y volver."
+    }
+  ],
+  "ideas_para_el_libro_2_0": [
+    "Capítulo de proyectos: 9 proyectos, qué guarda cada uno y qué es compartido.",
+    "Capítulo de patrones largos: alargar, copiar compases, copiar patrón entero y cambiar de patrón en vivo.",
+    "Cuadro de rejillas con ejemplos de hat (repetición de nota) en cada una.",
+    "Glosario: proyecto, grupo, patrón, escena, canción."
+  ]
+}
