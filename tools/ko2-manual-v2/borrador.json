@@ -90,7 +90,217 @@
     "Capítulo de patrones largos: alargar, copiar compases, copiar patrón entero y cambiar de patrón en vivo.",
     "Cuadro de rejillas con ejemplos de hat (repetición de nota) en cada una.",
     "Glosario: proyecto, grupo, patrón, escena, canción.",
-    "Ampliar el capítulo de KEYS: octava (C1 a C3 con KEYS + flechas), escalas, y bajos y acordes con un mismo sonido."
+    "Ampliar el capítulo de KEYS: octava (C1 a C3 con KEYS + flechas), escalas, y bajos y acordes con un mismo sonido.",
+    "Anexo: tabla de equivalencia de notas (letras y español), octavas con frecuencias, lectura de acordes y progresiones comunes en varias tonalidades."
   ],
-  "regla_de_trabajo": "Todo lo que Rolando descubre en el aparato se agrega a este borrador, con su estado; lo que ya estaba en las lecciones se marca «del libro»."
+  "regla_de_trabajo": "Todo lo que Rolando descubre en el aparato se agrega a este borrador, con su estado; lo que ya estaba en las lecciones se marca «del libro».",
+  "tablas_de_equivalencia": {
+    "nota": "Para quien no conoce la notación en letras. El aparato escribe las notas con letras inglesas (C, D, E…); aquí van sus nombres en español. Las frecuencias usan la convención científica (A4 = 440 Hz). Cómo numera el K.O. II las octavas en su pantalla (C1, C3…) está por confirmar con el aparato.",
+    "notas": [
+      {
+        "letra": "C",
+        "espanol": "Do",
+        "tambien_se_llama": ""
+      },
+      {
+        "letra": "C#",
+        "espanol": "Do sostenido",
+        "tambien_se_llama": "Re bemol (Db)"
+      },
+      {
+        "letra": "D",
+        "espanol": "Re",
+        "tambien_se_llama": ""
+      },
+      {
+        "letra": "D#",
+        "espanol": "Re sostenido",
+        "tambien_se_llama": "Mi bemol (Eb)"
+      },
+      {
+        "letra": "E",
+        "espanol": "Mi",
+        "tambien_se_llama": ""
+      },
+      {
+        "letra": "F",
+        "espanol": "Fa",
+        "tambien_se_llama": ""
+      },
+      {
+        "letra": "F#",
+        "espanol": "Fa sostenido",
+        "tambien_se_llama": "Sol bemol (Gb)"
+      },
+      {
+        "letra": "G",
+        "espanol": "Sol",
+        "tambien_se_llama": ""
+      },
+      {
+        "letra": "G#",
+        "espanol": "Sol sostenido",
+        "tambien_se_llama": "La bemol (Ab)"
+      },
+      {
+        "letra": "A",
+        "espanol": "La",
+        "tambien_se_llama": ""
+      },
+      {
+        "letra": "A#",
+        "espanol": "La sostenido",
+        "tambien_se_llama": "Si bemol (Bb)"
+      },
+      {
+        "letra": "B",
+        "espanol": "Si",
+        "tambien_se_llama": ""
+      }
+    ],
+    "regla_corta": "C D E F G A B = Do Re Mi Fa Sol La Si. El «#» (sostenido) sube medio tono; la «b» (bemol) lo baja. En los pads, 12 pads seguidos en escala cromática = las 12 notas de la tabla.",
+    "octavas": [
+      {
+        "nota": "C0",
+        "hz": 16.35
+      },
+      {
+        "nota": "C1",
+        "hz": 32.7
+      },
+      {
+        "nota": "C2",
+        "hz": 65.41
+      },
+      {
+        "nota": "C3",
+        "hz": 130.81
+      },
+      {
+        "nota": "C4",
+        "hz": 261.63,
+        "comentario": "el do central del piano"
+      },
+      {
+        "nota": "C5",
+        "hz": 523.25
+      },
+      {
+        "nota": "C6",
+        "hz": 1046.5
+      }
+    ],
+    "octavas_explicacion": "El número es la octava: cada +1 es el mismo Do una octava más agudo y de frecuencia doble. Un bajo en C1 o C2 es muy grave (32 a 65 Hz); C3 ya es el registro de un bajo más audible. Por eso al pasar un bajo de C1 a C3 en KEYS suena dos octavas más agudo (cuatro veces la frecuencia).",
+    "acordes": {
+      "como_se_leen": [
+        {
+          "escrito": "C",
+          "significa": "Do mayor"
+        },
+        {
+          "escrito": "Cm",
+          "significa": "Do menor"
+        },
+        {
+          "escrito": "C7",
+          "significa": "Do con séptima (suena «bluesero»)"
+        },
+        {
+          "escrito": "Cm7",
+          "significa": "Do menor con séptima"
+        },
+        {
+          "escrito": "Cmaj7",
+          "significa": "Do mayor con séptima mayor (suave, de jazz)"
+        },
+        {
+          "escrito": "Cdim",
+          "significa": "Do disminuido (tenso)"
+        },
+        {
+          "escrito": "Csus4",
+          "significa": "Do con cuarta suspendida (sin tercera, abierto)"
+        }
+      ],
+      "en_la_app": "El detector de acordes de DenaviLab: Sounds sólo distingue mayores y menores: «Am» es La menor, «F» es Fa mayor, «D#» es Re sostenido mayor, «C#m» es Do sostenido menor.",
+      "tres_notas_en_los_pads": "Un acorde de tres notas se toca saltando un pad entre una y otra (pads n, n+2 y n+4), con la escala activada en KEYS (lección 15)."
+    },
+    "escala_mayor_y_pads": {
+      "estado": "por confirmar en el aparato (qué nota arranca y cómo se reparte)",
+      "ejemplo": "Con la escala mayor (código 311) en Do, los 12 pads irían así: 1 Do, 2 Re, 3 Mi, 4 Fa, 5 Sol, 6 La, 7 Si, 8 Do (una octava más agudo), 9 Re, 10 Mi, 11 Fa, 12 Sol.",
+      "acordes_con_ese_reparto": [
+        {
+          "pads": "1, 3, 5",
+          "acorde": "Do mayor (C)"
+        },
+        {
+          "pads": "2, 4, 6",
+          "acorde": "Re menor (Dm)"
+        },
+        {
+          "pads": "3, 5, 7",
+          "acorde": "Mi menor (Em)"
+        },
+        {
+          "pads": "4, 6, 8",
+          "acorde": "Fa mayor (F)"
+        },
+        {
+          "pads": "5, 7, 9",
+          "acorde": "Sol mayor (G)"
+        },
+        {
+          "pads": "6, 8, 10",
+          "acorde": "La menor (Am)"
+        },
+        {
+          "pads": "7, 9, 11",
+          "acorde": "Si disminuido (Bdim)"
+        }
+      ]
+    },
+    "progresiones_comunes": {
+      "como_leer": "Los números romanos son el lugar del acorde en la escala: I es el primero (la tónica), IV el cuarto, V el quinto; en minúscula (vi) es un acorde menor. Así la misma progresión sirve en cualquier tonalidad.",
+      "progresiones": [
+        {
+          "nombre": "I – V – vi – IV",
+          "en_do_mayor": "C – G – Am – F",
+          "en_sol_mayor": "G – D – Em – C",
+          "en_fa_mayor": "F – C – Dm – Bb",
+          "aire": "pop, muy usada"
+        },
+        {
+          "nombre": "vi – IV – I – V",
+          "en_do_mayor": "Am – F – C – G",
+          "en_sol_mayor": "Em – C – G – D",
+          "en_fa_mayor": "Dm – Bb – F – C",
+          "aire": "melancólica; es la «Am F C G» que usan los ejemplos y las pruebas de la app (en La menor: i – VI – III – VII)"
+        },
+        {
+          "nombre": "I – vi – IV – V",
+          "en_do_mayor": "C – Am – F – G",
+          "en_sol_mayor": "G – Em – C – D",
+          "en_fa_mayor": "F – Dm – Bb – C",
+          "aire": "años 50, doo-wop"
+        },
+        {
+          "nombre": "ii – V – I",
+          "en_do_mayor": "Dm – G – C",
+          "en_sol_mayor": "Am – D – G",
+          "en_fa_mayor": "Gm – C – F",
+          "aire": "jazz, resuelve a casa"
+        },
+        {
+          "nombre": "i – iv – v (menor)",
+          "en_la_menor": "Am – Dm – Em",
+          "en_mi_menor": "Em – Am – Bm",
+          "aire": "oscura, de trip hop"
+        }
+      ]
+    },
+    "pendiente_por_confirmar": [
+      "Cómo muestra el K.O. II las octavas en pantalla (¿C1 es el Do de 32 Hz o usa otra numeración?).",
+      "Qué tonalidad corresponde a cada código 320–331 de las escalas por tonalidad."
+    ]
+  }
 }
