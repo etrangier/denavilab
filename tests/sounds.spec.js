@@ -342,13 +342,80 @@ test.describe('biblioteca', () => {
   test('copia de seguridad y restauración', async ({ page }) => {
     await abrir(page, 'rolando'); await sembrar(page, ['uno', 'dos']);
     await tab(page, 'biblioteca');
-    const { buf, nombre } = await descargar(page, () => page.getByRole('button', { name: 'Copia de seguridad' }).click());
-    expect(nombre).toMatch(/^denavilab-sounds-copia-\d{4}-\d{2}-\d{2}\.zip$/);
+    const { buf, nombre } = await descargar(page, () => page.getByRole('button', { name: 'Respaldo'  }).click());
+    expect(nombre).toMatch(/^denavilab-sounds-respaldo-\d{4}-\d{2}-\d{2}\.zip$/);
     await page.evaluate(async () => { const st = await import('/sounds/store.js'); await st.deleteSamples((await st.listSamples()).map(s => s.id)); });
     await page.reload(); await tab(page, 'biblioteca');
     await expect(page.locator('#screen')).toContainText('Aún no hay samples');
     await page.setInputFiles('input[type=file]', { name: 'copia.zip', mimeType: 'application/zip', buffer: buf });
     await expect(page.locator('#toast')).toContainText('Restauradas 2 grabaciones');
+  });
+});
+
+test.describe('etapa 1 · almacenamiento', () => {
+  test('los sonidos viejos (sin campos nuevos) se leen completos y sin perder nada', async ({ page }) => {
+    await abrir(page, 'rolando');
+    await page.evaluate(async () => {   // registro como lo guardaba la versión anterior
+      const st = await import('/sounds/store.js'), a = new Float32Array(4800).fill(0.2);
+      await st.putSample({ id: 'viejo-1', name: 'Viejo', folder: 'Sin clasificar', subfolder: null, tags: ['x'], slot: null, rate: 48000, created: 1, duration: 0.1, bpm: null }, a);
+    });
+    const r = await page.evaluate(async () => { const st = await import('/sounds/store.js'); const s = (await st.listSamples()).find(x => x.id === 'viejo-1'); return { s, n: (await st.getAudio('viejo-1')).length }; });
+    expect(r.n).toBe(4800); expect(r.s).toMatchObject({ favorite: false, key: null, comment: '', tags: ['x'], name: 'Viejo' });
+  });
+
+  test('muestra el espacio usado y pide almacenamiento persistente', async ({ page }) => {
+    await abrir(page, 'rolando'); await sembrar(page, ['uno']); await tab(page, 'biblioteca');
+    await expect(page.locator('.storage')).toContainText(/Espacio usado: (\d|el navegador)/);
+    const p = await page.evaluate(async () => (await import('/sounds/store.js')).storageInfo());
+    expect(p).toHaveProperty('persisted');
+  });
+
+  test('detalles: etiquetas, nota, BPM y comentario quedan guardados', async ({ page }) => {
+    await abrir(page, 'rolando'); await sembrar(page, ['pad lluvia']); await tab(page, 'biblioteca');
+    await page.getByRole('button', { name: 'Seleccionar' }).or(page.getByText('Seleccionar')).first().click();
+    await page.getByText('Cancelar').first().click();
+    await page.locator('.icon-btn[aria-label="Más acciones para pad lluvia"]').click();
+    await page.locator('dialog.sheet').getByRole('button', { name: /Detalles/ }).click();
+    await page.getByLabel('Etiquetas').fill('pad, lluvia, pad');
+    await page.getByLabel('Nota o tonalidad').fill('Am');
+    await page.getByLabel('BPM').fill('92');
+    await page.getByLabel('Fuente o comentario').fill('balcón, de noche');
+    await page.getByRole('button', { name: 'Guardar detalles' }).click();
+    await expect(page.locator('#toast')).toContainText('Detalles guardados');
+    const s = await page.evaluate(async () => (await (await import('/sounds/store.js')).listSamples())[0]);
+    expect(s).toMatchObject({ tags: ['pad', 'lluvia'], key: 'Am', bpm: 92, comment: 'balcón, de noche' });
+  });
+
+  test('respaldo conserva los metadatos y la restauración avisa si el archivo está dañado', async ({ page }) => {
+    await abrir(page, 'rolando'); await sembrar(page, ['uno']);
+    await page.evaluate(async () => { const st = await import('/sounds/store.js'); const s = (await st.listSamples())[0]; await st.putSample({ ...s, favorite: true, tags: ['pad', 'lluvia'], key: 'Am', bpm: 90, comment: 'balcón' }); });
+    await page.reload(); await tab(page, 'biblioteca');
+    const { buf } = await descargar(page, () => page.getByRole('button', { name: 'Respaldo' }).click());
+    await page.evaluate(async () => { const st = await import('/sounds/store.js'); await st.deleteSamples((await st.listSamples()).map(s => s.id)); });
+    await page.reload(); await tab(page, 'biblioteca');
+    await page.setInputFiles('input[type=file]', { name: 'malo.zip', mimeType: 'application/zip', buffer: Buffer.from('esto no es un zip') });
+    await expect(page.locator('#toast')).toContainText('No se pudo restaurar');
+    await page.setInputFiles('input[type=file]', { name: 'copia.zip', mimeType: 'application/zip', buffer: buf });
+    await expect(page.locator('#toast')).toContainText('Restauradas 1 grabaciones');
+    const s = await page.evaluate(async () => (await (await import('/sounds/store.js')).listSamples())[0]);
+    expect(s).toMatchObject({ favorite: true, tags: ['pad', 'lluvia'], key: 'Am', bpm: 90, comment: 'balcón' });
+  });
+
+  test('una toma de más de 6 s avisa y permite recortar a 6 s', async ({ page }) => {
+    await abrir(page, 'rolando');
+    await page.evaluate(async () => { const m = await import('/sounds/screens.js'), { app } = await import('/sounds/state.js'); app.engine.rate = 48000; await m.finishTake(new Float32Array(48000 * 9).map((_, k) => 0.4 * Math.sin(k * 0.05))); });
+    const sh = page.locator('dialog.sheet');
+    await expect(sh).toContainText('más de 6 s');
+    await sh.getByLabel(/Recortar a los primeros 6 s/).check({ force: true });
+    await sh.getByRole('button', { name: /Guardar en/ }).click();
+    await expect(page.locator('#toast')).toContainText('Guardada');
+    const d = await page.evaluate(async () => (await (await import('/sounds/store.js')).listSamples())[0].duration);
+    expect(d).toBeCloseTo(6, 1);
+  });
+  test('una toma corta no muestra el aviso de 6 s', async ({ page }) => {
+    await abrir(page, 'rolando');
+    await page.evaluate(async () => { const m = await import('/sounds/screens.js'), { app } = await import('/sounds/state.js'); app.engine.rate = 48000; await m.finishTake(new Float32Array(48000 * 3).map((_, k) => 0.4 * Math.sin(k * 0.05))); });
+    await expect(page.locator('dialog.sheet')).not.toContainText('más de 6 s');
   });
 });
 

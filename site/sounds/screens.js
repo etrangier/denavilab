@@ -3,7 +3,7 @@ import { app, go, openSample, refreshSamples, sampleById, VERSION, BUILD, inst, 
 import { h, mount, fill, btn, link, chip, card, label, muted, title, toggleRow, sliderRow, logo, sheet, confirmSheet, promptSheet, toast, folderPicker, drawBars } from './ui.js';
 import * as dsp from './dsp.js';
 import { FOLDERS, UNSORTED, folderDetail, folderOf } from './folders.js';
-import { getAudio, putSample, putMany, deleteSamples, newSample } from './store.js';
+import { getAudio, putSample, putMany, deleteSamples, newSample, normalizeSample, storageInfo, requestPersist } from './store.js';
 import { manualFor } from './manual.js';
 import { makeZip, readZip } from './zip.js';
 import { decodeFile, baseName, MAX_SECONDS } from './importer.js';
@@ -180,6 +180,11 @@ export function renderRecord(root) {
   return () => cancelAnimationFrame(raf);
 }
 
+/** Las texturas para el K.O. II se piensan de hasta 6 s: no se corta nada solo, pero se avisa. */
+export const MAX_TEXTURE = 6;
+const longNote = secs => secs > MAX_TEXTURE + 0.05 ? ` · dura más de ${MAX_TEXTURE} s` : '';
+const storeError = err => err && (err.name === 'QuotaExceededError' || /quota/i.test(String(err.message))) ? 'No se pudo guardar: el dispositivo se quedó sin espacio. Libera espacio o borra sonidos viejos.' : 'No se pudo guardar el sonido (' + ((err && err.message) || 'error desconocido') + ').';
+
 /** Al terminar una toma: guardado rápido si está activo; si no, hoja para elegir nombre y carpeta. */
 export async function finishTake(audio) {
   if (!audio || !audio.length) return;
@@ -190,8 +195,8 @@ export async function finishTake(audio) {
   try {
     await putSample(newSample(name, out, rate, kind === 'libre' ? {} : { kind }), out);
     await refreshSamples();
-    toast(`Guardada: ${name} · ${dsp.stamp(audio.length / rate)} → ${dsp.stamp(out.length / rate)}`);
-  } catch (err) { toast('No se pudo guardar (¿poco espacio en el dispositivo?)'); }
+    toast(`Guardada: ${name} · ${dsp.stamp(audio.length / rate)} → ${dsp.stamp(out.length / rate)}${longNote(out.length / rate)}`);
+  } catch (err) { toast(storeError(err)); }
   app.render();
 }
 
@@ -203,21 +208,25 @@ function showSave(audio, rate) {
     const name = h('input', { type: 'text', class: 'field', value: '', placeholder: stampName, 'aria-label': 'Nombre' });
     const canvas = h('canvas', { class: 'wave small-wave' });
     const go2 = h('button', { type: 'button', class: 'btn amber' });
+    const cut = { on: false }, tooLong = audio.length / rate > MAX_TEXTURE + 0.05;
+    const longBox = tooLong ? h('div', { class: 'card warn', role: 'status' }, h('b', {}, `Dura ${dsp.stamp(audio.length / rate)}, más de ${MAX_TEXTURE} s`),
+      h('small', { class: 'muted' }, 'Para texturas del K.O. II conviene 6 s o menos. Puedes guardarla entera o quedarte con los primeros 6 s.'),
+      toggleRow('Recortar a los primeros 6 s', 'Sin ajustes de guardado rápido', false, on => { cut.on = on; })) : null;
     const paintBtn = () => { go2.textContent = 'Guardar en ' + (st.sub ? st.folder + ' › ' + st.sub : st.folder); };
     paintBtn();
     go2.addEventListener('click', async () => {
-      const out = dsp.quickProcess(audio, rate, loadQuick());
+      const out = cut.on ? audio.slice(0, Math.floor(MAX_TEXTURE * rate)) : dsp.quickProcess(audio, rate, loadQuick());
       try {
         const kind = ls.get('kind', 'libre'), s = newSample(name.value.trim() || stampName, out, rate, { folder: st.folder, subfolder: st.sub, ...(dsp.SOUND_KINDS[kind] && kind !== 'libre' ? { kind } : {}) });
         await putSample(s, out); await refreshSamples(); toast('Guardada en ' + (st.sub ? st.folder + ' › ' + st.sub : st.folder));
-      } catch (err) { toast('No se pudo guardar (¿poco espacio en el dispositivo?)'); }
+      } catch (err) { toast(storeError(err)); }
       close(); app.render();
     });
     setTimeout(() => drawBars(canvas, dsp.peaks(audio, 40), [0, 1]), 30);
     return h('div', { class: 'stack' },
       h('div', { class: 'title-row' }, h('h2', {}, 'Guardar grabación'), link('Cancelar', close)),
       card([h('b', {}, stampName), h('small', { class: 'muted' }, `${dsp.stamp(audio.length / rate)} · WAV mono · ${hz(rate)}`), canvas]),
-      label('Nombre'), name, folderPicker(st, paintBtn), go2,
+      longBox, label('Nombre'), name, folderPicker(st, paintBtn), go2,
       muted('Puedes cambiar nombre, carpeta y recorte después.', 'center small'));
   });
 }
@@ -347,7 +356,8 @@ export function renderLibrary(root) {
         label('Recientes'), app.samples.slice(0, 5).map(s => sampleRow(s, { listen: true })),
         btn('Importar sonidos', { small: true, act: 'importar', onclick: () => importInput.click() }),
         muted('Trae WAV (también MP3, M4A…) desde Archivos o Drive. Entran a Sin clasificar, a su frecuencia original y en mono.', 'tiny'),
-        h('div', { class: 'row2 backup' }, btn('Copia de seguridad', { small: true, onclick: backupAll }), btn('Restaurar', { small: true, onclick: () => fileInput.click() })));
+        storagePanel(),
+        h('div', { class: 'row2 backup' }, btn('Respaldo', { small: true, 'aria-label': 'Respaldo: guardar toda la colección en un .zip', onclick: backupAll }), btn('Restaurar', { small: true, onclick: () => fileInput.click() })));
     }
   };
   const fileInput = h('input', { type: 'file', accept: '.zip,application/zip', hidden: true, onchange: e => restoreBackup(e.target.files[0]) });
@@ -418,6 +428,7 @@ function renderFolder(root) {
         btn('Borrar', { small: true, kind: 'danger', disabled: !L.sel.size, onclick: () => act.del() })));
   };
   const rowMenu = s => sheet(close => h('div', { class: 'stack' }, h('h2', {}, s.name),
+    btn('Detalles (etiquetas, nota, BPM…)', { act: 'detalles', onclick: () => { close(); openDetails(s); } }),
     btn('Seleccionar', { onclick: () => { close(); L.selecting = true; L.sel = new Set([s.id]); paint(); } }),
     btn('Cambiar nombre', { onclick: () => { close(); act.rename([s]); } }),
     btn('Mover', { onclick: () => { close(); act.move([s]); } }),
@@ -428,14 +439,50 @@ function renderFolder(root) {
   if (L.selecting) bar.hidden = false;
 }
 
-// ---------- copia de seguridad ----------
+// ---------- hoja: detalles de un sonido ----------
+const parseTags = t => [...new Set(String(t).split(/[,;\n]/).map(x => x.trim()).filter(Boolean))].slice(0, 12);
+export function openDetails(s) {
+  sheet(close => {
+    const f = (type, value, lab, extra = {}) => h('input', { type, class: 'field', value: value == null ? '' : String(value), 'aria-label': lab, ...extra });
+    const tags = f('text', (s.tags || []).join(', '), 'Etiquetas', { placeholder: 'pad, cálido, lluvia…' });
+    const key = f('text', s.key, 'Nota o tonalidad', { placeholder: 'Am, C#, F…', maxlength: '8' });
+    const bpm = f('number', s.bpm ? Math.round(s.bpm) : '', 'BPM', { min: '30', max: '300', inputmode: 'numeric', placeholder: 'sin BPM' });
+    const note = h('textarea', { class: 'field', rows: '3', 'aria-label': 'Fuente o comentario', placeholder: 'De dónde salió, cómo la grabé…' }, s.comment || '');
+    return h('div', { class: 'stack' },
+      h('div', { class: 'title-row' }, h('div', {}, h('h2', {}, 'Detalles'), h('p', { class: 'muted small' }, s.name + ' · ' + dsp.stamp(s.duration) + ' · ' + new Date(s.created).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' }))), link('Cancelar', close)),
+      label('Etiquetas (separadas por comas)'), tags, label('Nota o tonalidad (opcional)'), key, label('BPM (opcional)'), bpm, label('Fuente o comentario'), note,
+      btn('Guardar detalles', { kind: 'amber', act: 'guardar-detalles', onclick: async () => {
+        const b = parseFloat(bpm.value), k = key.value.trim();
+        try { await putSample({ ...s, tags: parseTags(tags.value), key: k || null, bpm: b >= 30 && b <= 300 ? b : null, comment: note.value.trim() }); await refreshSamples(); toast('Detalles guardados'); }
+        catch (err) { toast(storeError(err)); }
+        close(); app.render();
+      } }));
+  });
+}
+
+// ---------- almacenamiento ----------
+const mb = n => n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1e3)) + ' KB';
+/** Espacio usado por la biblioteca y si el navegador la protege del borrado automático. */
+function storagePanel() {
+  const box = h('div', { class: 'stack tight storage' });
+  const paint = async () => {
+    const i = await storageInfo();
+    const used = i.usage != null ? `Espacio usado: ${mb(i.usage)}${i.quota ? ' de ' + mb(i.quota) : ''}` : 'Espacio usado: el navegador no lo informa';
+    const prot = i.persisted === true ? 'Protegido: el navegador no borrará la biblioteca solo.' : i.persisted === false ? 'Sin protección: si el dispositivo se queda sin espacio, el navegador podría borrar la biblioteca. Haz respaldos.' : '';
+    fill(box, h('div', { role: 'status', 'aria-live': 'polite' }, h('b', { class: 'small' }, used), prot ? h('small', { class: 'muted', 'data-act': 'persist' }, ' ' + prot) : null),
+      i.persisted === false ? btn('Proteger el almacenamiento', { small: true, act: 'persistir', onclick: async () => { const ok = await requestPersist(); toast(ok ? 'Almacenamiento protegido' : 'El navegador no lo concedió (en iPhone/Safari conviene instalar la app en la pantalla de inicio)'); paint(); } }) : null);
+  };
+  paint(); return box;
+}
+
+// ---------- respaldo ----------
 async function backupAll() {
   if (!app.samples.length) return toast('No hay nada que guardar todavía');
-  toast('Preparando la copia…');
-  const files = [{ name: 'biblioteca.json', data: new TextEncoder().encode(JSON.stringify({ formato: 1, app: 'denavilab-sounds', samples: app.samples })) }];
+  toast('Preparando el respaldo…');
+  const files = [{ name: 'biblioteca.json', data: new TextEncoder().encode(JSON.stringify({ formato: 2, app: 'denavilab-sounds', version: VERSION, fecha: new Date().toISOString(), samples: app.samples })) }];
   for (const s of app.samples) files.push({ name: `audio/${s.id}.wav`, data: dsp.encodeWav(await getAudio(s.id), s.rate) });
   const d = new Date(), stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  await deliver(new File([makeZip(files)], `denavilab-sounds-copia-${stamp}.zip`, { type: 'application/zip' }));
+  await deliver(new File([makeZip(files)], `denavilab-sounds-respaldo-${stamp}.zip`, { type: 'application/zip' }));
 }
 
 /** Importa archivos de audio como sonidos nuevos: mono, a su frecuencia original, en Sin clasificar. Los muy largos o ilegibles se saltan y se avisa. */
@@ -457,17 +504,24 @@ async function importFiles(files) {
 async function restoreBackup(file) {
   if (!file) return;
   try {
-    const entries = readZip(new Uint8Array(await file.arrayBuffer()));
-    const meta = entries && entries.find(e => e.name === 'biblioteca.json');
-    if (!meta) throw new Error('no es una copia de DenaviLab: Sounds');
-    const data = JSON.parse(new TextDecoder().decode(meta.data)), have = new Set(app.samples.map(s => s.id)); let added = 0;
-    for (const s of data.samples || []) {
-      if (have.has(s.id)) continue;
-      const w = entries.find(e => e.name === `audio/${s.id}.wav`), dec = w && dsp.decodeWav(w.data);
-      if (dec) { await putSample(s, dec.samples); added++; }
+    let entries;
+    try { entries = readZip(new Uint8Array(await file.arrayBuffer())); } catch (e) { entries = null; }
+    if (!entries) throw new Error('el archivo está dañado o no es un .zip');
+    const meta = entries.find(e => e.name === 'biblioteca.json');
+    if (!meta) throw new Error('no es un respaldo de DenaviLab: Sounds');
+    let data; try { data = JSON.parse(new TextDecoder().decode(meta.data)); } catch (e) { throw new Error('el índice del respaldo está dañado'); }
+    if (!data || !Array.isArray(data.samples)) throw new Error('el índice del respaldo está dañado');
+    const have = new Set(app.samples.map(s => s.id)); let added = 0, skipped = 0, bad = 0;
+    for (const raw of data.samples) {
+      if (!raw || !raw.id) { bad++; continue; }
+      if (have.has(raw.id)) { skipped++; continue; }
+      const w = entries.find(e => e.name === `audio/${raw.id}.wav`), dec = w && dsp.decodeWav(w.data);
+      if (!dec || !dec.samples.length) { bad++; continue; }
+      await putSample(normalizeSample({ ...raw, rate: raw.rate || dec.rate }), dec.samples); added++;
     }
-    await refreshSamples(); toast(added ? `Restauradas ${added} grabaciones` : 'No había nada nuevo que restaurar'); app.render();
-  } catch (err) { toast('No se pudo restaurar: ' + (err.message || err)); }
+    await refreshSamples(); app.render();
+    toast((added ? `Restauradas ${added} grabaciones` : 'No había nada nuevo que restaurar') + (skipped ? ` · ${skipped} ya estaban` : '') + (bad ? ` · ${bad} con el audio dañado, omitidas` : ''));
+  } catch (err) { toast(err && (err.name === 'QuotaExceededError') ? 'No se pudo restaurar: el dispositivo se quedó sin espacio.' : 'No se pudo restaurar: ' + (err.message || err)); }
 }
 
 // ====================================================================== EXPORTAR

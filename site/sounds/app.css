@@ -181,3 +181,6 @@ dialog.sheet { margin: auto auto 0; width: min(100%, 600px); max-width: 100%; ma
 .pad.cell { min-height: 40px; font-size: 15px; border-radius: 10px; }
 .pad.cell.bar0 { box-shadow: inset 3px 0 0 var(--amber); }
 .pad.cell.picked { outline: 2px solid var(--amber); outline-offset: -2px; }
+.warn { border-color: var(--amber, #e5a50a); }
+.storage { margin-top: 12px; }
+textarea.field { resize: vertical; font: inherit; }

@@ -15,10 +15,32 @@ const done = tx => new Promise((res, rej) => { tx.oncomplete = () => res(); tx.o
 
 export const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now().toString(36) + Math.random().toString(36).slice(2));
 
+/** Campos de cada sonido y su valor por defecto; los guardados antes de tenerlos se completan al leerlos (sin migración de la base). */
+export const META_DEFAULTS = { favorite: false, tags: [], key: null, bpm: null, comment: '' };
+export const normalizeSample = s => {
+  const o = { ...META_DEFAULTS, ...s };
+  o.favorite = o.favorite === true; o.tags = Array.isArray(o.tags) ? o.tags : [];
+  o.key = o.key ? String(o.key) : null; o.comment = o.comment ? String(o.comment) : '';
+  return o;
+};
+
 export async function listSamples() {
   const db = await open();
   const all = await wrap(db.transaction(META).objectStore(META).getAll());
-  return all.sort((a, b) => b.created - a.created);   // la más reciente primero
+  return all.map(normalizeSample).sort((a, b) => b.created - a.created);   // la más reciente primero
+}
+
+/** Espacio que usa el origen y si el navegador prometió no borrarlo. {usage, quota, persisted} (null si el navegador no lo informa). */
+export async function storageInfo() {
+  const o = { usage: null, quota: null, persisted: null };
+  try { if (navigator.storage && navigator.storage.estimate) { const e = await navigator.storage.estimate(); o.usage = e.usage; o.quota = e.quota; } } catch (e) {}
+  try { if (navigator.storage && navigator.storage.persisted) o.persisted = await navigator.storage.persisted(); } catch (e) {}
+  return o;
+}
+/** Pide al navegador que no borre la biblioteca si falta espacio. true si lo concedió. */
+export async function requestPersist() {
+  try { if (navigator.storage && navigator.storage.persist) return await navigator.storage.persist(); } catch (e) {}
+  return false;
 }
 
 export async function getAudio(id) {
@@ -52,5 +74,5 @@ export async function deleteSamples(ids) {
 
 export function newSample(name, audio, rate, extra = {}) {
   return { id: uid(), name, folder: 'Sin clasificar', subfolder: null, tags: [], slot: null, rate,
-           created: Date.now(), duration: audio.length / rate, bpm: null, ...extra };
+           created: Date.now(), duration: audio.length / rate, bpm: null, favorite: false, key: null, comment: '', ...extra };
 }
