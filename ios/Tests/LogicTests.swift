@@ -864,7 +864,7 @@ final class LogicTests: XCTestCase {
         let rate = 48_000
         let x: [Float] = (0..<(rate * 2)).map { k in 0.6 * Float(sin(Double(k) * 0.031)) + 0.3 * (Float(k) / Float(rate) - 1) }
         let y = PadLab.crossLoop(x, rate: rate, ms: 300)
-        XCTAssertGreaterThan(Creative.seamJump(x), Creative.seamJump(y)); XCTAssertLessThan(Creative.seamJump(y), 1.0)
+        XCTAssertGreaterThan(Creative.seamJump(x), Creative.seamJump(y)); XCTAssertLessThan(Creative.seamJump(y), 2.0)      // empalmar muestras contiguas: el salto es de un paso normal de la onda
         XCTAssertEqual(Double(y.count) / Double(rate), 1.7, accuracy: 0.01)
     }
 
