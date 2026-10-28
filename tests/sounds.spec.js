@@ -419,6 +419,53 @@ test.describe('etapa 1 · almacenamiento', () => {
   });
 });
 
+test.describe('etapa 2 · favoritos', () => {
+  const abrirTodas = async page => { await tab(page, 'biblioteca'); await page.getByText('Seleccionar').first().click(); await page.getByText('Cancelar').first().click(); };
+  const nombres = page => page.locator('.sel-row .rb-text b').allTextContents();
+  test('la estrella marca, se guarda en IndexedDB y sobrevive a recargar', async ({ page }) => {
+    await abrir(page, 'rolando'); await sembrar(page, ['alfa', 'beta', 'gamma']); await abrirTodas(page);
+    const star = page.getByRole('button', { name: 'Marcar como favorito: beta' });
+    await star.focus(); await page.keyboard.press('Enter');
+    await expect(page.getByRole('button', { name: 'Quitar de favoritos: beta' })).toHaveAttribute('aria-pressed', 'true');
+    await page.reload(); await abrirTodas(page);
+    await expect(page.getByRole('button', { name: 'Quitar de favoritos: beta' })).toBeVisible();
+    expect(await page.evaluate(async () => (await (await import('/sounds/store.js')).listSamples()).filter(s => s.favorite).map(s => s.name))).toEqual(['beta']);
+  });
+  test('filtro solo favoritos y orden por fecha, nombre y favoritos primero', async ({ page }) => {
+    await abrir(page, 'rolando'); await sembrar(page, ['charlie', 'alfa', 'bravo']);       // creadas en ese orden → bravo es la más reciente
+    await page.evaluate(async () => { const st = await import('/sounds/store.js'); const s = (await st.listSamples()).find(x => x.name === 'charlie'); await st.putSample({ ...s, favorite: true }); });
+    await page.reload(); await abrirTodas(page);
+    expect(await nombres(page)).toEqual(['bravo', 'alfa', 'charlie']);
+    await page.getByLabel('Ordenar por').selectOption('nombre'); expect(await nombres(page)).toEqual(['alfa', 'bravo', 'charlie']);
+    await page.getByLabel('Ordenar por').selectOption('favoritos'); expect(await nombres(page)).toEqual(['charlie', 'bravo', 'alfa']);
+    await page.getByRole('button', { name: /Solo favoritos/ }).click();
+    expect(await nombres(page)).toEqual(['charlie']);
+    await page.reload(); await abrirTodas(page);                                              // la vista se recuerda
+    expect(await nombres(page)).toEqual(['charlie']);
+    await expect(page.getByLabel('Ordenar por')).toHaveValue('favoritos');
+  });
+  test('atajo F sobre la fila con el foco marca y desmarca', async ({ page }) => {
+    await abrir(page, 'rolando'); await sembrar(page, ['alfa', 'beta']); await abrirTodas(page);
+    await page.locator('.sel-row[data-id] .row-btn').first().focus();
+    await page.keyboard.press('f');
+    await expect(page.locator('.star.on')).toHaveCount(1);
+    await page.keyboard.press('f');
+    await expect(page.locator('.star.on')).toHaveCount(0);
+  });
+  test('F no actúa mientras se escribe en el buscador', async ({ page }) => {
+    await abrir(page, 'rolando'); await sembrar(page, ['alfa']); await tab(page, 'biblioteca');
+    await page.getByLabel('Buscar sonido').fill('f'); await page.keyboard.press('f');
+    expect(await page.evaluate(async () => (await (await import('/sounds/store.js')).listSamples()).filter(s => s.favorite).length)).toBe(0);
+  });
+  test('en Editar también hay estrella y atajo F', async ({ page }) => {
+    await abrir(page, 'rolando'); await sembrar(page, ['alfa']); await abrirTodas(page);
+    await page.locator('.row-btn').first().click();
+    await expect(page.getByRole('heading', { name: 'Escuchar y editar' })).toBeVisible();
+    await page.locator('h1').click(); await page.keyboard.press('f');
+    await expect(page.getByRole('button', { name: 'Quitar de favoritos: alfa' })).toBeVisible();
+  });
+});
+
 test.describe('aspecto', () => {
   test.use({ deviceScaleFactor: 2 });                        // como un iPhone: con densidad doble el lienzo roto se realimentaba
   test('el lienzo de la onda del editor mantiene su tamaño (no se agranda solo)', async ({ page }) => {

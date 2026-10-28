@@ -1,5 +1,6 @@
 // Pestaña Editar: onda con dos marcadores, reproducción, recorte, fundido, normalizado, deshacer, tempo y carpeta.
 import { app, go, refreshSamples, sampleById } from './state.js';
+import { starBtn } from './screens.js';
 import { h, mount, fill, btn, link, chip, card, label, muted, title, toggleRow, sliderRow, logo, confirmSheet, toast, folderPicker, drawBars, fx, flash } from './ui.js';
 import { compute } from './work.js';
 import * as dsp from './dsp.js';
@@ -129,7 +130,7 @@ export function renderEdit(root) {
   const fp = { folder: s.folder, sub: s.subfolder || null };
 
   mount(root, 
-    title('Escuchar y editar'),
+    title('Escuchar y editar', null, starBtn(s)),
     h('div', { class: 'undo-bar', role: 'group', 'aria-label': 'Historial de cambios' },
       h('div', { class: 'row3' },
         btn('↶ Deshacer', { small: true, act: 'deshacer', disabled: !ed.undo.length, aria: 'Deshacer el último cambio', onclick: () => step(ed.undo, ed.redo, ed.labels, ed.rlabels) }),

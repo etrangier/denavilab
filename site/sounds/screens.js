@@ -42,12 +42,61 @@ async function toggleAudition(s) {
 const listenBtn = s => h('button', { type: 'button', class: 'icon-btn' + (aud.id === s.id ? ' on' : ''), 'aria-pressed': String(aud.id === s.id),
   'aria-label': (aud.id === s.id ? 'Parar ' : 'Escuchar ') + s.name, onclick: () => toggleAudition(s) }, aud.id === s.id ? '■' : '▶');
 
+// ---------- favoritos, orden y filtro ----------
+export const SORTS = [['fecha', 'Fecha (recientes primero)'], ['nombre', 'Nombre (A–Z)'], ['favoritos', 'Favoritos primero']];
+export const view = {
+  get onlyFav() { return ls.get('onlyFav', false) === true; }, set onlyFav(v) { ls.set('onlyFav', !!v); },
+  get sort() { const v = ls.get('sort', 'fecha'); return SORTS.some(x => x[0] === v) ? v : 'fecha'; }, set sort(v) { ls.set('sort', v); },
+};
+/** Filtra por «solo favoritos» y ordena según la vista elegida. No toca la lista original. */
+export function arrange(list) {
+  const out = view.onlyFav ? list.filter(s => s.favorite) : [...list], byDate = (a, b) => b.created - a.created;
+  if (view.sort === 'nombre') out.sort((a, b) => a.name.localeCompare(b.name, 'es', { numeric: true, sensitivity: 'base' }) || byDate(a, b));
+  else if (view.sort === 'favoritos') out.sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0) || byDate(a, b));
+  else out.sort(byDate);
+  return out;
+}
+export async function setFavorite(list, value) {
+  const ch = list.filter(s => !!s.favorite !== value);
+  if (!ch.length) return;
+  try { await putMany(ch.map(s => ({ ...s, favorite: value }))); await refreshSamples(); }
+  catch (err) { toast(storeError(err)); }
+}
+export async function toggleFavorite(s) {
+  const now = !s.favorite;
+  await setFavorite([s], now); app.render();
+  const el = document.querySelector(`[data-star="${s.id}"]`); if (el) el.focus();
+  toast(now ? 'Favorito: ' + s.name : 'Quitado de favoritos: ' + s.name);
+}
+export const starBtn = s => h('button', { type: 'button', class: 'icon-btn star' + (s.favorite ? ' on' : ''), 'data-star': s.id, 'aria-pressed': String(!!s.favorite),
+  'aria-label': (s.favorite ? 'Quitar de favoritos: ' : 'Marcar como favorito: ') + s.name, title: 'Favorito (tecla F)', onclick: e => { e.stopPropagation(); toggleFavorite(s); } }, s.favorite ? '★' : '☆');
+/** Barra de vista: «solo favoritos» y orden. `repaint` vuelve a pintar la lista. */
+export function viewBar(repaint) {
+  const onlyBtn = h('button', { type: 'button', class: 'chip' + (view.onlyFav ? ' sel' : ''), 'aria-pressed': String(view.onlyFav), 'data-act': 'solo-favoritos',
+    onclick: () => { view.onlyFav = !view.onlyFav; onlyBtn.setAttribute('aria-pressed', String(view.onlyFav)); onlyBtn.classList.toggle('sel', view.onlyFav); repaint(); } }, '★ Solo favoritos');
+  const sel = h('select', { class: 'field sort', 'aria-label': 'Ordenar por', onchange: e => { view.sort = e.target.value; repaint(); } },
+    SORTS.map(([k, t]) => h('option', { value: k, selected: view.sort === k }, t)));
+  return h('div', { class: 'viewbar' }, onlyBtn, sel);
+}
+/** Atajo F: marca o desmarca el sonido con el foco en la lista, el abierto en Editar o, en modo selección, los elegidos. */
+document.addEventListener('keydown', e => {
+  if (e.key.toLowerCase() !== 'f' || e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return;
+  const t = e.target; if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
+  if (document.querySelector('dialog[open]')) return;
+  const row = document.activeElement && document.activeElement.closest && document.activeElement.closest('[data-id]');
+  let list = row ? [sampleById(row.dataset.id)] : app.tab === 'editar' && app.selectedId ? [sampleById(app.selectedId)] : L.selecting ? app.samples.filter(x => L.sel.has(x.id)) : [];
+  list = list.filter(Boolean); if (!list.length) return;
+  e.preventDefault();
+  if (list.length === 1) return toggleFavorite(list[0]);
+  const v = list.some(x => !x.favorite); setFavorite(list, v).then(() => { app.render(); toast(v ? `${list.length} marcadas como favoritas` : `${list.length} quitadas de favoritos`); });
+});
+
 export function sampleRow(s, { onclick, trailing, listen = false } = {}) {
   const right = trailing !== undefined ? trailing : (app.ko2 ? (s.slot ? 'slot ' + s.slot : 'sin enviar') : '');
   const row = h('button', { type: 'button', class: 'card row-btn', onclick: onclick || (() => { stopAudition(); openSample(s); }) },
     h('span', { class: 'rb-text' }, h('b', {}, s.name), h('small', {}, pathOf(s) + ' · ' + dsp.stamp(s.duration))),
     right ? h('span', { class: 'amber small' }, right) : null);
-  return listen ? h('div', { class: 'sel-row' }, row, listenBtn(s)) : row;
+  return listen ? h('div', { class: 'sel-row', 'data-id': s.id }, row, starBtn(s), listenBtn(s)) : row;
 }
 
 // ====================================================================== INICIO
@@ -343,9 +392,9 @@ export function renderLibrary(root) {
       fill(results, h('div', { class: 'empty' }, logo(56), h('h2', {}, 'Aún no hay samples'),
         muted('Graba tu primer sample y aparecerá aquí, ordenado por carpeta.', 'center'), btn('Grabar', { kind: 'amber', onclick: () => go('grabar') }), btn('Importar sonidos', { small: true, act: 'importar', onclick: () => importInput.click() }),
         label('Carpetas'), h('div', { class: 'wrap' }, FOLDERS.map(f => h('span', { class: 'chip static' }, f.name)))));
-    } else if (q) {
-      const found = app.samples.filter(s => s.name.toLowerCase().includes(q) || (s.tags || []).some(t => t.toLowerCase().includes(q)));
-      fill(results, label('Resultados'), found.length ? found.map(s => sampleRow(s, { listen: true })) : muted('Nada coincide con la búsqueda.'));
+    } else if (q || view.onlyFav) {
+      const found = arrange(app.samples.filter(s => !q || s.name.toLowerCase().includes(q) || (s.tags || []).some(t => t.toLowerCase().includes(q)) || (s.key || '').toLowerCase() === q));
+      fill(results, label(view.onlyFav ? 'Favoritos' : 'Resultados'), found.length ? found.map(s => sampleRow(s, { listen: true })) : muted(view.onlyFav && !q ? 'Aún no marcas favoritos: toca la ☆ de un sonido.' : 'Nada coincide con la búsqueda.'));
     } else {
       fill(results, 
         FOLDERS.map(f => {
@@ -366,13 +415,13 @@ export function renderLibrary(root) {
     title('Biblioteca', null, h('span', { class: 'row-gap' }, h('span', { class: 'muted small' }, `${n} ${n === 1 ? 'grabación' : 'grabaciones'}`),
       n ? link('Seleccionar', () => { L.folder = '*'; L.selecting = true; L.sel = new Set(); app.render(); }) : null)),
     h('input', { type: 'search', class: 'field', placeholder: 'Buscar sonido…', value: L.query, 'aria-label': 'Buscar sonido', oninput: e => { L.query = e.target.value; paint(); } }),
-    results, fileInput, importInput);
+    n ? viewBar(paint) : null, results, fileInput, importInput);
   paint();
 }
 
 function renderFolder(root) {
   const all = L.folder === '*';
-  const items = () => all ? app.samples.filter(s => !L.query.trim() || s.name.toLowerCase().includes(L.query.trim().toLowerCase())) : app.samples.filter(s => folderOf(s) === L.folder);
+  const items = () => arrange(all ? app.samples.filter(s => !L.query.trim() || s.name.toLowerCase().includes(L.query.trim().toLowerCase())) : app.samples.filter(s => folderOf(s) === L.folder));
   const list = h('div', { class: 'stack tight' }), bar = h('div', { class: 'selbar' }), head = h('div');
   const exit = () => { L.folder = null; L.selecting = false; L.sel = new Set(); app.render(); };
   const targets = () => app.samples.filter(s => L.sel.has(s.id));
@@ -413,15 +462,16 @@ function renderFolder(root) {
           link(L.selecting ? 'Cancelar' : 'Seleccionar', () => { L.selecting = !L.selecting; L.sel = new Set(); paint(); }))));
     fill(list, ...(its.length ? its.map(s => {
       const on = L.sel.has(s.id);
-      return h('div', { class: 'sel-row' },
+      return h('div', { class: 'sel-row', 'data-id': s.id },
         h('button', { type: 'button', class: 'card row-btn' + (on ? ' picked' : ''), 'aria-pressed': L.selecting ? String(on) : null,
           onclick: () => { if (L.selecting) { on ? L.sel.delete(s.id) : L.sel.add(s.id); paint(); } else { stopAudition(); openSample(s); } } },
           L.selecting ? h('span', { class: 'check' + (on ? ' on' : ''), 'aria-hidden': 'true' }, on ? '✓' : '') : null,
           h('span', { class: 'rb-text' }, h('b', {}, s.name), h('small', {}, pathOf(s) + ' · ' + dsp.stamp(s.duration))),
           app.ko2 && s.slot ? h('span', { class: 'amber small' }, 'slot ' + s.slot) : null),
+        starBtn(s),
         L.selecting ? null : listenBtn(s),
         L.selecting ? null : h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Más acciones para ' + s.name, onclick: () => rowMenu(s) }, '⋯'));
-    }) : [muted('Esta carpeta está vacía.', 'center')]));
+    }) : [muted(view.onlyFav ? 'Ningún favorito aquí. Toca la ☆ de un sonido para marcarlo.' : 'Esta carpeta está vacía.', 'center')]));
     bar.hidden = !L.selecting;
     fill(bar, h('p', { class: 'muted tiny center' }, L.sel.size ? `${L.sel.size} seleccionada${L.sel.size === 1 ? '' : 's'}` : 'Elige una o varias grabaciones'),
       h('div', { class: 'row3' }, btn('Cambiar nombre', { small: true, disabled: !L.sel.size, onclick: () => act.rename() }), btn('Mover', { small: true, disabled: !L.sel.size, onclick: () => act.move() }),
@@ -434,7 +484,7 @@ function renderFolder(root) {
     btn('Mover', { onclick: () => { close(); act.move([s]); } }),
     btn('Borrar', { kind: 'danger', onclick: () => { close(); act.del([s]); } }), link('Cerrar', close)));
 
-  mount(root, head, list, bar);
+  mount(root, head, viewBar(paint), list, bar);
   paint();
   if (L.selecting) bar.hidden = false;
 }

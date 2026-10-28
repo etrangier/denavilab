@@ -184,3 +184,6 @@ dialog.sheet { margin: auto auto 0; width: min(100%, 600px); max-width: 100%; ma
 .warn { border-color: var(--amber, #e5a50a); }
 .storage { margin-top: 12px; }
 textarea.field { resize: vertical; font: inherit; }
+.star { font-size: 22px; } .star.on { color: var(--amber); } .star:not(.on) { color: var(--muted); }
+.viewbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+.viewbar .sort { flex: 1; min-width: 150px; width: auto; }
