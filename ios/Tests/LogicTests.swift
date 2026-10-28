@@ -873,10 +873,10 @@ final class LogicTests: XCTestCase {
         func tone(_ hz: Double) -> [Float] { (0..<rate).map { 0.4 * Float(sin(2 * Double.pi * hz * Double($0) / Double(rate))) } }
         let l1 = PadLab.Layer(id: UUID(), name: "a", audio: tone(200), rate: rate)
         let plain = PadLab.process([l1], PadLab.Params())
-        XCTAssertEqual(plain.count, rate)
+        XCTAssertEqual(plain.count, 38_400)                                                    // 1 s menos los 200 ms del fundido cruzado
         XCTAssertEqual(Editing.peakDB(plain), -1, accuracy: 0.2)
         var down = PadLab.Params(); down.pitch = -12
-        XCTAssertEqual(PadLab.process([l1], down).count, rate * 2, accuracy: 4)               // una octava abajo dura el doble
+        XCTAssertEqual(PadLab.process([l1], down).count, 76_800, accuracy: 4)               // una octava abajo dura el doble
         // pasa-bajos: una mezcla de 200 Hz y 6 kHz queda casi sin la parte aguda (menos «rugosa»)
         let mixTone = zip(tone(200), tone(6000)).map { $0 + $1 }
         let l2 = PadLab.Layer(id: UUID(), name: "m", audio: mixTone, rate: rate)
@@ -890,7 +890,7 @@ final class LogicTests: XCTestCase {
         var two = PadLab.Params(); two.mix = 40; two.sat = 30; two.hp = 20
         let l3 = PadLab.Layer(id: UUID(), name: "b", audio: tone(300), rate: rate, volume: 0.5, tune: 7)
         let out = PadLab.process([l1, l3], two)
-        XCTAssertEqual(out.count, rate); XCTAssertEqual(Editing.peakDB(out), -1, accuracy: 0.2)
+        XCTAssertEqual(out.count, 38_400); XCTAssertEqual(Editing.peakDB(out), -1, accuracy: 0.2)
         XCTAssertEqual(PadLab.describe(two, [l1, l3]).first, "bucle 200 ms")
         XCTAssertTrue(PadLab.describe(two, [l1, l3]).contains { $0.hasPrefix("capas: a (vol 100 %) + b (vol 50 %, +7 st)") })
         XCTAssertEqual(PadLab.noteName(0), "Do4"); XCTAssertEqual(PadLab.noteName(13), "Do#5"); XCTAssertEqual(PadLab.noteName(-1), "Si3")

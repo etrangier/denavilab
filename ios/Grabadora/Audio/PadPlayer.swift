@@ -92,7 +92,7 @@ final class MIDIListener: ObservableObject {
     func start() {
         guard client == 0 else { connectAll(); return }
         var st = MIDIClientCreateWithBlock("DenaviLab" as CFString, &client) { [weak self] _ in
-            DispatchQueue.main.async { self?.connectAll() }
+            Task { @MainActor in self?.connectAll() }
         }
         guard st == noErr else { status = "No se pudo usar MIDI (código \(st))"; return }
         st = MIDIInputPortCreateWithBlock(client, "Entrada" as CFString, &port) { [weak self] list, _ in
@@ -108,7 +108,8 @@ final class MIDIListener: ObservableObject {
                 }
             }
             guard !events.isEmpty else { return }
-            DispatchQueue.main.async { for e in events { self?.onNote?(e.0, e.1) } }
+            let found = events
+            Task { @MainActor in for e in found { self?.onNote?(e.0, e.1) } }
         }
         guard st == noErr else { status = "No se pudo abrir la entrada MIDI (código \(st))"; return }
         connectAll()

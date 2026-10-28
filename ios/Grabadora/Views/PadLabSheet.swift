@@ -169,7 +169,7 @@ struct PadLabSheet: View {
         if hearing { player.noteOff(0); hearing = false } else { player.noteOn(0); hearing = true }
     }
 
-    private func rerender() async {
+    @MainActor private func rerender() async {
         try? await Task.sleep(nanoseconds: 350_000_000)           // espera a que se suelte el control
         if Task.isCancelled { return }
         busy = true
