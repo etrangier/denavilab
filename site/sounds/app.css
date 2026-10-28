@@ -187,3 +187,5 @@ textarea.field { resize: vertical; font: inherit; }
 .star { font-size: 22px; } .star.on { color: var(--amber); } .star:not(.on) { color: var(--muted); }
 .viewbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
 .viewbar .sort { flex: 1; min-width: 150px; width: auto; }
+.ko-names { margin: 0; padding: 0 0 0 4px; list-style: none; display: grid; gap: 4px; max-height: 32vh; overflow: auto; }
+.ko-names code { color: var(--amber); font-size: 13px; word-break: break-all; }

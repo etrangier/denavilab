@@ -126,11 +126,11 @@ export function trimSilence(x, thresholdDB = -48, pad = 0) {
 // ---------- Limpieza de ruido ----------
 
 /** Filtro pasa-altos de 4.º orden (dos biquads Butterworth en cascada): quita soplidos, respiración y rumor grave. */
-export function highpass(x, rate, hz) {
+export function highpass(x, rate, hz, passes = 2) {
   const w0 = 2 * Math.PI * hz / rate, c = Math.cos(w0), al = Math.sin(w0) / (2 * Math.SQRT1_2), a0 = 1 + al;
   const b0 = (1 + c) / 2 / a0, b1 = -(1 + c) / a0, a1 = -2 * c / a0, a2 = (1 - al) / a0;
   let y = Float32Array.from(x);
-  for (let pass = 0; pass < 2; pass++) {
+  for (let pass = 0; pass < passes; pass++) {
     let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
     for (let i = 0; i < y.length; i++) {
       const xi = y[i], yi = b0 * xi + b1 * x1 + b0 * x2 - a1 * y1 - a2 * y2;

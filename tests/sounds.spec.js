@@ -466,6 +466,69 @@ test.describe('etapa 2 · favoritos', () => {
   });
 });
 
+test.describe('etapa 3 · exportación para el K.O. II', () => {
+  test('procesado: pico −1 dBFS, silencio inicial fuera, fundidos y frecuencia', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const r = await page.evaluate(async () => {
+      const k = await import('/sounds/koexport.js'), rate = 48000;
+      const x = new Float32Array(rate * 2); for (let i = 0; i < x.length; i++) x[i] = i < rate * 0.5 ? 0.0005 * Math.sin(i * 0.3) : 0.2 * Math.sin(i * 0.05);   // 0,5 s de casi silencio y luego señal
+      const peak = a => a.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+      const a = k.processForKO(x, rate, {}), b = k.processForKO(x, rate, { longFade: true }), c = k.processForKO(x, rate, { rate: 44100 });
+      const hp = k.processForKO(Float32Array.from(x, (v, i) => v + 0.1 * Math.sin(i * 2 * Math.PI * 30 / rate)), rate, { hp: true });
+      const tail = (o, ms) => Math.abs(o.audio[o.audio.length - 1 - Math.round(ms / 1000 * o.rate)]);
+      return { rate: a.rate, len: a.audio.length / a.rate, peakDB: 20 * Math.log10(peak(a.audio)), ini: a.audio[0], fin: a.audio[a.audio.length - 1], trimmed: a.trimmedMs,
+        finLargo: [Math.abs(b.audio[b.audio.length - 1 - Math.round(0.1 * b.rate)]), Math.abs(a.audio[a.audio.length - 1 - Math.round(0.1 * a.rate)])], rate2: c.rate,
+        silent: k.processForKO(new Float32Array(1000), rate, {}).silent, hpOK: peak(hp.audio) > 0 };
+    });
+    expect(r.rate).toBe(46875); expect(r.rate2).toBe(44100);
+    expect(r.peakDB).toBeGreaterThan(-1.3); expect(r.peakDB).toBeLessThanOrEqual(-0.99);
+    expect(r.len).toBeGreaterThan(1.45); expect(r.len).toBeLessThan(1.55);       // se fue el medio segundo inicial
+    expect(r.trimmed).toBeGreaterThan(450); expect(Math.abs(r.ini)).toBeLessThan(1e-3); expect(Math.abs(r.fin)).toBeLessThan(1e-3);
+    expect(r.silent).toBe(true); expect(r.hpOK).toBe(true);
+  });
+
+  test('nombres seguros: NNN_nombre con tonalidad y BPM, sin tildes ni símbolos', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const n = await page.evaluate(async () => {
+      const k = await import('/sounds/koexport.js');
+      return [k.koFileName({ name: 'Pad cálido ñandú!!', key: 'Am' }, 1), k.koFileName({ name: 'Pad', key: 'C#m', bpm: 92.4 }, 2), k.koFileName({ name: 'Textura de lluvia muy larga en el balcón' }, 12),
+        k.koFileName({ name: '***', bpm: 500 }, 103), k.koFileName({ name: 'pad Am', key: 'Am' }, 5)];
+    });
+    expect(n).toEqual(['001_pad_calido_nandu_Am.wav', '002_pad_Csm_92bpm.wav', '012_textura_de_lluvi.wav', '103_sonido.wav', '005_pad_am.wav']);
+    for (const f of n) expect(f).toMatch(/^\d{3}_[A-Za-z0-9_]+\.wav$/);
+  });
+
+  test('hoja: vista previa, ajustes y .zip con WAV mono 16 bit a 46 875 Hz', async ({ page }) => {
+    await abrir(page, 'rolando'); await sembrar(page, ['pad uno', 'golpe dos', 'sin favorito']);
+    await page.evaluate(async () => { const st = await import('/sounds/store.js'); for (const s of await st.listSamples()) if (s.name !== 'sin favorito') await st.putSample({ ...s, favorite: true, key: s.name === 'pad uno' ? 'Am' : null }); });
+    await page.reload(); await tab(page, 'biblioteca');
+    await page.getByRole('button', { name: /Exportar para el K.O. II/ }).click();
+    const sh = page.locator('dialog.sheet');
+    await expect(sh.locator('.ko-names li code')).toHaveText(['001_pad_uno_Am.wav', '002_golpe_dos.wav']);
+    await sh.getByLabel('Empezar a numerar en').fill('10'); await sh.getByLabel('Empezar a numerar en').press('Tab');
+    await expect(sh.locator('.ko-names li code').first()).toHaveText('010_pad_uno_Am.wav');
+    await sh.getByRole('button', { name: 'Todo (3)' }).click();
+    await expect(sh.locator('.ko-names li')).toHaveCount(3);
+    await sh.getByRole('button', { name: /Favoritos/ }).click();
+    const { buf, nombre } = await descargar(page, () => sh.getByRole('button', { name: /Descargar .zip/ }).click());
+    expect(nombre).toMatch(/^ko2_favoritos_\d{8}\.zip$/);
+    const ent = await page.evaluate(async b => { const z = await import('/sounds/zip.js'); return z.readZip(new Uint8Array(b)).map(e => ({ name: e.name, head: [...e.data.slice(0, 44)] })); }, [...buf]);
+    expect(ent.map(e => e.name)).toEqual(['010_pad_uno_Am.wav', '011_golpe_dos.wav', 'lista.txt']);
+    const w = Buffer.from(ent[0].head); expect(wavInfo(w)).toMatchObject({ riff: 'RIFF', canales: 1, rate: 46875, bits: 16 });
+  });
+
+  test('desde la biblioteca: exportar la selección; Schair no ve nada del K.O. II', async ({ page }) => {
+    await abrir(page, 'rolando'); await sembrar(page, ['uno', 'dos']); await tab(page, 'biblioteca');
+    await page.getByText('Seleccionar').first().click();
+    await page.locator('.row-btn').first().click();
+    await page.getByRole('button', { name: 'Exportar selección al K.O. II' }).click();
+    await expect(page.locator('dialog.sheet .ko-names li')).toHaveCount(1);
+    await abrir(page, 'schair'); await sembrar(page, ['uno']); await tab(page, 'biblioteca');
+    await expect(page.locator('#screen')).not.toContainText('K.O.');
+    await expect(page.getByRole('button', { name: /K.O. II/ })).toHaveCount(0);
+  });
+});
+
 test.describe('aspecto', () => {
   test.use({ deviceScaleFactor: 2 });                        // como un iPhone: con densidad doble el lienzo roto se realimentaba
   test('el lienzo de la onda del editor mantiene su tamaño (no se agranda solo)', async ({ page }) => {

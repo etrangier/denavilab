@@ -8,6 +8,7 @@ import { manualFor } from './manual.js';
 import { makeZip, readZip } from './zip.js';
 import { decodeFile, baseName, MAX_SECONDS } from './importer.js';
 import { rateLabel, exportRates, KO_EXPORT } from './profile.js';
+import { KO_RATES, KO_DEFAULTS, koOpts, koPlan, buildKoBatch, LONG_FADE_MS } from './koexport.js';
 
 const ls = {
   get(k, d) { try { const v = localStorage.getItem('denavilab.sounds.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -405,6 +406,7 @@ export function renderLibrary(root) {
         label('Recientes'), app.samples.slice(0, 5).map(s => sampleRow(s, { listen: true })),
         btn('Importar sonidos', { small: true, act: 'importar', onclick: () => importInput.click() }),
         muted('Trae WAV (también MP3, M4A…) desde Archivos o Drive. Entran a Sin clasificar, a su frecuencia original y en mono.', 'tiny'),
+        app.ko2 ? btn('Exportar para el K.O. II', { small: true, act: 'ko-lote', 'aria-label': 'Exportar para el K.O. II: favoritos, selección o todo', onclick: openKoExport }) : null,
         storagePanel(),
         h('div', { class: 'row2 backup' }, btn('Respaldo', { small: true, 'aria-label': 'Respaldo: guardar toda la colección en un .zip', onclick: backupAll }), btn('Restaurar', { small: true, onclick: () => fileInput.click() })));
     }
@@ -475,7 +477,8 @@ function renderFolder(root) {
     bar.hidden = !L.selecting;
     fill(bar, h('p', { class: 'muted tiny center' }, L.sel.size ? `${L.sel.size} seleccionada${L.sel.size === 1 ? '' : 's'}` : 'Elige una o varias grabaciones'),
       h('div', { class: 'row3' }, btn('Cambiar nombre', { small: true, disabled: !L.sel.size, onclick: () => act.rename() }), btn('Mover', { small: true, disabled: !L.sel.size, onclick: () => act.move() }),
-        btn('Borrar', { small: true, kind: 'danger', disabled: !L.sel.size, onclick: () => act.del() })));
+        btn('Borrar', { small: true, kind: 'danger', disabled: !L.sel.size, onclick: () => act.del() })),
+      app.ko2 ? btn('Exportar selección al K.O. II', { small: true, act: 'ko-seleccion', disabled: !L.sel.size, onclick: openKoExport }) : null);
   };
   const rowMenu = s => sheet(close => h('div', { class: 'stack' }, h('h2', {}, s.name),
     btn('Detalles (etiquetas, nota, BPM…)', { act: 'detalles', onclick: () => { close(); openDetails(s); } }),
@@ -572,6 +575,55 @@ async function restoreBackup(file) {
     await refreshSamples(); app.render();
     toast((added ? `Restauradas ${added} grabaciones` : 'No había nada nuevo que restaurar') + (skipped ? ` · ${skipped} ya estaban` : '') + (bad ? ` · ${bad} con el audio dañado, omitidas` : ''));
   } catch (err) { toast(err && (err.name === 'QuotaExceededError') ? 'No se pudo restaurar: el dispositivo se quedó sin espacio.' : 'No se pudo restaurar: ' + (err.message || err)); }
+}
+
+// ---------- exportación por lotes para el K.O. II ----------
+/** Hoja «Exportar para el K.O. II»: alcance (favoritos, selección o todo), ajustes, vista previa de nombres y .zip. Sólo para quien tiene el aparato. */
+export function openKoExport() {
+  const favs = () => app.samples.filter(s => s.favorite), chosen = () => app.samples.filter(s => L.sel.has(s.id));
+  const st = { scope: chosen().length ? 'seleccion' : favs().length ? 'favoritos' : 'todo', o: koOpts(ls.get('koExport', {})), start: 1 };
+  const list = () => [...(st.scope === 'seleccion' ? chosen() : st.scope === 'favoritos' ? favs() : app.samples)].sort((a, b) => a.created - b.created);
+  sheet(close => {
+    const box = h('div', { class: 'stack' });
+    const save = () => ls.set('koExport', st.o);
+    const paint = () => {
+      const items = list(), plan = koPlan(items, st.start), o = st.o;
+      const secs = items.reduce((t, x) => t + x.duration, 0), mbx = secs * o.rate * 2 / 1e6;
+      const scopeBtn = (k, t, n) => btn(`${t} (${n})`, { small: true, sel: st.scope === k, disabled: k === 'seleccion' && !n, onclick: () => { st.scope = k; paint(); } });
+      const num = (lab, key, min, max, unit) => h('label', { class: 'card between' }, h('span', {}, h('b', {}, lab)),
+        h('span', { class: 'row-gap' }, h('input', { type: 'number', class: 'field num', min, max, value: key === 'start' ? st.start : o[key], 'aria-label': lab,
+          onchange: e => { if (key === 'start') st.start = Math.max(1, Math.min(900, parseInt(e.target.value, 10) || 1)); else { st.o = koOpts({ ...st.o, [key]: e.target.value }); save(); } paint(); } }), h('small', { class: 'muted' }, unit)));
+      const go3 = btn(items.length ? `Descargar .zip (${items.length} ${items.length === 1 ? 'sonido' : 'sonidos'})` : 'No hay sonidos en esta opción', { kind: 'amber', act: 'descargar-ko', disabled: !items.length, onclick: async () => {
+        go3.disabled = true;
+        try {
+          const r = await buildKoBatch(items, id => getAudio(id), o, (i, n) => { go3.textContent = `Preparando ${i} de ${n}…`; }, st.start);
+          if (!r.files.length) { toast('No quedó ningún sonido para exportar: ' + (r.skipped.join(', ') || 'lista vacía')); go3.disabled = false; paint(); return; }
+          const d = new Date(), stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+          await deliver(new File([makeZip(r.files)], `ko2_${st.scope}_${stamp}.zip`, { type: 'application/zip' }));
+          toast(`${r.files.length - 1} sonidos listos para el K.O. II` + (r.skipped.length ? ` · omitidos: ${r.skipped.slice(0, 3).join(', ')}` : ''));
+        } catch (err) { toast(err && err.name === 'QuotaExceededError' ? 'No hay espacio para preparar el archivo.' : 'No se pudo preparar la exportación: ' + ((err && err.message) || err)); }
+        go3.disabled = false; paint();
+      } });
+      fill(box,
+        h('div', { class: 'title-row' }, h('div', {}, h('h2', {}, 'Exportar para el K.O. II'), h('p', { class: 'muted small' }, 'WAV mono 16 bit · pico a −1 dBFS · sin compresión')), link('Cerrar', close)),
+        label('Qué exportar'), h('div', { class: 'row3' }, scopeBtn('favoritos', '★ Favoritos', favs().length), scopeBtn('seleccion', 'Selección', chosen().length), scopeBtn('todo', 'Todo', app.samples.length)),
+        label('Frecuencia de muestreo'), h('div', { class: 'row2' }, KO_RATES.map(r => btn(rateLabel(r), { small: true, sel: o.rate === r, onclick: () => { st.o = koOpts({ ...o, rate: r }); save(); paint(); } }))),
+        muted('46 875 Hz es la frecuencia que usa el K.O. II · por confirmar con el aparato. 44,1 kHz es la alternativa segura.', 'tiny'),
+        num('Umbral de silencio inicial', 'thresholdDB', -80, -20, 'dB'),
+        num('Fundido de entrada', 'fadeIn', 0, 100, 'ms'), num('Fundido de salida', 'fadeOut', 0, 500, 'ms'),
+        toggleRow('Fade-out largo para one-shots', `${LONG_FADE_MS} ms de salida en vez del fundido corto`, o.longFade, v => { st.o = koOpts({ ...o, longFade: v }); save(); paint(); }),
+        toggleRow('Filtro pasa-altos suave (90 Hz)', 'Quita rumor grave que el aparato no necesita', o.hp, v => { st.o = koOpts({ ...o, hp: v }); save(); paint(); }),
+        toggleRow('Nivel parejo en vez de pico', 'Nivela por volumen típico (como en Compartir) en lugar de llevar el pico a −1 dBFS', o.even, v => { st.o = koOpts({ ...o, even: v }); save(); paint(); }),
+        num('Empezar a numerar en', 'start', 1, 900, ''),
+        label(`Vista previa de nombres (${plan.length})`),
+        h('ol', { class: 'ko-names', 'aria-label': 'Nombres finales de los archivos' }, plan.length ? plan.slice(0, 60).map(p => h('li', {}, h('code', {}, p.file), h('small', { class: 'muted' }, ' ← ' + p.sample.name))) : [h('li', { class: 'muted' }, 'Nada que exportar. Marca favoritos con la ☆ o elige otra opción.')]),
+        plan.length > 60 ? muted(`… y ${plan.length - 60} más`, 'tiny') : null,
+        muted(`≈ ${mbx.toFixed(1).replace('.', ',')} MB · lista.txt dentro del .zip dice qué sonido es cada archivo.`, 'tiny'),
+        go3);
+    };
+    paint();           // «Empezar a numerar» no se guarda: vive sólo en esta hoja
+    return box;
+  });
 }
 
 // ====================================================================== EXPORTAR
