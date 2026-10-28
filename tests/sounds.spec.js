@@ -360,7 +360,7 @@ test.describe('etapa 1 · almacenamiento', () => {
       await st.putSample({ id: 'viejo-1', name: 'Viejo', folder: 'Sin clasificar', subfolder: null, tags: ['x'], slot: null, rate: 48000, created: 1, duration: 0.1, bpm: null }, a);
     });
     const r = await page.evaluate(async () => { const st = await import('/sounds/store.js'); const s = (await st.listSamples()).find(x => x.id === 'viejo-1'); return { s, n: (await st.getAudio('viejo-1')).length }; });
-    expect(r.n).toBe(4800); expect(r.s).toMatchObject({ favorite: false, key: null, comment: '', tags: ['x'], name: 'Viejo' });
+    expect(r.n).toBe(4800); expect(r.s).toMatchObject({ favorite: false, key: null, comment: '', tags: ['x'], name: 'Viejo', status: 'crudo', origin: '', replaced: false });
   });
 
   test('muestra el espacio usado y pide almacenamiento persistente', async ({ page }) => {
@@ -376,14 +376,15 @@ test.describe('etapa 1 · almacenamiento', () => {
     await page.getByText('Cancelar').first().click();
     await page.locator('.icon-btn[aria-label="Más acciones para pad lluvia"]').click();
     await page.locator('dialog.sheet').getByRole('button', { name: /Detalles/ }).click();
-    await page.getByLabel('Etiquetas').fill('pad, lluvia, pad');
+    await page.getByLabel('Nueva etiqueta').fill('lluvia'); await page.getByRole('button', { name: 'Añadir' }).click();
+    await page.getByRole('button', { name: 'cálido' }).click();
     await page.getByLabel('Nota o tonalidad').fill('Am');
     await page.getByLabel('BPM').fill('92');
-    await page.getByLabel('Fuente o comentario').fill('balcón, de noche');
+    await page.getByLabel('Comentario').fill('balcón, de noche');
     await page.getByRole('button', { name: 'Guardar detalles' }).click();
     await expect(page.locator('#toast')).toContainText('Detalles guardados');
     const s = await page.evaluate(async () => (await (await import('/sounds/store.js')).listSamples())[0]);
-    expect(s).toMatchObject({ tags: ['pad', 'lluvia'], key: 'Am', bpm: 92, comment: 'balcón, de noche' });
+    expect(s).toMatchObject({ tags: ['lluvia', 'cálido'], key: 'Am', bpm: 92, comment: 'balcón, de noche', status: 'crudo' });
   });
 
   test('respaldo conserva los metadatos y la restauración avisa si el archivo está dañado', async ({ page }) => {
@@ -526,6 +527,40 @@ test.describe('etapa 3 · exportación para el K.O. II', () => {
     await abrir(page, 'schair'); await sembrar(page, ['uno']); await tab(page, 'biblioteca');
     await expect(page.locator('#screen')).not.toContainText('K.O.');
     await expect(page.getByRole('button', { name: /K.O. II/ })).toHaveCount(0);
+  });
+});
+
+test.describe('etapa 2 · materia prima: estado, carácter y origen', () => {
+  const todas = async page => { await tab(page, 'biblioteca'); await page.getByText('Seleccionar').first().click(); await page.getByText('Cancelar').first().click(); };
+  const nombres = page => page.locator('.sel-row .rb-text b').allTextContents();
+  test('estado, carácter, origen y «reemplazado» se guardan en Detalles', async ({ page }) => {
+    await abrir(page, 'rolando'); await sembrar(page, ['pad lluvia']); await todas(page);
+    await page.locator('.icon-btn[aria-label="Más acciones para pad lluvia"]').click();
+    await page.locator('dialog.sheet').getByRole('button', { name: /Detalles/ }).click();
+    const sh = page.locator('dialog.sheet');
+    await sh.getByRole('button', { name: 'Procesado' }).click();
+    await sh.getByRole('button', { name: 'etéreo' }).click(); await sh.getByRole('button', { name: 'suave' }).click();
+    await sh.getByLabel('Origen', { exact: true }).fill('Sade, Love Deluxe, 1:20');
+    await sh.getByLabel('Reemplazado por versión propia').check({ force: true });
+    await sh.getByRole('button', { name: 'Guardar detalles' }).click();
+    const s = await page.evaluate(async () => (await (await import('/sounds/store.js')).listSamples())[0]);
+    expect(s).toMatchObject({ status: 'procesado', tags: ['etéreo', 'suave'], origin: 'Sade, Love Deluxe, 1:20', replaced: true });
+  });
+  test('filtros por estado, etiquetas y origen; orden por duración', async ({ page }) => {
+    await abrir(page, 'rolando'); await sembrar(page, ['a', 'b', 'c']);
+    await page.evaluate(async () => { const st = await import('/sounds/store.js'), l = await st.listSamples(), by = n => l.find(x => x.name === n);
+      await st.putSample({ ...by('a'), status: 'listo', tags: ['cálido'], origin: 'Disco X', duration: 1 });
+      await st.putSample({ ...by('b'), status: 'procesado', tags: ['cálido', 'suave'], origin: 'mi balcón', duration: 5 });
+      await st.putSample({ ...by('c'), duration: 3 }); });
+    await page.reload(); await todas(page);
+    await page.getByLabel('Ordenar por').selectOption('duracion'); expect(await nombres(page)).toEqual(['b', 'c', 'a']);
+    await page.locator('summary', { hasText: 'Filtros' }).click();
+    await page.getByLabel('Filtrar por estado').selectOption('listo'); expect(await nombres(page)).toEqual(['a']);
+    await page.getByLabel('Filtrar por estado').selectOption('');
+    await page.getByRole('group', { name: 'Filtrar por etiquetas de carácter' }).getByRole('button', { name: 'cálido' }).click(); expect((await nombres(page)).sort()).toEqual(['a', 'b']);
+    await page.getByRole('group', { name: 'Filtrar por etiquetas de carácter' }).getByRole('button', { name: 'suave' }).click(); expect(await nombres(page)).toEqual(['b']);
+    await page.getByLabel('Filtrar por origen').fill('balcón'); expect(await nombres(page)).toEqual(['b']);
+    await page.getByLabel('Filtrar por origen').fill('disco'); expect(await nombres(page)).toEqual([]);
   });
 });
 

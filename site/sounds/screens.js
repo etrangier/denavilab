@@ -3,7 +3,7 @@ import { app, go, openSample, refreshSamples, sampleById, VERSION, BUILD, inst, 
 import { h, mount, fill, btn, link, chip, card, label, muted, title, toggleRow, sliderRow, logo, sheet, confirmSheet, promptSheet, toast, folderPicker, drawBars } from './ui.js';
 import * as dsp from './dsp.js';
 import { FOLDERS, UNSORTED, folderDetail, folderOf } from './folders.js';
-import { getAudio, putSample, putMany, deleteSamples, newSample, normalizeSample, storageInfo, requestPersist } from './store.js';
+import { getAudio, putSample, putMany, deleteSamples, newSample, normalizeSample, storageInfo, requestPersist, STATES, CHAR_TAGS } from './store.js';
 import { manualFor } from './manual.js';
 import { makeZip, readZip } from './zip.js';
 import { decodeFile, baseName, MAX_SECONDS } from './importer.js';
@@ -44,15 +44,24 @@ const listenBtn = s => h('button', { type: 'button', class: 'icon-btn' + (aud.id
   'aria-label': (aud.id === s.id ? 'Parar ' : 'Escuchar ') + s.name, onclick: () => toggleAudition(s) }, aud.id === s.id ? '■' : '▶');
 
 // ---------- favoritos, orden y filtro ----------
-export const SORTS = [['fecha', 'Fecha (recientes primero)'], ['nombre', 'Nombre (A–Z)'], ['favoritos', 'Favoritos primero']];
+export const SORTS = [['fecha', 'Fecha (recientes primero)'], ['nombre', 'Nombre (A–Z)'], ['duracion', 'Duración (largos primero)'], ['favoritos', 'Favoritos primero']];
+/** «Listo para K.O.» sólo se nombra así para quien tiene el aparato; el resto ve «Listo». */
+export const stateName = k => k === 'listo' && !app.ko2 ? 'Listo' : (STATES.find(x => x[0] === k) || STATES[0])[1];
+const charTags = () => { const v = ls.get('charTags', null); return Array.isArray(v) && v.length ? v : CHAR_TAGS; };
 export const view = {
   get onlyFav() { return ls.get('onlyFav', false) === true; }, set onlyFav(v) { ls.set('onlyFav', !!v); },
+  get status() { const v = ls.get('fStatus', ''); return STATES.some(x => x[0] === v) ? v : ''; }, set status(v) { ls.set('fStatus', v); },
+  get tags() { const v = ls.get('fTags', []); return Array.isArray(v) ? v : []; }, set tags(v) { ls.set('fTags', v); },
+  get origin() { return String(ls.get('fOrigin', '')); }, set origin(v) { ls.set('fOrigin', v); },
+  get active() { return this.onlyFav || !!this.status || this.tags.length > 0 || !!this.origin.trim(); },
   get sort() { const v = ls.get('sort', 'fecha'); return SORTS.some(x => x[0] === v) ? v : 'fecha'; }, set sort(v) { ls.set('sort', v); },
 };
 /** Filtra por «solo favoritos» y ordena según la vista elegida. No toca la lista original. */
 export function arrange(list) {
-  const out = view.onlyFav ? list.filter(s => s.favorite) : [...list], byDate = (a, b) => b.created - a.created;
+  const o = view.origin.trim().toLowerCase(), tg = view.tags;
+  const out = list.filter(s => (!view.onlyFav || s.favorite) && (!view.status || s.status === view.status) && tg.every(t => (s.tags || []).includes(t)) && (!o || (s.origin || '').toLowerCase().includes(o))), byDate = (a, b) => b.created - a.created;
   if (view.sort === 'nombre') out.sort((a, b) => a.name.localeCompare(b.name, 'es', { numeric: true, sensitivity: 'base' }) || byDate(a, b));
+  else if (view.sort === 'duracion') out.sort((a, b) => b.duration - a.duration || byDate(a, b));
   else if (view.sort === 'favoritos') out.sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0) || byDate(a, b));
   else out.sort(byDate);
   return out;
@@ -71,13 +80,22 @@ export async function toggleFavorite(s) {
 }
 export const starBtn = s => h('button', { type: 'button', class: 'icon-btn star' + (s.favorite ? ' on' : ''), 'data-star': s.id, 'aria-pressed': String(!!s.favorite),
   'aria-label': (s.favorite ? 'Quitar de favoritos: ' : 'Marcar como favorito: ') + s.name, title: 'Favorito (tecla F)', onclick: e => { e.stopPropagation(); toggleFavorite(s); } }, s.favorite ? '★' : '☆');
-/** Barra de vista: «solo favoritos» y orden. `repaint` vuelve a pintar la lista. */
+/** Barra de vista: «solo favoritos», orden y filtros (estado, etiquetas, origen). `repaint` vuelve a pintar la lista. */
 export function viewBar(repaint) {
   const onlyBtn = h('button', { type: 'button', class: 'chip' + (view.onlyFav ? ' sel' : ''), 'aria-pressed': String(view.onlyFav), 'data-act': 'solo-favoritos',
     onclick: () => { view.onlyFav = !view.onlyFav; onlyBtn.setAttribute('aria-pressed', String(view.onlyFav)); onlyBtn.classList.toggle('sel', view.onlyFav); repaint(); } }, '★ Solo favoritos');
   const sel = h('select', { class: 'field sort', 'aria-label': 'Ordenar por', onchange: e => { view.sort = e.target.value; repaint(); } },
     SORTS.map(([k, t]) => h('option', { value: k, selected: view.sort === k }, t)));
-  return h('div', { class: 'viewbar' }, onlyBtn, sel);
+  const st = h('select', { class: 'field', 'aria-label': 'Filtrar por estado', onchange: e => { view.status = e.target.value; repaint(); } },
+    h('option', { value: '' }, 'Cualquier estado'), STATES.map(([k]) => h('option', { value: k, selected: view.status === k }, stateName(k))));
+  const origin = h('input', { type: 'search', class: 'field', placeholder: 'Origen contiene…', value: view.origin, 'aria-label': 'Filtrar por origen', oninput: e => { view.origin = e.target.value; repaint(); } });
+  const tagBox = h('div', { class: 'wrap', role: 'group', 'aria-label': 'Filtrar por etiquetas de carácter' });
+  const paintTags = () => fill(tagBox, ...[...new Set([...charTags(), ...view.tags])].map(t => chip(t, view.tags.includes(t), () => { view.tags = view.tags.includes(t) ? view.tags.filter(x => x !== t) : [...view.tags, t]; paintTags(); repaint(); })));
+  paintTags();
+  const clear = link('Quitar filtros', () => { view.onlyFav = false; view.status = ''; view.tags = []; view.origin = ''; app.render(); });
+  const det = h('details', { class: 'filters', open: view.status || view.tags.length || view.origin ? '' : null }, h('summary', {}, 'Filtros', view.active ? ' (activos)' : ''),
+    h('div', { class: 'stack tight' }, st, origin, label('Etiquetas (deben estar todas)'), tagBox, view.active ? clear : null));
+  return h('div', { class: 'viewbar' }, onlyBtn, sel, det);
 }
 /** Atajo F: marca o desmarca el sonido con el foco en la lista, el abierto en Editar o, en modo selección, los elegidos. */
 document.addEventListener('keydown', e => {
@@ -95,7 +113,7 @@ document.addEventListener('keydown', e => {
 export function sampleRow(s, { onclick, trailing, listen = false } = {}) {
   const right = trailing !== undefined ? trailing : (app.ko2 ? (s.slot ? 'slot ' + s.slot : 'sin enviar') : '');
   const row = h('button', { type: 'button', class: 'card row-btn', onclick: onclick || (() => { stopAudition(); openSample(s); }) },
-    h('span', { class: 'rb-text' }, h('b', {}, s.name), h('small', {}, pathOf(s) + ' · ' + dsp.stamp(s.duration))),
+    h('span', { class: 'rb-text' }, h('b', {}, s.name), h('small', {}, pathOf(s) + ' · ' + dsp.stamp(s.duration) + (s.status !== 'crudo' ? ' · ' + stateName(s.status) : ''))),
     right ? h('span', { class: 'amber small' }, right) : null);
   return listen ? h('div', { class: 'sel-row', 'data-id': s.id }, row, starBtn(s), listenBtn(s)) : row;
 }
@@ -393,9 +411,9 @@ export function renderLibrary(root) {
       fill(results, h('div', { class: 'empty' }, logo(56), h('h2', {}, 'Aún no hay samples'),
         muted('Graba tu primer sample y aparecerá aquí, ordenado por carpeta.', 'center'), btn('Grabar', { kind: 'amber', onclick: () => go('grabar') }), btn('Importar sonidos', { small: true, act: 'importar', onclick: () => importInput.click() }),
         label('Carpetas'), h('div', { class: 'wrap' }, FOLDERS.map(f => h('span', { class: 'chip static' }, f.name)))));
-    } else if (q || view.onlyFav) {
+    } else if (q || view.active) {
       const found = arrange(app.samples.filter(s => !q || s.name.toLowerCase().includes(q) || (s.tags || []).some(t => t.toLowerCase().includes(q)) || (s.key || '').toLowerCase() === q));
-      fill(results, label(view.onlyFav ? 'Favoritos' : 'Resultados'), found.length ? found.map(s => sampleRow(s, { listen: true })) : muted(view.onlyFav && !q ? 'Aún no marcas favoritos: toca la ☆ de un sonido.' : 'Nada coincide con la búsqueda.'));
+      fill(results, label(view.active && !q ? 'Con filtros' : 'Resultados'), found.length ? found.map(s => sampleRow(s, { listen: true })) : muted(view.active && !q ? 'Ningún sonido cumple los filtros. Prueba quitar alguno.' : 'Nada coincide con la búsqueda.'));
     } else {
       fill(results, 
         FOLDERS.map(f => {
@@ -468,12 +486,12 @@ function renderFolder(root) {
         h('button', { type: 'button', class: 'card row-btn' + (on ? ' picked' : ''), 'aria-pressed': L.selecting ? String(on) : null,
           onclick: () => { if (L.selecting) { on ? L.sel.delete(s.id) : L.sel.add(s.id); paint(); } else { stopAudition(); openSample(s); } } },
           L.selecting ? h('span', { class: 'check' + (on ? ' on' : ''), 'aria-hidden': 'true' }, on ? '✓' : '') : null,
-          h('span', { class: 'rb-text' }, h('b', {}, s.name), h('small', {}, pathOf(s) + ' · ' + dsp.stamp(s.duration))),
+          h('span', { class: 'rb-text' }, h('b', {}, s.name), h('small', {}, pathOf(s) + ' · ' + dsp.stamp(s.duration) + (s.status !== 'crudo' ? ' · ' + stateName(s.status) : ''))),
           app.ko2 && s.slot ? h('span', { class: 'amber small' }, 'slot ' + s.slot) : null),
         starBtn(s),
         L.selecting ? null : listenBtn(s),
         L.selecting ? null : h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Más acciones para ' + s.name, onclick: () => rowMenu(s) }, '⋯'));
-    }) : [muted(view.onlyFav ? 'Ningún favorito aquí. Toca la ☆ de un sonido para marcarlo.' : 'Esta carpeta está vacía.', 'center')]));
+    }) : [muted(view.active ? 'Ningún sonido de aquí cumple los filtros.' : 'Esta carpeta está vacía.', 'center')]));
     bar.hidden = !L.selecting;
     fill(bar, h('p', { class: 'muted tiny center' }, L.sel.size ? `${L.sel.size} seleccionada${L.sel.size === 1 ? '' : 's'}` : 'Elige una o varias grabaciones'),
       h('div', { class: 'row3' }, btn('Cambiar nombre', { small: true, disabled: !L.sel.size, onclick: () => act.rename() }), btn('Mover', { small: true, disabled: !L.sel.size, onclick: () => act.move() }),
@@ -493,20 +511,36 @@ function renderFolder(root) {
 }
 
 // ---------- hoja: detalles de un sonido ----------
-const parseTags = t => [...new Set(String(t).split(/[,;\n]/).map(x => x.trim()).filter(Boolean))].slice(0, 12);
 export function openDetails(s) {
   sheet(close => {
+    const st = { tags: [...(s.tags || [])], status: s.status, replaced: s.replaced, edit: false };
     const f = (type, value, lab, extra = {}) => h('input', { type, class: 'field', value: value == null ? '' : String(value), 'aria-label': lab, ...extra });
-    const tags = f('text', (s.tags || []).join(', '), 'Etiquetas', { placeholder: 'pad, cálido, lluvia…' });
     const key = f('text', s.key, 'Nota o tonalidad', { placeholder: 'Am, C#, F…', maxlength: '8' });
     const bpm = f('number', s.bpm ? Math.round(s.bpm) : '', 'BPM', { min: '30', max: '300', inputmode: 'numeric', placeholder: 'sin BPM' });
-    const note = h('textarea', { class: 'field', rows: '3', 'aria-label': 'Fuente o comentario', placeholder: 'De dónde salió, cómo la grabé…' }, s.comment || '');
+    const origin = f('text', s.origin, 'Origen', { placeholder: 'artista, disco, minuto o dónde lo grabé', maxlength: '200' });
+    const note = h('textarea', { class: 'field', rows: '3', 'aria-label': 'Comentario', placeholder: 'Cómo la grabé, para qué sirve…' }, s.comment || '');
+    const newTag = f('text', '', 'Nueva etiqueta', { placeholder: 'Nueva etiqueta…', maxlength: '20', onkeydown: e => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } } });
+    const tagBox = h('div', { class: 'wrap', role: 'group', 'aria-label': 'Etiquetas de carácter' }), stBox = h('div', { class: 'row3', role: 'group', 'aria-label': 'Estado' });
+    const paint = () => {
+      const list = [...new Set([...charTags(), ...st.tags])];
+      fill(tagBox, ...list.map(t => st.edit ? h('button', { type: 'button', class: 'chip', 'aria-label': 'Quitar de la lista: ' + t, onclick: () => { ls.set('charTags', charTags().filter(x => x !== t)); st.tags = st.tags.filter(x => x !== t); paint(); } }, t + ' ✕')
+        : chip(t, st.tags.includes(t), () => { st.tags = st.tags.includes(t) ? st.tags.filter(x => x !== t) : [...st.tags, t]; paint(); })));
+      fill(stBox, ...STATES.map(([k]) => btn(stateName(k), { small: true, sel: st.status === k, onclick: () => { st.status = k; paint(); } })));
+    };
+    const addTag = () => { const t = newTag.value.trim().toLowerCase().slice(0, 20); if (!t) return; if (!charTags().includes(t)) ls.set('charTags', [...charTags(), t]); if (!st.tags.includes(t)) st.tags.push(t); newTag.value = ''; paint(); };
+    paint();
     return h('div', { class: 'stack' },
       h('div', { class: 'title-row' }, h('div', {}, h('h2', {}, 'Detalles'), h('p', { class: 'muted small' }, s.name + ' · ' + dsp.stamp(s.duration) + ' · ' + new Date(s.created).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' }))), link('Cancelar', close)),
-      label('Etiquetas (separadas por comas)'), tags, label('Nota o tonalidad (opcional)'), key, label('BPM (opcional)'), bpm, label('Fuente o comentario'), note,
+      label('Estado'), stBox,
+      label('Carácter (se pueden combinar)'), tagBox,
+      h('div', { class: 'row-gap' }, newTag, btn('Añadir', { small: true, onclick: addTag }), btn('Editar lista', { small: true, sel: false, onclick: e => { st.edit = !st.edit; e.target.textContent = st.edit ? 'Listo' : 'Editar lista'; paint(); } })),
+      label('Origen'), origin,
+      toggleRow('Reemplazado por versión propia', 'Ya no dependo de esta fuente ajena', st.replaced, v => { st.replaced = v; }),
+      label('Nota o tonalidad (opcional)'), key, label('BPM (opcional)'), bpm, label('Comentario'), note,
+      s.process && s.process.length ? muted('Procesos aplicados: ' + s.process.join(' → '), 'tiny') : null,
       btn('Guardar detalles', { kind: 'amber', act: 'guardar-detalles', onclick: async () => {
         const b = parseFloat(bpm.value), k = key.value.trim();
-        try { await putSample({ ...s, tags: parseTags(tags.value), key: k || null, bpm: b >= 30 && b <= 300 ? b : null, comment: note.value.trim() }); await refreshSamples(); toast('Detalles guardados'); }
+        try { await putSample({ ...s, tags: st.tags, status: st.status, origin: origin.value.trim(), replaced: st.replaced, key: k || null, bpm: b >= 30 && b <= 300 ? b : null, comment: note.value.trim() }); await refreshSamples(); toast('Detalles guardados'); }
         catch (err) { toast(storeError(err)); }
         close(); app.render();
       } }));

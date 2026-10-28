@@ -189,3 +189,6 @@ textarea.field { resize: vertical; font: inherit; }
 .viewbar .sort { flex: 1; min-width: 150px; width: auto; }
 .ko-names { margin: 0; padding: 0 0 0 4px; list-style: none; display: grid; gap: 4px; max-height: 32vh; overflow: auto; }
 .ko-names code { color: var(--amber); font-size: 13px; word-break: break-all; }
+.filters { flex-basis: 100%; } .filters summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 700; color: var(--amber); }
+.filters .stack { padding-bottom: 8px; }
+.row-gap input.field { flex: 1; min-width: 0; }

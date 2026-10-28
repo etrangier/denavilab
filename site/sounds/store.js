@@ -16,10 +16,13 @@ const done = tx => new Promise((res, rej) => { tx.oncomplete = () => res(); tx.o
 export const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now().toString(36) + Math.random().toString(36).slice(2));
 
 /** Campos de cada sonido y su valor por defecto; los guardados antes de tenerlos se completan al leerlos (sin migración de la base). */
-export const META_DEFAULTS = { favorite: false, tags: [], key: null, bpm: null, comment: '' };
+export const STATES = [['crudo', 'Crudo'], ['procesado', 'Procesado'], ['listo', 'Listo para K.O.']];
+export const CHAR_TAGS = ['cálido', 'oscuro', 'brillante', 'granular', 'metálico', 'etéreo', 'suave', 'áspero', 'cuerdas', 'teclas', 'ambiente'];
+export const META_DEFAULTS = { favorite: false, tags: [], key: null, bpm: null, comment: '', status: 'crudo', origin: '', replaced: false, process: [] };
 export const normalizeSample = s => {
   const o = { ...META_DEFAULTS, ...s };
   o.favorite = o.favorite === true; o.tags = Array.isArray(o.tags) ? o.tags : [];
+  o.status = STATES.some(x => x[0] === o.status) ? o.status : 'crudo'; o.origin = o.origin ? String(o.origin) : ''; o.replaced = o.replaced === true; o.process = Array.isArray(o.process) ? o.process : [];
   o.key = o.key ? String(o.key) : null; o.comment = o.comment ? String(o.comment) : '';
   return o;
 };
@@ -74,5 +77,5 @@ export async function deleteSamples(ids) {
 
 export function newSample(name, audio, rate, extra = {}) {
   return { id: uid(), name, folder: 'Sin clasificar', subfolder: null, tags: [], slot: null, rate,
-           created: Date.now(), duration: audio.length / rate, bpm: null, favorite: false, key: null, comment: '', ...extra };
+           created: Date.now(), duration: audio.length / rate, bpm: null, favorite: false, key: null, comment: '', status: 'crudo', origin: '', replaced: false, process: [], ...extra };
 }
