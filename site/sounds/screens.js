@@ -625,8 +625,8 @@ async function restoreBackup(file) {
 /** Hoja «Exportar para el K.O. II»: alcance (favoritos, selección o todo), ajustes, vista previa de nombres y .zip. Sólo para quien tiene el aparato. */
 export function openKoExport() {
   const favs = () => app.samples.filter(s => s.favorite), chosen = () => app.samples.filter(s => L.sel.has(s.id));
-  const st = { scope: chosen().length ? 'seleccion' : favs().length ? 'favoritos' : 'todo', o: koOpts(ls.get('koExport', {})), start: 1 };
-  const list = () => [...(st.scope === 'seleccion' ? chosen() : st.scope === 'favoritos' ? favs() : app.samples)].sort((a, b) => a.created - b.created);
+  const st = { scope: chosen().length ? 'seleccion' : favs().length ? 'favoritos' : 'todo', o: koOpts(ls.get('koExport', {})), start: 1, ready: ls.get('koReady', false) === true };
+  const list = () => [...(st.scope === 'seleccion' ? chosen() : st.scope === 'favoritos' ? favs() : app.samples)].filter(s => !st.ready || s.status === 'listo').sort((a, b) => a.created - b.created);
   sheet(close => {
     const box = h('div', { class: 'stack' });
     const save = () => ls.set('koExport', st.o);
@@ -651,6 +651,7 @@ export function openKoExport() {
       fill(box,
         h('div', { class: 'title-row' }, h('div', {}, h('h2', {}, 'Exportar para el K.O. II'), h('p', { class: 'muted small' }, 'WAV mono 16 bit · pico a −1 dBFS · sin compresión')), link('Cerrar', close)),
         label('Qué exportar'), h('div', { class: 'row3' }, scopeBtn('favoritos', '★ Favoritos', favs().length), scopeBtn('seleccion', 'Selección', chosen().length), scopeBtn('todo', 'Todo', app.samples.length)),
+        toggleRow('Solo los «listos para K.O.»', `Entre lo elegido, deja fuera los que no tienen ese estado (${app.samples.filter(x => x.status === 'listo').length} en total)`, st.ready, v => { st.ready = v; ls.set('koReady', v); paint(); }),
         label('Frecuencia de muestreo'), h('div', { class: 'row2' }, KO_RATES.map(r => btn(rateLabel(r), { small: true, sel: o.rate === r, onclick: () => { st.o = koOpts({ ...o, rate: r }); save(); paint(); } }))),
         muted('46 875 Hz es la frecuencia que usa el K.O. II · por confirmar con el aparato. 44,1 kHz es la alternativa segura.', 'tiny'),
         num('Umbral de silencio inicial', 'thresholdDB', -80, -20, 'dB'),
@@ -660,9 +661,9 @@ export function openKoExport() {
         toggleRow('Nivel parejo en vez de pico', 'Nivela por volumen típico (como en Compartir) en lugar de llevar el pico a −1 dBFS', o.even, v => { st.o = koOpts({ ...o, even: v }); save(); paint(); }),
         num('Empezar a numerar en', 'start', 1, 900, ''),
         label(`Vista previa de nombres (${plan.length})`),
-        h('ol', { class: 'ko-names', 'aria-label': 'Nombres finales de los archivos' }, plan.length ? plan.slice(0, 60).map(p => h('li', {}, h('code', {}, p.file), h('small', { class: 'muted' }, ' ← ' + p.sample.name))) : [h('li', { class: 'muted' }, 'Nada que exportar. Marca favoritos con la ☆ o elige otra opción.')]),
+        h('ol', { class: 'ko-names', 'aria-label': 'Nombres finales de los archivos' }, plan.length ? plan.slice(0, 60).map(p => h('li', {}, h('code', {}, p.file), h('small', { class: 'muted' }, ' ← ' + p.sample.name))) : [h('li', { class: 'muted' }, st.ready ? 'Ningún sonido de esta opción está «listo para K.O.». Cambia su estado en Detalles o apaga el filtro.' : 'Nada que exportar. Marca favoritos con la ☆ o elige otra opción.')]),
         plan.length > 60 ? muted(`… y ${plan.length - 60} más`, 'tiny') : null,
-        muted(`≈ ${mbx.toFixed(1).replace('.', ',')} MB · lista.txt dentro del .zip dice qué sonido es cada archivo.`, 'tiny'),
+        muted(`≈ ${mbx.toFixed(1).replace('.', ',')} MB · lista.txt dentro del .zip dice qué sonido es cada archivo y de dónde salió.`, 'tiny'),
         go3);
     };
     paint();           // «Empezar a numerar» no se guarda: vive sólo en esta hoja

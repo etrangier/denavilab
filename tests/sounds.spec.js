@@ -695,6 +695,24 @@ test.describe('etapa 4 · laboratorio de pads', () => {
   });
 });
 
+test.describe('etapa 5 · exportación: listos para K.O. y lista con orígenes', () => {
+  test('solo «listos para K.O.» y lista.txt con origen y procesos', async ({ page }) => {
+    await abrir(page, 'rolando'); await sembrar(page, ['pad uno', 'pad dos', 'pad tres']);
+    await page.evaluate(async () => { const st = await import('/sounds/store.js'), l = await st.listSamples(), by = n => l.find(x => x.name === n);
+      await st.putSample({ ...by('pad uno'), status: 'listo', origin: 'Sade, Love Deluxe, 1:20', process: ['bucle 200 ms', 'estirar ×4'], key: 'Am' });
+      await st.putSample({ ...by('pad dos'), status: 'listo', favorite: true }); });
+    await page.reload(); await tab(page, 'biblioteca');
+    await page.getByRole('button', { name: /Exportar para el K.O. II/ }).click();
+    const sh = page.locator('dialog.sheet');
+    await sh.getByRole('button', { name: /Todo \(3\)/ }).click(); await expect(sh.locator('.ko-names li')).toHaveCount(3);
+    await sh.getByLabel('Solo los «listos para K.O.»').check({ force: true }); await expect(sh.locator('.ko-names li')).toHaveCount(2);
+    const { buf } = await descargar(page, () => sh.getByRole('button', { name: /Descargar .zip/ }).click());
+    const ent = await page.evaluate(async b => { const z = await import('/sounds/zip.js'); return z.readZip(new Uint8Array(b)).map(e => ({ name: e.name, txt: e.name.endsWith('.txt') ? new TextDecoder().decode(e.data) : '' })); }, [...buf]);
+    expect(ent.map(e => e.name)).toEqual(['001_pad_uno_Am.wav', '002_pad_dos.wav', 'lista.txt']);
+    const txt = ent[2].txt; expect(txt).toContain('origen: Sade, Love Deluxe, 1:20'); expect(txt).toContain('procesos: bucle 200 ms → estirar ×4'); expect(txt).toContain('origen: (sin anotar)');
+  });
+});
+
 test.describe('aspecto', () => {
   test.use({ deviceScaleFactor: 2 });                        // como un iPhone: con densidad doble el lienzo roto se realimentaba
   test('el lienzo de la onda del editor mantiene su tamaño (no se agranda solo)', async ({ page }) => {
