@@ -181,11 +181,22 @@ struct LibraryView: View {
 
 struct SampleRow: View {
     let sample: Sample
+
+    /// Carpeta › subcarpeta · duración · estado · etiquetas (armado por partes para que el compilador no se pierda).
+    private var subtitle: String {
+        var parts: [String] = []
+        parts.append([sample.folder, sample.subfolder].compactMap { $0 }.joined(separator: " › "))
+        parts.append(stamp(sample.duration))
+        if sample.status != SampleStatus.crudo { parts.append(SampleStatus.title(sample.status)) }
+        if !sample.tags.isEmpty { parts.append(sample.tags.joined(separator: ", ")) }
+        return parts.joined(separator: " · ")
+    }
+
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 3) {
                 Text(sample.name).font(Theme.font(15, weight: .bold)).foregroundColor(Theme.text).lineLimit(1)
-                Text(([sample.folder, sample.subfolder].compactMap { $0 }.joined(separator: " › ")) + " · \(stamp(sample.duration))" + (sample.status == SampleStatus.crudo ? "" : " · " + SampleStatus.title(sample.status)) + (sample.tags.isEmpty ? "" : " · " + sample.tags.joined(separator: ", ")))
+                Text(subtitle)
                     .font(Theme.font(12)).foregroundColor(Theme.muted).lineLimit(1)
             }
             Spacer()

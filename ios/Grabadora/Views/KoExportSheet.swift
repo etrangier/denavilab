@@ -22,6 +22,13 @@ struct KoExportSheet: View {
         return base.filter { !onlyReady || $0.status == SampleStatus.listo }.sorted { $0.created < $1.created }
     }
 
+    private func previewLine(_ file: String, _ name: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(file).font(.system(size: 13, design: .monospaced)).foregroundColor(Theme.amber)
+            Text("← " + name).font(Theme.font(12)).foregroundColor(Theme.muted).lineLimit(1)
+        }
+    }
+
     private func num(_ title: String, _ unit: String, _ v: Binding<Double>) -> some View {
         HStack {
             Text(title).font(Theme.font(14, weight: .medium)).foregroundColor(Theme.text)
@@ -72,9 +79,8 @@ struct KoExportSheet: View {
                             Text(onlyReady ? "Ningún sonido de esta opción está «listo para K.O.». Cambia su estado en Detalles o apaga el filtro." : "Nada que exportar. Marca favoritos con la ☆ o elige otra opción.")
                                 .font(Theme.font(13)).foregroundColor(Theme.muted)
                         }
-                        ForEach(Array(plan.prefix(60).enumerated()), id: \.offset) { _, p in
-                            (Text(p.file).font(.system(size: 13, design: .monospaced)).foregroundColor(Theme.amber) + Text("  ← " + p.sample.name).font(Theme.font(12)).foregroundColor(Theme.muted))
-                                .lineLimit(2)
+                        ForEach(0..<min(plan.count, 60), id: \.self) { i in
+                            previewLine(plan[i].file, plan[i].sample.name)
                         }
                         if plan.count > 60 { Text("… y \(plan.count - 60) más").font(Theme.font(12)).foregroundColor(Theme.muted) }
                     }.card().accessibilityElement(children: .contain)

@@ -20,6 +20,8 @@ struct StarButton: View {
 struct ViewBar: View {
     @EnvironmentObject var lib: LibraryStore
     @State private var showFilters = false
+    /// Filtros del panel (estado, etiquetas u origen); «solo favoritos» tiene su propio botón.
+    private var panelFiltersOn: Bool { !lib.statusFilter.isEmpty || !lib.tagFilter.isEmpty || !lib.originFilter.isEmpty }
     var body: some View {
         HStack(spacing: 8) {
             Chip(title: "★ Solo favoritos", selected: lib.onlyFavorites) { lib.onlyFavorites.toggle() }
@@ -32,8 +34,7 @@ struct ViewBar: View {
                 Text("Orden").font(Theme.font(14)).foregroundColor(Theme.text).padding(.horizontal, 14).frame(minHeight: 40)
                     .overlay(Capsule().stroke(Theme.line, lineWidth: 1.5))
             }.accessibilityLabel("Ordenar por: " + lib.sort.title)
-            Chip(title: lib.filterActive && (!lib.statusFilter.isEmpty || !lib.tagFilter.isEmpty || !lib.originFilter.isEmpty) ? "Filtros (activos)" : "Filtros",
-                 selected: !lib.statusFilter.isEmpty || !lib.tagFilter.isEmpty || !lib.originFilter.isEmpty) { showFilters = true }
+            Chip(title: panelFiltersOn ? "Filtros (activos)" : "Filtros", selected: panelFiltersOn) { showFilters = true }
             Spacer(minLength: 0)
         }
         .sheet(isPresented: $showFilters) { FilterSheet().presentationDetents([.large]) }
