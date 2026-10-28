@@ -1,13 +1,18 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct LibraryView: View {
     @EnvironmentObject var lib: LibraryStore
     @EnvironmentObject var state: AppState
     @State private var toDelete: Sample?
     @State private var showImporter = false
+    @State private var pickBackup = false
     @State private var importNote: String?
+    @State private var shareItems: [Any] = []
+    @State private var showShare = false
+    @State private var details: Sample?
 
-    private var searching: Bool { !lib.query.trimmingCharacters(in: .whitespaces).isEmpty }
+    private var searching: Bool { !lib.query.trimmingCharacters(in: .whitespaces).isEmpty || lib.filterActive }
 
     var body: some View {
         NavigationStack {
@@ -28,10 +33,12 @@ struct LibraryView: View {
                         TextField("Buscar sonido…", text: $lib.query).font(Theme.font(15)).foregroundColor(Theme.text)
                             .textInputAutocapitalization(.never).autocorrectionDisabled()
                     }.card()
+                    if !lib.samples.isEmpty { ViewBar() }
                     if lib.samples.isEmpty { empty }
                     else if searching { results }
                     else { folders; recents }
                     importSection
+                    backupSection
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
@@ -40,9 +47,12 @@ struct LibraryView: View {
         .confirmationDialog("¿Borrar esta grabación?", isPresented: Binding(get: { toDelete != nil }, set: { if !$0 { toDelete = nil } }), titleVisibility: .visible) {
             Button("Borrar", role: .destructive) { if let s = toDelete { lib.delete(s) }; toDelete = nil }
         }
-        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.audio], allowsMultipleSelection: true) { result in
-            if case .success(let urls) = result { importFiles(urls) }
+        .fileImporter(isPresented: $showImporter, allowedContentTypes: pickBackup ? [.zip] : [.audio], allowsMultipleSelection: !pickBackup) { result in
+            guard case .success(let urls) = result else { return }
+            if pickBackup { restoreBackup(urls.first) } else { importFiles(urls) }
         }
+        .sheet(isPresented: $showShare) { ShareSheet(items: shareItems) }
+        .sheet(item: $details) { s in DetailsSheet(sample: s) { lib.update($0) }.presentationDetents([.large]) }
         .alert("Error", isPresented: Binding(get: { lib.errorMessage != nil }, set: { _ in lib.errorMessage = nil })) {
             Button("OK", role: .cancel) {}
         } message: { Text(lib.errorMessage ?? "") }
@@ -51,11 +61,38 @@ struct LibraryView: View {
     /// Importar sonidos desde Archivos: entran a Sin clasificar, en mono y a su frecuencia original.
     private var importSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Button("Importar sonidos") { showImporter = true }.buttonStyle(OutlineButton()).font(Theme.font(13))
+            Button("Importar sonidos") { pickBackup = false; showImporter = true }.buttonStyle(OutlineButton()).font(Theme.font(13))
             Text("Trae WAV (también MP3, M4A…) desde Archivos o Drive. Entran a Sin clasificar, a su frecuencia original y en mono.")
                 .font(Theme.font(12)).foregroundColor(Theme.muted)
             if let n = importNote { Text(n).font(Theme.font(13)).foregroundColor(Theme.amber) }
         }.padding(.top, 8)
+    }
+
+    /// Respaldo de toda la colección en un .zip y restauración desde uno.
+    private var backupSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            StoragePanel()
+            HStack(spacing: 8) {
+                Button("Respaldo") { makeBackup() }.buttonStyle(OutlineButton()).accessibilityLabel("Respaldo: guardar toda la colección en un .zip")
+                Button("Restaurar") { pickBackup = true; showImporter = true }.buttonStyle(OutlineButton())
+            }.font(Theme.font(13))
+        }.padding(.top, 8)
+    }
+
+    private func makeBackup() {
+        do { let u = try Backup.make(lib); shareItems = [u]; showShare = true }
+        catch { lib.errorMessage = "No se pudo hacer el respaldo: \(error.localizedDescription)" }
+    }
+
+    private func restoreBackup(_ url: URL?) {
+        guard let u = url else { return }
+        let access = u.startAccessingSecurityScopedResource()
+        defer { if access { u.stopAccessingSecurityScopedResource() } }
+        do {
+            let r = try Backup.restore(from: u, into: lib)
+            importNote = (r.added > 0 ? "Restauradas \(r.added) grabaciones" : "No había nada nuevo que restaurar")
+                + (r.skipped > 0 ? " · \(r.skipped) ya estaban" : "") + (r.bad > 0 ? " · \(r.bad) con el audio dañado, omitidas" : "")
+        } catch { lib.errorMessage = "No se pudo restaurar: \(error.localizedDescription)" }
     }
 
     private func importFiles(_ urls: [URL]) {
@@ -84,7 +121,7 @@ struct LibraryView: View {
             Text("Graba tu primer sample y aparecerá aquí, ordenado por carpeta.")
                 .font(Theme.font(14)).foregroundColor(Theme.muted).multilineTextAlignment(.center)
             Button("Grabar") { state.tab = .grabar }.buttonStyle(AmberButton(full: false))
-            Button("Importar sonidos") { showImporter = true }.buttonStyle(OutlineButton()).font(Theme.font(13))
+            Button("Importar sonidos") { pickBackup = false; showImporter = true }.buttonStyle(OutlineButton()).font(Theme.font(13))
             SectionLabel("Carpetas").frame(maxWidth: .infinity, alignment: .leading).padding(.top, 24)
             FlowChips(items: LibraryStore.folderInfo.map(\.name))
         }.frame(maxWidth: .infinity)
@@ -119,8 +156,8 @@ struct LibraryView: View {
 
     private var results: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionLabel("Resultados")
-            if lib.filtered.isEmpty { Text("Nada coincide con la búsqueda.").font(Theme.font(14)).foregroundColor(Theme.muted) }
+            SectionLabel(lib.filterActive && lib.query.trimmingCharacters(in: .whitespaces).isEmpty ? "Con filtros" : "Resultados")
+            if lib.filtered.isEmpty { Text(lib.filterActive ? "Ningún sonido cumple los filtros. Prueba quitar alguno." : "Nada coincide con la búsqueda.").font(Theme.font(14)).foregroundColor(Theme.muted) }
             ForEach(lib.filtered) { s in row(s) }
         }
     }
@@ -128,9 +165,13 @@ struct LibraryView: View {
     private func row(_ s: Sample) -> some View {
         HStack(spacing: 8) {
             Button { Auditioner.shared.stop(); state.open(s) } label: { SampleRow(sample: s) }.buttonStyle(.plain)
+            StarButton(sample: s)
             ListenButton(sample: s)
         }
-            .contextMenu { Button(role: .destructive) { toDelete = s } label: { Label("Borrar", systemImage: "trash") } }
+            .contextMenu {
+                Button { details = s } label: { Label("Detalles", systemImage: "info.circle") }
+                Button(role: .destructive) { toDelete = s } label: { Label("Borrar", systemImage: "trash") }
+            }
     }
 }
 
@@ -140,7 +181,7 @@ struct SampleRow: View {
         HStack {
             VStack(alignment: .leading, spacing: 3) {
                 Text(sample.name).font(Theme.font(15, weight: .bold)).foregroundColor(Theme.text).lineLimit(1)
-                Text(([sample.folder, sample.subfolder].compactMap { $0 }.joined(separator: " › ")) + " · \(stamp(sample.duration))" + (sample.tags.isEmpty ? "" : " · " + sample.tags.joined(separator: ", ")))
+                Text(([sample.folder, sample.subfolder].compactMap { $0 }.joined(separator: " › ")) + " · \(stamp(sample.duration))" + (sample.status == SampleStatus.crudo ? "" : " · " + SampleStatus.title(sample.status)) + (sample.tags.isEmpty ? "" : " · " + sample.tags.joined(separator: ", ")))
                     .font(Theme.font(12)).foregroundColor(Theme.muted).lineLimit(1)
             }
             Spacer()
@@ -178,6 +219,7 @@ struct FolderView: View {
     @State private var showRename = false
     @State private var showMove = false
     @State private var confirmDelete = false
+    @State private var details: Sample?
 
     private var isAll: Bool { folder == Self.allKey || folder == Self.selectKey }
     private var items: [Sample] { isAll ? lib.filtered : lib.samples(in: folder) }
@@ -186,12 +228,17 @@ struct FolderView: View {
     var body: some View {
         ZStack {
             Theme.bg.ignoresSafeArea()
-            if items.isEmpty {
-                Text("Esta carpeta está vacía").font(Theme.font(15)).foregroundColor(Theme.muted)
-            } else {
-                List {
-                    ForEach(items) { s in row(s) }
-                }.listStyle(.plain).scrollContentBackground(.hidden)
+            VStack(spacing: 0) {
+                ViewBar().padding(.horizontal, 16).padding(.vertical, 6)
+                if items.isEmpty {
+                    Spacer()
+                    Text(lib.filterActive ? "Ningún sonido de aquí cumple los filtros" : "Esta carpeta está vacía").font(Theme.font(15)).foregroundColor(Theme.muted)
+                    Spacer()
+                } else {
+                    List {
+                        ForEach(items) { s in row(s) }
+                    }.listStyle(.plain).scrollContentBackground(.hidden)
+                }
             }
         }
         .navigationTitle(selecting ? "\(selected.count) seleccionada\(selected.count == 1 ? "" : "s")" : title)
@@ -210,6 +257,7 @@ struct FolderView: View {
             }
         }
         .safeAreaInset(edge: .bottom) { if selecting { actionBar } }
+        .sheet(item: $details) { s in DetailsSheet(sample: s) { lib.update($0) }.presentationDetents([.large]) }
         .onAppear { if folder == Self.selectKey && !started { started = true; selecting = true } }
         .onDisappear { Auditioner.shared.stop() }
         .alert(selected.count > 1 ? "Cambiar nombre de \(selected.count) grabaciones" : "Cambiar nombre", isPresented: $showRename) {
@@ -246,6 +294,7 @@ struct FolderView: View {
                 }
             }
             .buttonStyle(.plain)
+            StarButton(sample: s)
             if !selecting { ListenButton(sample: s) }
         }
         .listRowBackground(Color.clear).listRowSeparator(.hidden)
@@ -256,6 +305,7 @@ struct FolderView: View {
             }
         }
         .contextMenu {
+            Button { details = s } label: { Label("Detalles", systemImage: "info.circle") }
             Button { selecting = true; selected = [s.id] } label: { Label("Seleccionar", systemImage: "checkmark.circle") }
             Button { selecting = true; selected = [s.id]; prepareRename() } label: { Label("Cambiar nombre", systemImage: "pencil") }
             Button { selecting = true; selected = [s.id]; showMove = true } label: { Label("Mover", systemImage: "folder") }

@@ -783,4 +783,68 @@ final class LogicTests: XCTestCase {
         // tramo muy corto o fuera de rango: no hace nada
         XCTAssertEqual(Creative.loopSeamless(x, from: 0, to: 1000, rate: rate), x)
     }
+
+    // MARK: Materia prima: modelo, favoritos, filtros, zip y respaldo
+
+    func testOldIndexDecodesWithDefaults() throws {
+        let json = #"[{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","name":"Viejo","folder":"Voz","tags":["x"],"sampleRate":48000,"effects":{},"created":1000,"duration":1.5}]"#
+        let s = try JSONDecoder().decode([Sample].self, from: Data(json.utf8))[0]
+        XCTAssertEqual(s.name, "Viejo"); XCTAssertEqual(s.tags, ["x"])
+        XCTAssertFalse(s.favorite); XCTAssertEqual(s.status, "crudo"); XCTAssertEqual(s.origin, ""); XCTAssertFalse(s.replaced); XCTAssertNil(s.key)
+    }
+
+    func testNewFieldsRoundTrip() throws {
+        var s = Sample(name: "Pad", sampleRate: 48000)
+        s.favorite = true; s.status = "listo"; s.origin = "Disco X, 1:20"; s.replaced = true; s.key = "Am"; s.process = ["bucle 200 ms"]
+        let back = try JSONDecoder().decode(Sample.self, from: JSONEncoder().encode(s))
+        XCTAssertEqual(back, s)
+    }
+
+    @MainActor func testFavoritesFilterAndSort() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("lib-\(UUID().uuidString)")
+        let lib = LibraryStore(directory: dir)
+        lib.clearFilters(); lib.sort = .fecha
+        let a = try XCTUnwrap(lib.add(name: "charlie", audio: [Float](repeating: 0.1, count: 4800), sampleRate: 48000))
+        let b = try XCTUnwrap(lib.add(name: "alfa", audio: [Float](repeating: 0.1, count: 48000), sampleRate: 48000))
+        _ = lib.add(name: "bravo", audio: [Float](repeating: 0.1, count: 24000), sampleRate: 48000)
+        lib.toggleFavorite(a)
+        lib.sort = .nombre; XCTAssertEqual(lib.filtered.map(\.name), ["alfa", "bravo", "charlie"])
+        lib.sort = .duracion; XCTAssertEqual(lib.filtered.map(\.name), ["alfa", "bravo", "charlie"])
+        lib.sort = .favoritos; XCTAssertEqual(lib.filtered.first?.name, "charlie")
+        lib.onlyFavorites = true; XCTAssertEqual(lib.filtered.map(\.name), ["charlie"])
+        lib.onlyFavorites = false
+        var u = b; u.status = "listo"; u.tags = ["cálido", "suave"]; u.origin = "Mi balcón"; lib.update(u)
+        lib.statusFilter = "listo"; XCTAssertEqual(lib.filtered.map(\.name), ["alfa"])
+        lib.statusFilter = ""; lib.tagFilter = ["cálido", "suave"]; XCTAssertEqual(lib.filtered.map(\.name), ["alfa"])
+        lib.tagFilter = ["cálido", "oscuro"]; XCTAssertTrue(lib.filtered.isEmpty)
+        lib.tagFilter = []; lib.originFilter = "balcón"; XCTAssertEqual(lib.filtered.map(\.name), ["alfa"])
+        lib.clearFilters(); lib.sort = .fecha
+        XCTAssertFalse(lib.filterActive)
+    }
+
+    func testZipRoundTripAndCRC() throws {
+        XCTAssertEqual(Zip.crc32(Data("123456789".utf8)), 0xCBF43926)
+        let es = [Zip.Entry(name: "a/ñ.wav", data: Data([1, 2, 3])), Zip.Entry(name: "lista.txt", data: Data("hola".utf8))]
+        let back = try Zip.read(Zip.make(es))
+        XCTAssertEqual(back.map(\.name), ["a/ñ.wav", "lista.txt"]); XCTAssertEqual(back[0].data, Data([1, 2, 3])); XCTAssertEqual(back[1].data, Data("hola".utf8))
+        XCTAssertThrowsError(try Zip.read(Data("esto no es un zip".utf8)))
+    }
+
+    @MainActor func testBackupAndRestoreKeepsMetadata() throws {
+        let d1 = FileManager.default.temporaryDirectory.appendingPathComponent("lib-\(UUID().uuidString)")
+        let d2 = FileManager.default.temporaryDirectory.appendingPathComponent("lib-\(UUID().uuidString)")
+        let a = LibraryStore(directory: d1)
+        var s = try XCTUnwrap(a.add(name: "Pad", audio: (0..<4800).map { Float(sin(Double($0) * 0.05)) * 0.5 }, sampleRate: 48000))
+        s.favorite = true; s.tags = ["etéreo"]; s.origin = "Sade"; s.key = "Am"; s.status = "procesado"; a.update(s)
+        let zip = try Backup.make(a)
+        let b = LibraryStore(directory: d2)
+        let r = try Backup.restore(from: zip, into: b)
+        XCTAssertEqual(r, Backup.Report(added: 1, skipped: 0, bad: 0))
+        XCTAssertEqual(b.samples.first, s)
+        XCTAssertEqual(b.audio(for: s).count, 4800)
+        XCTAssertEqual(try Backup.restore(from: zip, into: b), Backup.Report(added: 0, skipped: 1, bad: 0))   // no duplica
+        let bad = FileManager.default.temporaryDirectory.appendingPathComponent("malo.zip")
+        try Data("no es un zip".utf8).write(to: bad)
+        XCTAssertThrowsError(try Backup.restore(from: bad, into: b))
+    }
 }
