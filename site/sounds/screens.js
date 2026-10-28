@@ -8,6 +8,7 @@ import { manualFor } from './manual.js';
 import { makeZip, readZip } from './zip.js';
 import { decodeFile, baseName, MAX_SECONDS } from './importer.js';
 import { rateLabel, exportRates, KO_EXPORT } from './profile.js';
+import { openLab } from './lab.js';
 import { openMateria, TAKE_SECONDS } from './materia.js';
 import { KO_RATES, KO_DEFAULTS, koOpts, koPlan, buildKoBatch, LONG_FADE_MS } from './koexport.js';
 
@@ -508,6 +509,7 @@ function renderFolder(root) {
   };
   const rowMenu = s => sheet(close => h('div', { class: 'stack' }, h('h2', {}, s.name),
     btn('Detalles (etiquetas, nota, BPM…)', { act: 'detalles', onclick: () => { close(); openDetails(s); } }),
+    btn('Laboratorio de pads', { act: 'laboratorio', onclick: () => { close(); stopAudition(); openLab(s); } }),
     btn('Seleccionar', { onclick: () => { close(); L.selecting = true; L.sel = new Set([s.id]); paint(); } }),
     btn('Cambiar nombre', { onclick: () => { close(); act.rename([s]); } }),
     btn('Mover', { onclick: () => { close(); act.move([s]); } }),

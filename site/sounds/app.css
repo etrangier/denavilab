@@ -193,3 +193,9 @@ textarea.field { resize: vertical; font: inherit; }
 .filters .stack { padding-bottom: 8px; }
 .row-gap input.field { flex: 1; min-width: 0; }
 .warn-text { color: var(--amber); }
+.row4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.labkeys { display: grid; grid-template-columns: repeat(13, 1fr); gap: 4px; }
+.labkeys .key { min-width: 0; padding: 0; min-height: 52px; }
+.labkeys .key[aria-pressed="true"] { background: var(--amber); color: var(--ink); }
+.lab .btn[aria-pressed="true"] { border-color: var(--amber); }
+@media (max-width: 480px) { .labkeys { grid-template-columns: repeat(7, 1fr); } }

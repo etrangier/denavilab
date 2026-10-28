@@ -612,6 +612,89 @@ test.describe('etapa 3 · modo materia prima', () => {
   });
 });
 
+test.describe('etapa 4 · laboratorio de pads', () => {
+  const abrirLab = async (page, nombres = ['pad uno']) => {
+    await abrir(page, 'rolando'); await sembrar(page, nombres);
+    await tab(page, 'biblioteca'); await page.getByText('Seleccionar').first().click(); await page.getByText('Cancelar').first().click();
+    await page.locator('.icon-btn[aria-label^="Más acciones para ' + nombres[0] + '"]').click();
+    await page.locator('dialog.sheet').getByRole('button', { name: 'Laboratorio de pads' }).click();
+    await expect(page.locator('dialog.sheet').getByRole('heading', { name: 'Laboratorio de pads' })).toBeVisible();
+    await expect(page.locator('dialog.sheet')).toContainText('Listo');
+    return page.locator('dialog.sheet');
+  };
+  test('bucle: el empalme cruzado elimina el salto', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const r = await page.evaluate(async () => { const l = await import('/sounds/lab.js'), rate = 48000;
+      const x = new Float32Array(rate * 2).map((_, k) => 0.6 * Math.sin(k * 0.031) * (0.5 + 0.5 * Math.sin(k * 0.00007)) + 0.3 * (k / rate - 1));   // termina lejos de donde empieza
+      const y = l.crossLoop(x, rate, 300); return { antes: l.seamScore(x), despues: l.seamScore(y), len: y.length / rate }; });
+    expect(r.antes).toBeGreaterThan(r.despues); expect(r.despues).toBeLessThan(1.0); expect(r.len).toBeCloseTo(1.7, 1);
+  });
+  test('el render usa el mismo grafo: longitud, pico −1 dBFS y filtros que actúan', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const r = await page.evaluate(async () => { const l = await import('/sounds/lab.js'), rate = 48000;
+      const mk = hz => Float32Array.from({ length: rate }, (_, k) => 0.4 * Math.sin(2 * Math.PI * hz * k / rate));
+      const L = [{ name: 'a', buf: mk(200), rate, vol: 1, tune: 0 }];
+      const rms = x => Math.sqrt(x.reduce((s, v) => s + v * v, 0) / x.length), pk = x => x.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+      const plano = await l.renderMix(L, { ...l.DEFAULTS }), m6 = mk(6000), mezcla = Float32Array.from(mk(200), (v, k) => v + m6[k]), asp = x => rms(x.slice(1, x.length).map((v, k) => v - x[k])) / rms(x), conLP = await l.renderMix([{ ...L[0], buf: mezcla }], { ...l.DEFAULTS, lp: 20 }), sinLP = await l.renderMix([{ ...L[0], buf: mezcla }], { ...l.DEFAULTS });
+      const oct = await l.renderMix(L, { ...l.DEFAULTS, pitch: -12 }), rev = await l.renderMix(L, { ...l.DEFAULTS, mix: 60, decay: 2 }), capas = await l.renderMix([L[0], { name: 'b', buf: mk(300), rate, vol: 0.5, tune: 7 }], { ...l.DEFAULTS });
+      return { n: plano.length, pico: 20 * Math.log10(pk(plano)), lp: asp(conLP) / asp(sinLP), oct: oct.length, rev: rev.length, capas: capas.length, desc: l.describe({ ...l.DEFAULTS, stretch: 4, pitch: -5, hp: 30, mix: 30 }, [{ name: 'a', vol: 1, tune: 0 }]) }; });
+    expect(r.n).toBe(48000); expect(r.pico).toBeGreaterThan(-1.2); expect(r.pico).toBeLessThan(-0.9);
+    expect(r.oct).toBe(96000);           // una octava abajo dura el doble
+    expect(r.lp).toBeLessThan(0.3); expect(r.rev).toBe(48000); expect(r.capas).toBe(48000);   // el pasa-bajos quita casi todo un seno de 5 kHz
+    expect(r.desc).toEqual(expect.arrayContaining(['bucle 200 ms', 'estirar ×4', 'tono -5 st', expect.stringMatching(/pasa-altos/), 'reverb 30 % (3 s)']));
+  });
+  test('estirar ×2 alarga el material sin cambiar el tono (se oye más largo)', async ({ page }) => {
+    const lab = await abrirLab(page);
+    await lab.getByRole('button', { name: '×2' }).click();
+    await expect(lab).toContainText('Listo');
+    await lab.getByLabel('Nombre del resultado').fill('pad largo');
+    await lab.getByRole('button', { name: 'Guardar como nuevo sonido' }).click();
+    await expect(page.locator('#toast')).toContainText('Guardado como procesado', { timeout: 20000 });
+    const s = await page.evaluate(async () => (await (await import('/sounds/store.js')).listSamples()).find(x => x.name === 'pad largo'));
+    expect(s.status).toBe('procesado'); expect(s.duration).toBeGreaterThan(1.7); expect(s.process).toEqual(expect.arrayContaining(['estirar ×2', 'bucle 200 ms']));
+  });
+  test('guardar conserva el origen y anota los procesos; el original no cambia', async ({ page }) => {
+    await abrir(page, 'rolando'); await sembrar(page, ['fuente']);
+    await page.evaluate(async () => { const st = await import('/sounds/store.js'); const s = (await st.listSamples())[0]; await st.putSample({ ...s, origin: 'Disco X, 1:20', tags: ['cálido'] }); });
+    await page.reload(); await tab(page, 'biblioteca'); await page.getByText('Seleccionar').first().click(); await page.getByText('Cancelar').first().click();
+    await page.locator('.icon-btn[aria-label^="Más acciones para fuente"]').click();
+    await page.locator('dialog.sheet').getByRole('button', { name: 'Laboratorio de pads' }).click();
+    const lab = page.locator('dialog.sheet'); await expect(lab).toContainText('Listo');
+    await lab.getByLabel('Cantidad').fill('40'); await lab.getByLabel('Mezcla').fill('30');
+    await lab.getByRole('button', { name: 'Guardar como nuevo sonido' }).click();
+    await expect(page.locator('#toast')).toContainText('Guardado como procesado', { timeout: 20000 });
+    const l = await page.evaluate(async () => (await (await import('/sounds/store.js')).listSamples()));
+    const nuevo = l.find(x => x.name === 'fuente pad'), orig = l.find(x => x.name === 'fuente');
+    expect(nuevo).toMatchObject({ status: 'procesado', origin: 'Disco X, 1:20', tags: ['cálido'] }); expect(nuevo.process).toEqual(expect.arrayContaining(['saturación 40 %', 'reverb 30 % (3 s)']));
+    expect(orig).toMatchObject({ status: 'crudo' });
+  });
+  test('capas: hasta 3, con volumen y afinación propios', async ({ page }) => {
+    const lab = await abrirLab(page, ['uno', 'dos', 'tres', 'cuatro']);
+    await lab.getByLabel('Añadir una capa').selectOption({ label: 'dos' }); await expect(lab).toContainText('Capa 2: dos');
+    await lab.getByLabel('Añadir una capa').selectOption({ label: 'tres' }); await expect(lab).toContainText('Capa 3: tres');
+    await expect(lab.getByLabel('Añadir una capa')).toHaveCount(0); await expect(lab).toContainText('Máximo 3 capas');
+    await expect(lab.getByLabel('Volumen')).toHaveCount(3); await expect(lab.getByLabel('Afinación')).toHaveCount(3);
+    await lab.getByRole('button', { name: 'Quitar' }).first().click(); await expect(lab.getByLabel('Añadir una capa')).toBeVisible();
+  });
+  test('teclado del computador: sostiene mientras se pulsa y Z/X cambian de octava', async ({ page }) => {
+    const lab = await abrirLab(page);
+    const tecla = lab.getByRole('button', { name: /Tocar Do4 \(tecla A\)/ });
+    await page.keyboard.down('a'); await expect(tecla).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.up('a'); await expect(tecla).toHaveAttribute('aria-pressed', 'false');
+    await page.keyboard.press('x'); await expect(lab).toContainText('Octava +1'); await expect(lab.getByRole('button', { name: /Tocar Do5 \(tecla A\)/ })).toBeVisible();
+  });
+  test('MIDI: sin soporte se explica; con un teclado simulado suena la nota', async ({ page }) => {
+    await page.addInitScript(() => { const ins = new Map(); const inp = { name: 'MPK mini', onmidimessage: null }; ins.set('1', inp); window.__midi = inp;
+      navigator.requestMIDIAccess = async () => ({ inputs: ins, onstatechange: null }); });
+    const lab = await abrirLab(page);
+    await lab.getByRole('button', { name: 'Activar MIDI' }).click(); await expect(lab).toContainText('MIDI: MPK mini');
+    await page.evaluate(() => window.__midi.onmidimessage({ data: [0x90, 61, 100] }));
+    await expect(lab.getByRole('button', { name: /Tocar Do#4/ })).toHaveAttribute('aria-pressed', 'true');
+    await page.evaluate(() => window.__midi.onmidimessage({ data: [0x80, 61, 0] }));
+    await expect(lab.getByRole('button', { name: /Tocar Do#4/ })).toHaveAttribute('aria-pressed', 'false');
+  });
+});
+
 test.describe('aspecto', () => {
   test.use({ deviceScaleFactor: 2 });                        // como un iPhone: con densidad doble el lienzo roto se realimentaba
   test('el lienzo de la onda del editor mantiene su tamaño (no se agranda solo)', async ({ page }) => {
