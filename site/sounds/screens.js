@@ -9,6 +9,7 @@ import { makeZip, readZip } from './zip.js';
 import { decodeFile, baseName, MAX_SECONDS } from './importer.js';
 import { rateLabel, exportRates, KO_EXPORT } from './profile.js';
 import { openLab } from './lab.js';
+import { listenTempo, confidenceLabel, bpmAlternatives, LISTEN_SECONDS } from './tempo.js';
 import { openMateria, TAKE_SECONDS } from './materia.js';
 import { KO_RATES, KO_DEFAULTS, koOpts, koPlan, buildKoBatch, LONG_FADE_MS } from './koexport.js';
 
@@ -162,6 +163,30 @@ export function renderHome(root) {
 }
 
 // ====================================================================== GRABAR
+// Escuchar tempo: el estado vive fuera de la pantalla porque ésta se vuelve a dibujar mientras se escucha.
+const tp = { listening: false, left: 0, res: null, cancel: { stop: false } };
+async function startTempo() {
+  if (tp.listening) { tp.cancel.stop = true; return; }
+  tp.listening = true; tp.res = null; tp.cancel = { stop: false }; tp.left = ls.get('tempoSeconds', LISTEN_SECONDS); app.render();
+  const r = await listenTempo(app.engine, { seconds: tp.left, cancel: tp.cancel, onTick: n => { if (n !== tp.left) { tp.left = n; if (app.tab === 'grabar') app.render(); } } });
+  tp.listening = false; tp.res = r.cancelled ? null : r; if (app.tab === 'grabar') app.render();
+}
+const tempoCard = rec => {
+  const r = tp.res, bpm = r && r.bpm;
+  const useBtn = () => { const v = Math.min(300, Math.max(30, Math.round(bpm))); app.metro.set('bpm', v); toast('Metrónomo a ' + v + ' BPM'); app.render(); };
+  return card([
+    h('div', { class: 'between' }, h('b', {}, 'Escuchar tempo'), bpm ? h('span', { class: 'amber', 'data-act': 'tempo-bpm' }, '≈ ' + Math.round(bpm) + ' BPM') : null),
+    h('p', { class: 'muted tiny' }, `Toca tu patrón sin grabar: la app oye ${ls.get('tempoSeconds', LISTEN_SECONDS)} s por el micrófono y te dice el BPM.`),
+    btn(tp.listening ? `Escuchando… ${tp.left} s · tocar para cancelar` : 'Escuchar tempo', { kind: 'amber', act: 'escuchar-tempo', disabled: rec, onclick: startTempo }),
+    r && r.error ? h('p', { class: 'small err', role: 'status' }, r.error) : null,
+    bpm ? h('div', { class: 'stack tight', role: 'status' },
+      h('small', { class: 'muted' }, `Confianza ${confidenceLabel(r.confidence)} (${Math.round(r.confidence * 100)} %).` + (r.confidence < 0.15 ? ' Escucha otra vez con un patrón más marcado.' : '')),
+      h('div', { class: 'row3' }, ...bpmAlternatives(bpm).slice(0, 1).map(v => btn('÷2 → ' + Math.round(v), { small: true, act: 'tempo-mitad', onclick: () => { r.bpm = v; app.render(); } })),
+        btn('Usar en el metrónomo', { small: true, sel: true, act: 'tempo-usar', onclick: useBtn }),
+        ...bpmAlternatives(bpm).slice(1).map(v => btn('×2 → ' + Math.round(v), { small: true, act: 'tempo-doble', onclick: () => { r.bpm = v; app.render(); } }))),
+      muted('Si suena a la mitad o al doble de lo que tocas, usa ÷2 o ×2.', 'tiny')) : null]);
+};
+
 export function renderRecord(root) {
   const e = app.engine, m = app.metro, rec = e.state === 'recording', listening = e.state === 'listening';
   const pill = (text, onclick, aria) => h('button', { type: 'button', class: 'pill', onclick, 'aria-label': aria }, text);
@@ -207,6 +232,7 @@ export function renderRecord(root) {
         h('div', { class: 'wrap' }, Object.entries(dsp.SOUND_KINDS).map(([k, v]) => chip(v.label, kind === k, () => { ls.set('kind', k); app.render(); }))),
         h('p', { class: 'muted tiny' }, dsp.SOUND_KINDS[kind].hint)]),
       card([h('div', { class: 'sr-head' }, h('span', { class: 'muted small' }, 'Nivel'), db), h('div', { class: 'meter' }, levelFill)]),
+      tempoCard(rec),
       waveCard, timer, dots, notice, buffer,
       first ? h('div', { class: 'center' }, h('span', { class: 'pill static' }, '↓ Empieza aquí')) : null,
       h('div', { class: 'controls' },

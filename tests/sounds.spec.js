@@ -713,6 +713,48 @@ test.describe('etapa 5 · exportación: listos para K.O. y lista con orígenes',
   });
 });
 
+test.describe('escuchar tempo', () => {
+  const pista = `(bpm, seg, rate) => { const x = new Float32Array(seg * rate); for (let t = .1; t < seg - .1; t += 60 / bpm) { const s = Math.floor(t * rate); for (let j = 0; j < 2400 && s + j < x.length; j++) x[s + j] += .8 * Math.sin(2 * Math.PI * 180 * j / rate) * Math.exp(-j / 500); } return x; }`;
+  test('analiza 90, 100 y 120 BPM; avisa si no hay audio o pulso; ofrece mitad y doble', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const r = await page.evaluate(async p => { const t = await import('/sounds/tempo.js'), f = eval(p), rate = 44100;
+      return { b90: t.analyzeTempo(f(90, 10, rate), rate), b100: t.analyzeTempo(f(100, 10, rate), rate), b120: t.analyzeTempo(f(120, 10, rate), rate), mudo: t.analyzeTempo(new Float32Array(rate * 10), rate), corto: t.analyzeTempo(new Float32Array(rate), rate),
+        ruido: t.analyzeTempo(Float32Array.from({ length: rate * 10 }, () => 0.0003 * (Math.random() - .5)), rate), alt: [t.bpmAlternatives(96), t.bpmAlternatives(200), t.bpmAlternatives(45)], lab: [t.confidenceLabel(.5), t.confidenceLabel(.2), t.confidenceLabel(.05)] }; }, pista);
+    expect(Math.abs(r.b90.bpm - 90)).toBeLessThan(3); expect(Math.abs(r.b100.bpm - 100)).toBeLessThan(3); expect(Math.abs(r.b120.bpm - 120)).toBeLessThan(3);
+    expect(r.mudo.error).toContain('No oigo nada'); expect(r.corto.error).toContain('audio suficiente'); expect(r.ruido.error).toBeTruthy();
+    expect(r.alt).toEqual([[48, 192], [100], [90]]); expect(r.lab).toEqual(['buena', 'regular', 'dudosa']);
+  });
+  test('listenTempo espera la cuenta atrás, prende el micrófono y devuelve el BPM', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const r = await page.evaluate(async p => { const t = await import('/sounds/tempo.js'), f = eval(p), rate = 48000, x = f(110, 10, rate), ticks = [];
+      const eng = { state: 'idle', rate, micDenied: false, async start() { this.state = 'listening'; }, lastSamples: n => x.slice(x.length - n) };
+      const ok = await t.listenTempo(eng, { seconds: 5, onTick: n => ticks.push(n), wait: async () => {} });
+      const negado = await t.listenTempo({ state: 'idle', micDenied: true, async start() {} }, { seconds: 3, wait: async () => {} });
+      return { ok, ticks: [...new Set(ticks)], negado }; }, pista);
+    expect(Math.abs(r.ok.bpm - 110)).toBeLessThan(3); expect(r.ticks).toEqual([5, 4, 3, 2, 1, 0]); expect(r.negado.error).toContain('Sin acceso al micrófono');
+  });
+  test('en Grabar: botón, resultado, mitad/doble y pasar al metrónomo', async ({ page }) => {
+    await abrir(page, 'rolando', { 'denavilab.sounds.tempoSeconds': '1' }); await tab(page, 'grabar');
+    await page.waitForFunction(async () => (await import('/sounds/state.js')).app.engine.state === 'listening');      // que el micrófono falso termine de arrancar antes de sustituir el audio
+    await page.evaluate(async p => { const { app } = await import('/sounds/state.js'), f = eval(p), x = f(100, 10, app.engine.rate);    // la frecuencia es la del motor de audio
+      Object.assign(app.engine, { state: 'listening', lastSamples: () => x }); app.render(); }, pista);
+    await page.getByRole('button', { name: 'Escuchar tempo', exact: true }).click();
+    await expect(page.getByRole('button', { name: /Escuchando/ })).toBeVisible();
+    const bpm = page.locator('[data-act="tempo-bpm"]'); await expect(bpm).toContainText('BPM', { timeout: 8000 });
+    expect(Math.abs(parseInt((await bpm.textContent()).replace(/\D+/, '')) - 100)).toBeLessThan(4);
+    await expect(page.locator('#screen')).toContainText('Confianza');
+    await page.getByRole('button', { name: /÷2/ }).click(); expect(parseInt((await bpm.textContent()).replace(/\D+/, ''))).toBeLessThan(55);
+    await page.getByRole('button', { name: 'Usar en el metrónomo' }).click(); await expect(page.locator('#toast')).toContainText('Metrónomo a');
+  });
+  test('en Grabar: sin sonido explica qué hacer', async ({ page }) => {
+    await abrir(page, 'rolando', { 'denavilab.sounds.tempoSeconds': '1' }); await tab(page, 'grabar');
+    await page.waitForFunction(async () => (await import('/sounds/state.js')).app.engine.state === 'listening');
+    await page.evaluate(async () => { const { app } = await import('/sounds/state.js'); Object.assign(app.engine, { state: 'listening', rate: 48000, lastSamples: () => new Float32Array(48000 * 10) }); app.render(); });
+    await page.getByRole('button', { name: 'Escuchar tempo', exact: true }).click();
+    await expect(page.locator('#screen')).toContainText('No oigo nada', { timeout: 8000 });
+  });
+});
+
 test.describe('aspecto', () => {
   test.use({ deviceScaleFactor: 2 });                        // como un iPhone: con densidad doble el lienzo roto se realimentaba
   test('el lienzo de la onda del editor mantiene su tamaño (no se agranda solo)', async ({ page }) => {
