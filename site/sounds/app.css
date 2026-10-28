@@ -181,3 +181,11 @@ dialog.sheet { margin: auto auto 0; width: min(100%, 600px); max-width: 100%; ma
 .pad.cell { min-height: 40px; font-size: 15px; border-radius: 10px; }
 .pad.cell.bar0 { box-shadow: inset 3px 0 0 var(--amber); }
 .pad.cell.picked { outline: 2px solid var(--amber); outline-offset: -2px; }
+.warn { border-color: var(--amber, #e5a50a); }
+.storage { margin-top: 12px; }
+textarea.field { resize: vertical; font: inherit; }
+.star { font-size: 22px; } .star.on { color: var(--amber); } .star:not(.on) { color: var(--muted); }
+.viewbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+.viewbar .sort { flex: 1; min-width: 150px; width: auto; }
+.ko-names { margin: 0; padding: 0 0 0 4px; list-style: none; display: grid; gap: 4px; max-height: 32vh; overflow: auto; }
+.ko-names code { color: var(--amber); font-size: 13px; word-break: break-all; }

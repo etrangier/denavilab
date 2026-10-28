@@ -3,11 +3,12 @@ import { app, go, openSample, refreshSamples, sampleById, VERSION, BUILD, inst, 
 import { h, mount, fill, btn, link, chip, card, label, muted, title, toggleRow, sliderRow, logo, sheet, confirmSheet, promptSheet, toast, folderPicker, drawBars } from './ui.js';
 import * as dsp from './dsp.js';
 import { FOLDERS, UNSORTED, folderDetail, folderOf } from './folders.js';
-import { getAudio, putSample, putMany, deleteSamples, newSample } from './store.js';
+import { getAudio, putSample, putMany, deleteSamples, newSample, normalizeSample, storageInfo, requestPersist } from './store.js';
 import { manualFor } from './manual.js';
 import { makeZip, readZip } from './zip.js';
 import { decodeFile, baseName, MAX_SECONDS } from './importer.js';
 import { rateLabel, exportRates, KO_EXPORT } from './profile.js';
+import { KO_RATES, KO_DEFAULTS, koOpts, koPlan, buildKoBatch, LONG_FADE_MS } from './koexport.js';
 
 const ls = {
   get(k, d) { try { const v = localStorage.getItem('denavilab.sounds.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -42,12 +43,61 @@ async function toggleAudition(s) {
 const listenBtn = s => h('button', { type: 'button', class: 'icon-btn' + (aud.id === s.id ? ' on' : ''), 'aria-pressed': String(aud.id === s.id),
   'aria-label': (aud.id === s.id ? 'Parar ' : 'Escuchar ') + s.name, onclick: () => toggleAudition(s) }, aud.id === s.id ? '■' : '▶');
 
+// ---------- favoritos, orden y filtro ----------
+export const SORTS = [['fecha', 'Fecha (recientes primero)'], ['nombre', 'Nombre (A–Z)'], ['favoritos', 'Favoritos primero']];
+export const view = {
+  get onlyFav() { return ls.get('onlyFav', false) === true; }, set onlyFav(v) { ls.set('onlyFav', !!v); },
+  get sort() { const v = ls.get('sort', 'fecha'); return SORTS.some(x => x[0] === v) ? v : 'fecha'; }, set sort(v) { ls.set('sort', v); },
+};
+/** Filtra por «solo favoritos» y ordena según la vista elegida. No toca la lista original. */
+export function arrange(list) {
+  const out = view.onlyFav ? list.filter(s => s.favorite) : [...list], byDate = (a, b) => b.created - a.created;
+  if (view.sort === 'nombre') out.sort((a, b) => a.name.localeCompare(b.name, 'es', { numeric: true, sensitivity: 'base' }) || byDate(a, b));
+  else if (view.sort === 'favoritos') out.sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0) || byDate(a, b));
+  else out.sort(byDate);
+  return out;
+}
+export async function setFavorite(list, value) {
+  const ch = list.filter(s => !!s.favorite !== value);
+  if (!ch.length) return;
+  try { await putMany(ch.map(s => ({ ...s, favorite: value }))); await refreshSamples(); }
+  catch (err) { toast(storeError(err)); }
+}
+export async function toggleFavorite(s) {
+  const now = !s.favorite;
+  await setFavorite([s], now); app.render();
+  const el = document.querySelector(`[data-star="${s.id}"]`); if (el) el.focus();
+  toast(now ? 'Favorito: ' + s.name : 'Quitado de favoritos: ' + s.name);
+}
+export const starBtn = s => h('button', { type: 'button', class: 'icon-btn star' + (s.favorite ? ' on' : ''), 'data-star': s.id, 'aria-pressed': String(!!s.favorite),
+  'aria-label': (s.favorite ? 'Quitar de favoritos: ' : 'Marcar como favorito: ') + s.name, title: 'Favorito (tecla F)', onclick: e => { e.stopPropagation(); toggleFavorite(s); } }, s.favorite ? '★' : '☆');
+/** Barra de vista: «solo favoritos» y orden. `repaint` vuelve a pintar la lista. */
+export function viewBar(repaint) {
+  const onlyBtn = h('button', { type: 'button', class: 'chip' + (view.onlyFav ? ' sel' : ''), 'aria-pressed': String(view.onlyFav), 'data-act': 'solo-favoritos',
+    onclick: () => { view.onlyFav = !view.onlyFav; onlyBtn.setAttribute('aria-pressed', String(view.onlyFav)); onlyBtn.classList.toggle('sel', view.onlyFav); repaint(); } }, '★ Solo favoritos');
+  const sel = h('select', { class: 'field sort', 'aria-label': 'Ordenar por', onchange: e => { view.sort = e.target.value; repaint(); } },
+    SORTS.map(([k, t]) => h('option', { value: k, selected: view.sort === k }, t)));
+  return h('div', { class: 'viewbar' }, onlyBtn, sel);
+}
+/** Atajo F: marca o desmarca el sonido con el foco en la lista, el abierto en Editar o, en modo selección, los elegidos. */
+document.addEventListener('keydown', e => {
+  if (e.key.toLowerCase() !== 'f' || e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return;
+  const t = e.target; if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
+  if (document.querySelector('dialog[open]')) return;
+  const row = document.activeElement && document.activeElement.closest && document.activeElement.closest('[data-id]');
+  let list = row ? [sampleById(row.dataset.id)] : app.tab === 'editar' && app.selectedId ? [sampleById(app.selectedId)] : L.selecting ? app.samples.filter(x => L.sel.has(x.id)) : [];
+  list = list.filter(Boolean); if (!list.length) return;
+  e.preventDefault();
+  if (list.length === 1) return toggleFavorite(list[0]);
+  const v = list.some(x => !x.favorite); setFavorite(list, v).then(() => { app.render(); toast(v ? `${list.length} marcadas como favoritas` : `${list.length} quitadas de favoritos`); });
+});
+
 export function sampleRow(s, { onclick, trailing, listen = false } = {}) {
   const right = trailing !== undefined ? trailing : (app.ko2 ? (s.slot ? 'slot ' + s.slot : 'sin enviar') : '');
   const row = h('button', { type: 'button', class: 'card row-btn', onclick: onclick || (() => { stopAudition(); openSample(s); }) },
     h('span', { class: 'rb-text' }, h('b', {}, s.name), h('small', {}, pathOf(s) + ' · ' + dsp.stamp(s.duration))),
     right ? h('span', { class: 'amber small' }, right) : null);
-  return listen ? h('div', { class: 'sel-row' }, row, listenBtn(s)) : row;
+  return listen ? h('div', { class: 'sel-row', 'data-id': s.id }, row, starBtn(s), listenBtn(s)) : row;
 }
 
 // ====================================================================== INICIO
@@ -180,6 +230,11 @@ export function renderRecord(root) {
   return () => cancelAnimationFrame(raf);
 }
 
+/** Las texturas para el K.O. II se piensan de hasta 6 s: no se corta nada solo, pero se avisa. */
+export const MAX_TEXTURE = 6;
+const longNote = secs => secs > MAX_TEXTURE + 0.05 ? ` · dura más de ${MAX_TEXTURE} s` : '';
+const storeError = err => err && (err.name === 'QuotaExceededError' || /quota/i.test(String(err.message))) ? 'No se pudo guardar: el dispositivo se quedó sin espacio. Libera espacio o borra sonidos viejos.' : 'No se pudo guardar el sonido (' + ((err && err.message) || 'error desconocido') + ').';
+
 /** Al terminar una toma: guardado rápido si está activo; si no, hoja para elegir nombre y carpeta. */
 export async function finishTake(audio) {
   if (!audio || !audio.length) return;
@@ -190,8 +245,8 @@ export async function finishTake(audio) {
   try {
     await putSample(newSample(name, out, rate, kind === 'libre' ? {} : { kind }), out);
     await refreshSamples();
-    toast(`Guardada: ${name} · ${dsp.stamp(audio.length / rate)} → ${dsp.stamp(out.length / rate)}`);
-  } catch (err) { toast('No se pudo guardar (¿poco espacio en el dispositivo?)'); }
+    toast(`Guardada: ${name} · ${dsp.stamp(audio.length / rate)} → ${dsp.stamp(out.length / rate)}${longNote(out.length / rate)}`);
+  } catch (err) { toast(storeError(err)); }
   app.render();
 }
 
@@ -203,21 +258,25 @@ function showSave(audio, rate) {
     const name = h('input', { type: 'text', class: 'field', value: '', placeholder: stampName, 'aria-label': 'Nombre' });
     const canvas = h('canvas', { class: 'wave small-wave' });
     const go2 = h('button', { type: 'button', class: 'btn amber' });
+    const cut = { on: false }, tooLong = audio.length / rate > MAX_TEXTURE + 0.05;
+    const longBox = tooLong ? h('div', { class: 'card warn', role: 'status' }, h('b', {}, `Dura ${dsp.stamp(audio.length / rate)}, más de ${MAX_TEXTURE} s`),
+      h('small', { class: 'muted' }, 'Para texturas del K.O. II conviene 6 s o menos. Puedes guardarla entera o quedarte con los primeros 6 s.'),
+      toggleRow('Recortar a los primeros 6 s', 'Sin ajustes de guardado rápido', false, on => { cut.on = on; })) : null;
     const paintBtn = () => { go2.textContent = 'Guardar en ' + (st.sub ? st.folder + ' › ' + st.sub : st.folder); };
     paintBtn();
     go2.addEventListener('click', async () => {
-      const out = dsp.quickProcess(audio, rate, loadQuick());
+      const out = cut.on ? audio.slice(0, Math.floor(MAX_TEXTURE * rate)) : dsp.quickProcess(audio, rate, loadQuick());
       try {
         const kind = ls.get('kind', 'libre'), s = newSample(name.value.trim() || stampName, out, rate, { folder: st.folder, subfolder: st.sub, ...(dsp.SOUND_KINDS[kind] && kind !== 'libre' ? { kind } : {}) });
         await putSample(s, out); await refreshSamples(); toast('Guardada en ' + (st.sub ? st.folder + ' › ' + st.sub : st.folder));
-      } catch (err) { toast('No se pudo guardar (¿poco espacio en el dispositivo?)'); }
+      } catch (err) { toast(storeError(err)); }
       close(); app.render();
     });
     setTimeout(() => drawBars(canvas, dsp.peaks(audio, 40), [0, 1]), 30);
     return h('div', { class: 'stack' },
       h('div', { class: 'title-row' }, h('h2', {}, 'Guardar grabación'), link('Cancelar', close)),
       card([h('b', {}, stampName), h('small', { class: 'muted' }, `${dsp.stamp(audio.length / rate)} · WAV mono · ${hz(rate)}`), canvas]),
-      label('Nombre'), name, folderPicker(st, paintBtn), go2,
+      longBox, label('Nombre'), name, folderPicker(st, paintBtn), go2,
       muted('Puedes cambiar nombre, carpeta y recorte después.', 'center small'));
   });
 }
@@ -334,9 +393,9 @@ export function renderLibrary(root) {
       fill(results, h('div', { class: 'empty' }, logo(56), h('h2', {}, 'Aún no hay samples'),
         muted('Graba tu primer sample y aparecerá aquí, ordenado por carpeta.', 'center'), btn('Grabar', { kind: 'amber', onclick: () => go('grabar') }), btn('Importar sonidos', { small: true, act: 'importar', onclick: () => importInput.click() }),
         label('Carpetas'), h('div', { class: 'wrap' }, FOLDERS.map(f => h('span', { class: 'chip static' }, f.name)))));
-    } else if (q) {
-      const found = app.samples.filter(s => s.name.toLowerCase().includes(q) || (s.tags || []).some(t => t.toLowerCase().includes(q)));
-      fill(results, label('Resultados'), found.length ? found.map(s => sampleRow(s, { listen: true })) : muted('Nada coincide con la búsqueda.'));
+    } else if (q || view.onlyFav) {
+      const found = arrange(app.samples.filter(s => !q || s.name.toLowerCase().includes(q) || (s.tags || []).some(t => t.toLowerCase().includes(q)) || (s.key || '').toLowerCase() === q));
+      fill(results, label(view.onlyFav ? 'Favoritos' : 'Resultados'), found.length ? found.map(s => sampleRow(s, { listen: true })) : muted(view.onlyFav && !q ? 'Aún no marcas favoritos: toca la ☆ de un sonido.' : 'Nada coincide con la búsqueda.'));
     } else {
       fill(results, 
         FOLDERS.map(f => {
@@ -347,7 +406,9 @@ export function renderLibrary(root) {
         label('Recientes'), app.samples.slice(0, 5).map(s => sampleRow(s, { listen: true })),
         btn('Importar sonidos', { small: true, act: 'importar', onclick: () => importInput.click() }),
         muted('Trae WAV (también MP3, M4A…) desde Archivos o Drive. Entran a Sin clasificar, a su frecuencia original y en mono.', 'tiny'),
-        h('div', { class: 'row2 backup' }, btn('Copia de seguridad', { small: true, onclick: backupAll }), btn('Restaurar', { small: true, onclick: () => fileInput.click() })));
+        app.ko2 ? btn('Exportar para el K.O. II', { small: true, act: 'ko-lote', 'aria-label': 'Exportar para el K.O. II: favoritos, selección o todo', onclick: openKoExport }) : null,
+        storagePanel(),
+        h('div', { class: 'row2 backup' }, btn('Respaldo', { small: true, 'aria-label': 'Respaldo: guardar toda la colección en un .zip', onclick: backupAll }), btn('Restaurar', { small: true, onclick: () => fileInput.click() })));
     }
   };
   const fileInput = h('input', { type: 'file', accept: '.zip,application/zip', hidden: true, onchange: e => restoreBackup(e.target.files[0]) });
@@ -356,13 +417,13 @@ export function renderLibrary(root) {
     title('Biblioteca', null, h('span', { class: 'row-gap' }, h('span', { class: 'muted small' }, `${n} ${n === 1 ? 'grabación' : 'grabaciones'}`),
       n ? link('Seleccionar', () => { L.folder = '*'; L.selecting = true; L.sel = new Set(); app.render(); }) : null)),
     h('input', { type: 'search', class: 'field', placeholder: 'Buscar sonido…', value: L.query, 'aria-label': 'Buscar sonido', oninput: e => { L.query = e.target.value; paint(); } }),
-    results, fileInput, importInput);
+    n ? viewBar(paint) : null, results, fileInput, importInput);
   paint();
 }
 
 function renderFolder(root) {
   const all = L.folder === '*';
-  const items = () => all ? app.samples.filter(s => !L.query.trim() || s.name.toLowerCase().includes(L.query.trim().toLowerCase())) : app.samples.filter(s => folderOf(s) === L.folder);
+  const items = () => arrange(all ? app.samples.filter(s => !L.query.trim() || s.name.toLowerCase().includes(L.query.trim().toLowerCase())) : app.samples.filter(s => folderOf(s) === L.folder));
   const list = h('div', { class: 'stack tight' }), bar = h('div', { class: 'selbar' }), head = h('div');
   const exit = () => { L.folder = null; L.selecting = false; L.sel = new Set(); app.render(); };
   const targets = () => app.samples.filter(s => L.sel.has(s.id));
@@ -403,39 +464,78 @@ function renderFolder(root) {
           link(L.selecting ? 'Cancelar' : 'Seleccionar', () => { L.selecting = !L.selecting; L.sel = new Set(); paint(); }))));
     fill(list, ...(its.length ? its.map(s => {
       const on = L.sel.has(s.id);
-      return h('div', { class: 'sel-row' },
+      return h('div', { class: 'sel-row', 'data-id': s.id },
         h('button', { type: 'button', class: 'card row-btn' + (on ? ' picked' : ''), 'aria-pressed': L.selecting ? String(on) : null,
           onclick: () => { if (L.selecting) { on ? L.sel.delete(s.id) : L.sel.add(s.id); paint(); } else { stopAudition(); openSample(s); } } },
           L.selecting ? h('span', { class: 'check' + (on ? ' on' : ''), 'aria-hidden': 'true' }, on ? '✓' : '') : null,
           h('span', { class: 'rb-text' }, h('b', {}, s.name), h('small', {}, pathOf(s) + ' · ' + dsp.stamp(s.duration))),
           app.ko2 && s.slot ? h('span', { class: 'amber small' }, 'slot ' + s.slot) : null),
+        starBtn(s),
         L.selecting ? null : listenBtn(s),
         L.selecting ? null : h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Más acciones para ' + s.name, onclick: () => rowMenu(s) }, '⋯'));
-    }) : [muted('Esta carpeta está vacía.', 'center')]));
+    }) : [muted(view.onlyFav ? 'Ningún favorito aquí. Toca la ☆ de un sonido para marcarlo.' : 'Esta carpeta está vacía.', 'center')]));
     bar.hidden = !L.selecting;
     fill(bar, h('p', { class: 'muted tiny center' }, L.sel.size ? `${L.sel.size} seleccionada${L.sel.size === 1 ? '' : 's'}` : 'Elige una o varias grabaciones'),
       h('div', { class: 'row3' }, btn('Cambiar nombre', { small: true, disabled: !L.sel.size, onclick: () => act.rename() }), btn('Mover', { small: true, disabled: !L.sel.size, onclick: () => act.move() }),
-        btn('Borrar', { small: true, kind: 'danger', disabled: !L.sel.size, onclick: () => act.del() })));
+        btn('Borrar', { small: true, kind: 'danger', disabled: !L.sel.size, onclick: () => act.del() })),
+      app.ko2 ? btn('Exportar selección al K.O. II', { small: true, act: 'ko-seleccion', disabled: !L.sel.size, onclick: openKoExport }) : null);
   };
   const rowMenu = s => sheet(close => h('div', { class: 'stack' }, h('h2', {}, s.name),
+    btn('Detalles (etiquetas, nota, BPM…)', { act: 'detalles', onclick: () => { close(); openDetails(s); } }),
     btn('Seleccionar', { onclick: () => { close(); L.selecting = true; L.sel = new Set([s.id]); paint(); } }),
     btn('Cambiar nombre', { onclick: () => { close(); act.rename([s]); } }),
     btn('Mover', { onclick: () => { close(); act.move([s]); } }),
     btn('Borrar', { kind: 'danger', onclick: () => { close(); act.del([s]); } }), link('Cerrar', close)));
 
-  mount(root, head, list, bar);
+  mount(root, head, viewBar(paint), list, bar);
   paint();
   if (L.selecting) bar.hidden = false;
 }
 
-// ---------- copia de seguridad ----------
+// ---------- hoja: detalles de un sonido ----------
+const parseTags = t => [...new Set(String(t).split(/[,;\n]/).map(x => x.trim()).filter(Boolean))].slice(0, 12);
+export function openDetails(s) {
+  sheet(close => {
+    const f = (type, value, lab, extra = {}) => h('input', { type, class: 'field', value: value == null ? '' : String(value), 'aria-label': lab, ...extra });
+    const tags = f('text', (s.tags || []).join(', '), 'Etiquetas', { placeholder: 'pad, cálido, lluvia…' });
+    const key = f('text', s.key, 'Nota o tonalidad', { placeholder: 'Am, C#, F…', maxlength: '8' });
+    const bpm = f('number', s.bpm ? Math.round(s.bpm) : '', 'BPM', { min: '30', max: '300', inputmode: 'numeric', placeholder: 'sin BPM' });
+    const note = h('textarea', { class: 'field', rows: '3', 'aria-label': 'Fuente o comentario', placeholder: 'De dónde salió, cómo la grabé…' }, s.comment || '');
+    return h('div', { class: 'stack' },
+      h('div', { class: 'title-row' }, h('div', {}, h('h2', {}, 'Detalles'), h('p', { class: 'muted small' }, s.name + ' · ' + dsp.stamp(s.duration) + ' · ' + new Date(s.created).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' }))), link('Cancelar', close)),
+      label('Etiquetas (separadas por comas)'), tags, label('Nota o tonalidad (opcional)'), key, label('BPM (opcional)'), bpm, label('Fuente o comentario'), note,
+      btn('Guardar detalles', { kind: 'amber', act: 'guardar-detalles', onclick: async () => {
+        const b = parseFloat(bpm.value), k = key.value.trim();
+        try { await putSample({ ...s, tags: parseTags(tags.value), key: k || null, bpm: b >= 30 && b <= 300 ? b : null, comment: note.value.trim() }); await refreshSamples(); toast('Detalles guardados'); }
+        catch (err) { toast(storeError(err)); }
+        close(); app.render();
+      } }));
+  });
+}
+
+// ---------- almacenamiento ----------
+const mb = n => n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1e3)) + ' KB';
+/** Espacio usado por la biblioteca y si el navegador la protege del borrado automático. */
+function storagePanel() {
+  const box = h('div', { class: 'stack tight storage' });
+  const paint = async () => {
+    const i = await storageInfo();
+    const used = i.usage != null ? `Espacio usado: ${mb(i.usage)}${i.quota ? ' de ' + mb(i.quota) : ''}` : 'Espacio usado: el navegador no lo informa';
+    const prot = i.persisted === true ? 'Protegido: el navegador no borrará la biblioteca solo.' : i.persisted === false ? 'Sin protección: si el dispositivo se queda sin espacio, el navegador podría borrar la biblioteca. Haz respaldos.' : '';
+    fill(box, h('div', { role: 'status', 'aria-live': 'polite' }, h('b', { class: 'small' }, used), prot ? h('small', { class: 'muted', 'data-act': 'persist' }, ' ' + prot) : null),
+      i.persisted === false ? btn('Proteger el almacenamiento', { small: true, act: 'persistir', onclick: async () => { const ok = await requestPersist(); toast(ok ? 'Almacenamiento protegido' : 'El navegador no lo concedió (en iPhone/Safari conviene instalar la app en la pantalla de inicio)'); paint(); } }) : null);
+  };
+  paint(); return box;
+}
+
+// ---------- respaldo ----------
 async function backupAll() {
   if (!app.samples.length) return toast('No hay nada que guardar todavía');
-  toast('Preparando la copia…');
-  const files = [{ name: 'biblioteca.json', data: new TextEncoder().encode(JSON.stringify({ formato: 1, app: 'denavilab-sounds', samples: app.samples })) }];
+  toast('Preparando el respaldo…');
+  const files = [{ name: 'biblioteca.json', data: new TextEncoder().encode(JSON.stringify({ formato: 2, app: 'denavilab-sounds', version: VERSION, fecha: new Date().toISOString(), samples: app.samples })) }];
   for (const s of app.samples) files.push({ name: `audio/${s.id}.wav`, data: dsp.encodeWav(await getAudio(s.id), s.rate) });
   const d = new Date(), stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  await deliver(new File([makeZip(files)], `denavilab-sounds-copia-${stamp}.zip`, { type: 'application/zip' }));
+  await deliver(new File([makeZip(files)], `denavilab-sounds-respaldo-${stamp}.zip`, { type: 'application/zip' }));
 }
 
 /** Importa archivos de audio como sonidos nuevos: mono, a su frecuencia original, en Sin clasificar. Los muy largos o ilegibles se saltan y se avisa. */
@@ -457,17 +557,73 @@ async function importFiles(files) {
 async function restoreBackup(file) {
   if (!file) return;
   try {
-    const entries = readZip(new Uint8Array(await file.arrayBuffer()));
-    const meta = entries && entries.find(e => e.name === 'biblioteca.json');
-    if (!meta) throw new Error('no es una copia de DenaviLab: Sounds');
-    const data = JSON.parse(new TextDecoder().decode(meta.data)), have = new Set(app.samples.map(s => s.id)); let added = 0;
-    for (const s of data.samples || []) {
-      if (have.has(s.id)) continue;
-      const w = entries.find(e => e.name === `audio/${s.id}.wav`), dec = w && dsp.decodeWav(w.data);
-      if (dec) { await putSample(s, dec.samples); added++; }
+    let entries;
+    try { entries = readZip(new Uint8Array(await file.arrayBuffer())); } catch (e) { entries = null; }
+    if (!entries) throw new Error('el archivo está dañado o no es un .zip');
+    const meta = entries.find(e => e.name === 'biblioteca.json');
+    if (!meta) throw new Error('no es un respaldo de DenaviLab: Sounds');
+    let data; try { data = JSON.parse(new TextDecoder().decode(meta.data)); } catch (e) { throw new Error('el índice del respaldo está dañado'); }
+    if (!data || !Array.isArray(data.samples)) throw new Error('el índice del respaldo está dañado');
+    const have = new Set(app.samples.map(s => s.id)); let added = 0, skipped = 0, bad = 0;
+    for (const raw of data.samples) {
+      if (!raw || !raw.id) { bad++; continue; }
+      if (have.has(raw.id)) { skipped++; continue; }
+      const w = entries.find(e => e.name === `audio/${raw.id}.wav`), dec = w && dsp.decodeWav(w.data);
+      if (!dec || !dec.samples.length) { bad++; continue; }
+      await putSample(normalizeSample({ ...raw, rate: raw.rate || dec.rate }), dec.samples); added++;
     }
-    await refreshSamples(); toast(added ? `Restauradas ${added} grabaciones` : 'No había nada nuevo que restaurar'); app.render();
-  } catch (err) { toast('No se pudo restaurar: ' + (err.message || err)); }
+    await refreshSamples(); app.render();
+    toast((added ? `Restauradas ${added} grabaciones` : 'No había nada nuevo que restaurar') + (skipped ? ` · ${skipped} ya estaban` : '') + (bad ? ` · ${bad} con el audio dañado, omitidas` : ''));
+  } catch (err) { toast(err && (err.name === 'QuotaExceededError') ? 'No se pudo restaurar: el dispositivo se quedó sin espacio.' : 'No se pudo restaurar: ' + (err.message || err)); }
+}
+
+// ---------- exportación por lotes para el K.O. II ----------
+/** Hoja «Exportar para el K.O. II»: alcance (favoritos, selección o todo), ajustes, vista previa de nombres y .zip. Sólo para quien tiene el aparato. */
+export function openKoExport() {
+  const favs = () => app.samples.filter(s => s.favorite), chosen = () => app.samples.filter(s => L.sel.has(s.id));
+  const st = { scope: chosen().length ? 'seleccion' : favs().length ? 'favoritos' : 'todo', o: koOpts(ls.get('koExport', {})), start: 1 };
+  const list = () => [...(st.scope === 'seleccion' ? chosen() : st.scope === 'favoritos' ? favs() : app.samples)].sort((a, b) => a.created - b.created);
+  sheet(close => {
+    const box = h('div', { class: 'stack' });
+    const save = () => ls.set('koExport', st.o);
+    const paint = () => {
+      const items = list(), plan = koPlan(items, st.start), o = st.o;
+      const secs = items.reduce((t, x) => t + x.duration, 0), mbx = secs * o.rate * 2 / 1e6;
+      const scopeBtn = (k, t, n) => btn(`${t} (${n})`, { small: true, sel: st.scope === k, disabled: k === 'seleccion' && !n, onclick: () => { st.scope = k; paint(); } });
+      const num = (lab, key, min, max, unit) => h('label', { class: 'card between' }, h('span', {}, h('b', {}, lab)),
+        h('span', { class: 'row-gap' }, h('input', { type: 'number', class: 'field num', min, max, value: key === 'start' ? st.start : o[key], 'aria-label': lab,
+          onchange: e => { if (key === 'start') st.start = Math.max(1, Math.min(900, parseInt(e.target.value, 10) || 1)); else { st.o = koOpts({ ...st.o, [key]: e.target.value }); save(); } paint(); } }), h('small', { class: 'muted' }, unit)));
+      const go3 = btn(items.length ? `Descargar .zip (${items.length} ${items.length === 1 ? 'sonido' : 'sonidos'})` : 'No hay sonidos en esta opción', { kind: 'amber', act: 'descargar-ko', disabled: !items.length, onclick: async () => {
+        go3.disabled = true;
+        try {
+          const r = await buildKoBatch(items, id => getAudio(id), o, (i, n) => { go3.textContent = `Preparando ${i} de ${n}…`; }, st.start);
+          if (!r.files.length) { toast('No quedó ningún sonido para exportar: ' + (r.skipped.join(', ') || 'lista vacía')); go3.disabled = false; paint(); return; }
+          const d = new Date(), stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+          await deliver(new File([makeZip(r.files)], `ko2_${st.scope}_${stamp}.zip`, { type: 'application/zip' }));
+          toast(`${r.files.length - 1} sonidos listos para el K.O. II` + (r.skipped.length ? ` · omitidos: ${r.skipped.slice(0, 3).join(', ')}` : ''));
+        } catch (err) { toast(err && err.name === 'QuotaExceededError' ? 'No hay espacio para preparar el archivo.' : 'No se pudo preparar la exportación: ' + ((err && err.message) || err)); }
+        go3.disabled = false; paint();
+      } });
+      fill(box,
+        h('div', { class: 'title-row' }, h('div', {}, h('h2', {}, 'Exportar para el K.O. II'), h('p', { class: 'muted small' }, 'WAV mono 16 bit · pico a −1 dBFS · sin compresión')), link('Cerrar', close)),
+        label('Qué exportar'), h('div', { class: 'row3' }, scopeBtn('favoritos', '★ Favoritos', favs().length), scopeBtn('seleccion', 'Selección', chosen().length), scopeBtn('todo', 'Todo', app.samples.length)),
+        label('Frecuencia de muestreo'), h('div', { class: 'row2' }, KO_RATES.map(r => btn(rateLabel(r), { small: true, sel: o.rate === r, onclick: () => { st.o = koOpts({ ...o, rate: r }); save(); paint(); } }))),
+        muted('46 875 Hz es la frecuencia que usa el K.O. II · por confirmar con el aparato. 44,1 kHz es la alternativa segura.', 'tiny'),
+        num('Umbral de silencio inicial', 'thresholdDB', -80, -20, 'dB'),
+        num('Fundido de entrada', 'fadeIn', 0, 100, 'ms'), num('Fundido de salida', 'fadeOut', 0, 500, 'ms'),
+        toggleRow('Fade-out largo para one-shots', `${LONG_FADE_MS} ms de salida en vez del fundido corto`, o.longFade, v => { st.o = koOpts({ ...o, longFade: v }); save(); paint(); }),
+        toggleRow('Filtro pasa-altos suave (90 Hz)', 'Quita rumor grave que el aparato no necesita', o.hp, v => { st.o = koOpts({ ...o, hp: v }); save(); paint(); }),
+        toggleRow('Nivel parejo en vez de pico', 'Nivela por volumen típico (como en Compartir) en lugar de llevar el pico a −1 dBFS', o.even, v => { st.o = koOpts({ ...o, even: v }); save(); paint(); }),
+        num('Empezar a numerar en', 'start', 1, 900, ''),
+        label(`Vista previa de nombres (${plan.length})`),
+        h('ol', { class: 'ko-names', 'aria-label': 'Nombres finales de los archivos' }, plan.length ? plan.slice(0, 60).map(p => h('li', {}, h('code', {}, p.file), h('small', { class: 'muted' }, ' ← ' + p.sample.name))) : [h('li', { class: 'muted' }, 'Nada que exportar. Marca favoritos con la ☆ o elige otra opción.')]),
+        plan.length > 60 ? muted(`… y ${plan.length - 60} más`, 'tiny') : null,
+        muted(`≈ ${mbx.toFixed(1).replace('.', ',')} MB · lista.txt dentro del .zip dice qué sonido es cada archivo.`, 'tiny'),
+        go3);
+    };
+    paint();           // «Empezar a numerar» no se guarda: vive sólo en esta hoja
+    return box;
+  });
 }
 
 // ====================================================================== EXPORTAR

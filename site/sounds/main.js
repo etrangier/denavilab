@@ -4,6 +4,7 @@ import { h, fill, btn, link, logo, muted, toast } from './ui.js';
 import { renderHome, renderRecord, renderLibrary, renderExport, finishTake, openManual, stopAudition } from './screens.js';
 import { renderEdit } from './editor.js';
 import { who, NAMES } from './profile.js';
+import { requestPersist } from './store.js';
 
 const TABS = [['inicio', 'Inicio', '⌂'], ['grabar', 'Grabar', '●'], ['biblioteca', 'Biblioteca', '▤'], ['editar', 'Editar', '✂'], ['exportar', 'Compartir', '⇪']];
 const SCREENS = { inicio: renderHome, grabar: renderRecord, biblioteca: renderLibrary, editar: renderEdit, exportar: renderExport };
@@ -76,6 +77,7 @@ async function boot() {
   if (!who()) return renderLock();
   app.user = who();
   try { await refreshSamples(); } catch (e) { toast('No se pudo abrir la biblioteca de este dispositivo'); }
+  requestPersist();                                   // pide que el navegador no borre la biblioteca si falta espacio
   app.render = render;
   app.engine.onChange = () => {
     if (app.engine.completed) { const a = app.engine.completed; app.engine.completed = null; app.metro.stop(); finishTake(a); }
