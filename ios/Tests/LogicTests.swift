@@ -783,4 +783,171 @@ final class LogicTests: XCTestCase {
         // tramo muy corto o fuera de rango: no hace nada
         XCTAssertEqual(Creative.loopSeamless(x, from: 0, to: 1000, rate: rate), x)
     }
+
+    // MARK: Materia prima: modelo, favoritos, filtros, zip y respaldo
+
+    func testOldIndexDecodesWithDefaults() throws {
+        let json = #"[{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","name":"Viejo","folder":"Voz","tags":["x"],"sampleRate":48000,"effects":{},"created":1000,"duration":1.5}]"#
+        let s = try JSONDecoder().decode([Sample].self, from: Data(json.utf8))[0]
+        XCTAssertEqual(s.name, "Viejo"); XCTAssertEqual(s.tags, ["x"])
+        XCTAssertFalse(s.favorite); XCTAssertEqual(s.status, "crudo"); XCTAssertEqual(s.origin, ""); XCTAssertFalse(s.replaced); XCTAssertNil(s.key)
+    }
+
+    func testNewFieldsRoundTrip() throws {
+        var s = Sample(name: "Pad", sampleRate: 48000)
+        s.favorite = true; s.status = "listo"; s.origin = "Disco X, 1:20"; s.replaced = true; s.key = "Am"; s.process = ["bucle 200 ms"]
+        let back = try JSONDecoder().decode(Sample.self, from: JSONEncoder().encode(s))
+        XCTAssertEqual(back, s)
+    }
+
+    @MainActor func testFavoritesFilterAndSort() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("lib-\(UUID().uuidString)")
+        let lib = LibraryStore(directory: dir)
+        lib.clearFilters(); lib.sort = .fecha
+        let a = try XCTUnwrap(lib.add(name: "charlie", audio: [Float](repeating: 0.1, count: 4800), sampleRate: 48000))
+        let b = try XCTUnwrap(lib.add(name: "alfa", audio: [Float](repeating: 0.1, count: 48000), sampleRate: 48000))
+        _ = lib.add(name: "bravo", audio: [Float](repeating: 0.1, count: 24000), sampleRate: 48000)
+        lib.toggleFavorite(a)
+        lib.sort = .nombre; XCTAssertEqual(lib.filtered.map(\.name), ["alfa", "bravo", "charlie"])
+        lib.sort = .duracion; XCTAssertEqual(lib.filtered.map(\.name), ["alfa", "bravo", "charlie"])
+        lib.sort = .favoritos; XCTAssertEqual(lib.filtered.first?.name, "charlie")
+        lib.onlyFavorites = true; XCTAssertEqual(lib.filtered.map(\.name), ["charlie"])
+        lib.onlyFavorites = false
+        var u = b; u.status = "listo"; u.tags = ["cálido", "suave"]; u.origin = "Mi balcón"; lib.update(u)
+        lib.statusFilter = "listo"; XCTAssertEqual(lib.filtered.map(\.name), ["alfa"])
+        lib.statusFilter = ""; lib.tagFilter = ["cálido", "suave"]; XCTAssertEqual(lib.filtered.map(\.name), ["alfa"])
+        lib.tagFilter = ["cálido", "oscuro"]; XCTAssertTrue(lib.filtered.isEmpty)
+        lib.tagFilter = []; lib.originFilter = "balcón"; XCTAssertEqual(lib.filtered.map(\.name), ["alfa"])
+        lib.clearFilters(); lib.sort = .fecha
+        XCTAssertFalse(lib.filterActive)
+    }
+
+    func testZipRoundTripAndCRC() throws {
+        XCTAssertEqual(Zip.crc32(Data("123456789".utf8)), 0xCBF43926)
+        let es = [Zip.Entry(name: "a/ñ.wav", data: Data([1, 2, 3])), Zip.Entry(name: "lista.txt", data: Data("hola".utf8))]
+        let back = try Zip.read(Zip.make(es))
+        XCTAssertEqual(back.map(\.name), ["a/ñ.wav", "lista.txt"]); XCTAssertEqual(back[0].data, Data([1, 2, 3])); XCTAssertEqual(back[1].data, Data("hola".utf8))
+        XCTAssertThrowsError(try Zip.read(Data("esto no es un zip".utf8)))
+    }
+
+    @MainActor func testBackupAndRestoreKeepsMetadata() throws {
+        let d1 = FileManager.default.temporaryDirectory.appendingPathComponent("lib-\(UUID().uuidString)")
+        let d2 = FileManager.default.temporaryDirectory.appendingPathComponent("lib-\(UUID().uuidString)")
+        let a = LibraryStore(directory: d1)
+        var s = try XCTUnwrap(a.add(name: "Pad", audio: (0..<4800).map { Float(sin(Double($0) * 0.05)) * 0.5 }, sampleRate: 48000))
+        s.favorite = true; s.tags = ["etéreo"]; s.origin = "Sade"; s.key = "Am"; s.status = "procesado"; a.update(s)
+        let zip = try Backup.make(a)
+        let b = LibraryStore(directory: d2)
+        let r = try Backup.restore(from: zip, into: b)
+        XCTAssertEqual(r, Backup.Report(added: 1, skipped: 0, bad: 0))
+        XCTAssertEqual(b.samples.first, s)
+        XCTAssertEqual(b.audio(for: s).count, 4800)
+        XCTAssertEqual(try Backup.restore(from: zip, into: b), Backup.Report(added: 0, skipped: 1, bad: 0))   // no duplica
+        let bad = FileManager.default.temporaryDirectory.appendingPathComponent("malo.zip")
+        try Data("no es un zip".utf8).write(to: bad)
+        XCTAssertThrowsError(try Backup.restore(from: bad, into: b))
+    }
+
+    func testMateriaBestWindowAndCut() {
+        let rate = 48_000
+        let x: [Float] = (0..<(rate * 12)).map { k in (k > rate * 6 && k < rate * 10 ? 0.5 : 0.02) * Float(sin(Double(k) * 0.05)) }
+        let w = Materia.bestWindow(x, rate: rate, seconds: 4)
+        XCTAssertGreaterThan(w.start * 12, 5.8); XCTAssertLessThan(w.start * 12, 6.3)
+        let f = Materia.cut(x, rate: rate, start: w.start, end: w.end)
+        XCTAssertEqual(Double(f.count) / Double(rate), 4, accuracy: 0.05)
+        XCTAssertLessThan(abs(f.first ?? 1), 0.001); XCTAssertLessThan(abs(f.last ?? 1), 0.001)
+        XCTAssertNotNil(Materia.advice(seconds: 7)); XCTAssertNotNil(Materia.advice(seconds: 1)); XCTAssertNil(Materia.advice(seconds: 3.5))
+        XCTAssertEqual(Materia.bestWindow(x, rate: rate, seconds: 99).start, 0)
+    }
+
+    func testPadLabCrossLoopRemovesJump() {
+        let rate = 48_000
+        let x: [Float] = (0..<(rate * 2)).map { k in 0.6 * Float(sin(Double(k) * 0.031)) + 0.3 * (Float(k) / Float(rate) - 1) }
+        let y = PadLab.crossLoop(x, rate: rate, ms: 300)
+        XCTAssertGreaterThan(Creative.seamJump(x), Creative.seamJump(y)); XCTAssertLessThan(Creative.seamJump(y), 2.0)      // empalmar muestras contiguas: el salto es de un paso normal de la onda
+        XCTAssertEqual(Double(y.count) / Double(rate), 1.7, accuracy: 0.01)
+    }
+
+    func testPadLabProcessPeakPitchFiltersAndLayers() {
+        let rate = 48_000
+        func tone(_ hz: Double) -> [Float] { (0..<rate).map { 0.4 * Float(sin(2 * Double.pi * hz * Double($0) / Double(rate))) } }
+        let l1 = PadLab.Layer(id: UUID(), name: "a", audio: tone(200), rate: rate)
+        let plain = PadLab.process([l1], PadLab.Params())
+        XCTAssertEqual(plain.count, 38_400)                                                    // 1 s menos los 200 ms del fundido cruzado
+        XCTAssertEqual(Editing.peakDB(plain), -1, accuracy: 0.2)
+        var down = PadLab.Params(); down.pitch = -12
+        XCTAssertEqual(PadLab.process([l1], down).count, 76_800, accuracy: 4)               // una octava abajo dura el doble
+        // pasa-bajos: una mezcla de 200 Hz y 6 kHz queda casi sin la parte aguda (menos «rugosa»)
+        let mixTone = zip(tone(200), tone(6000)).map { $0 + $1 }
+        let l2 = PadLab.Layer(id: UUID(), name: "m", audio: mixTone, rate: rate)
+        func rough(_ x: [Float]) -> Float {
+            var d: Float = 0, e: Float = 0
+            for i in 1..<x.count { d += (x[i] - x[i - 1]) * (x[i] - x[i - 1]); e += x[i] * x[i] }
+            return d / max(e, 1e-9)
+        }
+        var lp = PadLab.Params(); lp.lp = 20
+        XCTAssertLessThan(rough(PadLab.process([l2], lp)), rough(PadLab.process([l2], PadLab.Params())) * 0.3)
+        var two = PadLab.Params(); two.mix = 40; two.sat = 30; two.hp = 20
+        let l3 = PadLab.Layer(id: UUID(), name: "b", audio: tone(300), rate: rate, volume: 0.5, tune: 7)
+        let out = PadLab.process([l1, l3], two)
+        XCTAssertEqual(out.count, 38_400); XCTAssertEqual(Editing.peakDB(out), -1, accuracy: 0.2)
+        XCTAssertEqual(PadLab.describe(two, [l1, l3]).first, "bucle 200 ms")
+        XCTAssertTrue(PadLab.describe(two, [l1, l3]).contains { $0.hasPrefix("capas: a (vol 100 %) + b (vol 50 %, +7 st)") })
+        XCTAssertEqual(PadLab.noteName(0), "Do4"); XCTAssertEqual(PadLab.noteName(13), "Do#5"); XCTAssertEqual(PadLab.noteName(-1), "Si3")
+    }
+
+    func testTempoAnalyze() {
+        func track(_ bpm: Double, rate: Int) -> [Float] {
+            var x = [Float](repeating: 0, count: rate * 10)
+            var t = 0.1
+            while t < 9.9 {
+                let s = Int(t * Double(rate))
+                for j in 0..<2400 where s + j < x.count { x[s + j] += 0.8 * Float(sin(2 * Double.pi * 180 * Double(j) / Double(rate)) * exp(-Double(j) / 500)) }
+                t += 60 / bpm
+            }
+            return x
+        }
+        for bpm in [90.0, 100, 120] {
+            guard case .bpm(let b, _) = Tempo.analyze(track(bpm, rate: 48_000), rate: 48_000) else { return XCTFail("sin pulso a \(bpm)") }
+            XCTAssertEqual(b, bpm, accuracy: 3)
+        }
+        XCTAssertEqual(Tempo.analyze([Float](repeating: 0, count: 480_000), rate: 48_000), .failed("No oigo nada. Acerca el micrófono al aparato o sube su volumen."))
+        if case .failed(let m) = Tempo.analyze([Float](repeating: 0.5, count: 1000), rate: 48_000) { XCTAssertTrue(m.contains("audio suficiente")) } else { XCTFail() }
+        XCTAssertEqual(Tempo.alternatives(96), [48, 192]); XCTAssertEqual(Tempo.alternatives(200), [100]); XCTAssertEqual(Tempo.alternatives(45), [90])
+        XCTAssertEqual([Tempo.label(0.5), Tempo.label(0.2), Tempo.label(0.05)], ["buena", "regular", "dudosa"])
+    }
+
+    func testKoExportProcessAndNames() {
+        let rate = 48_000
+        let x: [Float] = (0..<(rate * 2)).map { k in (k < rate / 2 ? 0.0005 : 0.2) * Float(sin(Double(k) * 0.05)) }
+        let r = KoExport.process(x, rate: rate, KoExport.Options())
+        XCTAssertEqual(r.rate, 46_875); XCTAssertFalse(r.silent)
+        XCTAssertEqual(Double(r.audio.count) / 46_875, 1.5, accuracy: 0.05)             // se fue el medio segundo inicial
+        XCTAssertEqual(Editing.peakDB(r.audio), -1, accuracy: 0.3)
+        XCTAssertLessThan(abs(r.audio.first ?? 1), 0.001); XCTAssertLessThan(abs(r.audio.last ?? 1), 0.001)
+        XCTAssertTrue(KoExport.process([Float](repeating: 0, count: 1000), rate: rate, KoExport.Options()).silent)
+        var s = Sample(name: "Pad cálido ñandú!!", sampleRate: rate); s.key = "Am"
+        XCTAssertEqual(KoExport.fileName(s, number: 1), "001_pad_calido_nandu_Am.wav")
+        var t = Sample(name: "Pad", sampleRate: rate); t.key = "C#m"; t.bpm = 92.4
+        XCTAssertEqual(KoExport.fileName(t, number: 2), "002_pad_Csm_92bpm.wav")
+        XCTAssertEqual(KoExport.fileName(Sample(name: "Textura de lluvia muy larga en el balcón", sampleRate: rate), number: 12), "012_textura_de_lluvi.wav")
+        XCTAssertEqual(KoExport.fileName(Sample(name: "***", sampleRate: rate), number: 103), "103_sonido.wav")
+        var u = Sample(name: "pad Am", sampleRate: rate); u.key = "Am"
+        XCTAssertEqual(KoExport.fileName(u, number: 5), "005_pad_am.wav")
+    }
+
+    func testKoExportBatchZip() throws {
+        let rate = 48_000
+        var a = Sample(name: "pad uno", sampleRate: rate); a.origin = "Sade, 1:20"; a.process = ["bucle 200 ms"]; a.key = "Am"
+        let b = Sample(name: "vacío", sampleRate: rate)
+        let c = Sample(name: "golpe", sampleRate: rate)
+        let tone: [Float] = (0..<rate).map { 0.4 * Float(sin(Double($0) * 0.05)) }
+        let r = KoExport.build([a, b, c], audio: { $0.name == "vacío" ? [] : tone }, opts: KoExport.Options())
+        XCTAssertEqual(r.skipped, ["vacío (sin audio)"])
+        let back = try Zip.read(Zip.make(r.entries))
+        XCTAssertEqual(back.map(\.name), ["001_pad_uno_Am.wav", "002_golpe.wav", "lista.txt"])
+        let txt = String(decoding: back[2].data, as: UTF8.self)
+        XCTAssertTrue(txt.contains("origen: Sade, 1:20")); XCTAssertTrue(txt.contains("procesos: bucle 200 ms")); XCTAssertTrue(txt.contains("origen: (sin anotar)"))
+        XCTAssertEqual(WavIO.decode(back[0].data)?.sampleRate, 46_875)
+    }
 }

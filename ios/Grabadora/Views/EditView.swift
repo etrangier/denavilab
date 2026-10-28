@@ -62,6 +62,8 @@ struct EditorBody: View {
     @State private var showEffects = false
     @State private var showChop = false
     @State private var showPrecise = false
+    @State private var showDetails = false
+    @State private var showLab = false
     @State private var confirmDelete = false
     @State private var message: String?
     private let tick = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
@@ -76,6 +78,18 @@ struct EditorBody: View {
         Screen {
             VStack(alignment: .leading, spacing: 14) {
                 ScreenTitle(title: "Escuchar y editar")
+                HStack(spacing: 8) {
+                    Button { sample.favorite.toggle(); lib.update(sample) } label: {
+                        Image(systemName: sample.favorite ? "star.fill" : "star").font(.system(size: 20, weight: .bold))
+                            .foregroundColor(sample.favorite ? Theme.amber : Theme.muted).frame(width: 44, height: 44)
+                    }
+                    .keyboardShortcut("f", modifiers: [])
+                    .accessibilityLabel((sample.favorite ? "Quitar de favoritos: " : "Marcar como favorito: ") + sample.name)
+                    .accessibilityAddTraits(sample.favorite ? .isSelected : [])
+                    Button("Detalles") { showDetails = true }.buttonStyle(OutlineButton()).font(Theme.font(13)).frame(width: 120)
+                    Text(SampleStatus.title(sample.status)).font(Theme.font(12, weight: .medium)).foregroundColor(Theme.muted)
+                    Spacer(minLength: 0)
+                }
                 VStack(alignment: .leading, spacing: 2) {
                     TextField("Nombre", text: $sample.name).font(Theme.font(16, weight: .bold)).foregroundColor(Theme.text)
                     Text("\(stamp(total)) · mono · \(sample.sampleRate) Hz · pico \(Int(peakDB)) dB · nivel \(levelDBValue) dB").font(Theme.font(12)).foregroundColor(Theme.muted)
@@ -106,6 +120,8 @@ struct EditorBody: View {
                     .font(Theme.font(12)).foregroundColor(Theme.muted)
                 Button("Edición precisa (zoom)") { showPrecise = true }.buttonStyle(OutlineButton(selected: true))
                 Button("Chop en pads") { showChop = true }.buttonStyle(OutlineButton())
+                Button("Laboratorio de pads") { showLab = true }.buttonStyle(OutlineButton(selected: true))
+                Text("Bucle sin clics, estirar, tono, filtros, reverb, capas y teclado (con MIDI).").font(Theme.font(12)).foregroundColor(Theme.muted)
                 Button("Armonizar bordes (sin clics)") { let r = sample.sampleRate; run("armonizar", done: "Listo: bordes armonizados") { Harmonize.harmonize($0, rate: r) } }.buttonStyle(OutlineButton()).font(Theme.font(13))
                     .actionFX("armonizar", busy: fxBusy, flash: fxFlash)
                 Text("Centra la onda y suaviza el inicio y el final a medida, para que un recorte no suene «cortado». Puedes deshacer.")
@@ -150,6 +166,8 @@ struct EditorBody: View {
             }.presentationDetents([.large])
         }
         .sheet(isPresented: $showChop) { ChopSheet(sample: sample, audio: audio).presentationDetents([.large]) }
+        .sheet(isPresented: $showLab) { PadLabSheet(sample: sample).presentationDetents([.large]) }
+        .sheet(isPresented: $showDetails) { DetailsSheet(sample: sample) { sample = $0; lib.update($0) }.presentationDetents([.large]) }
         .sheet(isPresented: $showEffects, onDismiss: { lib.update(sample) }) { EffectsSheet(sample: $sample, audio: audio).presentationDetents([.large]) }
         .confirmationDialog("¿Borrar esta grabación?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Borrar", role: .destructive) { player?.stop(); lib.delete(sample); state.selectedID = nil; state.tab = .biblioteca }
