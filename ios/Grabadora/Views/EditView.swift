@@ -63,6 +63,7 @@ struct EditorBody: View {
     @State private var showChop = false
     @State private var showPrecise = false
     @State private var showDetails = false
+    @State private var showLab = false
     @State private var confirmDelete = false
     @State private var message: String?
     private let tick = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
@@ -119,6 +120,8 @@ struct EditorBody: View {
                     .font(Theme.font(12)).foregroundColor(Theme.muted)
                 Button("Edición precisa (zoom)") { showPrecise = true }.buttonStyle(OutlineButton(selected: true))
                 Button("Chop en pads") { showChop = true }.buttonStyle(OutlineButton())
+                Button("Laboratorio de pads") { showLab = true }.buttonStyle(OutlineButton(selected: true))
+                Text("Bucle sin clics, estirar, tono, filtros, reverb, capas y teclado (con MIDI).").font(Theme.font(12)).foregroundColor(Theme.muted)
                 Button("Armonizar bordes (sin clics)") { let r = sample.sampleRate; run("armonizar", done: "Listo: bordes armonizados") { Harmonize.harmonize($0, rate: r) } }.buttonStyle(OutlineButton()).font(Theme.font(13))
                     .actionFX("armonizar", busy: fxBusy, flash: fxFlash)
                 Text("Centra la onda y suaviza el inicio y el final a medida, para que un recorte no suene «cortado». Puedes deshacer.")
@@ -163,6 +166,7 @@ struct EditorBody: View {
             }.presentationDetents([.large])
         }
         .sheet(isPresented: $showChop) { ChopSheet(sample: sample, audio: audio).presentationDetents([.large]) }
+        .sheet(isPresented: $showLab) { PadLabSheet(sample: sample).presentationDetents([.large]) }
         .sheet(isPresented: $showDetails) { DetailsSheet(sample: sample) { sample = $0; lib.update($0) }.presentationDetents([.large]) }
         .sheet(isPresented: $showEffects, onDismiss: { lib.update(sample) }) { EffectsSheet(sample: $sample, audio: audio).presentationDetents([.large]) }
         .confirmationDialog("¿Borrar esta grabación?", isPresented: $confirmDelete, titleVisibility: .visible) {

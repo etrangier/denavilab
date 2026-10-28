@@ -11,6 +11,7 @@ struct LibraryView: View {
     @State private var shareItems: [Any] = []
     @State private var showShare = false
     @State private var details: Sample?
+    @State private var showKo = false
 
     private var searching: Bool { !lib.query.trimmingCharacters(in: .whitespaces).isEmpty || lib.filterActive }
 
@@ -52,6 +53,7 @@ struct LibraryView: View {
             if pickBackup { restoreBackup(urls.first) } else { importFiles(urls) }
         }
         .sheet(isPresented: $showShare) { ShareSheet(items: shareItems) }
+        .sheet(isPresented: $showKo) { KoExportSheet(selection: []).presentationDetents([.large]) }
         .sheet(item: $details) { s in DetailsSheet(sample: s) { lib.update($0) }.presentationDetents([.large]) }
         .alert("Error", isPresented: Binding(get: { lib.errorMessage != nil }, set: { _ in lib.errorMessage = nil })) {
             Button("OK", role: .cancel) {}
@@ -76,6 +78,8 @@ struct LibraryView: View {
                 Button("Respaldo") { makeBackup() }.buttonStyle(OutlineButton()).accessibilityLabel("Respaldo: guardar toda la colección en un .zip")
                 Button("Restaurar") { pickBackup = true; showImporter = true }.buttonStyle(OutlineButton())
             }.font(Theme.font(13))
+            Button("Exportar para el K.O. II") { showKo = true }.buttonStyle(OutlineButton(selected: true)).font(Theme.font(13))
+                .accessibilityLabel("Exportar para el K.O. II: favoritos, selección o todo")
         }.padding(.top, 8)
     }
 
@@ -220,6 +224,7 @@ struct FolderView: View {
     @State private var showMove = false
     @State private var confirmDelete = false
     @State private var details: Sample?
+    @State private var showKo = false
 
     private var isAll: Bool { folder == Self.allKey || folder == Self.selectKey }
     private var items: [Sample] { isAll ? lib.filtered : lib.samples(in: folder) }
@@ -258,6 +263,8 @@ struct FolderView: View {
         }
         .safeAreaInset(edge: .bottom) { if selecting { actionBar } }
         .sheet(item: $details) { s in DetailsSheet(sample: s) { lib.update($0) }.presentationDetents([.large]) }
+        .sheet(isPresented: $showKo) { KoExportSheet(selection: lib.samples.filter { selected.contains($0.id) }).presentationDetents([.large]) }
+        .sheet(isPresented: $showKo) { KoExportSheet(selection: lib.samples.filter { selected.contains($0.id) }).presentationDetents([.large]) }
         .onAppear { if folder == Self.selectKey && !started { started = true; selecting = true } }
         .onDisappear { Auditioner.shared.stop() }
         .alert(selected.count > 1 ? "Cambiar nombre de \(selected.count) grabaciones" : "Cambiar nombre", isPresented: $showRename) {
@@ -322,6 +329,7 @@ struct FolderView: View {
                 Button("Mover") { showMove = true }.buttonStyle(OutlineButton())
                 Button("Borrar") { confirmDelete = true }.buttonStyle(OutlineButton(danger: true))
             }.font(Theme.font(13)).disabled(selected.isEmpty)
+            Button("Exportar selección al K.O. II") { showKo = true }.buttonStyle(OutlineButton()).font(Theme.font(13)).disabled(selected.isEmpty)
         }
         .padding(12).frame(maxWidth: .infinity).background(Theme.surface)
         .overlay(alignment: .top) { Rectangle().fill(Theme.line).frame(height: 1) }

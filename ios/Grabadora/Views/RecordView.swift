@@ -13,6 +13,12 @@ struct RecordView: View {
     @EnvironmentObject var met: Metronome
     @EnvironmentObject var state: AppState
     @State private var take: Take?
+    @State private var materiaTake: Take?
+    @State private var tempoBusy = false
+    @State private var tempoLeft = 0
+    @State private var tempoCancel = false
+    @State private var tempoResult: Tempo.Outcome?
+    @AppStorage("captureMode") private var captureMode = "materia"        // materia (por defecto) o libre
     @State private var showRetro = false
     @State private var showMetro = false
     @State private var showQuick = false
@@ -42,8 +48,10 @@ struct RecordView: View {
                 }
                 if rec.micDenied { deniedCard } else {
                     Text("Entrada · Micrófono del iPhone").font(Theme.font(14, weight: .medium)).foregroundColor(Theme.text).card()
+                    modeCard
                     kindCard
                     levelCard
+                    tempoCard
                     waveCard
                     Text(timerText).font(Theme.font(44, weight: .bold)).foregroundColor(recording ? Theme.text : Theme.muted)
                         .monospacedDigit()
@@ -79,10 +87,19 @@ struct RecordView: View {
             finish(a)
         }
         .sheet(item: $take) { t in SaveSheet(take: t) }
+        .sheet(item: $materiaTake) { t in
+            MateriaSheet(take: t) { note in
+                savedNote = note
+                Task { try? await Task.sleep(nanoseconds: 5_000_000_000); savedNote = nil }
+            }.presentationDetents([.large])
+        }
         .sheet(isPresented: $showRetro) {
             RetroSheet { audio in
                 showRetro = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { take = Take(audio: audio, rate: rec.sampleRate) }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    let t = Take(audio: audio, rate: rec.sampleRate)
+                    if captureMode == "materia" { materiaTake = t } else { take = t }
+                }
             }.presentationDetents([.large])
         }
         .sheet(isPresented: $showMetro) { MetronomeSheet().presentationDetents([.large]) }
@@ -93,6 +110,7 @@ struct RecordView: View {
     /// Al parar: guardado rápido si está activo; si no, hoja para elegir nombre y carpeta.
     private func finish(_ a: [Float]) {
         guard !a.isEmpty else { return }
+        if captureMode == "materia" { materiaTake = Take(audio: a, rate: rec.sampleRate); return }
         let s = QuickSave.Settings.load()
         guard s.enabled else { take = Take(audio: a, rate: rec.sampleRate); return }
         let out = QuickSave.process(a, rate: rec.sampleRate, s)
@@ -109,6 +127,75 @@ struct RecordView: View {
             try? await Task.sleep(nanoseconds: 5_000_000_000)
             savedNote = nil
         }
+    }
+
+    /// Escuchar tempo: 10 s por el micrófono, sin grabar, y dice el BPM.
+    private var tempoCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Escuchar tempo").font(Theme.font(14, weight: .medium)).foregroundColor(Theme.text)
+                Spacer()
+                if case .bpm(let b, _)? = tempoResult { Text("≈ \(Int(b.rounded())) BPM").font(Theme.font(15, weight: .bold)).foregroundColor(Theme.amber) }
+            }
+            Text("Toca tu patrón sin grabar: la app oye \(Tempo.seconds) s por el micrófono y te dice el BPM.").font(Theme.font(12)).foregroundColor(Theme.muted)
+            Button(tempoBusy ? "Escuchando… \(tempoLeft) s · tocar para cancelar" : "Escuchar tempo") { listenTempo() }
+                .buttonStyle(AmberButton()).disabled(recording)
+            switch tempoResult {
+            case .failed(let m)?:
+                Text(m).font(Theme.font(13)).foregroundColor(Theme.error)
+            case .bpm(let b, let c)?:
+                Text("Confianza \(Tempo.label(c)) (\(Int((c * 100).rounded())) %)." + (c < 0.15 ? " Escucha otra vez con un patrón más marcado." : ""))
+                    .font(Theme.font(12)).foregroundColor(Theme.muted)
+                HStack(spacing: 8) {
+                    ForEach(Tempo.alternatives(b).prefix(1), id: \.self) { v in
+                        Button("÷2 → \(Int(v.rounded()))") { tempoResult = .bpm(v, confidence: c) }.buttonStyle(OutlineButton())
+                    }
+                    Button("Usar en el metrónomo") { met.bpm = min(300, max(30, b.rounded())); savedNote = "Metrónomo a \(Int(met.bpm)) BPM" }.buttonStyle(OutlineButton(selected: true))
+                    ForEach(Tempo.alternatives(b).dropFirst(), id: \.self) { v in
+                        Button("×2 → \(Int(v.rounded()))") { tempoResult = .bpm(v, confidence: c) }.buttonStyle(OutlineButton())
+                    }
+                }.font(Theme.font(12))
+                Text("Si suena a la mitad o al doble de lo que tocas, usa ÷2 o ×2.").font(Theme.font(12)).foregroundColor(Theme.muted)
+            case nil:
+                EmptyView()
+            }
+        }.card()
+    }
+
+    private func listenTempo() {
+        if tempoBusy { tempoCancel = true; return }
+        tempoBusy = true; tempoCancel = false; tempoResult = nil
+        Task {
+            if rec.state == .idle { await rec.startListening() }
+            guard rec.state != .idle else {
+                tempoResult = .failed(rec.micDenied ? "Sin acceso al micrófono. Actívalo en Ajustes." : "No se pudo encender el micrófono.")
+                tempoBusy = false; return
+            }
+            var left = Tempo.seconds
+            while left > 0 {
+                tempoLeft = left
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                if tempoCancel { tempoBusy = false; return }
+                left -= 1
+            }
+            tempoResult = Tempo.analyze(rec.lastSamples(Tempo.seconds * rec.sampleRate), rate: rec.sampleRate)
+            tempoBusy = false
+        }
+    }
+
+    /// Modo de captura: «materia prima" (grabar 10–15 s y elegir un fragmento) o «captura libre» (la toma se guarda como sale).
+    private var modeCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Modo de captura").font(Theme.font(14, weight: .medium)).foregroundColor(Theme.text)
+            HStack(spacing: 8) {
+                Chip(title: "Materia prima", selected: captureMode == "materia") { captureMode = "materia" }
+                Chip(title: "Captura libre", selected: captureMode != "materia") { captureMode = "libre" }
+            }
+            Text(captureMode == "materia"
+                 ? "Graba de 10 a \(Int(Materia.takeSeconds)) s (para sola a los \(Int(Materia.takeSeconds)) s), luego eliges un fragmento de 2 a 5 s y queda como «crudo»."
+                 : "Como antes: la toma se guarda entera, con tu guardado rápido.")
+                .font(Theme.font(12)).foregroundColor(Theme.muted)
+        }.card()
     }
 
     /// Tipo de sonido: la app está pensada para sonidos cortos (texturas, bajos, baterías).
@@ -150,7 +237,10 @@ struct RecordView: View {
 
     /// Con compás: arranca el metrónomo, la cuenta de entrada y el límite de compases; Libre: graba directamente.
     private func begin() {
-        guard met.mode == .bar else { rec.startRecording(); return }
+        guard met.mode == .bar else {
+            rec.startRecording(maxSamples: captureMode == "materia" ? Int(Materia.takeSeconds * Double(rec.sampleRate)) : nil)   // en materia prima la toma para sola a los 15 s
+            return
+        }
         let beat = 60 / met.bpm, rate = Double(rec.sampleRate)
         let lead = met.countIn ? Int(Double(met.beatsPerBar) * beat * rate) : 0
         met.start(forRecording: true)
