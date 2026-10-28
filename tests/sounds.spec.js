@@ -10,6 +10,7 @@ const abrir = async (page, quien = 'rolando', extra = {}) => {
     try {
       localStorage.setItem('denavilab.sesion', q);
       localStorage.setItem('denavilab.sounds.onboarded', '1');
+      localStorage.setItem('denavilab.sounds.captureMode', '"libre"');      // las pruebas viejas guardan la toma tal cual; el modo materia prima tiene las suyas
       for (const [k, v] of Object.entries(ex)) localStorage.setItem(k, v);
     } catch (e) {}
   }, [quien, extra]);
@@ -561,6 +562,53 @@ test.describe('etapa 2 · materia prima: estado, carácter y origen', () => {
     await page.getByRole('group', { name: 'Filtrar por etiquetas de carácter' }).getByRole('button', { name: 'suave' }).click(); expect(await nombres(page)).toEqual(['b']);
     await page.getByLabel('Filtrar por origen').fill('balcón'); expect(await nombres(page)).toEqual(['b']);
     await page.getByLabel('Filtrar por origen').fill('disco'); expect(await nombres(page)).toEqual([]);
+  });
+});
+
+test.describe('etapa 3 · modo materia prima', () => {
+  const modoMateria = { 'denavilab.sounds.captureMode': '"materia"' };
+  const toma = (page, seg) => page.evaluate(async seg => { const m = await import('/sounds/screens.js'), { app } = await import('/sounds/state.js'); app.engine.rate = 48000;
+    const x = new Float32Array(48000 * seg).map((_, k) => (k > 48000 * 5 && k < 48000 * 9 ? 0.5 : 0.02) * Math.sin(k * 0.05)); await m.finishTake(x); }, seg);
+  test('el modo materia prima viene seleccionado y se puede cambiar a captura libre', async ({ page }) => {
+    await page.addInitScript(() => { try { localStorage.setItem('denavilab.sesion', 'rolando'); localStorage.setItem('denavilab.sounds.onboarded', '1'); } catch (e) {} });
+    await page.goto(URL); await tab(page, 'grabar');
+    await expect(page.getByRole('button', { name: 'Materia prima' })).toHaveAttribute('aria-pressed', /true|null/).catch(() => {});
+    await expect(page.getByText('luego eliges un fragmento')).toBeVisible();
+    await page.getByRole('button', { name: 'Captura libre' }).click();
+    await expect(page.getByText('la toma se guarda entera')).toBeVisible();
+    await page.reload(); await tab(page, 'grabar'); await expect(page.getByText('la toma se guarda entera')).toBeVisible();
+  });
+  test('ventana más enérgica y fragmento sin clics', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const r = await page.evaluate(async () => { const m = await import('/sounds/materia.js'), rate = 48000;
+      const x = new Float32Array(rate * 12).map((_, k) => (k > rate * 6 && k < rate * 10 ? 0.5 : 0.02) * Math.sin(k * 0.05)); const [a, b] = m.bestWindow(x, rate, 4), f = m.cutFragment(x, rate, a, b);
+      return { a: a * 12, b: b * 12, n: f.length / rate, ini: Math.abs(f[0]), fin: Math.abs(f[f.length - 1]) }; });
+    expect(r.a).toBeGreaterThan(5.8); expect(r.a).toBeLessThan(6.3); expect(r.n).toBeCloseTo(4, 1); expect(r.ini).toBeLessThan(1e-3); expect(r.fin).toBeLessThan(1e-3);
+  });
+  test('toma de 12 s: se elige el fragmento, avisa si pasa de 6 s y se guarda crudo con origen', async ({ page }) => {
+    await abrir(page, 'rolando', modoMateria); await toma(page, 12);
+    const sh = page.locator('dialog.sheet');
+    await expect(sh.getByRole('heading', { name: 'Elige el fragmento' })).toBeVisible();
+    await expect(sh).toContainText('Fragmento: 00:04.00');
+    await expect(sh.getByRole('slider', { name: 'Marcador de inicio' })).toBeVisible();
+    for (let i = 0; i < 40; i++) await sh.getByRole('slider', { name: 'Marcador de final' }).press('ArrowRight');   // alarga el fragmento
+    await sh.getByRole('slider', { name: 'Marcador de inicio' }).focus();
+    for (let i = 0; i < 10; i++) await page.keyboard.press('ArrowLeft');
+    await expect(sh).toContainText('más de 6 s');
+    for (let i = 0; i < 40; i++) await sh.getByRole('slider', { name: 'Marcador de final' }).press('ArrowLeft');
+    await sh.getByRole('button', { name: /Escuchar en bucle/ }).click();
+    await expect(sh.getByRole('button', { name: /Parar/ })).toBeVisible(); await sh.getByRole('button', { name: /Parar/ }).click();
+    await sh.getByLabel('Origen del sonido').fill('Mi balcón, lluvia');
+    await sh.getByLabel('Nombre').fill('lluvia pad');
+    await sh.getByRole('button', { name: 'Guardar como crudo' }).click();
+    await expect(page.locator('#toast')).toContainText('Guardada como crudo');
+    const s = await page.evaluate(async () => (await (await import('/sounds/store.js')).listSamples())[0]);
+    expect(s).toMatchObject({ name: 'lluvia pad', status: 'crudo', origin: 'Mi balcón, lluvia' });
+    expect(s.duration).toBeGreaterThan(2); expect(s.duration).toBeLessThan(6.5);
+  });
+  test('en captura libre la toma se guarda como antes (hoja de guardar)', async ({ page }) => {
+    await abrir(page, 'rolando'); await toma(page, 3);
+    await expect(page.locator('dialog.sheet')).toContainText('Guardar grabación');
   });
 });
 

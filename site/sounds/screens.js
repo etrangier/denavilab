@@ -8,6 +8,7 @@ import { manualFor } from './manual.js';
 import { makeZip, readZip } from './zip.js';
 import { decodeFile, baseName, MAX_SECONDS } from './importer.js';
 import { rateLabel, exportRates, KO_EXPORT } from './profile.js';
+import { openMateria, TAKE_SECONDS } from './materia.js';
 import { KO_RATES, KO_DEFAULTS, koOpts, koPlan, buildKoBatch, LONG_FADE_MS } from './koexport.js';
 
 const ls = {
@@ -197,6 +198,10 @@ export function renderRecord(root) {
     denied,
     denied ? null : [
       card([h('b', {}, 'Entrada · Micrófono del dispositivo')]),
+      card([h('b', {}, 'Modo de captura'),
+        h('div', { class: 'row2', role: 'group', 'aria-label': 'Modo de captura' }, btn('Materia prima', { small: true, sel: captureMode() === 'materia', act: 'modo-materia', onclick: () => { ls.set('captureMode', 'materia'); app.render(); } }),
+          btn('Captura libre', { small: true, sel: captureMode() === 'libre', act: 'modo-libre', onclick: () => { ls.set('captureMode', 'libre'); app.render(); } })),
+        h('p', { class: 'muted tiny' }, captureMode() === 'materia' ? `Graba de 10 a ${TAKE_SECONDS} s (para sola a los ${TAKE_SECONDS} s), luego eliges un fragmento de 2 a 5 s y queda como «crudo».` : 'Como antes: la toma se guarda entera, con tu guardado rápido.')]),
       card([h('b', {}, 'Tipo de sonido'),
         h('div', { class: 'wrap' }, Object.entries(dsp.SOUND_KINDS).map(([k, v]) => chip(v.label, kind === k, () => { ls.set('kind', k); app.render(); }))),
         h('p', { class: 'muted tiny' }, dsp.SOUND_KINDS[kind].hint)]),
@@ -220,7 +225,7 @@ export function renderRecord(root) {
   function onRecord() {
     if (e.state === 'idle') { e.start(); return; }
     if (e.state === 'recording') { m.running && m.stop(); finishTake(e.stopRecording()); return; }
-    if (m.mode !== 'bar') { e.startRecording(); return; }
+    if (m.mode !== 'bar') { e.startRecording(0, captureMode() === 'materia' ? Math.round(TAKE_SECONDS * e.rate) : null); return; }
     const beat = 60 / m.bpm, lat = m.start(e.ctx);
     const lead = Math.round((lat + (m.countIn ? m.beats * beat : 0)) * e.rate);
     e.startRecording(lead, dsp.takeSamples(m.bars, m.beats, m.bpm, e.rate));
@@ -248,6 +253,8 @@ export function renderRecord(root) {
   return () => cancelAnimationFrame(raf);
 }
 
+/** Modo de captura: «materia» (por defecto: grabar 10–15 s y elegir un fragmento) o «libre» (guardar la toma como sale). */
+export const captureMode = () => ls.get('captureMode', 'materia') === 'libre' ? 'libre' : 'materia';
 /** Las texturas para el K.O. II se piensan de hasta 6 s: no se corta nada solo, pero se avisa. */
 export const MAX_TEXTURE = 6;
 const longNote = secs => secs > MAX_TEXTURE + 0.05 ? ` · dura más de ${MAX_TEXTURE} s` : '';
@@ -257,6 +264,7 @@ const storeError = err => err && (err.name === 'QuotaExceededError' || /quota/i.
 export async function finishTake(audio) {
   if (!audio || !audio.length) return;
   const rate = app.engine.rate, q = loadQuick();
+  if (captureMode() === 'materia') return openMateria(audio, rate);
   if (!q.enabled) return showSave(audio, rate);
   const kind = ls.get('kind', 'libre'), kd = dsp.SOUND_KINDS[kind] || dsp.SOUND_KINDS.libre;
   const out = dsp.quickProcess(audio, rate, q), name = dsp.autoName(app.samples.length, kd.prefix);
@@ -311,7 +319,7 @@ function openRetro() {
     timer = setInterval(refresh, 500); setTimeout(refresh, 30);
     const saveBtn = btn(`Guardar los últimos ${e.retroSeconds} s`, { kind: 'amber', disabled: e.state === 'idle', onclick: () => {
       const a = e.captureRetro(); if (!a.length) return toast('Todavía no hay nada en el búfer');
-      close(); setTimeout(() => showSave(a, e.rate), 250);
+      close(); setTimeout(() => captureMode() === 'materia' ? openMateria(a, e.rate) : showSave(a, e.rate), 250);
     } });
     return h('div', { class: 'stack' },
       h('div', { class: 'title-row' }, h('h2', {}, 'Captura retroactiva'), link('Cerrar', close)),

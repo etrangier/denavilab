@@ -192,3 +192,4 @@ textarea.field { resize: vertical; font: inherit; }
 .filters { flex-basis: 100%; } .filters summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 700; color: var(--amber); }
 .filters .stack { padding-bottom: 8px; }
 .row-gap input.field { flex: 1; min-width: 0; }
+.warn-text { color: var(--amber); }
