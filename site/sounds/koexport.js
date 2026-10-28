@@ -51,7 +51,7 @@ export const koPlan = (samples, start = 1) => samples.map((s, i) => ({ sample: s
 
 /** Procesa todo el lote y arma los archivos del zip (sin la lista de WAV: `samples` va en el orden de salida). `getAudio(id)` entrega el audio original. */
 export async function buildKoBatch(samples, getAudio, optsIn, onProgress, start = 1) {
-  const files = [], skipped = [], lines = ['Archivo ← sonido original'];
+  const files = [], skipped = [], lines = ['Lista de exportación · Archivo ← sonido | origen y datos', ''];
   for (let i = 0; i < samples.length; i++) {
     const s = samples[i], file = koFileName(s, start + files.length);      // los vacíos o en silencio no dejan huecos en la numeración
     try {
@@ -59,7 +59,9 @@ export async function buildKoBatch(samples, getAudio, optsIn, onProgress, start 
       if (!x.length) { skipped.push(s.name + ' (sin audio)'); continue; }
       const r = processForKO(x, s.rate, optsIn);
       if (r.silent) { skipped.push(s.name + ' (silencio)'); continue; }
-      files.push({ name: file, data: encodeWav(r.audio, r.rate) }); lines.push(`${file} ← ${s.name}`);
+      files.push({ name: file, data: encodeWav(r.audio, r.rate) });
+      const extra = [s.origin ? 'origen: ' + s.origin : 'origen: (sin anotar)', s.replaced ? 'reemplazado por versión propia' : null, s.key ? 'tonalidad: ' + s.key : null, s.bpm ? 'BPM: ' + Math.round(s.bpm) : null, s.process && s.process.length ? 'procesos: ' + s.process.join(' → ') : null].filter(Boolean);
+      lines.push(`${file} ← ${s.name} | ${extra.join(' | ')}`);
     } catch (e) { skipped.push(s.name + ' (error)'); }
     if (onProgress) onProgress(i + 1, samples.length);
     if (i % 4 === 3) await new Promise(r => setTimeout(r, 0));          // deja respirar a la pantalla
