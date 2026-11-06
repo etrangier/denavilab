@@ -950,4 +950,93 @@ final class LogicTests: XCTestCase {
         XCTAssertTrue(txt.contains("origen: Sade, 1:20")); XCTAssertTrue(txt.contains("procesos: bucle 200 ms")); XCTAssertTrue(txt.contains("origen: (sin anotar)"))
         XCTAssertEqual(WavIO.decode(back[0].data)?.sampleRate, 46_875)
     }
+
+    // MARK: Efectos de carácter (estilo SP-404MKII)
+
+    private func harmonicVoice(_ hz: Double, seconds: Double, rate: Int) -> [Float] {
+        let n = Int(seconds * Double(rate))
+        return (0..<n).map { k -> Float in
+            var s = 0.0
+            for h in 1...10 { s += sin(2 * Double.pi * hz * Double(h) * Double(k) / Double(rate)) / Double(h) }
+            return Float(0.25 * s)
+        }
+    }
+    private func medianF0(_ x: [Float], rate: Int) -> Double {
+        let v = Fx404.trackPitch(x, rate).f0.filter { $0 > 0 }.sorted()
+        return v.isEmpty ? 0 : v[v.count >> 1]
+    }
+    private func rmsOf(_ x: [Float]) -> Double { (x.reduce(0.0) { $0 + Double($1) * Double($1) } / Double(max(1, x.count))).squareRoot() }
+    private func roughness(_ x: [Float]) -> Double {
+        var d = 0.0, e = 0.0
+        for i in 1..<x.count { let q = Double(x[i] - x[i - 1]); d += q * q; e += Double(x[i]) * Double(x[i]) }
+        return d / max(e, 1e-12)
+    }
+
+    func testFx404EffectsKeepLengthAreDeterministicAndDoNotClip() {
+        let rate = 48_000, x = harmonicVoice(220, seconds: 1.5, rate: rate)
+        XCTAssertEqual(Fx404.order, [.cassette, .vinyl404, .vinyl303, .chorus, .autopitch])
+        for id in Fx404.order {
+            let a = Fx404.apply(id, x, rate: rate), b = Fx404.apply(id, x, rate: rate)
+            XCTAssertEqual(a.count, x.count, "\(id)")
+            XCTAssertTrue(a.allSatisfy { $0.isFinite }, "\(id)")
+            XCTAssertEqual(a, b, "\(id) no es determinista")
+            XCTAssertLessThanOrEqual(a.map(abs).max() ?? 0, 0.9801, "\(id)")
+            XCTAssertTrue(zip(a, x).contains { abs($0 - $1) > 1e-3 }, "\(id) no cambia nada")
+        }
+        XCTAssertEqual(Fx404.apply(.chorus, [], rate: rate), [])
+    }
+
+    func testFx404ParamsAreClampedAndDescribed() {
+        let p = Fx404.params(.cassette, ["age": 999, "tone": .nan, "hiss": -5])
+        XCTAssertEqual(p["age"], 60); XCTAssertEqual(p["tone"], 55); XCTAssertEqual(p["hiss"], 0)
+        XCTAssertEqual(Fx404.params(.autopitch, ["key": 99])["key"], 0); XCTAssertEqual(Fx404.params(.autopitch, ["robot": 1])["robot"], 1)
+        let d = Fx404.describe(.autopitch, ["key": 4, "robot": 1])
+        XCTAssertTrue(d.hasPrefix("Auto Pitch")); XCTAssertTrue(d.contains("Tonalidad Do")); XCTAssertTrue(d.contains("Robot"))
+        XCTAssertEqual(Fx404.defaults(.chorus)["rate"], 1.4)
+        XCTAssertEqual(Fx404.num(1.4), "1,4"); XCTAssertEqual(Fx404.num(45), "45")
+    }
+
+    func testFx404ChorusBalanceLevelAndEQ() {
+        let rate = 48_000, x = harmonicVoice(220, seconds: 1, rate: rate)
+        let dry = Fx404.apply(.chorus, x, rate: rate, ["balance": 0, "level": 100])
+        XCTAssertEqual(zip(dry, x).map { abs($0 - $1) }.max() ?? 1, 0, accuracy: 1e-6)
+        let low = Fx404.apply(.chorus, x, rate: rate, ["balance": 0, "level": 50])
+        XCTAssertEqual(rmsOf(low) / rmsOf(dry), 0.1, accuracy: 0.01)                                // nivel 50 = −20 dB
+        let bass = Fx404.apply(.chorus, x, rate: rate, ["balance": 100, "eqLow": 15, "depth": 0]), flat = Fx404.apply(.chorus, x, rate: rate, ["balance": 100, "eqLow": 0, "depth": 0])
+        XCTAssertGreaterThan(rmsOf(bass) / rmsOf(flat), 1.5)
+    }
+
+    func testFx404CassetteAndVinylShapeTheSound() {
+        let rate = 48_000
+        let x: [Float] = (0..<(rate * 2)).map { k in Float(0.3 * sin(2 * Double.pi * 300 * Double(k) / Double(rate)) + 0.1 * sin(2 * Double.pi * 7000 * Double(k) / Double(rate))) }
+        let fresh = Fx404.apply(.cassette, x, rate: rate, ["age": 0, "tone": 100, "hiss": 0, "drive": 0, "wow": 0, "catch": 0])
+        let old = Fx404.apply(.cassette, x, rate: rate, ["age": 60, "tone": 100, "hiss": 0, "drive": 0, "wow": 0, "catch": 0])
+        XCTAssertLessThan(roughness(old) / roughness(fresh), 0.6)                                    // la edad quita agudos
+        let open = Fx404.apply(.vinyl404, x, rate: rate, ["frequency": 0, "noise": 0, "wow": 0]), closed = Fx404.apply(.vinyl404, x, rate: rate, ["frequency": 100, "noise": 0, "wow": 0])
+        XCTAssertLessThan(roughness(closed) / roughness(open), 0.6)                                  // FREQUENCY cierra la banda
+        let noisy = Fx404.apply(.vinyl404, x, rate: rate, ["frequency": 0, "noise": 100, "wow": 0])
+        XCTAssertGreaterThan(rmsOf(zip(noisy, open).map { $0 - $1 }) / rmsOf(open), 0.05)           // el ruido se oye
+        let w0 = Fx404.apply(.vinyl303, x, rate: rate, ["comp": 0, "noise": 0, "wow": 0, "level": 100]), w1 = Fx404.apply(.vinyl303, x, rate: rate, ["comp": 0, "noise": 0, "wow": 100, "level": 100])
+        XCTAssertLessThan(zip(w0, x).map { abs($0 - $1) }.max() ?? 1, 1e-3)                         // sin wow no cambia el tono
+        XCTAssertGreaterThan(zip(w1, x).map { abs($0 - $1) }.max() ?? 0, 0.05)
+    }
+
+    func testFx404AutoPitchShiftsSnapsAndRobot() {
+        let rate = 48_000, v220 = harmonicVoice(220, seconds: 1.5, rate: rate)
+        func ap(_ x: [Float], _ p: Fx404.Params) -> [Float] { Fx404.apply(.autopitch, x, rate: rate, ["balance": 100, "atPitch": 100].merging(p) { $1 }) }
+        let base = medianF0(v220, rate: rate)
+        XCTAssertEqual(base, 220, accuracy: 2)
+        XCTAssertEqual(medianF0(ap(v220, ["pitch": 100, "atPitch": 0]), rate: rate) / base, 2, accuracy: 0.06)     // +12 semitonos
+        XCTAssertEqual(medianF0(ap(v220, ["pitch": -100, "atPitch": 0]), rate: rate) / base, 0.5, accuracy: 0.02)
+        XCTAssertEqual(medianF0(ap(harmonicVoice(240, seconds: 1.5, rate: rate), [:]), rate: rate), 246.9, accuracy: 3)    // cromático: 240 Hz → Si3
+        XCTAssertEqual(medianF0(ap(harmonicVoice(230, seconds: 1.5, rate: rate), ["key": 4]), rate: rate), 220, accuracy: 3)   // en Do mayor, 230 Hz cae en La3
+        XCTAssertEqual(medianF0(ap(harmonicVoice(240, seconds: 1.5, rate: rate), ["atPitch": 0]), rate: rate), 240, accuracy: 3)  // sin corrección se queda igual
+        let glide: [Float] = (0..<(rate * 3 / 2)).map { k in
+            let hz = 200 + 80 * Double(k) / Double(rate * 3 / 2)
+            var s = 0.0
+            for h in 1...8 { s += sin(2 * Double.pi * hz * Double(h) * Double(k) / Double(rate)) / Double(h) }
+            return Float(0.25 * s)
+        }
+        XCTAssertEqual(medianF0(ap(glide, ["robot": 1]), rate: rate), 277.2, accuracy: 4)                // toda la frase en una nota
+    }
 }
