@@ -65,6 +65,8 @@ struct EditorBody: View {
     @State private var showDetails = false
     @State private var showLab = false
     @State private var showFx = false
+    @State private var showRecipe = false
+    @State private var recipeSource: [Float] = []
     @State private var confirmDelete = false
     @State private var message: String?
     private let tick = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
@@ -107,7 +109,7 @@ struct EditorBody: View {
                 transport
                 SectionLabel("Herramientas")
                 HStack(spacing: 8) {
-                    Button("Recortar") { let a = Int(start * Double(count)), b = Int(end * Double(count)), f = fadeSamples; run("recortar", done: "Listo: recortado") { Editing.fade(Editing.trim($0, from: a, to: b), inSamples: f, outSamples: f) }; start = 0; end = 1 }
+                    Button("Recortar") { let a = Int(start * Double(count)), b = Int(end * Double(count)), f = fadeSamples; learnTrim(a, b); run("recortar", done: "Listo: recortado") { Editing.fade(Editing.trim($0, from: a, to: b), inSamples: f, outSamples: f) }; start = 0; end = 1 }
                         .actionFX("recortar", busy: fxBusy, flash: fxFlash)
                     Button("Normalizar") { run("normalizar", done: "Listo: normalizado a −1 dB") { Editing.normalize($0) } }
                         .actionFX("normalizar", busy: fxBusy, flash: fxFlash)
@@ -117,18 +119,24 @@ struct EditorBody: View {
                 }.buttonStyle(OutlineButton()).font(Theme.font(13))
                 Button("Nivelar volumen (parejo)") { levelOut() }.buttonStyle(OutlineButton()).font(Theme.font(13))
                     .actionFX("nivelar", busy: fxBusy, flash: fxFlash)
-                Text("Lleva el volumen típico de la toma a \(Int(Level.target)) dB (no el pico): así un golpe seco y un pad suenan igual de fuertes. El nivel se cambia en Compartir. Puedes deshacer.")
-                    .font(Theme.font(12)).foregroundColor(Theme.muted)
-                Button("Edición precisa (zoom)") { showPrecise = true }.buttonStyle(OutlineButton(selected: true))
+                InfoTip("Lleva el volumen típico de la toma a \(Int(Level.target)) dB (no el pico): así un golpe seco y un pad suenan igual de fuertes. El nivel se cambia en Compartir. Puedes deshacer.")
+                HStack(spacing: 8) {
+                    Button("✨ Recorte inteligente") { smartTrim() }.actionFX("recorte-ia", busy: fxBusy, flash: fxFlash)
+                    Button("✨ Loop inteligente") { smartLoop() }.actionFX("loop-ia", busy: fxBusy, flash: fxFlash)
+                }.buttonStyle(OutlineButton()).font(Theme.font(13))
+                Button("Edición precisa (zoom)") { showPrecise = true }.buttonStyle(OutlineButton())
                 Button("Chop en pads") { showChop = true }.buttonStyle(OutlineButton())
-                Button("Efectos de carácter (estilo SP-404)") { showFx = true }.buttonStyle(OutlineButton(selected: true))
-                Text("Cassette, vinilo, chorus y Auto Pitch, antes de compartir el sonido.").font(Theme.font(12)).foregroundColor(Theme.muted)
-                Button("Laboratorio de pads") { showLab = true }.buttonStyle(OutlineButton(selected: true))
+                Button("Cadena de efectos") { showFx = true }.buttonStyle(OutlineButton())
+                if let r = sample.recipe {
+                    Text("Receta · de «\(r.fromName)»: " + FxChain.describe(r.chain).map { $0.components(separatedBy: " (").first ?? $0 }.joined(separator: " → ")).font(Theme.font(12)).foregroundColor(Theme.muted)
+                    Button("Re-editar la receta") { openRecipe() }.buttonStyle(OutlineButton())
+                    Text("Se edita sobre el original y actualiza este sonido.").font(Theme.font(11)).foregroundColor(Theme.muted)
+                }
+                Button("Laboratorio de pads") { showLab = true }.buttonStyle(OutlineButton())
                 Text("Bucle sin clics, estirar, tono, filtros, reverb, capas y teclado (con MIDI).").font(Theme.font(12)).foregroundColor(Theme.muted)
                 Button("Armonizar bordes (sin clics)") { let r = sample.sampleRate; run("armonizar", done: "Listo: bordes armonizados") { Harmonize.harmonize($0, rate: r) } }.buttonStyle(OutlineButton()).font(Theme.font(13))
                     .actionFX("armonizar", busy: fxBusy, flash: fxFlash)
-                Text("Centra la onda y suaviza el inicio y el final a medida, para que un recorte no suene «cortado». Puedes deshacer.")
-                    .font(Theme.font(12)).foregroundColor(Theme.muted)
+                InfoTip("Centra la onda y suaviza el inicio y el final a medida, para que un recorte no suene «cortado». Puedes deshacer.")
                 creativeTools
                 loopTools
                 noiseTools
@@ -152,7 +160,6 @@ struct EditorBody: View {
                         }
                 }
                 if let m = message { Text(m).font(Theme.font(13)).foregroundColor(Theme.muted).frame(maxWidth: .infinity, alignment: .center) }
-                Button("Compartir") { state.tab = .exportar }.buttonStyle(OutlineButton(selected: true))
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) { historyBar }
@@ -177,11 +184,29 @@ struct EditorBody: View {
                             return (lib.audio(for: o), o.sampleRate)
                         },
                         onApply: { out, name, _ in apply({ _ in out }, label: name); message = "Listo: \(name) aplicado · puedes deshacerlo" },
-                        onSaveNew: { out, notes in saveProcessed(out, notes: notes, suffix: " fx", comment: "Cadena de efectos sobre: " + sample.name); message = "Guardado como sonido nuevo (procesado)" },
+                        onSaveNew: { out, notes, chain in saveProcessed(out, notes: notes, suffix: " fx", comment: "Cadena de efectos sobre: " + sample.name, chain: chain); message = "Guardado como sonido nuevo (procesado, con receta)" },
                         onSaveVariants: { list in
-                            for (i, v) in list.enumerated() { saveProcessed(v.out, notes: v.notes, suffix: " var \(i + 1)", comment: "Variante \(i + 1) (\(v.style)) de: " + sample.name) }
-                            message = "Guardadas 4 variantes (procesadas)"
+                            for (i, v) in list.enumerated() { saveProcessed(v.out, notes: v.notes, suffix: " var \(i + 1)", comment: "Variante \(i + 1) (\(v.style)) de: " + sample.name, chain: v.chain) }
+                            message = "Guardadas 4 variantes (procesadas, con receta)"
                         }).presentationDetents([.large])
+        }
+        .sheet(isPresented: $showRecipe) {
+            if let r = sample.recipe, let src = lib.samples.first(where: { $0.id == r.from }) {
+                FxRackSheet(audio: recipeSource, rate: src.sampleRate, bpm: src.bpm, name: src.name,
+                            others: lib.samples.filter { $0.id != sample.id && $0.id != src.id }.map { FxRackSheet.Other(id: $0.id.uuidString, name: $0.name) },
+                            loadAudio: { id in
+                                guard let u = UUID(uuidString: id), let o = lib.samples.first(where: { $0.id == u }) else { return nil }
+                                return (lib.audio(for: o), o.sampleRate)
+                            },
+                            onApply: { _, _, _ in },
+                            onSaveNew: { out, notes, chain in saveProcessed(out, notes: notes, suffix: " fx", comment: "Cadena de efectos sobre: " + src.name, chain: chain, source: src); message = "Guardado como sonido nuevo (procesado, con receta)" },
+                            onSaveVariants: { list in
+                                for (i, v) in list.enumerated() { saveProcessed(v.out, notes: v.notes, suffix: " var \(i + 1)", comment: "Variante \(i + 1) (\(v.style)) de: " + src.name, chain: v.chain, source: src) }
+                                message = "Guardadas 4 variantes (procesadas, con receta)"
+                            },
+                            initialChain: r.chain,
+                            onUpdate: { out, notes, chain in updateFromRecipe(out, notes: notes, chain: chain, source: src) }).presentationDetents([.large])
+            }
         }
         .sheet(isPresented: $showLab) { PadLabSheet(sample: sample).presentationDetents([.large]) }
         .sheet(isPresented: $showDetails) { DetailsSheet(sample: sample) { sample = $0; lib.update($0) }.presentationDetents([.large]) }
@@ -199,8 +224,7 @@ struct EditorBody: View {
             SectionLabel("Creativo")
             Button("Invertir") { let a = selA, b = selB; run("invertir", done: "Listo: invertido") { Creative.reverseRange($0, from: a, to: b) } }.buttonStyle(OutlineButton()).font(Theme.font(13))
                 .actionFX("invertir", busy: fxBusy, flash: fxFlash)
-            Text("Da la vuelta a la selección (o a toda la toma): una cola que se apaga pasa a ser un crescendo que «chupa» hacia el golpe.")
-                .font(Theme.font(12)).foregroundColor(Theme.muted)
+            InfoTip("Da la vuelta a la selección (o a toda la toma): una cola que se apaga pasa a ser un crescendo que «chupa» hacia el golpe.")
             scratchTools
             SectionLabel("Colchón sostenido")
             HStack(spacing: 8) {
@@ -209,8 +233,7 @@ struct EditorBody: View {
                 }
             }.buttonStyle(OutlineButton()).font(Theme.font(13))
             ToggleRow(title: "Sostener el nivel", subtitle: "Sube las colas que se apagan para que el colchón no se desvanezca", isOn: $sustainPad)
-            Text("Estira la selección (o toda la toma) sin cambiar el tono y la difumina en un sonido continuo, ideal para notas de cuerda, pads y ambientes. Se queda sólo con lo estirado; puedes deshacer.")
-                .font(Theme.font(12)).foregroundColor(Theme.muted)
+            InfoTip("Estira la selección (o toda la toma) sin cambiar el tono y la difumina en un sonido continuo, ideal para notas de cuerda, pads y ambientes. Se queda sólo con lo estirado; puedes deshacer.")
         }
     }
 
@@ -259,15 +282,49 @@ struct EditorBody: View {
             ToggleRow(title: "Afinar el final", subtitle: "Busca, hasta medio segundo cerca de tu marcador, el punto donde el sonido más se parece al del inicio", isOn: $loopRefine)
             Button("Hacer loop continuo") { makeLoop() }.buttonStyle(OutlineButton()).font(Theme.font(13))
                 .actionFX("loop", busy: fxBusy, flash: fxFlash)
-            Text("Une el final con el principio para que el tramo se repita sin saltos, aunque no tenga ritmo: pads, cuerdas, ambientes. Se queda sólo con el loop; ya queda activado Repetir para oírlo. Puedes deshacer.")
-                .font(Theme.font(12)).foregroundColor(Theme.muted)
+            InfoTip("Une el final con el principio para que el tramo se repita sin saltos, aunque no tenga ritmo: pads, cuerdas, ambientes. Se queda sólo con el loop; ya queda activado Repetir para oírlo. Puedes deshacer.")
         }
+    }
+
+    // MARK: memoria de estilo
+
+    /// «golpe» o «sostenido» según el tipo con que se grabó el sonido o, si no lo tiene, según cómo suena.
+    private func styleGroup(_ f: StyleMemory.Features?) -> String {
+        if sample.kind == "bateria" || sample.kind == "bajo" { return "golpe" }
+        if sample.kind == "textura" { return "sostenido" }
+        return f.map { StyleMemory.styleOf($0, StyleMemory.load()).group } ?? "sostenido"
+    }
+
+    private func learnTrim(_ a: Int, _ b: Int) {
+        guard a > 0 || b < audio.count, let f = StyleMemory.features(audio, rate: sample.sampleRate) else { return }
+        StyleMemory.learnTrim(f, group: styleGroup(f), startMs: Double(a) / rate * 1000, endMs: Double(b) / rate * 1000, fadeMs: fadeMs)
+    }
+
+    private func learnLoop(_ a: Int, _ b: Int) {
+        let f = StyleMemory.features(audio, rate: sample.sampleRate)
+        StyleMemory.learnLoop(group: styleGroup(f), lenSec: Double(b - a) / rate, bpm: sample.bpm, crossSec: loopCross, refine: loopRefine)
+    }
+
+    private func smartTrim() {
+        guard let r = StyleMemory.suggestTrim(audio, rate: sample.sampleRate) else { message = "No encuentro un sonido claro para sugerir un recorte"; return }
+        start = Double(r.a) / Double(audio.count); end = Double(r.b) / Double(audio.count); fadeMs = r.fadeMs
+        message = r.why + " · ajusta y pulsa Recortar"
+    }
+
+    private func smartLoop() {
+        let est: (bpm: Double, confidence: Double)? = sample.bpm.map { (bpm: $0, confidence: 1.0) } ?? Editing.estimateBPM(audio, rate: sample.sampleRate)
+        guard let r = StyleMemory.suggestLoop(audio, rate: sample.sampleRate, bpm: est?.bpm, bpmConfidence: est?.confidence ?? 0) else {
+            message = "No encuentro una zona estable de al menos 0,5 s para sugerir un loop"; return
+        }
+        start = Double(r.a) / Double(audio.count); end = Double(r.b) / Double(audio.count); loopCross = r.crossSec; loopRefine = r.refine
+        message = r.why + " · ajusta y pulsa Hacer loop continuo"
     }
 
     private func makeLoop() {
         let a = selA, b = selB
         guard b - a >= sample.sampleRate / 2 else { message = "Marca al menos 0,5 s (o no marques nada para usar toda la toma)"; return }
         let rate = sample.sampleRate, cross = loopCross, refine = loopRefine
+        learnLoop(a, b)
         message = "Creando el loop…"
         run("loop", slow: true, done: "Listo: loop · pulsa ▶ para oírlo en bucle", onApplied: { loop = true }) { Creative.loopSeamless($0, from: a, to: b, rate: rate, crossSec: cross, refine: refine) }
     }
@@ -302,8 +359,7 @@ struct EditorBody: View {
                 Button("Con la selección") { denoiseSelection() }.actionFX("ruido-sel", busy: fxBusy, flash: fxFlash)
             }.buttonStyle(OutlineButton()).font(Theme.font(13))
             SliderRow(title: "Intensidad", valueText: noiseAmount < 1.2 ? "Suave" : noiseAmount < 2.2 ? "Normal" : "Fuerte", value: $noiseAmount, range: 0.5...3)
-            Text("Suave y Fuerte cortan graves (respiración, soplidos) y apagan lo que suena bajito entre sonidos. «Quitar ruido de fondo» aprende el ruido de la parte más tranquila; «Con la selección» lo aprende de lo que marques. Puedes deshacer.")
-                .font(Theme.font(12)).foregroundColor(Theme.muted)
+            InfoTip("Suave y Fuerte cortan graves (respiración, soplidos) y apagan lo que suena bajito entre sonidos. «Quitar ruido de fondo» aprende el ruido de la parte más tranquila; «Con la selección» lo aprende de lo que marques. Puedes deshacer.")
         }
     }
 
@@ -418,12 +474,34 @@ struct EditorBody: View {
 
     // MARK: acciones
 
-    /// Guarda un resultado como sonido nuevo «procesado», con el origen, las etiquetas y la lista de efectos del original.
-    private func saveProcessed(_ out: [Float], notes: [String], suffix: String, comment: String) {
-        guard var n = lib.add(name: sample.name + suffix, audio: out, sampleRate: sample.sampleRate) else { return }
-        n.folder = sample.folder; n.subfolder = sample.subfolder; n.status = SampleStatus.procesado; n.origin = sample.origin; n.tags = sample.tags
-        n.key = sample.key; n.bpm = sample.bpm; n.comment = comment + (sample.comment.isEmpty ? "" : " · " + sample.comment); n.process = sample.process + notes
+    /// Guarda un resultado como sonido nuevo «procesado», con el origen, las etiquetas y la lista de efectos del original, y su receta (cadena + sonido de origen).
+    private func saveProcessed(_ out: [Float], notes: [String], suffix: String, comment: String, chain: [FxSlot], source: Sample? = nil) {
+        let src = source ?? sample
+        guard var n = lib.add(name: src.name + suffix, audio: out, sampleRate: src.sampleRate) else { return }
+        n.folder = src.folder; n.subfolder = src.subfolder; n.status = SampleStatus.procesado; n.origin = src.origin; n.tags = src.tags
+        n.key = src.key; n.bpm = src.bpm; n.comment = comment + (src.comment.isEmpty ? "" : " · " + src.comment); n.process = src.process + notes
+        n.recipe = Recipe(from: src.id, fromName: src.name, chain: FxChain.clean(chain))
         lib.update(n)
+    }
+
+    /// Abre la receta de este sonido: la cadena se pone sobre el sonido de origen (no sobre el ya procesado).
+    private func openRecipe() {
+        guard let r = sample.recipe else { return }
+        guard let src = lib.samples.first(where: { $0.id == r.from }) else { message = "El sonido de origen de esta receta ya no está en la biblioteca"; return }
+        let a = lib.audio(for: src)
+        guard !a.isEmpty else { message = "No se pudo leer el sonido de origen"; return }
+        recipeSource = a; showRecipe = true
+    }
+
+    /// Reemplaza el audio de este sonido por el resultado de la receta editada y renueva su lista de procesos.
+    private func updateFromRecipe(_ out: [Float], notes: [String], chain: [FxSlot], source: Sample) {
+        player?.stop()
+        sample.process = source.process + notes
+        sample.recipe = Recipe(from: source.id, fromName: source.name, chain: FxChain.clean(chain))
+        lib.update(sample); lib.replaceAudio(sample, with: out)
+        if let s = lib.samples.first(where: { $0.id == sample.id }) { sample = s }
+        audio = out; savedAudio = out; undo = []; undoLabels = []; redo = []; redoLabels = []; start = 0; end = 1
+        refreshPeaks(); message = "Sonido actualizado con la receta"
     }
 
     private func apply(_ f: ([Float]) -> [Float], label: String = "Cambio") {
@@ -509,6 +587,7 @@ struct EditorBody: View {
     }
 
     private func save(overwriting: Bool = false) {
+        if let k = sample.kind { StyleMemory.learnSound(kind: k, StyleMemory.features(audio, rate: sample.sampleRate), id: sample.id.uuidString) }
         lib.replaceAudio(sample, with: audio)
         lib.update(sample)
         savedAudio = audio

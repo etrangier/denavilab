@@ -4,9 +4,10 @@ import { starBtn } from './screens.js';
 import { openLab } from './lab.js';
 import { openRack } from './fxui.js';
 import { describeChain, cleanChain } from './fxall.js';
-import { h, mount, fill, btn, link, chip, card, label, muted, title, toggleRow, sliderRow, logo, confirmSheet, toast, folderPicker, drawBars, fx, flash } from './ui.js';
+import { h, mount, fill, btn, link, chip, card, label, muted, tip, title, toggleRow, sliderRow, logo, confirmSheet, toast, folderPicker, drawBars, fx, flash } from './ui.js';
 import { compute } from './work.js';
 import * as dsp from './dsp.js';
+import * as learn from './learn.js';
 import { putSample, getAudio, deleteSamples, newSample } from './store.js';
 import { openChop } from './chop.js';
 import * as sc from './scratch.js';
@@ -16,6 +17,8 @@ let playCtx = null, src = null, t0 = 0, dur = 0;
 
 const stopPlay = () => { if (src) { try { src.onended = null; src.stop(); } catch (e) {} src = null; } };
 const sel = () => { const n = ed.audio.length; return [Math.round(ed.start * n), Math.round(ed.end * n)]; };
+/** Memoria de estilo: «golpe» o «sostenido» según el tipo con que se grabó el sonido o, si no lo tiene, según cómo suena. */
+const styleGroup = (s, f) => s.kind === 'bateria' || s.kind === 'bajo' ? 'golpe' : s.kind === 'textura' ? 'sostenido' : (f ? learn.styleOf(f).group : 'sostenido');
 
 function play() {
   stopPlay();
@@ -179,21 +182,31 @@ export function renderEdit(root) {
       h('div', { class: 'side' }, h('button', { type: 'button', class: 'circle' + (ed.loop ? ' on' : ''), 'aria-pressed': String(ed.loop), 'aria-label': 'Repetir', onclick: () => { ed.loop = !ed.loop; if (src) src.loop = ed.loop; app.render(); } }, '↻'), h('span', { class: 'muted tiny' }, 'Repetir'))),
     label('Herramientas'),
     h('div', { class: 'row3' },
-      btn('Recortar', { small: true, act: 'recortar', onclick: () => { const [a, b] = sel(); run('recortar', x => dsp.fade(dsp.trim(x, a, b), fade, fade), { done: 'Listo: recortado' }); } }),
+      btn('Recortar', { small: true, act: 'recortar', onclick: () => { const [a, b] = sel(); try { if (a > 0 || b < ed.audio.length) { const f = learn.features(ed.audio, s.rate); if (f) learn.learnTrim({ f, group: styleGroup(s, f), startMs: a / s.rate * 1000, endMs: b / s.rate * 1000, fadeMs: ed.fadeMs }); } } catch (e) {} run('recortar', x => dsp.fade(dsp.trim(x, a, b), fade, fade), { done: 'Listo: recortado' }); } }),
       btn('Normalizar', { small: true, act: 'normalizar', onclick: () => run('normalizar', x => dsp.normalize(x), { done: 'Listo: normalizado a −1 dB' }) }),
       btn('Fundido', { small: true, act: 'fundido', onclick: () => run('fundido', x => dsp.fade(x, fade, fade), { done: 'Listo: fundido aplicado' }) })),
+    h('div', { class: 'row2' },
+      btn('✨ Recorte inteligente', { small: true, act: 'recorte-ia', onclick: () => {
+        const r = learn.suggestTrim(ed.audio, s.rate); if (!r) return toast('No encuentro un sonido claro para sugerir un recorte');
+        ed.start = r.a / ed.audio.length; ed.end = r.b / ed.audio.length; ed.fadeMs = r.fadeMs; toast(r.why + ' · ajusta y pulsa Recortar', 8000); app.render();
+      } }),
+      btn('✨ Loop inteligente', { small: true, act: 'loop-ia', onclick: () => {
+        const est = s.bpm ? { bpm: s.bpm, confidence: 1 } : dsp.estimateBPM(ed.audio, s.rate), r = learn.suggestLoop(ed.audio, s.rate, { bpm: est ? est.bpm : null, bpmConfidence: est ? est.confidence : 0 });
+        if (!r) return toast('No encuentro una zona estable de al menos 0,5 s para sugerir un loop');
+        ed.start = r.a / ed.audio.length; ed.end = r.b / ed.audio.length; ed.cross = r.crossSec; ed.refine = r.refine; toast(r.why + ' · ajusta y pulsa Hacer loop continuo', 8000); app.render();
+      } })),
     btn('Nivelar volumen', { small: true, act: 'nivelar', onclick: () => {
       const r = dsp.levelTo(ed.audio, s.rate);
       if (r.beforeDB < -80) return toast('La toma está casi en silencio: no hay nada que nivelar');
       const f = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(1).replace('.', ',');
       run('nivelar', () => r.audio, { done: `Listo: nivel típico de ${Math.round(r.beforeDB)} a ${Math.round(r.afterDB)} dB (${f(r.gainDB)} dB)${r.short ? ' · los picos no dejan subir más: queda algo bajo' : r.limited ? ' · picos suavizados' : ''}` });
     } }),
-    muted(`Lleva el volumen típico de la toma a ${dsp.levelTarget()} dB (no el pico): así un golpe seco y un pad suenan igual de fuertes. El nivel se cambia en Compartir. Puedes deshacer.`, 'tiny'),
+    tip(`Lleva el volumen típico de la toma a ${dsp.levelTarget()} dB (no el pico): así un golpe seco y un pad suenan igual de fuertes. El nivel se cambia en Compartir. Puedes deshacer.`),
     btn('Armonizar bordes (sin clics)', { small: true, act: 'armonizar', onclick: () => run('armonizar', x => dsp.harmonize(x, s.rate), { done: 'Listo: bordes armonizados' }) }),
-    muted('Centra la onda y suaviza el inicio y el final a medida, para que un recorte no suene «cortado». Puedes deshacer.', 'tiny'),
+    tip('Centra la onda y suaviza el inicio y el final a medida, para que un recorte no suene «cortado». Puedes deshacer.'),
     label('Creativo'),
     btn('Invertir', { small: true, act: 'invertir', onclick: () => { const [a, b] = sel(); run('invertir', x => dsp.reverseRange(x, a, b), { done: 'Listo: invertido' }); } }),
-    muted('Da la vuelta a la selección (o a toda la toma): una cola que se apaga pasa a ser un crescendo que «chupa» hacia el golpe.', 'tiny'),
+    tip('Da la vuelta a la selección (o a toda la toma): una cola que se apaga pasa a ser un crescendo que «chupa» hacia el golpe.'),
     label('Scratch'),
     h('div', { class: 'wrap' }, sc.SCRATCH_KINDS.map(([k, name]) => chip(name, ed.scratch.kind === k, () => { ed.scratch.kind = k; app.render(); }))),
     h('div', { class: 'wrap' }, [2, 4, 8].map(n => chip(`${n} tiempos`, ed.scratch.beats === n, () => { ed.scratch.beats = n; app.render(); }))),
@@ -204,7 +217,7 @@ export function renderEdit(root) {
       const { kind, beats, depth } = ed.scratch;
       run('scratch', x => sc.scratch(x, a, b, s.rate, { kind, bpm, beats, depth }), { done: () => `Listo: scratch de ${beats} tiempos a ${bpm} BPM · dura ${dsp.stamp(ed.audio.length / s.rate)}` });
     } }),
-    muted(`Mueve la aguja sobre la selección (o toda la toma) como en un vinilo: el tono sube y baja con la velocidad y al volver suena hacia atrás. Dura los tiempos elegidos al BPM de la toma (${Math.round(s.bpm || 100)}${s.bpm ? '' : ', porque aún no está detectado'}). Se queda sólo con el scratch; puedes deshacer y guardarlo como cualquier sonido.`, 'tiny'),
+    tip(`Mueve la aguja sobre la selección (o toda la toma) como en un vinilo: el tono sube y baja con la velocidad y al volver suena hacia atrás. Dura los tiempos elegidos al BPM de la toma (${Math.round(s.bpm || 100)}${s.bpm ? '' : ', porque aún no está detectado'}). Se queda sólo con el scratch; puedes deshacer y guardarlo como cualquier sonido.`),
     label('Colchón sostenido'),
     h('div', { class: 'row3' }, [4, 8, 16].map(f => btn('Colchón ×' + f, { small: true, act: 'colchon' + f, onclick: () => {
       const [a, b] = sel();
@@ -214,7 +227,7 @@ export function renderEdit(root) {
       runWorker('colchon' + f, 'padStretch', [ed.audio.slice(a, b), f, s.rate, ed.sustain], { done: () => `Listo: colchón ×${f} · dura ${dsp.stamp(ed.audio.length / s.rate)}` });
     } }))),
     toggleRow('Sostener el nivel', 'Sube las colas que se apagan para que el colchón no se desvanezca', ed.sustain, v => { ed.sustain = v; }),
-    muted('Estira la selección (o toda la toma) sin cambiar el tono y la difumina en un sonido continuo, ideal para notas de cuerda, pads y ambientes. Se queda sólo con lo estirado; puedes deshacer.', 'tiny'),
+    tip('Estira la selección (o toda la toma) sin cambiar el tono y la difumina en un sonido continuo, ideal para notas de cuerda, pads y ambientes. Se queda sólo con lo estirado; puedes deshacer.'),
     label('Loop continuo (sin pulso)'),
     h('div', { class: 'between' }, h('b', {}, 'Empalme'), h('span', { class: 'muted small' }, 'cuánto se funden final y principio')),
     h('div', { class: 'wrap' }, [0.5, 1, 2, 4].map(c => chip(String(c).replace('.', ',') + ' s', ed.cross === c, () => { ed.cross = c; app.render(); }))),
@@ -222,10 +235,11 @@ export function renderEdit(root) {
     btn('Hacer loop continuo', { small: true, act: 'loop', onclick: () => {
       const [a, b] = sel();
       if (b - a < s.rate / 2) return toast('Marca al menos 0,5 s (o no marques nada para usar toda la toma)');
+      try { const f = learn.features(ed.audio, s.rate); learn.learnLoop({ group: styleGroup(s, f), lenSec: (b - a) / s.rate, bpm: s.bpm, crossSec: ed.cross, refine: ed.refine }); } catch (e) {}
       toast('Creando el loop…');
       runWorker('loop', 'loopSeamless', [ed.audio, a, b, s.rate, ed.cross, ed.refine], { onApplied: () => { ed.loop = true; }, done: () => { const j = dsp.seamJump(ed.audio); return `Listo: loop de ${dsp.stamp(ed.audio.length / s.rate)} · empalme ${j < 1.5 ? 'inaudible' : j < 4 ? 'casi inaudible' : 'se nota (prueba otro empalme)'} · pulsa ▶ para oírlo`; } });
     } }),
-    muted('Une el final con el principio para que el tramo se repita sin saltos, aunque no tenga ritmo: pads, cuerdas, ambientes. Se queda sólo con el loop; ya queda activado «Repetir» para oírlo con ▶. Puedes deshacer.', 'tiny'),
+    tip('Une el final con el principio para que el tramo se repita sin saltos, aunque no tenga ritmo: pads, cuerdas, ambientes. Se queda sólo con el loop; ya queda activado «Repetir» para oírlo con ▶. Puedes deshacer.'),
     label('Limpiar ruido'),
     h('div', { class: 'row2' },
       btn('Suave', { small: true, act: 'ruido-suave', onclick: () => runWorker('ruido-suave', 'cleanNoise', [ed.audio, s.rate, 'soft'], { done: 'Listo: ruido reducido (suave)' }) }),
@@ -240,13 +254,13 @@ export function renderEdit(root) {
         runWorker('ruido-sel', 'denoise', [ed.audio, ed.audio.slice(a, b), ed.noiseAmt], { done: 'Listo: ruido de la selección quitado' });
       } })),
     sliderRow('Intensidad', { min: 0.5, max: 3, step: 0.1, value: ed.noiseAmt, fmt: v => v < 1.2 ? 'Suave' : v < 2.2 ? 'Normal' : 'Fuerte', onInput: v => { ed.noiseAmt = v; } }),
-    muted('Suave y Fuerte cortan graves (respiración, soplidos) y apagan lo que suena bajito entre sonidos. «Quitar ruido de fondo» aprende el ruido de la parte más tranquila; «Con la selección» lo aprende de lo que marques. Puedes deshacer.', 'tiny'),
+    tip('Suave y Fuerte cortan graves (respiración, soplidos) y apagan lo que suena bajito entre sonidos. «Quitar ruido de fondo» aprende el ruido de la parte más tranquila; «Con la selección» lo aprende de lo que marques. Puedes deshacer.'),
     sliderRow('Fundido', { min: 0, max: 200, step: 1, value: ed.fadeMs, fmt: v => v + ' ms', onInput: v => { ed.fadeMs = v; } }),
     bpmCard,
-    s.recipe ? card([h('b', {}, 'Receta de efectos'), h('p', { class: 'muted small' }, `Hecho a partir de «${s.recipe.fromName}»: ${describeChain(cleanChain(s.recipe.chain)).join(' → ')}`), btn('Re-editar la receta', { kind: 'amber', act: 'receta', onclick: () => openFxRack(s, s.recipe) }), h('p', { class: 'muted tiny' }, 'Abre la cadena sobre el sonido de origen, sin procesar dos veces el audio, y actualiza este sonido.')]) : null,
-    card([h('b', {}, 'Cadena de efectos'), h('p', { class: 'muted small' }, 'Encadena cassette, vinilo, granular, distorsión, delay, reverb, efectos rítmicos y más para transformar el sonido en otro nuevo.'), btn('Abrir la cadena de efectos', { kind: 'amber', act: 'efectos', onclick: () => openFxRack(s) })]),
-    card([h('b', {}, 'Laboratorio de pads'), h('p', { class: 'muted small' }, 'Bucle sin clics, estirar, tono, filtros, reverb, capas y teclado.'), btn('Abrir el laboratorio', { kind: 'amber', act: 'laboratorio', onclick: () => openLab(s) })]),
-    btn(app.ko2 ? 'Chop en pads' : 'Chop', { sel: true, onclick: () => openChop(s, ed.audio) }),
+    s.recipe ? card([h('b', {}, 'Receta de efectos'), h('p', { class: 'muted small' }, `De «${s.recipe.fromName}»: ${describeChain(cleanChain(s.recipe.chain)).map(x => x.split(' (')[0]).join(' → ')}`), btn('Re-editar la receta', { act: 'receta', onclick: () => openFxRack(s, s.recipe) }), h('p', { class: 'muted tiny' }, 'Se edita sobre el original y actualiza este sonido.')]) : null,
+    card([h('b', {}, 'Cadena de efectos'), h('p', { class: 'muted small' }, 'Cassette, vinilo, granular, delay, reverb y más.'), btn('Abrir la cadena de efectos', { act: 'efectos', onclick: () => openFxRack(s) })]),
+    card([h('b', {}, 'Laboratorio de pads'), h('p', { class: 'muted small' }, 'Bucle sin clics, estirar, tono, filtros, reverb, capas y teclado.'), btn('Abrir el laboratorio', { act: 'laboratorio', onclick: () => openLab(s) })]),
+    btn(app.ko2 ? 'Chop en pads' : 'Chop', { onclick: () => openChop(s, ed.audio) }),
     folderPicker(fp, async st => { await putSample({ ...s, folder: st.folder, subfolder: st.sub }); await refreshSamples(); }),
     label('¿Qué hacemos con esta toma?'),
     h('div', { class: 'row3' },
@@ -260,11 +274,11 @@ export function renderEdit(root) {
         const igual = ed.audio === ed.saved;
         if (igual && !await confirmSheet({ title: 'No hay cambios nuevos', message: `«${s.name}» ya está guardada tal cual. Si sigues, se sobrescribe el mismo archivo.`, ok: 'Sobrescribir' })) return;
         try {
-          await putSample({ ...s, duration: ed.audio.length / s.rate }, ed.audio); ed.saved = ed.audio; await refreshSamples(); flash('guardar');
+          await putSample({ ...s, duration: ed.audio.length / s.rate }, ed.audio); ed.saved = ed.audio; try { if (s.kind) learn.learnSound(s.kind, learn.features(ed.audio, s.rate), learn.load(), s.id); } catch (e) {} await refreshSamples(); flash('guardar');
           toast(igual ? `Se sobrescribió «${s.name}» (sin cambios)` : `Guardado: «${s.name}»`); app.render();
         } catch (e) { toast('No se pudo guardar (¿poco espacio en el dispositivo?)'); }
       } })),
-    btn('Compartir', { sel: true, onclick: () => go('exportar') }));
+    null);
 
   let raf = 0;
   const loop = () => {

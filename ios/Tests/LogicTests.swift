@@ -1053,6 +1053,85 @@ final class LogicTests: XCTestCase {
         return (re * re + im * im).squareRoot() / Double(a.count) * 2
     }
 
+    func testSampleRecipeRoundTripsAndOldIndexesStillLoad() throws {
+        var a = Sample(name: "pad base fx", sampleRate: 48_000)
+        let src = UUID()
+        a.recipe = Recipe(from: src, fromName: "pad base", chain: [.make(.cassette), .make(.flanger, ["rate": 0.5]), .layer("abc", name: "otro", gain: 40)])
+        let data = try JSONEncoder().encode([a])
+        let back = try JSONDecoder().decode([Sample].self, from: data)
+        XCTAssertEqual(back.first?.recipe?.from, src); XCTAssertEqual(back.first?.recipe?.fromName, "pad base")
+        XCTAssertEqual(back.first?.recipe?.chain.map(\.fx), ["cassette", "flanger", "layer"]); XCTAssertEqual(back.first?.recipe?.chain[1].params["rate"], 0.5)
+        XCTAssertEqual(back.first?.recipe?.chain.last?.ref, "abc")
+        // un índice guardado antes de existir las recetas (sin la clave) sigue leyéndose
+        var plain = Sample(name: "viejo", sampleRate: 48_000)
+        plain.recipe = nil
+        let old = try JSONDecoder().decode([Sample].self, from: try JSONEncoder().encode([plain]))
+        XCTAssertNil(old.first?.recipe); XCTAssertEqual(old.first?.name, "viejo")
+        let raw = #"[{"name":"x","sampleRate":44100}]"#.data(using: .utf8)!
+        XCTAssertNil(try JSONDecoder().decode([Sample].self, from: raw).first?.recipe)
+    }
+
+    // MARK: memoria de estilo
+
+    private func styleKick(_ f0: Double = 60, rate: Int = 48_000) -> [Float] {
+        var x = [Float](repeating: 0, count: Int(Double(rate) * 1.5)); let o = Int(Double(rate) * 0.12)
+        for i in o..<x.count { let t = Double(i - o) / Double(rate); x[i] = Float(0.9 * sin(2 * Double.pi * f0 * t) * exp(-t * 9)) }
+        return x
+    }
+    private func stylePad(_ f: Double = 220, rate: Int = 48_000) -> [Float] {
+        var x = [Float](repeating: 0, count: rate * 4); let o = Int(Double(rate) * 0.3)
+        for i in o..<x.count { let t = Double(i - o) / Double(rate); x[i] = Float(0.4 * min(1, t / 0.4) * sin(2 * Double.pi * f * t) * exp(-max(0, t - 2.5) * 2)) }
+        return x
+    }
+
+    func testStyleFeaturesTellAHitFromAPad() throws {
+        let r = 48_000, k = try XCTUnwrap(StyleMemory.features(styleKick(), rate: r)), p = try XCTUnwrap(StyleMemory.features(stylePad(), rate: r))
+        XCTAssertGreaterThan(k.onsetMs, 100); XCTAssertLessThan(k.onsetMs, 135); XCTAssertLessThan(k.decayMs, 500); XCTAssertGreaterThan(k.crest, 14)
+        XCTAssertGreaterThan(p.decayMs, 2000); XCTAssertGreaterThan(p.attackMs, 200); XCTAssertGreaterThan(p.centroid, k.centroid)
+        XCTAssertNil(StyleMemory.features([Float](repeating: 0, count: r), rate: r)); XCTAssertNil(StyleMemory.features([Float](repeating: 0.5, count: 100), rate: r))
+    }
+
+    func testStyleMemoryLearnsKindsTrimAndLoopHabits() throws {
+        defer { StyleMemory.forget() }
+        StyleMemory.forget()
+        let r = 48_000
+        var m = StyleMemory.Model()
+        let before = StyleMemory.styleOf(try XCTUnwrap(StyleMemory.features(styleKick(70), rate: r)), m)
+        XCTAssertNil(before.kind); XCTAssertEqual(before.group, "golpe")
+        for i in 0..<4 {
+            m = StyleMemory.learnSound(kind: "bateria", StyleMemory.features(styleKick(50 + Double(i) * 8), rate: r), m)
+            m = StyleMemory.learnSound(kind: "textura", StyleMemory.features(stylePad(200 + Double(i) * 30), rate: r), m)
+        }
+        let gk = StyleMemory.styleOf(try XCTUnwrap(StyleMemory.features(styleKick(70), rate: r)), m), gp = StyleMemory.styleOf(try XCTUnwrap(StyleMemory.features(stylePad(300), rate: r)), m)
+        XCTAssertEqual(gk.kind, "bateria"); XCTAssertEqual(gk.group, "golpe"); XCTAssertEqual(gp.kind, "textura"); XCTAssertEqual(gp.group, "sostenido"); XCTAssertGreaterThan(gk.confidence, 0.5)
+        // cada sonido enseña una vez
+        let once = StyleMemory.learnSound(kind: "bateria", StyleMemory.features(styleKick(), rate: r), id: "a", m), twice = StyleMemory.learnSound(kind: "bateria", StyleMemory.features(styleKick(), rate: r), id: "a", once)
+        XCTAssertEqual(once.kinds["bateria"]?.n, twice.kinds["bateria"]?.n)
+
+        let x = styleKick(), f = try XCTUnwrap(StyleMemory.features(x, rate: r))
+        let s0 = try XCTUnwrap(StyleMemory.suggestTrim(x, rate: r, m))
+        for _ in 0..<4 { m = StyleMemory.learnTrim(f, group: "golpe", startMs: f.onsetMs - 30, endMs: f.endMs + 150, fadeMs: 10, m) }
+        let s1 = try XCTUnwrap(StyleMemory.suggestTrim(x, rate: r, m))
+        XCTAssertEqual(s0.learned, 0); XCTAssertEqual(s1.learned, 4); XCTAssertLessThan(s1.a, s0.a - 700); XCTAssertGreaterThan(s1.b, s0.b + 2800); XCTAssertEqual(s1.fadeMs, 10)
+        var off = m; off.on = false
+        XCTAssertEqual(try XCTUnwrap(StyleMemory.suggestTrim(x, rate: r, off)).learned, 0)
+
+        let pad = stylePad(), beat = 60.0 / 90
+        let l0 = try XCTUnwrap(StyleMemory.suggestLoop(pad, rate: r, bpm: 90, bpmConfidence: 0.5, m))
+        XCTAssertEqual(Double(l0.b - l0.a) / Double(r), beat * 4, accuracy: 0.1); XCTAssertEqual(l0.crossSec, 0.5); XCTAssertTrue(l0.refine)      // el empalme nunca pasa de un cuarto del loop
+        for _ in 0..<3 { m = StyleMemory.learnLoop(group: "sostenido", lenSec: beat * 2, bpm: 90, crossSec: 0.5, refine: false, m) }
+        let l1 = try XCTUnwrap(StyleMemory.suggestLoop(pad, rate: r, bpm: 90, bpmConfidence: 0.5, m))
+        XCTAssertEqual(Double(l1.b - l1.a) / Double(r), beat * 2, accuracy: 0.1); XCTAssertEqual(l1.crossSec, 0.5); XCTAssertFalse(l1.refine); XCTAssertEqual(l1.learned, 3)
+        XCTAssertFalse(StyleMemory.summary(m).isEmpty)
+        XCTAssertEqual(StyleMemory.summary(StyleMemory.Model()).count, 1)
+    }
+
+    func testEveryFxHasADistinctIcon() {
+        let symbols = Fx404.allOrder.map { Fx404.symbol($0) }
+        XCTAssertEqual(symbols.count, 19); XCTAssertTrue(symbols.allSatisfy { !$0.isEmpty }); XCTAssertEqual(Set(symbols).count, symbols.count)
+        XCTAssertFalse(Fx404.layerSymbol.isEmpty)
+    }
+
     func testFxCatalogHas19EffectsWithPresetsAndDeterministicOutput() {
         let rate = 48_000, x = harmonicVoice(220, seconds: 1, rate: rate)
         XCTAssertEqual(Fx404.allOrder.count, 19)

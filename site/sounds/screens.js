@@ -1,7 +1,8 @@
 // Pantallas: Inicio, Grabar, Biblioteca, Exportar, y las hojas (retroactiva, guardar, metrónomo, manual…).
 import { app, go, openSample, refreshSamples, sampleById, VERSION, BUILD, inst, isStandalone, platform, installApp } from './state.js';
-import { h, mount, fill, btn, link, chip, card, label, muted, title, toggleRow, sliderRow, logo, sheet, confirmSheet, promptSheet, toast, folderPicker, drawBars } from './ui.js';
+import { h, mount, fill, btn, link, chip, card, label, muted, tip, title, toggleRow, sliderRow, logo, sheet, confirmSheet, promptSheet, toast, folderPicker, drawBars } from './ui.js';
 import * as dsp from './dsp.js';
+import * as learn from './learn.js';
 import { FOLDERS, UNSORTED, folderDetail, folderOf } from './folders.js';
 import { getAudio, putSample, putMany, deleteSamples, newSample, normalizeSample, storageInfo, requestPersist, STATES, CHAR_TAGS } from './store.js';
 import { manualFor } from './manual.js';
@@ -177,7 +178,7 @@ const tempoCard = rec => {
   return card([
     h('div', { class: 'between' }, h('b', {}, 'Escuchar tempo'), bpm ? h('span', { class: 'amber', 'data-act': 'tempo-bpm' }, '≈ ' + Math.round(bpm) + ' BPM') : null),
     h('p', { class: 'muted tiny' }, `Toca tu patrón sin grabar: la app oye ${ls.get('tempoSeconds', LISTEN_SECONDS)} s por el micrófono y te dice el BPM.`),
-    btn(tp.listening ? `Escuchando… ${tp.left} s · tocar para cancelar` : 'Escuchar tempo', { kind: 'amber', act: 'escuchar-tempo', disabled: rec, onclick: startTempo }),
+    btn(tp.listening ? `Escuchando… ${tp.left} s · tocar para cancelar` : 'Escuchar tempo', { act: 'escuchar-tempo', disabled: rec, onclick: startTempo }),
     r && r.error ? h('p', { class: 'small err', role: 'status' }, r.error) : null,
     bpm ? h('div', { class: 'stack tight', role: 'status' },
       h('small', { class: 'muted' }, `Confianza ${confidenceLabel(r.confidence)} (${Math.round(r.confidence * 100)} %).` + (r.confidence < 0.15 ? ' Escucha otra vez con un patrón más marcado.' : '')),
@@ -187,6 +188,7 @@ const tempoCard = rec => {
       muted('Si suena a la mitad o al doble de lo que tocas, usa ÷2 o ×2.', 'tiny')) : null]);
 };
 
+const recOpts = { open: false };      // los ajustes de captura recuerdan si estaban abiertos al volver a dibujar la pantalla
 export function renderRecord(root) {
   const e = app.engine, m = app.metro, rec = e.state === 'recording', listening = e.state === 'listening';
   const pill = (text, onclick, aria) => h('button', { type: 'button', class: 'pill', onclick, 'aria-label': aria }, text);
@@ -217,22 +219,12 @@ export function renderRecord(root) {
     h('div', { class: 'rec-head' },
       h('button', { type: 'button', class: 'brand', onclick: () => go('inicio'), 'aria-label': 'Ir al inicio' }, logo(26), h('span', {}, 'DenaviLab: Sounds')),
       h('span', { class: 'grow' }),
-      h('button', { type: 'button', class: 'icon-btn', onclick: openQuick, 'aria-label': 'Guardado rápido' }, '⚡'),
-      pill('→ Compartir', () => go('exportar'))),
+      h('button', { type: 'button', class: 'icon-btn', onclick: openQuick, 'aria-label': 'Guardado rápido' }, '⚡')),
     h('div', { class: 'title-row' }, h('h1', {}, 'Grabar sample'),
       pill(m.mode === 'bar' ? `Con compás · ${m.bpm} BPM` : 'Libre', openMetro, 'Metrónomo')),
     denied,
     denied ? null : [
-      card([h('b', {}, 'Entrada · Micrófono del dispositivo')]),
-      card([h('b', {}, 'Modo de captura'),
-        h('div', { class: 'row2', role: 'group', 'aria-label': 'Modo de captura' }, btn('Materia prima', { small: true, sel: captureMode() === 'materia', act: 'modo-materia', onclick: () => { ls.set('captureMode', 'materia'); app.render(); } }),
-          btn('Captura libre', { small: true, sel: captureMode() === 'libre', act: 'modo-libre', onclick: () => { ls.set('captureMode', 'libre'); app.render(); } })),
-        h('p', { class: 'muted tiny' }, captureMode() === 'materia' ? `Graba de 10 a ${TAKE_SECONDS} s (para sola a los ${TAKE_SECONDS} s), luego eliges un fragmento de 2 a 5 s y queda como «crudo».` : 'Como antes: la toma se guarda entera, con tu guardado rápido.')]),
-      card([h('b', {}, 'Tipo de sonido'),
-        h('div', { class: 'wrap' }, Object.entries(dsp.SOUND_KINDS).map(([k, v]) => chip(v.label, kind === k, () => { ls.set('kind', k); app.render(); }))),
-        h('p', { class: 'muted tiny' }, dsp.SOUND_KINDS[kind].hint)]),
       card([h('div', { class: 'sr-head' }, h('span', { class: 'muted small' }, 'Nivel'), db), h('div', { class: 'meter' }, levelFill)]),
-      tempoCard(rec),
       waveCard, timer, dots, notice, buffer,
       first ? h('div', { class: 'center' }, h('span', { class: 'pill static' }, '↓ Empieza aquí')) : null,
       h('div', { class: 'controls' },
@@ -240,6 +232,17 @@ export function renderRecord(root) {
         recBtn,
         side('Retro', '↺', null, openRetro)),
       h('div', { class: 'format' }, `WAV · 16 bit · mono · ${hz(exportRate())}`),
+      h('details', { class: 'rec-opts', open: recOpts.open ? '' : null, ontoggle: e => { recOpts.open = e.target.open; } }, h('summary', {}, 'Ajustes de captura · ', captureMode() === 'materia' ? 'materia prima' : 'captura libre', ' · ', dsp.SOUND_KINDS[kind].label.toLowerCase()),
+        h('div', { class: 'stack tight' },
+          card([h('b', {}, 'Entrada · Micrófono del dispositivo')]),
+          card([h('b', {}, 'Modo de captura'),
+        h('div', { class: 'row2', role: 'group', 'aria-label': 'Modo de captura' }, btn('Materia prima', { small: true, sel: captureMode() === 'materia', act: 'modo-materia', onclick: () => { ls.set('captureMode', 'materia'); app.render(); } }),
+          btn('Captura libre', { small: true, sel: captureMode() === 'libre', act: 'modo-libre', onclick: () => { ls.set('captureMode', 'libre'); app.render(); } })),
+        h('p', { class: 'muted tiny' }, captureMode() === 'materia' ? `Graba de 10 a ${TAKE_SECONDS} s (para sola a los ${TAKE_SECONDS} s), luego eliges un fragmento de 2 a 5 s y queda como «crudo».` : 'Como antes: la toma se guarda entera, con tu guardado rápido.')]),
+          card([h('b', {}, 'Tipo de sonido'),
+        h('div', { class: 'wrap' }, Object.entries(dsp.SOUND_KINDS).map(([k, v]) => chip(v.label, kind === k, () => { ls.set('kind', k); app.render(); }))),
+        h('p', { class: 'muted tiny' }, dsp.SOUND_KINDS[kind].hint)]),
+          tempoCard(rec))),
       h('div', { class: 'center' }, link('Manual técnico', openManual)),
       e.error ? h('p', { class: 'err small center' }, e.error) : null,
       app.samples.length === 1 && !ls.get('firstTakeDismissed', false) && !rec ? card([
@@ -450,16 +453,16 @@ export function renderLibrary(root) {
       const found = arrange(app.samples.filter(s => !q || s.name.toLowerCase().includes(q) || (s.tags || []).some(t => t.toLowerCase().includes(q)) || (s.key || '').toLowerCase() === q));
       fill(results, label(view.active && !q ? 'Con filtros' : 'Resultados'), found.length ? found.map(s => sampleRow(s, { listen: true })) : muted(view.active && !q ? 'Ningún sonido cumple los filtros. Prueba quitar alguno.' : 'Nada coincide con la búsqueda.'));
     } else {
-      fill(results, 
-        FOLDERS.map(f => {
+      fill(results,
+        h('div', { class: 'wrap chips-row', role: 'group', 'aria-label': 'Carpetas' }, FOLDERS.map(f => {
           const c = app.samples.filter(s => folderOf(s) === f.name).length, hl = f.name === UNSORTED && c > 0;
-          return h('button', { type: 'button', class: 'card folder' + (hl ? ' hl' : ''), onclick: () => { L.folder = f.name; app.render(); } },
-            h('span', { class: 'dot' }), h('span', { class: 'rb-text' }, h('b', { class: hl ? 'amber' : '' }, f.name), h('small', {}, folderDetail(f))), h('b', { class: 'amber' }, String(c)));
-        }),
-        label('Recientes'), app.samples.slice(0, 5).map(s => sampleRow(s, { listen: true })),
+          return h('button', { type: 'button', class: 'chip folder' + (hl ? ' sel' : '') + (c ? '' : ' empty'), 'aria-label': `${f.name}: ${c}`, onclick: () => { L.folder = f.name; app.render(); } }, f.name + (c ? ' · ' + c : ''));
+        })),
+        label('Sonidos'), arrange(app.samples).slice(0, 40).map(s => sampleRow(s, { listen: true })),
         btn('Importar sonidos', { small: true, act: 'importar', onclick: () => importInput.click() }),
         muted('Trae WAV (también MP3, M4A…) desde Archivos o Drive. Entran a Sin clasificar, a su frecuencia original y en mono.', 'tiny'),
         app.ko2 ? btn('Exportar para el K.O. II', { small: true, act: 'ko-lote', 'aria-label': 'Exportar para el K.O. II: favoritos, selección o todo', onclick: openKoExport }) : null,
+        stylePanel(),
         storagePanel(),
         h('div', { class: 'row2 backup' }, btn('Respaldo', { small: true, 'aria-label': 'Respaldo: guardar toda la colección en un .zip', onclick: backupAll }), btn('Restaurar', { small: true, onclick: () => fileInput.click() })));
     }
@@ -586,6 +589,30 @@ export function openDetails(s) {
 // ---------- almacenamiento ----------
 const mb = n => n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1e3)) + ' KB';
 /** Espacio usado por la biblioteca y si el navegador la protege del borrado automático. */
+/** Memoria de estilo: qué ha aprendido la app de tus recortes y loops (todo queda en este dispositivo). */
+function stylePanel() {
+  const box = h('details', { class: 'style-mem' });
+  const paint = () => {
+    const m = learn.load();
+    fill(box, h('summary', {}, 'Memoria de estilo · ', m.on ? (m.seen ? `${m.seen} ejemplos` : 'aún sin ejemplos') : 'apagada'),
+      h('div', { class: 'stack tight' },
+        muted('Aprende de cómo recortas, armas loops y clasificas tus sonidos para sugerirte recortes y loops. Todo queda en este dispositivo.', 'small'),
+        toggleRow('Aprender de lo que hago', 'Apágalo y las sugerencias vuelven a valores de fábrica', m.on, v => { learn.setEnabled(v); paint(); }),
+        ...learn.summary(m).map(t => h('p', { class: 'small' }, t)),
+        h('div', { class: 'row2' },
+          btn('Aprender de mi biblioteca', { small: true, act: 'estilo-aprender', onclick: async () => {
+            let n = 0, model = learn.load();
+            for (const s of app.samples.filter(x => x.kind && x.kind !== 'libre').slice(0, 80)) {
+              if (model.ids && model.ids[s.id]) continue;
+              try { const a = await getAudio(s.id), f = learn.features(a, s.rate); if (f) { model = learn.learnSound(s.kind, f, model, s.id); n++; } } catch (e) {}
+            }
+            toast(n ? `Aprendí de ${n} sonidos con tipo` : 'No hay sonidos nuevos con tipo (textura, bajo o batería) para aprender'); paint();
+          } }),
+          btn('Olvidar todo', { small: true, onclick: async () => { if (await confirmSheet({ title: '¿Olvidar lo aprendido?', message: 'Las sugerencias vuelven a valores de fábrica. Tus sonidos no se tocan.', ok: 'Olvidar', danger: true })) { learn.forget(); paint(); toast('Memoria de estilo borrada'); } } }))));
+  };
+  paint(); return box;
+}
+
 function storagePanel() {
   const box = h('div', { class: 'stack tight storage' });
   const paint = async () => {
@@ -764,8 +791,7 @@ export function renderExport(root) {
     label('Frecuencia de muestreo'),
     h('div', { class: 'row3' }, exportRates().map(r => btn(rateLabel(r), { small: true, sel: r === rate, onclick: () => { ls.set('rate', r); app.render(); } }))),
     koX() ? muted('46 875 Hz es lo que usa el K.O. II · por confirmar con el aparato', 'small') : null,
-    label('Canales'), h('div', { class: 'row2' }, btn('Mono', { sel: true }), btn('Estéreo · próximamente', { small: true, disabled: true })),
-    label('Profundidad'), h('div', { class: 'row2' }, btn('16 bit', { sel: true }), btn(koX() ? '24 bit · por confirmar' : '24 bit · próximamente', { small: true, disabled: true })),
+    muted('Formato: WAV mono · 16 bit', 'small'),
     koX() ? card([h('div', { class: 'between' }, h('div', {}, h('b', {}, 'Slot de destino'), h('p', { class: 'muted small' }, 'Libres 600–999 · por confirmar')),
       h('div', { class: 'stepper' }, h('button', { type: 'button', class: 'circle', 'aria-label': 'Slot anterior', onclick: bump(-1) }, '−'), slotInput, h('button', { type: 'button', class: 'circle', 'aria-label': 'Slot siguiente', onclick: bump(1) }, '+')))]) : null,
     koX() ? card([h('b', {}, 'Memoria'), h('p', { class: 'muted small' }, `${mb.toFixed(1).replace('.', ',')} MB · quedan ${Math.max(0, 128 - mb).toFixed(0)} MB de 128 MB`),

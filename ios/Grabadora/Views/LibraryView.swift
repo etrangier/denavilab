@@ -64,8 +64,6 @@ struct LibraryView: View {
     private var importSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button("Importar sonidos") { pickBackup = false; showImporter = true }.buttonStyle(OutlineButton()).font(Theme.font(13))
-            Text("Trae WAV (también MP3, M4A…) desde Archivos o Drive. Entran a Sin clasificar, a su frecuencia original y en mono.")
-                .font(Theme.font(12)).foregroundColor(Theme.muted)
             if let n = importNote { Text(n).font(Theme.font(13)).foregroundColor(Theme.amber) }
         }.padding(.top, 8)
     }
@@ -73,6 +71,7 @@ struct LibraryView: View {
     /// Respaldo de toda la colección en un .zip y restauración desde uno.
     private var backupSection: some View {
         VStack(alignment: .leading, spacing: 8) {
+            StyleMemoryPanel()
             StoragePanel()
             HStack(spacing: 8) {
                 Button("Respaldo") { makeBackup() }.buttonStyle(OutlineButton()).accessibilityLabel("Respaldo: guardar toda la colección en un .zip")
@@ -131,30 +130,28 @@ struct LibraryView: View {
         }.frame(maxWidth: .infinity)
     }
 
+    /// Carpetas como una fila de etiquetas que se desliza: lo que importa son los sonidos, que van justo debajo.
     private var folders: some View {
-        VStack(spacing: 10) {
-            ForEach(LibraryStore.folderInfo, id: \.name) { f in
-                let n = lib.samples(in: f.name).count
-                NavigationLink(value: f.name) {
-                    HStack(spacing: 14) {
-                        Circle().fill(Theme.amber).frame(width: 10, height: 10)
-                            .frame(width: 36, height: 36).background(Theme.surface2).clipShape(RoundedRectangle(cornerRadius: 10))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(f.name).font(Theme.font(16, weight: .bold)).foregroundColor(f.name == LibraryStore.unsorted && n > 0 ? Theme.amber : Theme.text)
-                            Text(f.detail).font(Theme.font(12)).foregroundColor(Theme.muted).lineLimit(1)
-                        }
-                        Spacer()
-                        Text("\(n)").font(Theme.font(17, weight: .bold)).foregroundColor(Theme.amber)
-                    }.card(highlight: f.name == LibraryStore.unsorted && n > 0)
-                }.buttonStyle(.plain)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(LibraryStore.folderInfo, id: \.name) { f in
+                    let n = lib.samples(in: f.name).count, hl = f.name == LibraryStore.unsorted && n > 0
+                    NavigationLink(value: f.name) {
+                        Text(n > 0 ? "\(f.name) · \(n)" : f.name).font(Theme.font(14, weight: hl ? .bold : .regular))
+                            .foregroundColor(hl ? Theme.ink : (n > 0 ? Theme.text : Theme.muted)).lineLimit(1).fixedSize()
+                            .padding(.horizontal, 14).frame(minHeight: 40)
+                            .background(hl ? Theme.amber : Color.clear)
+                            .overlay(Capsule().stroke(hl ? Theme.amber : (n > 0 ? Theme.line : Theme.surface2), lineWidth: 1.5)).clipShape(Capsule())
+                    }.buttonStyle(.plain).accessibilityLabel("\(f.name): \(n)")
+                }
             }
         }
     }
 
     private var recents: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionLabel("Recientes").padding(.top, 8)
-            ForEach(lib.samples.prefix(5)) { s in row(s) }
+            SectionLabel("Sonidos").padding(.top, 8)
+            ForEach(lib.samples.prefix(40)) { s in row(s) }
         }
     }
 

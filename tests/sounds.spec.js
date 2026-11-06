@@ -5,6 +5,7 @@ const path = require('path');
 const { test, expect } = require('@playwright/test');
 
 const URL = '/sounds/';
+const ajustes = async page => { if (!await page.locator('details.rec-opts[open]').count()) await page.locator('details.rec-opts > summary').click(); };
 const abrir = async (page, quien = 'rolando', extra = {}) => {
   await page.addInitScript(([q, ex]) => {
     try {
@@ -305,7 +306,7 @@ test.describe('perfil sin K.O. II (Schair)', () => {
   });
   test('Rolando sí ve el K.O. II', async ({ page }) => {
     await abrir(page, 'rolando'); await tab(page, 'grabar');
-    await expect(page.locator('#screen')).toContainText('→ Compartir');
+    await expect(page.locator('#screen')).toContainText('Grabar sample');
     await expect(page.locator('#screen')).not.toContainText(/K\.O\.|46 875/);       // la exportación al K.O. II está en pausa
   });
 });
@@ -573,10 +574,10 @@ test.describe('etapa 3 · modo materia prima', () => {
     await page.addInitScript(() => { try { localStorage.setItem('denavilab.sesion', 'rolando'); localStorage.setItem('denavilab.sounds.onboarded', '1'); } catch (e) {} });
     await page.goto(URL); await tab(page, 'grabar');
     await expect(page.getByRole('button', { name: 'Materia prima' })).toHaveAttribute('aria-pressed', /true|null/).catch(() => {});
-    await expect(page.getByText('luego eliges un fragmento')).toBeVisible();
+    await ajustes(page); await expect(page.getByText('luego eliges un fragmento')).toBeVisible();
     await page.getByRole('button', { name: 'Captura libre' }).click();
     await expect(page.getByText('la toma se guarda entera')).toBeVisible();
-    await page.reload(); await tab(page, 'grabar'); await expect(page.getByText('la toma se guarda entera')).toBeVisible();
+    await page.reload(); await tab(page, 'grabar'); await ajustes(page); await expect(page.getByText('la toma se guarda entera')).toBeVisible();
   });
   test('ventana más enérgica y fragmento sin clics', async ({ page }) => {
     await abrir(page, 'rolando');
@@ -738,7 +739,7 @@ test.describe('escuchar tempo', () => {
     await page.waitForFunction(async () => (await import('/sounds/state.js')).app.engine.state === 'listening');      // que el micrófono falso termine de arrancar antes de sustituir el audio
     await page.evaluate(async p => { const { app } = await import('/sounds/state.js'), f = eval(p), x = f(100, 10, app.engine.rate);    // la frecuencia es la del motor de audio
       Object.assign(app.engine, { state: 'listening', lastSamples: () => x }); app.render(); }, pista);
-    await page.getByRole('button', { name: 'Escuchar tempo', exact: true }).click();
+    await ajustes(page); await page.getByRole('button', { name: 'Escuchar tempo', exact: true }).click();
     await expect(page.getByRole('button', { name: /Escuchando/ })).toBeVisible();
     const bpm = page.locator('[data-act="tempo-bpm"]'); await expect(bpm).toContainText('BPM', { timeout: 8000 });
     expect(Math.abs(parseInt((await bpm.textContent()).replace(/\D+/, '')) - 100)).toBeLessThan(4);
@@ -750,7 +751,7 @@ test.describe('escuchar tempo', () => {
     await abrir(page, 'rolando', { 'denavilab.sounds.tempoSeconds': '1' }); await tab(page, 'grabar');
     await page.waitForFunction(async () => (await import('/sounds/state.js')).app.engine.state === 'listening');
     await page.evaluate(async () => { const { app } = await import('/sounds/state.js'); Object.assign(app.engine, { state: 'listening', rate: 48000, lastSamples: () => new Float32Array(48000 * 10) }); app.render(); });
-    await page.getByRole('button', { name: 'Escuchar tempo', exact: true }).click();
+    await ajustes(page); await page.getByRole('button', { name: 'Escuchar tempo', exact: true }).click();
     await expect(page.locator('#screen')).toContainText('No oigo nada', { timeout: 8000 });
   });
 });
@@ -899,6 +900,8 @@ test.describe('etapas 1–5 · cadena de efectos, granular, destrucción, ritmo 
     expect(r.igual).toBe(true); expect(r.dist).toBe(true); expect(r.ok).toBe(true); expect(r.bpm).toBe(true); expect(r.n).toBe(5); expect(r.pre.every(Boolean)).toBe(true);
   });
 
+  const anadir = async (sh, nombre) => { await sh.getByRole('button', { name: '＋ Añadir efecto' }).click(); await sh.getByRole('button', { name: nombre, exact: true }).click(); };
+  const mas = async sh => { if (!await sh.locator('details.more[open]').count()) await sh.locator('details.more > summary').click(); };
   const abrirRack = async (page, nombres = ['pad base']) => {
     await abrir(page, 'rolando'); await sembrar(page, nombres);
     await page.evaluate(async () => { const st = await import('/sounds/store.js'), s = (await st.listSamples())[0]; await st.putSample({ ...s, origin: 'Mi balcón', tags: ['cálido'], key: 'Am' }); });
@@ -912,14 +915,14 @@ test.describe('etapas 1–5 · cadena de efectos, granular, destrucción, ritmo 
   test('rack: añadir, ordenar, apagar, ajustar, preajustes de cadena, guardar la propia y quitar', async ({ page }) => {
     const sh = await abrirRack(page);
     await expect(sh.locator('.slot')).toHaveCount(1);
-    await sh.getByRole('button', { name: 'Granular', exact: true }).click(); await expect(sh.locator('.slot')).toHaveCount(2);
+    await anadir(sh, 'Granular'); await expect(sh.locator('.slot')).toHaveCount(2);
     await expect(sh.getByLabel('Tamaño del grano')).toBeVisible();                                   // la casilla nueva queda abierta
     await sh.getByRole('button', { name: 'Subir 2. Granular'.replace('2. ', '') }).click();
     await expect(sh.locator('.slot').first()).toContainText('1. Granular');
     await sh.getByRole('button', { name: /Apagar Granular/ }).click(); await expect(sh.locator('.slot').first()).toContainText('apagado');
     await sh.getByRole('button', { name: /Encender Granular/ }).click();
     await sh.getByLabel('Densidad').fill('50'); await sh.getByRole('button', { name: 'Niebla' }).click(); await expect(sh.getByLabel('Tamaño del grano')).toHaveValue('220');
-    await sh.getByRole('button', { name: 'Nube etérea' }).click(); await expect(sh.locator('.slot')).toHaveCount(3);
+    await mas(sh); await sh.getByRole('button', { name: 'Nube etérea' }).click(); await expect(sh.locator('.slot')).toHaveCount(3);
     await sh.getByRole('button', { name: 'Guardar esta cadena…' }).click();
     await page.locator('dialog.sheet').last().getByLabel('Guardar la cadena').fill('Mi nube'); await page.locator('dialog.sheet').last().getByRole('button', { name: 'Guardar', exact: true }).click();
     await expect(sh.getByRole('button', { name: '★ Mi nube' })).toBeVisible();
@@ -952,7 +955,7 @@ test.describe('etapas 1–5 · cadena de efectos, granular, destrucción, ritmo 
     const s2 = page.locator('dialog.sheet'); await expect(s2.getByRole('heading', { name: 'Cadena de efectos' })).toBeVisible();
     await expect(s2.locator('.slot').first()).toContainText('Cassette Sim');
     await expect(s2.getByRole('button', { name: 'Aplicar al sonido' })).toHaveCount(0);
-    await s2.getByRole('button', { name: 'Granular', exact: true }).click(); await expect(s2.locator('.slot')).toHaveCount(2);
+    await anadir(s2, 'Granular'); await expect(s2.locator('.slot')).toHaveCount(2);
     await s2.getByRole('button', { name: 'Actualizar este sonido con la receta' }).click(); await expect(page.locator('#toast')).toContainText('actualizado', { timeout: 20000 });
     const r = await page.evaluate(async () => { const st = await import('/sounds/store.js'), l = await st.listSamples(), n = l.find(x => x.name === 'pad base fx'); return { n: l.filter(x => x.name === 'pad base fx').length, ids: n.recipe.chain.map(c => c.id), proc: n.process.join(' '), id: n.id }; });
     expect(r.n).toBe(1); expect(r.id).toBe(q.id); expect(r.ids).toEqual(['cassette', 'granular']); expect(r.proc).toContain('Granular');
@@ -964,15 +967,25 @@ test.describe('etapas 1–5 · cadena de efectos, granular, destrucción, ritmo 
     await page.reload(); await tab(page, 'biblioteca'); await page.locator('.row-btn', { hasText: 'pad base fx' }).first().click();
     await page.getByRole('button', { name: 'Re-editar la receta' }).click(); await expect(page.locator('#toast')).toContainText('ya no está');
   });
+  test('rack: cada efecto tiene su icono, la escucha previa está siempre a la mano y se prueba un efecto solo', async ({ page }) => {
+    const sh = await abrirRack(page);
+    await expect(sh.locator('.slot .fxi svg')).toHaveCount(1);
+    await sh.getByRole('button', { name: '＋ Añadir efecto' }).click();
+    const n = await sh.locator('.fxtile').count(); expect(n).toBe(19); await expect(sh.locator('.fxtile .fxi svg')).toHaveCount(19);
+    await sh.getByRole('button', { name: '− Cerrar la lista' }).click(); await expect(sh.locator('.fxtile')).toHaveCount(0);
+    await expect(sh.locator('.dock').getByRole('button', { name: '▶ Procesado' })).toBeVisible(); await expect(sh.locator('.dock').getByRole('button', { name: 'Guardar como sonido nuevo' })).toBeVisible();
+    await sh.locator('.slot-name').first().click(); await sh.getByRole('button', { name: '▶ Solo este efecto' }).click(); await expect(sh).toContainText('Escuchando solo este efecto', { timeout: 15000 });
+    const col = await page.evaluate(() => getComputedStyle(document.body).backgroundColor); expect(col).toBe('rgb(0, 0, 0)');
+  });
   test('rack: todo apagado avisa, y mezclar otro sonido aparece como casilla', async ({ page }) => {
     const sh = await abrirRack(page, ['pad base', 'otro']);
-    await sh.getByLabel('Mezclar con otro sonido').selectOption({ index: 1 }); await expect(sh.locator('.slot').last()).toContainText('Mezcla con «'); await expect(sh.getByLabel('Nivel del otro sonido')).toBeVisible();
+    await mas(sh); await sh.getByLabel('Mezclar con otro sonido').selectOption({ index: 1 }); await expect(sh.locator('.slot').last()).toContainText('Mezcla con «'); await expect(sh.getByLabel('Nivel del otro sonido')).toBeVisible();
     await sh.getByRole('button', { name: /Apagar Cassette Sim/ }).click(); await sh.getByRole('button', { name: /Apagar Mezcla con/ }).click();
     await sh.getByRole('button', { name: 'Aplicar al sonido' }).click(); await expect(page.locator('#toast')).toContainText('no hay nada que aplicar');
   });
   test('rack: el dado genera una cadena y 4 variantes se guardan como sonidos procesados ligados al original', async ({ page }) => {
     const sh = await abrirRack(page);
-    await sh.getByRole('button', { name: 'Sucio', exact: true }).click(); await sh.getByRole('button', { name: '🎲 Generar una cadena' }).click();
+    await mas(sh); await sh.getByRole('button', { name: 'Sucio', exact: true }).click(); await sh.getByRole('button', { name: '🎲 Generar una cadena' }).click();
     const n = await sh.locator('.slot').count(); expect(n).toBeGreaterThanOrEqual(2); expect(n).toBeLessThanOrEqual(3);
     await sh.getByRole('button', { name: 'Guardar 4 variantes' }).click(); await expect(sh).toContainText('Guardadas 4 variantes', { timeout: 60000 });
     const l = await page.evaluate(async () => (await (await import('/sounds/store.js')).listSamples()).filter(x => / var \d$/.test(x.name)));
@@ -2178,7 +2191,7 @@ test.describe('volumen parejo y tipos de sonido', () => {
     const errores = vigilar(page);
     await abrir(page, 'rolando', { 'denavilab.sounds.quick': JSON.stringify({ enabled: true }) });
     await tab(page, 'grabar');
-    await expect(page.getByText('Tipo de sonido')).toBeVisible();
+    await ajustes(page); await expect(page.getByText('Tipo de sonido')).toBeVisible();
     for (const t of ['Libre', 'Textura', 'Bajo', 'Batería']) await expect(page.getByRole('button', { name: t, exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Textura', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Textura', exact: true })).toHaveAttribute('aria-pressed', 'true');
@@ -2251,5 +2264,64 @@ test.describe('importar sonidos', () => {
     await page.locator('.folder', { hasText: 'Sin clasificar' }).click();
     await expect(page.locator('.row-btn', { hasText: 'Pearls Sade' })).toBeVisible();
     expect(errores).toEqual([]);
+  });
+});
+
+
+test.describe('memoria de estilo: aprende de cómo recortas y armas loops', () => {
+  const PRE = `const L = await import('/sounds/learn.js'), r = 48000, fresh = () => ({ v: 1, on: true, seen: 0, kinds: {}, trim: {}, loop: {}, ids: {} });
+    const kick = (f0 = 60) => { const x = new Float32Array(r * 1.5), o = Math.floor(r * 0.12); for (let i = o; i < x.length; i++) { const t = (i - o) / r; x[i] = 0.9 * Math.sin(2 * Math.PI * f0 * t) * Math.exp(-t * 9); } return x; };
+    const pad = (f = 220) => { const x = new Float32Array(r * 4), o = Math.floor(r * 0.3); for (let i = o; i < x.length; i++) { const t = (i - o) / r; x[i] = 0.4 * Math.min(1, t / 0.4) * Math.sin(2 * Math.PI * f * t) * Math.exp(-Math.max(0, t - 2.5) * 2); } return x; };`;
+  const ev = (page, body) => page.evaluate(`(async () => { ${PRE} ${body} })()`);
+  test('rasgos: un golpe es corto y de caída rápida; un pad, largo y suave', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `return { k: L.features(kick(), r), p: L.features(pad(), r), vacio: L.features(new Float32Array(r), r), corto: L.features(new Float32Array(100).fill(0.5), r) };`);
+    expect(q.k.onsetMs).toBeGreaterThan(100); expect(q.k.onsetMs).toBeLessThan(135); expect(q.k.decayMs).toBeLessThan(500); expect(q.k.crest).toBeGreaterThan(14);
+    expect(q.p.decayMs).toBeGreaterThan(2000); expect(q.p.attackMs).toBeGreaterThan(200); expect(q.p.centroid).toBeGreaterThan(q.k.centroid);
+    expect(q.vacio).toBeNull(); expect(q.corto).toBeNull();
+  });
+  test('aprende los tipos de tus sonidos y reconoce los nuevos', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `let m = fresh(); const antes = L.styleOf(L.features(kick(70), r), m);
+      for (let i = 0; i < 4; i++) { m = L.learnSound('bateria', L.features(kick(50 + i * 8), r), m); m = L.learnSound('textura', L.features(pad(200 + i * 30), r), m); }
+      const dup = L.learnSound('bateria', L.features(kick(), r), m, 'a'), dup2 = L.learnSound('bateria', L.features(kick(), r), dup, 'a');
+      return { antes, k: L.styleOf(L.features(kick(70), r), m), p: L.styleOf(L.features(pad(300), r), m), n1: dup.kinds.bateria.n, n2: dup2.kinds.bateria.n };`);
+    expect(q.antes).toMatchObject({ kind: null, group: 'golpe' });
+    expect(q.k).toMatchObject({ kind: 'bateria', group: 'golpe' }); expect(q.p).toMatchObject({ kind: 'textura', group: 'sostenido' });
+    expect(q.k.confidence).toBeGreaterThan(0.5); expect(q.n2).toBe(q.n1);
+  });
+  test('recorte: de fábrica deja poco aire; tras varios recortes tuyos deja el que sueles dejar', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `let m = fresh(); const x = kick(), f = L.features(x, r), s0 = L.suggestTrim(x, r, m);
+      for (let i = 0; i < 4; i++) m = L.learnTrim({ f, group: 'golpe', startMs: f.onsetMs - 30, endMs: f.endMs + 150, fadeMs: 10 }, m);
+      const s1 = L.suggestTrim(x, r, m), off = L.suggestTrim(x, r, { ...m, on: false });
+      return { s0: [s0.a / r * 1000, s0.b / r * 1000, s0.learned], s1: [s1.a / r * 1000, s1.b / r * 1000, s1.learned, s1.fadeMs], off: off.learned, onset: f.onsetMs, end: f.endMs, why: s1.why };`);
+    expect(q.s0[2]).toBe(0); expect(q.s0[0]).toBeGreaterThan(q.onset - 20); expect(q.s1[2]).toBe(4);
+    expect(q.s1[0]).toBeLessThan(q.s0[0] - 15); expect(q.s1[1]).toBeGreaterThan(q.s0[1] + 60); expect(q.s1[3]).toBe(10); expect(q.off).toBe(0); expect(q.why).toContain('aprendido de 4');
+  });
+  test('loop: con pulso parte en tiempos, y aprende tu largo y tu empalme', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `let m = fresh(); const x = pad(), a = L.suggestLoop(x, r, { bpm: 90, bpmConfidence: 0.5 }, m), sinPulso = L.suggestLoop(x, r, {}, m);
+      for (let i = 0; i < 3; i++) m = L.learnLoop({ group: 'sostenido', lenSec: 60 / 90 * 2, bpm: 90, crossSec: 0.5, refine: false }, m);
+      const b = L.suggestLoop(x, r, { bpm: 90, bpmConfidence: 0.5 }, m), corto = L.suggestLoop(kick(), r, {}, m);
+      return { a: [(a.b - a.a) / r, a.crossSec, a.refine, a.learned], sin: (sinPulso.b - sinPulso.a) / r, b: [(b.b - b.a) / r, b.crossSec, b.refine, b.learned], corto, beat: 60 / 90 };`);
+    expect(q.a[0]).toBeCloseTo(q.beat * 4, 1); expect(q.a[1]).toBe(0.5);      // el empalme nunca pasa de un cuarto del loop (2,7 s → ≤0,67 s) expect(q.a[2]).toBe(true); expect(q.a[3]).toBe(0);
+    expect(q.b[0]).toBeCloseTo(q.beat * 2, 1); expect(q.b[1]).toBe(0.5); expect(q.b[2]).toBe(false); expect(q.b[3]).toBe(3); expect(q.sin).toBeGreaterThan(1);
+  });
+  test('Editar: las sugerencias marcan la selección y Recortar enseña; la memoria se ve y se olvida', async ({ page }) => {
+    await abrir(page, 'rolando'); await sembrar(page, ['golpe']);
+    await page.evaluate(async () => { const st = await import('/sounds/store.js'), s = (await st.listSamples())[0], r = 48000, x = new Float32Array(r * 1.5), o = Math.floor(r * 0.12);
+      for (let i = o; i < x.length; i++) { const t = (i - o) / r; x[i] = 0.9 * Math.sin(2 * Math.PI * 60 * t) * Math.exp(-t * 9); } await st.putSample({ ...s, rate: r, duration: 1.5 }, x); });
+    await page.reload(); await tab(page, 'biblioteca'); await page.getByText('Seleccionar').first().click(); await page.getByText('Cancelar').first().click();
+    await page.locator('.row-btn').first().click();
+    await expect(page.getByRole('heading', { name: 'Escuchar y editar' })).toBeVisible();
+    await page.getByRole('button', { name: '✨ Recorte inteligente' }).click(); await expect(page.locator('#toast')).toContainText('antes del ataque');
+    await page.getByRole('button', { name: 'Recortar', exact: true }).click(); await expect(page.locator('#toast')).toContainText('recortado');
+    const m = await page.evaluate(async () => (await import('/sounds/learn.js')).load()); expect(m.trim.golpe.n).toBe(1);
+    await page.getByRole('button', { name: '✨ Loop inteligente' }).click(); await expect(page.locator('#toast')).toContainText(/Loop de|zona estable/);
+    await tab(page, 'biblioteca'); await page.getByRole('button', { name: '‹ Biblioteca' }).click(); await page.locator('details.style-mem > summary').click();
+    await expect(page.locator('details.style-mem')).toContainText('Recortes de golpes (1)');
+    await page.getByRole('button', { name: 'Olvidar todo' }).click(); await page.locator('dialog.sheet').getByRole('button', { name: 'Olvidar' }).click();
+    await expect(page.locator('#toast')).toContainText('borrada'); expect((await page.evaluate(async () => (await import('/sounds/learn.js')).load())).seen).toBe(0);
   });
 });

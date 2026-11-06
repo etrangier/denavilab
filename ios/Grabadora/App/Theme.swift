@@ -1,16 +1,16 @@
 import SwiftUI
 
-/// Tokens del diseño de Canva (DAHX-TlarCw).
+/// Negro con blanco y matices de gris. `amber` es el color de acento y ahora es blanco; se conserva el nombre para no tocar toda la app.
 enum Theme {
-    static let bg = Color(hex: 0x14131b)
-    static let surface = Color(hex: 0x1d1b26)
-    static let surface2 = Color(hex: 0x26232f)
-    static let line = Color(hex: 0x322e3f)
-    static let text = Color(hex: 0xede9f3)
-    static let muted = Color(hex: 0x9b95ab)
-    static let amber = Color(hex: 0xe8a94a)
-    static let ink = Color(hex: 0x1a1207)
-    static let error = Color(hex: 0xff8a8a)
+    static let bg = Color(hex: 0x000000)
+    static let surface = Color(hex: 0x0d0d0d)
+    static let surface2 = Color(hex: 0x1a1a1a)
+    static let line = Color(hex: 0x3a3a3a)
+    static let text = Color(hex: 0xf2f2f2)
+    static let muted = Color(hex: 0x9a9a9a)
+    static let amber = Color(hex: 0xffffff)
+    static let ink = Color(hex: 0x000000)
+    static let error = Color(hex: 0xff6b6b)
 
     /// Ubuntu (incluida en Fonts/); si faltara, SwiftUI usa la del sistema.
     static func font(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
@@ -214,5 +214,19 @@ struct ActionFX: ViewModifier {
 extension View {
     func actionFX(_ key: String, busy: String?, flash: String?) -> some View {
         modifier(ActionFX(key: key, busy: busy, flash: flash))
+    }
+}
+
+/// Explicación breve plegada: un «ⓘ» que se abre al tocarlo (en vez de un párrafo fijo bajo cada botón).
+struct InfoTip: View {
+    let text: String
+    @State private var open = false
+    init(_ t: String) { text = t }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button { open.toggle() } label: { Text("ⓘ").font(Theme.font(14)).foregroundColor(Theme.muted).frame(minWidth: 44, minHeight: 28, alignment: .leading) }
+                .accessibilityLabel("Qué hace").accessibilityValue(open ? "abierto" : "cerrado")
+            if open { Text(text).font(Theme.font(12)).foregroundColor(Theme.muted) }
+        }
     }
 }
