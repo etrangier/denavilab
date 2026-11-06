@@ -1188,6 +1188,38 @@ final class LogicTests: XCTestCase {
         XCTAssertGreaterThan(try XCTUnwrap(r.seam), 0.6); XCTAssertTrue(r.why.contains("se repite cada")); XCTAssertTrue(r.why.contains("continuidad espectral"))
     }
 
+    func testLoopGesturesFrenchHouse() {
+        let rate = 48_000
+        var s: UInt32 = 5
+        let noise: [Float] = (0..<(rate * 4)).map { _ in s = s &* 1664525 &+ 1013904223; return Float((Double(s) / 4294967296 * 2 - 1) * 0.3) }
+        func hf(_ y: [Float], _ a: Double, _ b: Double) -> Double {
+            var e = 0.0, t = 0.0
+            for i in (Int(a * Double(rate)) + 2)..<Int(b * Double(rate)) { let d = Double(y[i] - y[i - 1]); e += d * d; t += Double(y[i] * y[i]) }
+            return e / max(t, 1e-12)
+        }
+        let ab = LoopFx.filterSweep(noise, rate, mode: 1), ce = LoopFx.filterSweep(noise, rate, mode: 2)
+        XCTAssertGreaterThan(hf(ab, 3.5, 3.9), hf(ab, 0.1, 0.5) * 5); XCTAssertGreaterThan(hf(ce, 0.1, 0.5), hf(ce, 3.5, 3.9) * 5)
+        XCTAssertEqual(ab.count, noise.count); XCTAssertTrue(ab.allSatisfy { $0.isFinite }); XCTAssertEqual(LoopFx.filterSweep(noise, rate, mode: 0), noise)
+        let beat = 24_000, piece = beat / 4, y = LoopFx.stutterIntro(noise, rate, bpm: 120)
+        for k in 1..<4 { for i in stride(from: 200, to: piece - 200, by: 50) { XCTAssertEqual(y[k * piece + i], y[i], accuracy: 1e-6) } }
+        for i in stride(from: beat + 10, to: noise.count, by: 997) { XCTAssertEqual(y[i], noise[i]) }
+        XCTAssertEqual(LoopFx.stutterIntro(noise, rate, bpm: 0), noise)
+        var d = [Float](repeating: 0, count: rate * 2)
+        for b in 0..<4 { for i in 0..<6000 { d[b * 24_000 + i] = Float(0.9 * sin(2 * Double.pi * 60 * Double(i) / Double(rate)) * exp(-Double(i) / 2500)) } }
+        for i in d.indices { d[i] += Float(0.12 * sin(2 * Double.pi * 880 * Double(i) / Double(rate))) }
+        func dyn(_ a: [Float]) -> Double {
+            let w = 2400
+            var e: [Double] = []
+            var i = 0
+            while i + w <= a.count { var q = 0.0; for j in 0..<w { q += Double(a[i + j] * a[i + j]) }; e.append((q / Double(w)).squareRoot()); i += w }
+            e.sort()
+            return e[Int(Double(e.count) * 0.95)] / e[e.count / 2]
+        }
+        let g = LoopFx.glue(d, rate)
+        XCTAssertLessThan(dyn(g), dyn(d)); XCTAssertTrue(g.allSatisfy { $0.isFinite })
+        XCTAssertTrue(LoopFx.apply(d, rate, bpm: 120, stutter: true, glueOn: true, sweep: 1).allSatisfy { $0.isFinite })
+    }
+
     func testEveryFxHasADistinctIcon() {
         let symbols = Fx404.allOrder.map { Fx404.symbol($0) }
         XCTAssertEqual(symbols.count, 19); XCTAssertTrue(symbols.allSatisfy { !$0.isEmpty }); XCTAssertEqual(Set(symbols).count, symbols.count)

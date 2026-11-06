@@ -3,6 +3,7 @@ import { app, refreshSamples } from './state.js';
 import { h, mount, fill, btn, link, chip, card, label, muted, toggleRow, sliderRow, sheet, toast, drawBars, fx, flash } from './ui.js';
 import * as dsp from './dsp.js';
 import { noteChanges } from './constellation.js';
+import { applyGestures } from './loopfx.js';
 import * as hm from './harmony.js';
 import * as gd from './grid.js';
 import { putSample, newSample } from './store.js';
@@ -17,7 +18,7 @@ function playSlice(audio, rate, [a, b]) {
 
 export function openChop(sample, audio) {
   const pads = app.ko2 ? 'pads' : 'cortes';
-  const S = { mode: 8, sens: 0.5, grid: false, harm: true, hm: false, an: null, lay: null, shift: 0, per: 1, want: 4, pick: null, style: 'libre', pump: false, auto: true, saved: new Map(), G: { on: false, bars: 2, steps: 8, cells: gd.emptyCells(2, 8), brush: null, tool: 'paint', sel: new Set(), clip: null }, fix: true, fixBpm: null, ranges: [], selected: new Set(), bpm: sample.bpm || (dsp.estimateBPM(audio, sample.rate) || {}).bpm || null };
+  const S = { mode: 8, sens: 0.5, grid: false, harm: true, hm: false, an: null, lay: null, shift: 0, per: 1, want: 4, pick: null, style: 'libre', pump: false, sweep: 0, stut: false, glue: false, auto: true, saved: new Map(), G: { on: false, bars: 2, steps: 8, cells: gd.emptyCells(2, 8), brush: null, tool: 'paint', sel: new Set(), clip: null }, fix: true, fixBpm: null, ranges: [], selected: new Set(), bpm: sample.bpm || (dsp.estimateBPM(audio, sample.rate) || {}).bpm || null };
   const peaks = dsp.peaks(audio, 56);
   const padEls = [];                       // botones de los pads, para iluminar el que está sonando
   let preview = null;                      // { src, raf } mientras suena «Escuchar selección»
@@ -94,7 +95,8 @@ export function openChop(sample, audio) {
     const loopAudio = r => {
       const fix = loopFix(r), st = hm.STYLES[S.style];
       const base = r[4] && r[4].length > 1 ? hm.makeCombo(audio, r[4], sample.rate, fix, { crossfadeMs: st.crossfadeMs }) : hm.makeLoop(audio, r[0], r[1], sample.rate, 15, fix);
-      return S.pump && st.pump ? hm.pump(base, sample.rate, fix ? fix.bpm : S.lay.bpm, st.pump) : base;
+      const bpm = fix ? fix.bpm : S.lay.bpm, g = S.style === 'daftpunk' ? applyGestures(base, sample.rate, bpm, { stutter: S.stut, glueOn: S.glue, sweep: S.sweep }) : base;
+      return S.pump && st.pump ? hm.pump(g, sample.rate, bpm, st.pump) : g;
     };
     /** Cómo se llama lo que se está guardando: loop, loop combinado, patrón o arreglo. */
     const pickName = () => {
@@ -112,7 +114,7 @@ export function openChop(sample, audio) {
     const saveLoop = async () => {
       const r = loopRange(); if (!r) return;
       const fix = loopFix(r), bars = Math.round(r[2]), nm = pickName(), pumped = S.pump && hm.STYLES[S.style].pump > 0;
-      const full = `${sample.name} · ${nm.toLowerCase()} ${bars === 1 ? '1 compás' : bars + ' compases'}${styleTag()}${pumped ? ' · bombeo' : ''}${fix ? ' · ' + fix.bpm + ' BPM' : ''}`;
+      const full = `${sample.name} · ${nm.toLowerCase()} ${bars === 1 ? '1 compás' : bars + ' compases'}${styleTag()}${pumped ? ' · bombeo' : ''}${S.style === 'daftpunk' && S.stut ? ' · tartamudeo' : ''}${S.style === 'daftpunk' && S.glue ? ' · compresión' : ''}${S.style === 'daftpunk' && S.sweep ? (S.sweep === 1 ? ' · filtro abre' : ' · filtro cierra') : ''}${fix ? ' · ' + fix.bpm + ' BPM' : ''}`;
       if (S.saved.has(full)) { toast(S.saved.get(full)); return; }          // ya guardado (al elegir): no se duplica
       const lp = loopAudio(r), spans = r[4] || [[r[0], r[1]]], chords = S.lay.bars.filter(b => spans.some(([a, z]) => b.start >= a && b.end <= z + 1)).map(b => b.label).join(' · ');
       try {
@@ -202,7 +204,10 @@ export function openChop(sample, audio) {
         h('div', { class: 'wrap' }, P.options.map(c => chip(`Patrón de ${c.period === 1 ? '1 compás' : c.period + ' compases'}${c === P.best ? ' ★' : ''}`, on(c), pick(c)))),
         L.arranged && L.arranged.length ? [h('p', { class: 'muted tiny' }, 'Arreglos del estilo, armados con compases de la toma'),
           h('div', { class: 'wrap' }, L.arranged.map(c => chip(`Arreglo ${c.name}`, on(c), pick(c))))] : null,
-        S.style === 'daftpunk' ? toggleRow('Bombeo (sidechain)', 'Baja el volumen en cada tiempo y lo recupera, como la compresión sobre el bombo', S.pump, v => { S.pump = v; stopLoop(); paint(); }) : null];
+        S.style === 'daftpunk' ? toggleRow('Bombeo (sidechain)', 'Baja el volumen en cada tiempo y lo recupera, como la compresión sobre el bombo', S.pump, v => { S.pump = v; stopLoop(); paint(); }) : null,
+        S.style === 'daftpunk' ? toggleRow('Tartamudeo en el primer tiempo', 'Repite el arranque del loop como un corte tartamudeado de DJ y sigue con el loop limpio', S.stut, v => { S.stut = v; stopLoop(); paint(); }) : null,
+        S.style === 'daftpunk' ? toggleRow('Compresión (pegamento)', 'Compresor suave 3:1 que junta los trozos y sube los detalles', S.glue, v => { S.glue = v; stopLoop(); paint(); }) : null,
+        S.style === 'daftpunk' ? h('div', { class: 'stack tight' }, label('Barrido de filtro'), h('div', { class: 'wrap', role: 'group', 'aria-label': 'Barrido de filtro' }, [[0, 'Sin filtro'], [1, 'Se abre'], [2, 'Se cierra']].map(([v, t]) => chip(t, S.sweep === v, () => { S.sweep = v; stopLoop(); paint(); })))) : null];
     };
     // ---- Grilla: cada casilla lleva un corte; copiar, cortar y pegar casillas ----
     const gridBpm = () => S.fixBpm || hm.fixedBpm(S.lay ? S.lay.bpm : S.bpm || 100);

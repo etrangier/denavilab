@@ -35,6 +35,9 @@ struct ChopSheet: View {
     @State private var savedLoops: [String: String] = [:]  // nombre → mensaje de lo ya guardado (no se duplica)
     @State private var gridBrush = 0                       // corte activo para pintar la grilla
     @State private var pumpOn = false                      // bombeo (sidechain) del estilo Daft Punk
+    @State private var sweepMode = 0                       // barrido de filtro: 0 sin, 1 se abre, 2 se cierra
+    @State private var stutterOn = false                   // tartamudeo en el primer tiempo
+    @State private var glueOn = false                      // compresión de pegamento
     @State private var fixOn = true                        // fijar el BPM: el loop dura justo sus compases a ese BPM
     @State private var fixBpmValue: Int?                   // BPM fijo elegido por el usuario (nil = el detectado, redondeado)
     @State private var loopPlayer: AVAudioPlayer?
@@ -493,6 +496,16 @@ struct ChopSheet: View {
             }
             if style == .daftpunk {
                 ToggleRow(title: "Bombeo (sidechain)", subtitle: "Baja el volumen en cada tiempo y lo recupera, como la compresión sobre el bombo", isOn: $pumpOn)
+                ToggleRow(title: "Tartamudeo en el primer tiempo", subtitle: "Repite el arranque del loop como un corte tartamudeado de DJ y sigue con el loop limpio", isOn: $stutterOn)
+                ToggleRow(title: "Compresión (pegamento)", subtitle: "Compresor suave 3:1 que junta los trozos y sube los detalles", isOn: $glueOn)
+                VStack(alignment: .leading, spacing: 6) {
+                    SectionLabel("Barrido de filtro")
+                    HStack(spacing: 8) {
+                        Chip(title: "Sin filtro", selected: sweepMode == 0) { sweepMode = 0 }
+                        Chip(title: "Se abre", selected: sweepMode == 1) { sweepMode = 1 }
+                        Chip(title: "Se cierra", selected: sweepMode == 2) { sweepMode = 2 }
+                    }
+                }
             }
         }
     }
@@ -517,8 +530,11 @@ struct ChopSheet: View {
         let base: [Float]
         if let sp = r.spans { base = Harmony.makeCombo(audio, ranges: sp, rate: sample.sampleRate, fix: fix, crossfadeMs: style.crossfadeMs) }
         else { base = Harmony.makeLoop(audio, start: r.start, end: r.end, rate: sample.sampleRate, fix: fix) }
-        guard pumpOn, style.pump > 0, let l = lay else { return base }
-        return Harmony.pump(base, rate: sample.sampleRate, bpm: fix.map { Double($0.bpm) } ?? l.bpm, depth: style.pump)
+        guard let l = lay else { return base }
+        let bpm = fix.map { Double($0.bpm) } ?? l.bpm
+        let g = style == .daftpunk ? LoopFx.apply(base, sample.sampleRate, bpm: bpm, stutter: stutterOn, glueOn: glueOn, sweep: sweepMode) : base
+        guard pumpOn, style.pump > 0 else { return g }
+        return Harmony.pump(g, rate: sample.sampleRate, bpm: bpm, depth: style.pump)
     }
 
     /// Cómo se llama lo que se guarda: loop, loop combinado, patrón o arreglo.
@@ -548,7 +564,8 @@ struct ChopSheet: View {
         guard let r = loopRange, let l = lay else { return }
         let fix = loopFix(r, l), word = r.bars == 1 ? "1 compás" : "\(r.bars) compases"
         let nm = pickName(r), tag = style == .libre ? "" : " · " + style.title, pumped = pumpOn && style.pump > 0
-        let full = "\(sample.name) · \(nm.lowercased()) \(word)\(tag)\(pumped ? " · bombeo" : "")" + (fix.map { " · \($0.bpm) BPM" } ?? "")
+        let dp = style == .daftpunk
+        let full = "\(sample.name) · \(nm.lowercased()) \(word)\(tag)\(pumped ? " · bombeo" : "")\(dp && stutterOn ? " · tartamudeo" : "")\(dp && glueOn ? " · compresión" : "")\(dp && sweepMode != 0 ? (sweepMode == 1 ? " · filtro abre" : " · filtro cierra") : "")" + (fix.map { " · \($0.bpm) BPM" } ?? "")
         if let msg = savedLoops[full] { message = msg; return }              // ya guardado (al elegir): no se duplica
         let lp = loopAudio(r, fix)
         guard !lp.isEmpty else { return }

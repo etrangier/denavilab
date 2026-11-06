@@ -1710,6 +1710,8 @@ test.describe('acordes, compases y loop', () => {
     await expect(t.getByRole('button', { name: 'Daft Punk', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expect(t).toContainText('Daft Punk: trozos cortos'); await expect(t.getByRole('button', { name: 'Arreglo A A A B' })).toBeVisible();
     await expect(t.getByLabel('Bombeo (sidechain)')).toBeChecked();
+    await expect(t.getByLabel('Tartamudeo en el primer tiempo')).not.toBeChecked(); await expect(t.getByLabel('Compresión (pegamento)')).not.toBeChecked();
+    await expect(t.getByRole('button', { name: 'Se abre', exact: true })).toBeVisible(); await t.getByRole('button', { name: 'Se abre', exact: true }).click(); await expect(t.getByRole('button', { name: 'Se abre', exact: true })).toHaveAttribute('aria-pressed', 'true'); await t.getByRole('button', { name: 'Sin filtro', exact: true }).click();
     await expect(t.getByRole('button', { name: '2 compases', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await hoja.getByRole('button', { name: 'Guardar selección como loop' }).click();
     await expect(page.locator('#toast')).toContainText('Arreglo A A A B de 4 compases guardado');
@@ -2395,5 +2397,37 @@ test.describe('escucha por constelación (Avery Wang): repetición, continuidad 
     const sh = page.locator('dialog.sheet'); await expect(sh.getByRole('heading', { name: /Chop/ })).toBeVisible();
     await sh.getByRole('button', { name: 'Notas', exact: true }).click();
     await expect(sh).toContainText('4 cortes'); await expect(sh.getByLabel('Sensibilidad a cambios de nota')).toBeVisible();
+  });
+});
+
+
+test.describe('gestos de loop del estilo french house: barrido de filtro, tartamudeo y compresión', () => {
+  const PRE = `const G = await import('/sounds/loopfx.js'), rate = 48000; let sd = 5; const rnd = () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; };
+    const noise = Float32Array.from({ length: rate * 4 }, () => (rnd() * 2 - 1) * 0.3), hf = (y, a, b) => { let e = 0, t = 0; for (let i = Math.round(a * rate) + 2; i < Math.round(b * rate); i++) { const d = y[i] - y[i - 1]; e += d * d; t += y[i] * y[i]; } return e / Math.max(t, 1e-12); };`;
+  const ev = (page, body) => page.evaluate(`(async () => { ${PRE} ${body} })()`);
+  test('el barrido de filtro abre o cierra el brillo a lo largo del loop', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `const ab = G.filterSweep(noise, rate, 1), ce = G.filterSweep(noise, rate, 2);
+      return { abIni: hf(ab, 0.1, 0.5), abFin: hf(ab, 3.5, 3.9), ceIni: hf(ce, 0.1, 0.5), ceFin: hf(ce, 3.5, 3.9), len: ab.length, fin: ab.every(Number.isFinite) && ce.every(Number.isFinite), pk: ab.reduce((m, v) => Math.max(m, Math.abs(v)), 0), sin: G.filterSweep(noise, rate, 0) === noise };`);
+    expect(q.abFin).toBeGreaterThan(q.abIni * 5); expect(q.ceIni).toBeGreaterThan(q.ceFin * 5); expect(q.len).toBe(noise_len()); expect(q.fin).toBe(true); expect(q.pk).toBeLessThan(1); expect(q.sin).toBe(true);
+    function noise_len() { return 48000 * 4; }
+  });
+  test('el tartamudeo repite el arranque en el primer tiempo y deja el resto intacto', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `const bpm = 120, beat = 24000, piece = beat / 4, y = G.stutterIntro(noise, rate, bpm);
+      let rep = 0, mismo = 0; for (let k = 1; k < 4; k++) for (let i = 200; i < piece - 200; i += 50) if (Math.abs(y[k * piece + i] - y[i]) < 1e-6) rep++;
+      for (let i = beat + 10; i < noise.length; i += 997) if (y[i] === noise[i]) mismo++;
+      return { rep, esperado: 3 * Math.floor((piece - 400) / 50), mismo, total: Math.floor((noise.length - beat - 10) / 997) + 1, sinBpm: G.stutterIntro(noise, rate, 0) === noise, len: y.length };`);
+    expect(q.rep).toBe(q.esperado); expect(q.mismo).toBe(q.total); expect(q.sinBpm).toBe(true); expect(q.len).toBe(48000 * 4);
+  });
+  test('la compresión de pegamento cierra el rango entre lo fuerte y lo normal sin cambiar el nivel general', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `const d = new Float32Array(rate * 2); for (let b = 0; b < 4; b++) for (let i = 0; i < 6000; i++) d[b * 24000 + i] = 0.9 * Math.sin(2 * Math.PI * 60 * i / rate) * Math.exp(-i / 2500);
+      for (let i = 0; i < d.length; i++) d[i] += 0.12 * Math.sin(2 * Math.PI * 880 * i / rate);
+      const y = G.glue(d, rate), win = a => { const w = 2400, e = []; for (let i = 0; i + w <= a.length; i += w) { let q = 0; for (let j = 0; j < w; j++) q += a[i + j] ** 2; e.push(Math.sqrt(q / w)); } e.sort((p, q) => p - q); return e; }, dyn = a => { const e = win(a); return e[Math.floor(e.length * 0.95)] / e[Math.floor(e.length * 0.5)]; };
+      const rms = a => Math.sqrt(a.reduce((s, v) => s + v * v, 0) / a.length);
+      return { c0: dyn(d), c1: dyn(y), r: rms(y) / rms(d), fin: y.every(Number.isFinite), todo: G.applyGestures(d, rate, 120, { stutter: true, glueOn: true, sweep: 1 }).every(Number.isFinite) };`);
+    expect(q.c1).toBeLessThan(q.c0);          // el rango entre lo fuerte y lo normal se cierra
+    expect(q.r).toBeGreaterThan(0.6); expect(q.r).toBeLessThan(1.6); expect(q.fin).toBe(true); expect(q.todo).toBe(true);
   });
 });
