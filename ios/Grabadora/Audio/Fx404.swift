@@ -35,27 +35,27 @@ enum Fx404 {
             return Info(name: "303 VinylSim", about: "El disco de vinilo de la SP-303: compresión «de prensado», ruido de superficie y bamboleo de la vuelta del plato.",
                 how: "Un retardo que se mueve con la vuelta del plato (33⅓ rpm = 0,55 Hz) mueve el tono unos centésimos de semitono (wow) y un temblor rápido (flutter). Un compresor suave y una saturación redondean los picos como un corte de vinilo. El ruido es siseo de banda ancha + rumor grave + chasquidos al azar.",
                 uso: "Para ese sabor de disco gastado de soul y trip-hop; úsalo suave en pads y cuerdas.",
-                params: [rng("comp", "Compresión", 0, 100, 40), rng("noise", "Ruido", 0, 100, 25), rng("wow", "Wow/flutter", 0, 100, 25), rng("level", "Nivel", 0, 100, 100)],
-                presets: [("Disco gastado", ["comp": 55, "noise": 35, "wow": 20, "level": 100]), ("Polvo suave", ["comp": 25, "noise": 15, "wow": 10, "level": 100])])
+                params: [rng("comp", "Compresión", 0, 100, 55), rng("noise", "Ruido", 0, 100, 45), rng("wow", "Wow/flutter", 0, 100, 50), rng("level", "Nivel", 0, 100, 100)],
+                presets: [("Sutil", ["comp": 30, "noise": 20, "wow": 25, "level": 100]), ("Disco gastado", ["comp": 55, "noise": 45, "wow": 50, "level": 100]), ("Extremo", ["comp": 80, "noise": 75, "wow": 85, "level": 100])])
         case .vinyl404:
             return Info(name: "404 VinylSim", about: "El vinilo de la SP-404SX: menos compresión, más «caja de tocadiscos» (ancho de banda recortado), ruido y bamboleo.",
                 how: "Un filtro pasa-altos y uno pasa-bajos estrechan el espectro como el sistema de reproducción de un tocadiscos viejo (cuanto más FREQUENCY, más cerrado y «de radio»), con wow/flutter y ruido de superficie.",
                 uso: "Para texturas lo-fi y bases de hip hop: baja el brillo y el grave sin ensuciar el medio, donde viven las voces y las teclas.",
-                params: [rng("frequency", "Frecuencia", 0, 100, 45), rng("noise", "Ruido", 0, 100, 30), rng("wow", "Wow/flutter", 0, 100, 25)],
-                presets: [("Tocadiscos de sala", ["frequency": 40, "noise": 30, "wow": 25]), ("Radio vieja", ["frequency": 85, "noise": 45, "wow": 35])])
+                params: [rng("frequency", "Frecuencia", 0, 100, 55), rng("noise", "Ruido", 0, 100, 45), rng("wow", "Wow/flutter", 0, 100, 45)],
+                presets: [("Sutil", ["frequency": 30, "noise": 25, "wow": 20]), ("Tocadiscos de sala", ["frequency": 55, "noise": 45, "wow": 45]), ("Radio vieja", ["frequency": 90, "noise": 60, "wow": 60])])
         case .cassette:
             return Info(name: "Cassette Sim", about: "Un casete reproduciéndose: tono, siseo, años de desgaste, saturación de cinta, bamboleo y cinta estirada.",
                 how: "La cinta pierde agudos con la edad (filtro pasa-bajos que baja), satura de forma suave y redonda (tanh), suma siseo y tiene caídas de señal. El wow/flutter viene del cabrestante y el rodillo; «cinta estirada» agrega una deriva lenta e irregular de la velocidad.",
                 uso: "El más útil para pads y ambientes: los vuelve cálidos, oscuros y un poco inestables, como una grabación de los 80 (Camel, Cerati).",
-                params: [rng("tone", "Tono", 0, 100, 55), rng("hiss", "Siseo", 0, 100, 25), rng("age", "Edad", 0, 60, 20, unit: " años"), rng("drive", "Saturación", 0, 100, 35), rng("wow", "Wow/flutter", 0, 100, 30), rng("catch", "Cinta estirada", 0, 100, 15)],
-                presets: [("Casete de los 80", ["tone": 50, "hiss": 25, "age": 20, "drive": 35, "wow": 30, "catch": 15]), ("Cinta vieja del cajón", ["tone": 35, "hiss": 45, "age": 45, "drive": 50, "wow": 50, "catch": 40])])
+                params: [rng("tone", "Tono", 0, 100, 40), rng("hiss", "Siseo", 0, 100, 40), rng("age", "Edad", 0, 60, 25, unit: " años"), rng("drive", "Saturación", 0, 100, 45), rng("wow", "Wow/flutter", 0, 100, 45), rng("catch", "Cinta estirada", 0, 100, 30)],
+                presets: [("Sutil", ["tone": 55, "hiss": 20, "age": 10, "drive": 25, "wow": 25, "catch": 10]), ("Casete de los 80", ["tone": 40, "hiss": 40, "age": 25, "drive": 45, "wow": 45, "catch": 30]), ("Cinta vieja del cajón", ["tone": 25, "hiss": 60, "age": 50, "drive": 70, "wow": 70, "catch": 60])])
         case .chorus:
             return Info(name: "Chorus", about: "Amplitud y riqueza: duplica el sonido con una copia ligeramente desafinada que se mueve.",
                 how: "Dos copias con retardo de 7–12 ms que oscila lentamente cambian su tono un poquito (efecto Doppler); al sumarlas con el original aparece un batido que se oye como «varias fuentes». En mono, además, produce un filtro peine que da color. El periodo va de 0,33 a 2,30 s.",
                 uso: "Para ensanchar pads, teclas y guitarras limpias antes de compartirlos (los samplers suelen traer poco procesamiento propio).",
-                params: [rng("depth", "Profundidad", 0, 100, 45), rng("rate", "Periodo", 0.33, 2.3, 1.4, unit: " s", step: 0.01), rng("balance", "Mezcla (seco → efecto)", 0, 100, 50, unit: " %"),
+                params: [rng("depth", "Profundidad", 0, 100, 60), rng("rate", "Periodo", 0.33, 2.3, 1.4, unit: " s", step: 0.01), rng("balance", "Mezcla (seco → efecto)", 0, 100, 55, unit: " %"),
                          rng("eqLow", "EQ grave", -15, 15, 0, unit: " dB"), rng("eqHigh", "EQ agudo", -15, 15, 0, unit: " dB"), rng("level", "Nivel", 0, 100, 100)],
-                presets: [("Pad ancho", ["depth": 55, "rate": 1.8, "balance": 50, "eqLow": 0, "eqHigh": 0, "level": 100]), ("Teclas suaves", ["depth": 30, "rate": 1.1, "balance": 40, "eqLow": -3, "eqHigh": 2, "level": 100])])
+                presets: [("Sutil", ["depth": 35, "rate": 1.1, "balance": 35, "eqLow": -3, "eqHigh": 2, "level": 100]), ("Pad ancho", ["depth": 65, "rate": 1.8, "balance": 55, "eqLow": 0, "eqHigh": 0, "level": 100]), ("Mareo", ["depth": 95, "rate": 0.7, "balance": 75, "eqLow": 0, "eqHigh": 0, "level": 100])])
         case .autopitch:
             return Info(name: "Auto Pitch", about: "Procesa una voz: la afina a una tonalidad, cambia su tono y su timbre (formante) y puede dejarla «robótica».",
                 how: "Se mide la altura de la voz cada 8 ms (YIN) y se re-sintetiza con TD-PSOLA: se copian granos de un período de la voz original y se colocan más juntos o más separados para cambiar el tono; al leer cada grano más rápido o más lento cambia el formante. ROBOT fija todo a una sola nota.",
@@ -224,9 +224,23 @@ enum Fx404 {
         return y
     }
 
-    nonisolated private static func softclip(_ x: [Float], _ drive: Double) -> [Float] {
-        let t = tanh(drive)
-        return x.map { Float(tanh(drive * Double($0)) / t) }
+    /// Pico «típico» (percentil 99,5 de |x|): la saturación y la compresión se miden contra él, no contra el fondo de escala, para que suenen igual en un sonido bajo o alto.
+    nonisolated static func peakRef(_ x: [Float]) -> Double {
+        let step = max(1, x.count / 20000)
+        var a: [Float] = []
+        var i = 0
+        while i < x.count { a.append(abs(x[i])); i += step }
+        guard !a.isEmpty else { return 0 }
+        a.sort()
+        return Double(a[min(a.count - 1, Int(Double(a.count) * 0.995))])
+    }
+
+    /// Saturación suave (tanh) relativa al pico del propio sonido. drive 0–1: 0 = nada, 1 = muy saturado.
+    nonisolated static func saturate(_ x: [Float], _ drive: Double) -> [Float] {
+        let ref = peakRef(x)
+        guard ref >= 1e-6, drive > 0 else { return x }
+        let k = 1 + 6 * drive, t = tanh(k)
+        return x.map { Float(ref * tanh(k * Double($0) / ref) / t) }
     }
 
     /// Ruido de superficie de disco: siseo de banda ancha, rumor grave y chasquidos (Poisson, de amplitud muy desigual). `ref` = nivel de la señal.
@@ -235,14 +249,14 @@ enum Fx404 {
         guard amt > 0, ref > 0 else { return out }
         var g = RNG(seed)
         let hiss = biquad(biquad(whiteNoise(n, &g), .hp, 400, rate), .lp, 9000, rate), rumble = biquad(whiteNoise(n, &g), .lp, 55, rate)
-        let hg = Float(ref * dB(-50 + 32 * amt) * 1.7), rg = Float(ref * dB(-56 + 22 * amt) * 6)
+        let hg = Float(ref * dB(-40 + 28 * amt) * 1.7), rg = Float(ref * dB(-50 + 22 * amt) * 6)
         for i in 0..<n { out[i] = hiss[i] * hg + rumble[i] * rg }
         let lam = clicksPerSec * pow(amt, 1.4) / Double(rate)
         for i in 0..<n {
             if g.next() >= lam { continue }
             let u = g.next(), pop = g.next() < 0.06
             let sign: Double = g.next() < 0.5 ? -1 : 1
-            let amp = ref * dB(-22 + 12 * amt) * (0.25 + 2.2 * u * u * u) * (pop ? 2.5 : 1) * sign, tauS = Double(rate) * (pop ? 0.0022 : 0.0004)
+            let amp = ref * dB(-14 + 10 * amt) * (0.25 + 2.2 * u * u * u) * (pop ? 2.5 : 1) * sign, tauS = Double(rate) * (pop ? 0.0022 : 0.0004)
             let m = min(n - i, Int((tauS * 6).rounded()))
             for k in 0..<m { out[i + k] += Float(amp * exp(-Double(k) / tauS)) }
         }
@@ -264,13 +278,14 @@ enum Fx404 {
 
     nonisolated private static func vinyl303(_ x: [Float], _ rate: Int, _ p: Params) -> [Float] {
         let c = p["comp"]! / 100, w = p["wow"]! / 100, n = p["noise"]! / 100
-        var y = varDelay(x, wobbleDelay(x.count, rate, wow: 0.0045 * w, wowHz: 0.555, flutter: 0.0012 * w, flutHz: 7.3, seed: 11))     // 33⅓ rpm = 0,555 vueltas por segundo
+        var y = varDelay(x, wobbleDelay(x.count, rate, wow: 0.012 * w, wowHz: 0.555, flutter: 0.003 * w, flutHz: 7.3, seed: 11))     // 33⅓ rpm = 0,555 vueltas por segundo
         if c > 0 {
-            y = compress(y, rate, thDB: -6 - 24 * c, ratio: 1.5 + 4.5 * c, atkMs: 5, relMs: 140)
-            y = softclip(y, 1 + 1.6 * c)
+            let pk = 20 * log10(max(peakRef(y), 1e-6))
+            y = compress(y, rate, thDB: pk - (4 + 20 * c), ratio: 2 + 6 * c, atkMs: 5, relMs: 140)
+            y = saturate(y, 0.6 * c)
             y = matchLevel(y, x, rate)
         }
-        let noise = vinylNoise(x.count, rate, amt: n, ref: activeLevel(x, rate), seed: 21, clicksPerSec: 12)
+        let noise = vinylNoise(x.count, rate, amt: n, ref: activeLevel(x, rate), seed: 21, clicksPerSec: 14)
         let g = levelGain(p["level"]!)
         for i in y.indices { y[i] = (y[i] + noise[i]) * g }
         return finish(y)
@@ -278,9 +293,10 @@ enum Fx404 {
 
     nonisolated private static func vinyl404(_ x: [Float], _ rate: Int, _ p: Params) -> [Float] {
         let f = p["frequency"]! / 100, w = p["wow"]! / 100, n = p["noise"]! / 100
-        var y = varDelay(x, wobbleDelay(x.count, rate, wow: 0.0040 * w, wowHz: 0.555, flutter: 0.0015 * w, flutHz: 6.1, seed: 12))
-        y = biquad(biquad(y, .hp, 40 * pow(7.5, f), rate), .lp, 14000 * pow(0.214, f), rate)          // respuesta del tocadiscos: de amplia a «de radio»
-        let noise = vinylNoise(x.count, rate, amt: n, ref: activeLevel(x, rate), seed: 22, clicksPerSec: 9)
+        var y = varDelay(x, wobbleDelay(x.count, rate, wow: 0.010 * w, wowHz: 0.555, flutter: 0.004 * w, flutHz: 6.1, seed: 12))
+        let q = 0.7 + 0.5 * f                                                                          // más resonancia al cerrar: color «de radio»
+        y = biquad(biquad(y, .hp, 60 * pow(6.7, f), rate, q: q), .lp, 12000 * pow(0.183, f), rate, q: q)          // respuesta del tocadiscos: de amplia a «de radio»
+        let noise = vinylNoise(x.count, rate, amt: n, ref: activeLevel(x, rate), seed: 22, clicksPerSec: 11)
         for i in y.indices { y[i] += noise[i] }
         return finish(y)
     }
@@ -289,9 +305,10 @@ enum Fx404 {
         let tone = p["tone"]! / 100, hiss = p["hiss"]! / 100, a = p["age"]! / 60, drive = p["drive"]! / 100, wf = p["wow"]! / 100, catchv = p["catch"]! / 100
         let n = x.count, ref = activeLevel(x, rate)
         var g = RNG(33)
-        var y = varDelay(x, wobbleDelay(n, rate, wow: 0.0060 * wf * (1 + a), wowHz: 1.6, flutter: 0.0020 * wf * (1 + a), flutHz: 9, drift: 0.015 * catchv, driftHz: 0.22, seed: 13))
-        if drive > 0 { y = softclip(y, 1 + 4 * drive); y = matchLevel(y, x, rate) }
-        y = biquad(biquad(y, .lp, 3500 * pow(16000.0 / 3500.0, tone) * (1 - 0.65 * a), rate), .hp, 30 + 60 * a, rate)
+        var y = varDelay(x, wobbleDelay(n, rate, wow: 0.015 * wf * (1 + a), wowHz: 1.6, flutter: 0.004 * wf * (1 + a), flutHz: 9, drift: 0.03 * catchv, driftHz: 0.22, seed: 13))
+        if drive > 0 { y = saturate(y, drive); y = matchLevel(y, x, rate) }
+        y = biquad(biquad(y, .lp, 2500 * pow(14000.0 / 2500.0, tone) * (1 - 0.65 * a), rate), .hp, 30 + 60 * a, rate)
+        y = biquad(y, .lowShelf, 120, rate, gainDB: 2.5)                                  // «joroba» de la cabeza de cinta: calidez en el grave
         if a > 0 {   // caídas de señal: cinta gastada
             var gain = [Float](repeating: 1, count: n)
             let lam = a * 0.6 / Double(rate)
@@ -304,29 +321,31 @@ enum Fx404 {
         }
         if hiss > 0 && ref > 0 {
             let h = biquad(biquad(whiteNoise(n, &g), .hp, 2000, rate), .lp, 12000, rate)
-            let gn = ref * dB(min(-14, -54 + 32 * hiss + 8 * a)) * 2.2
+            let gn = ref * dB(min(-12, -42 + 30 * hiss + 8 * a)) * 2.2
             for i in 0..<n { y[i] += h[i] * Float(gn * (1 + 0.15 * sin(tau * 0.3 * Double(i) / Double(rate)))) }
         }
         return finish(y)
     }
 
     nonisolated private static func chorus(_ x: [Float], _ rate: Int, _ p: Params) -> [Float] {
-        let n = x.count, depth = p["depth"]! / 100, period = p["rate"]!, b = Float(p["balance"]! / 100)
-        let R = Double(rate), base = [0.0075 * R, 0.0115 * R], mod = depth * 0.0035 * R
-        var d1 = [Double](repeating: 0, count: n), d2 = d1
+        let n = x.count, depth = p["depth"]! / 100, period = p["rate"]!, bf = p["balance"]! / 100, b = Float(bf)
+        let R = Double(rate), base = [0.0075 * R, 0.0115 * R, 0.0155 * R], mod = depth * 0.006 * R          // tres voces desfasadas 120°: más ancho que dos
+        var d1 = [Double](repeating: 0, count: n), d2 = d1, d3 = d1
         for i in 0..<n {
             let ph = tau * Double(i) / (period * R)
-            d1[i] = base[0] + mod * sin(ph); d2[i] = base[1] + mod * sin(ph + Double.pi / 2)
+            d1[i] = base[0] + mod * sin(ph); d2[i] = base[1] + mod * sin(ph + tau / 3); d3[i] = base[2] + mod * sin(ph + 2 * tau / 3)
         }
-        let t1 = varDelay(x, d1), t2 = varDelay(x, d2)
+        let t1 = varDelay(x, d1), t2 = varDelay(x, d2), t3 = varDelay(x, d3)
         var wet = [Float](repeating: 0, count: n)
-        for i in 0..<n { wet[i] = 0.5 * (t1[i] + t2[i]) }
+        for i in 0..<n { wet[i] = (t1[i] + t2[i] + t3[i]) / 3 }
+        func mix(_ w: [Float]) -> [Float] { var y = [Float](repeating: 0, count: n); for i in 0..<n { y[i] = x[i] * (1 - b) + w[i] * b }; return y }
+        // mezclar copias desfasadas con el original resta un poco de volumen: se compensa (antes del EQ, para que éste sí suba o baje el nivel)
+        let a = activeLevel(x, rate), m0 = activeLevel(mix(wet), rate)
+        let comp: Float = (a > 1e-9 && m0 > 1e-9 && bf > 0) ? Float(a / m0) : 1
         if p["eqLow"]! != 0 { wet = biquad(wet, .lowShelf, 200, rate, gainDB: p["eqLow"]!) }
         if p["eqHigh"]! != 0 { wet = biquad(wet, .highShelf, 4000, rate, gainDB: p["eqHigh"]!) }
-        let g = levelGain(p["level"]!)
-        var y = [Float](repeating: 0, count: n)
-        for i in 0..<n { y[i] = (x[i] * (1 - b) + wet[i] * b) * g }
-        return finish(y)
+        let g = levelGain(p["level"]!) * comp
+        return finish(mix(wet).map { $0 * g })
     }
 
     // MARK: Auto Pitch (TD-PSOLA, monofónico)

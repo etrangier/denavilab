@@ -65,18 +65,30 @@ export function compress(x, rate, thDB, ratio, atkMs, relMs) {
   }
   return y;
 }
-const softclip = (x, drive) => { const t = Math.tanh(drive), y = new Float32Array(x.length); for (let i = 0; i < x.length; i++) y[i] = Math.tanh(drive * x[i]) / t; return y; };
+/** Pico «típico» (percentil 99,5 de |x|): la saturación y la compresión se miden contra él, no contra el fondo de escala, para que suenen igual en un sonido bajo o alto. */
+export function peakRef(x) {
+  const step = Math.max(1, Math.floor(x.length / 20000)), a = [];
+  for (let i = 0; i < x.length; i += step) a.push(Math.abs(x[i]));
+  a.sort((p, q) => p - q); return a.length ? a[Math.min(a.length - 1, Math.floor(a.length * 0.995))] : 0;
+}
+/** Saturación suave (tanh) relativa al pico del propio sonido. drive 0–1: 0 = nada, 1 = muy saturado. */
+export function saturate(x, drive) {
+  const ref = peakRef(x); if (ref < 1e-6 || drive <= 0) return x;
+  const k = 1 + 6 * drive, t = Math.tanh(k), y = new Float32Array(x.length);
+  for (let i = 0; i < x.length; i++) y[i] = ref * Math.tanh(k * x[i] / ref) / t;
+  return y;
+}
 
 /** Ruido de superficie de disco: siseo de banda ancha, rumor grave y chasquidos (Poisson, de amplitud muy desigual). `ref` = nivel de la señal. */
 export function vinylNoise(n, rate, amt, ref, seed, clicksPerSec = 12) {
   const out = new Float32Array(n); if (amt <= 0 || ref <= 0) return out;
   const r = rng(seed), hiss = biquad(biquad(whiteNoise(n, r), 'hp', 400, rate), 'lp', 9000, rate), rumble = biquad(whiteNoise(n, r), 'lp', 55, rate);
-  const hg = ref * dB(-50 + 32 * amt) * 1.7, rg = ref * dB(-56 + 22 * amt) * 6;
+  const hg = ref * dB(-40 + 28 * amt) * 1.7, rg = ref * dB(-50 + 22 * amt) * 6;
   for (let i = 0; i < n; i++) out[i] = hiss[i] * hg + rumble[i] * rg;
   const lam = clicksPerSec * Math.pow(amt, 1.4) / rate;
   for (let i = 0; i < n; i++) {
     if (r() >= lam) continue;
-    const u = r(), pop = r() < 0.06, amp = ref * dB(-22 + 12 * amt) * (0.25 + 2.2 * u * u * u) * (pop ? 2.5 : 1) * (r() < 0.5 ? -1 : 1), tau = rate * (pop ? 0.0022 : 0.0004);
+    const u = r(), pop = r() < 0.06, amp = ref * dB(-14 + 10 * amt) * (0.25 + 2.2 * u * u * u) * (pop ? 2.5 : 1) * (r() < 0.5 ? -1 : 1), tau = rate * (pop ? 0.0022 : 0.0004);
     for (let k = 0, m = Math.min(n - i, Math.round(tau * 6)); k < m; k++) out[i + k] += amp * Math.exp(-k / tau);
   }
   return out;
@@ -93,43 +105,48 @@ const levelGain = lv => dB(-40 * (1 - lv / 100));
 // ---------------------------------------------------------------------------------------------------- efectos
 function vinyl303(x, rate, p) {
   const c = p.comp / 100, w = p.wow / 100, n = p.noise / 100;
-  let y = varDelay(x, wobbleDelay(x.length, rate, { wow: 0.0045 * w, wowHz: 0.555, flutter: 0.0012 * w, flutHz: 7.3 }, 11));   // 33⅓ rpm = 0,555 vueltas por segundo
-  if (c > 0) { y = compress(y, rate, -6 - 24 * c, 1.5 + 4.5 * c, 5, 140); y = softclip(y, 1 + 1.6 * c); y = matchLevel(y, x, rate); }
-  add(y, vinylNoise(x.length, rate, n, activeLevel(x, rate), 21, 12));
+  let y = varDelay(x, wobbleDelay(x.length, rate, { wow: 0.012 * w, wowHz: 0.555, flutter: 0.003 * w, flutHz: 7.3 }, 11));   // 33⅓ rpm = 0,555 vueltas por segundo
+  if (c > 0) { const pk = 20 * Math.log10(Math.max(peakRef(y), 1e-6)); y = compress(y, rate, pk - (4 + 20 * c), 2 + 6 * c, 5, 140); y = saturate(y, 0.6 * c); y = matchLevel(y, x, rate); }
+  add(y, vinylNoise(x.length, rate, n, activeLevel(x, rate), 21, 14));
   const g = levelGain(p.level); for (let i = 0; i < y.length; i++) y[i] *= g;
   return finish(y);
 }
 function vinyl404(x, rate, p) {
   const f = p.frequency / 100, w = p.wow / 100, n = p.noise / 100;
-  let y = varDelay(x, wobbleDelay(x.length, rate, { wow: 0.0040 * w, wowHz: 0.555, flutter: 0.0015 * w, flutHz: 6.1 }, 12));
-  y = biquad(biquad(y, 'hp', 40 * Math.pow(7.5, f), rate), 'lp', 14000 * Math.pow(0.214, f), rate);     // respuesta del tocadiscos: de amplia a «de radio»
-  add(y, vinylNoise(x.length, rate, n, activeLevel(x, rate), 22, 9));
+  let y = varDelay(x, wobbleDelay(x.length, rate, { wow: 0.010 * w, wowHz: 0.555, flutter: 0.004 * w, flutHz: 6.1 }, 12));
+  const Q = 0.7 + 0.5 * f;                                                                              // más resonancia al cerrar: color «de radio»
+  y = biquad(biquad(y, 'hp', 60 * Math.pow(6.7, f), rate, 0, Q), 'lp', 12000 * Math.pow(0.183, f), rate, 0, Q);     // respuesta del tocadiscos: de amplia a «de radio»
+  add(y, vinylNoise(x.length, rate, n, activeLevel(x, rate), 22, 11));
   return finish(y);
 }
 function cassette(x, rate, p) {
   const tone = p.tone / 100, hiss = p.hiss / 100, a = p.age / 60, drive = p.drive / 100, wf = p.wow / 100, catchv = p.catch / 100, n = x.length, r = rng(33), ref = activeLevel(x, rate);
-  let y = varDelay(x, wobbleDelay(n, rate, { wow: 0.0060 * wf * (1 + a), wowHz: 1.6, flutter: 0.0020 * wf * (1 + a), flutHz: 9, drift: 0.015 * catchv, driftHz: 0.22 }, 13));
-  if (drive > 0) { y = softclip(y, 1 + 4 * drive); y = matchLevel(y, x, rate); }
-  y = biquad(biquad(y, 'lp', 3500 * Math.pow(16000 / 3500, tone) * (1 - 0.65 * a), rate), 'hp', 30 + 60 * a, rate);
+  let y = varDelay(x, wobbleDelay(n, rate, { wow: 0.015 * wf * (1 + a), wowHz: 1.6, flutter: 0.004 * wf * (1 + a), flutHz: 9, drift: 0.03 * catchv, driftHz: 0.22 }, 13));
+  if (drive > 0) { y = saturate(y, drive); y = matchLevel(y, x, rate); }
+  y = biquad(biquad(y, 'lp', 2500 * Math.pow(14000 / 2500, tone) * (1 - 0.65 * a), rate), 'hp', 30 + 60 * a, rate);
+  y = biquad(y, 'lowshelf', 120, rate, 2.5);                              // «joroba» de la cabeza de cinta: calidez en el grave
   if (a > 0) {   // caídas de señal: cinta gastada
     const g = new Float32Array(n).fill(1), lam = a * 0.6 / rate;
     for (let i = 0; i < n; i++) if (r() < lam) { const len = Math.round(rate * (0.02 + 0.07 * r())), depth = dB(-(3 + 7 * r()) * (0.5 + 0.5 * a)); for (let k = 0; k < len && i + k < n; k++) g[i + k] *= 1 - (1 - depth) * (0.5 - 0.5 * Math.cos(TAU * k / len)); }
     for (let i = 0; i < n; i++) y[i] *= g[i];
   }
   if (hiss > 0 && ref > 0) {
-    const h = biquad(biquad(whiteNoise(n, r), 'hp', 2000, rate), 'lp', 12000, rate), gn = ref * dB(Math.min(-14, -54 + 32 * hiss + 8 * a)) * 2.2;
+    const h = biquad(biquad(whiteNoise(n, r), 'hp', 2000, rate), 'lp', 12000, rate), gn = ref * dB(Math.min(-12, -42 + 30 * hiss + 8 * a)) * 2.2;
     for (let i = 0; i < n; i++) y[i] += h[i] * gn * (1 + 0.15 * Math.sin(TAU * 0.3 * i / rate));
   }
   return finish(y);
 }
 function chorus(x, rate, p) {
-  const n = x.length, depth = p.depth / 100, period = p.rate, b = p.balance / 100, d1 = new Float64Array(n), d2 = new Float64Array(n);
-  const base = [0.0075 * rate, 0.0115 * rate], mod = depth * 0.0035 * rate;
-  for (let i = 0; i < n; i++) { const ph = TAU * i / (period * rate); d1[i] = base[0] + mod * Math.sin(ph); d2[i] = base[1] + mod * Math.sin(ph + Math.PI / 2); }
-  const t1 = varDelay(x, d1), t2 = varDelay(x, d2);
-  let wet = new Float32Array(n); for (let i = 0; i < n; i++) wet[i] = 0.5 * (t1[i] + t2[i]);
+  const n = x.length, depth = p.depth / 100, period = p.rate, b = p.balance / 100, d1 = new Float64Array(n), d2 = new Float64Array(n), d3 = new Float64Array(n);
+  const base = [0.0075 * rate, 0.0115 * rate, 0.0155 * rate], mod = depth * 0.006 * rate;      // tres voces desfasadas 120°: más ancho que dos
+  for (let i = 0; i < n; i++) { const ph = TAU * i / (period * rate); d1[i] = base[0] + mod * Math.sin(ph); d2[i] = base[1] + mod * Math.sin(ph + TAU / 3); d3[i] = base[2] + mod * Math.sin(ph + 2 * TAU / 3); }
+  const t1 = varDelay(x, d1), t2 = varDelay(x, d2), t3 = varDelay(x, d3);
+  let wet = new Float32Array(n); for (let i = 0; i < n; i++) wet[i] = (t1[i] + t2[i] + t3[i]) / 3;
+  const mix = w => { const y = new Float32Array(n); for (let i = 0; i < n; i++) y[i] = x[i] * (1 - b) + w[i] * b; return y; };
+  // mezclar copias desfasadas con el original resta un poco de volumen: se compensa (antes del EQ, para que éste sí suba o baje el nivel)
+  const a = activeLevel(x, rate), m0 = activeLevel(mix(wet), rate), comp = a > 1e-9 && m0 > 1e-9 && b > 0 ? a / m0 : 1;
   if (p.eqLow) wet = biquad(wet, 'lowshelf', 200, rate, p.eqLow); if (p.eqHigh) wet = biquad(wet, 'highshelf', 4000, rate, p.eqHigh);
-  const y = new Float32Array(n), g = levelGain(p.level); for (let i = 0; i < n; i++) y[i] = (x[i] * (1 - b) + wet[i] * b) * g;
+  const y = mix(wet), g = levelGain(p.level) * comp; for (let i = 0; i < n; i++) y[i] *= g;
   return finish(y);
 }
 
@@ -209,23 +226,23 @@ export const FX = {
   vinyl303: { name: '303 VinylSim', about: 'El disco de vinilo de la SP-303: compresión «de prensado», ruido de superficie y bamboleo de la vuelta del plato.',
     how: 'Un retardo que se mueve con la vuelta del plato (33⅓ rpm = 0,55 Hz) mueve el tono unos centésimos de semitono (wow) y un temblor rápido (flutter). Un compresor suave y una saturación redondean los picos como un corte de vinilo. El ruido es siseo de banda ancha + rumor grave + chasquidos al azar.',
     uso: 'Para ese sabor de disco gastado de soul y trip-hop; úsalo suave en pads y cuerdas.',
-    params: [R('comp', 'Compresión', 0, 100, 40), R('noise', 'Ruido', 0, 100, 25), R('wow', 'Wow/flutter', 0, 100, 25), R('level', 'Nivel', 0, 100, 100)],
-    presets: [['Disco gastado', { comp: 55, noise: 35, wow: 20, level: 100 }], ['Polvo suave', { comp: 25, noise: 15, wow: 10, level: 100 }]], run: vinyl303 },
+    params: [R('comp', 'Compresión', 0, 100, 55), R('noise', 'Ruido', 0, 100, 45), R('wow', 'Wow/flutter', 0, 100, 50), R('level', 'Nivel', 0, 100, 100)],
+    presets: [['Sutil', { comp: 30, noise: 20, wow: 25, level: 100 }], ['Disco gastado', { comp: 55, noise: 45, wow: 50, level: 100 }], ['Extremo', { comp: 80, noise: 75, wow: 85, level: 100 }]], run: vinyl303 },
   vinyl404: { name: '404 VinylSim', about: 'El vinilo de la SP-404SX: menos compresión, más «caja de tocadiscos» (ancho de banda recortado), ruido y bamboleo.',
     how: 'Un filtro pasa-altos y uno pasa-bajos estrechan el espectro como el sistema de reproducción de un tocadiscos viejo (cuanto más FREQUENCY, más cerrado y «de radio»), con wow/flutter y ruido de superficie.',
     uso: 'Para texturas lo-fi y bases de hip hop: baja el brillo y el grave sin ensuciar el medio, donde viven las voces y las teclas.',
-    params: [R('frequency', 'Frecuencia', 0, 100, 45), R('noise', 'Ruido', 0, 100, 30), R('wow', 'Wow/flutter', 0, 100, 25)],
-    presets: [['Tocadiscos de sala', { frequency: 40, noise: 30, wow: 25 }], ['Radio vieja', { frequency: 85, noise: 45, wow: 35 }]], run: vinyl404 },
+    params: [R('frequency', 'Frecuencia', 0, 100, 55), R('noise', 'Ruido', 0, 100, 45), R('wow', 'Wow/flutter', 0, 100, 45)],
+    presets: [['Sutil', { frequency: 30, noise: 25, wow: 20 }], ['Tocadiscos de sala', { frequency: 55, noise: 45, wow: 45 }], ['Radio vieja', { frequency: 90, noise: 60, wow: 60 }]], run: vinyl404 },
   cassette: { name: 'Cassette Sim', about: 'Un casete reproduciéndose: tono, siseo, años de desgaste, saturación de cinta, bamboleo y cinta estirada.',
     how: 'La cinta pierde agudos con la edad (filtro pasa-bajos que baja), satura de forma suave y redonda (tanh), suma siseo y tiene caídas de señal. El wow/flutter viene del cabrestante y el rodillo; «cinta estirada» agrega una deriva lenta e irregular de la velocidad.',
     uso: 'El más útil para pads y ambientes: los vuelve cálidos, oscuros y un poco inestables, como una grabación de los 80 (Camel, Cerati).',
-    params: [R('tone', 'Tono', 0, 100, 55), R('hiss', 'Siseo', 0, 100, 25), R('age', 'Edad', 0, 60, 20, ' años'), R('drive', 'Saturación', 0, 100, 35), R('wow', 'Wow/flutter', 0, 100, 30), R('catch', 'Cinta estirada', 0, 100, 15)],
-    presets: [['Casete de los 80', { tone: 50, hiss: 25, age: 20, drive: 35, wow: 30, catch: 15 }], ['Cinta vieja del cajón', { tone: 35, hiss: 45, age: 45, drive: 50, wow: 50, catch: 40 }]], run: cassette },
+    params: [R('tone', 'Tono', 0, 100, 40), R('hiss', 'Siseo', 0, 100, 40), R('age', 'Edad', 0, 60, 25, ' años'), R('drive', 'Saturación', 0, 100, 45), R('wow', 'Wow/flutter', 0, 100, 45), R('catch', 'Cinta estirada', 0, 100, 30)],
+    presets: [['Sutil', { tone: 55, hiss: 20, age: 10, drive: 25, wow: 25, catch: 10 }], ['Casete de los 80', { tone: 40, hiss: 40, age: 25, drive: 45, wow: 45, catch: 30 }], ['Cinta vieja del cajón', { tone: 25, hiss: 60, age: 50, drive: 70, wow: 70, catch: 60 }]], run: cassette },
   chorus: { name: 'Chorus', about: 'Amplitud y riqueza: duplica el sonido con una copia ligeramente desafinada que se mueve.',
     how: 'Dos copias con retardo de 7–12 ms que oscila lentamente cambian su tono un poquito (efecto Doppler); al sumarlas con el original aparece un batido que se oye como «varias fuentes». En mono, además, produce un filtro peine que da color. El periodo va de 0,33 a 2,30 s.',
     uso: 'Para ensanchar pads, teclas y guitarras limpias antes de compartirlos (los samplers suelen traer poco procesamiento propio).',
-    params: [R('depth', 'Profundidad', 0, 100, 45), R('rate', 'Periodo', 0.33, 2.3, 1.4, ' s', 0.01), R('balance', 'Mezcla (seco → efecto)', 0, 100, 50, ' %'), R('eqLow', 'EQ grave', -15, 15, 0, ' dB'), R('eqHigh', 'EQ agudo', -15, 15, 0, ' dB'), R('level', 'Nivel', 0, 100, 100)],
-    presets: [['Pad ancho', { depth: 55, rate: 1.8, balance: 50, eqLow: 0, eqHigh: 0, level: 100 }], ['Teclas suaves', { depth: 30, rate: 1.1, balance: 40, eqLow: -3, eqHigh: 2, level: 100 }]], run: chorus },
+    params: [R('depth', 'Profundidad', 0, 100, 60), R('rate', 'Periodo', 0.33, 2.3, 1.4, ' s', 0.01), R('balance', 'Mezcla (seco → efecto)', 0, 100, 55, ' %'), R('eqLow', 'EQ grave', -15, 15, 0, ' dB'), R('eqHigh', 'EQ agudo', -15, 15, 0, ' dB'), R('level', 'Nivel', 0, 100, 100)],
+    presets: [['Sutil', { depth: 35, rate: 1.1, balance: 35, eqLow: -3, eqHigh: 2, level: 100 }], ['Pad ancho', { depth: 65, rate: 1.8, balance: 55, eqLow: 0, eqHigh: 0, level: 100 }], ['Mareo', { depth: 95, rate: 0.7, balance: 75, eqLow: 0, eqHigh: 0, level: 100 }]], run: chorus },
   autopitch: { name: 'Auto Pitch', about: 'Procesa una voz: la afina a una tonalidad, cambia su tono y su timbre (formante) y puede dejarla «robótica».',
     how: 'Se mide la altura de la voz cada 8 ms (YIN) y se re-sintetiza con TD-PSOLA: se copian granos de un período de la voz original y se colocan más juntos o más separados para cambiar el tono; al leer cada grano más rápido o más lento cambia el formante. ROBOT fija todo a una sola nota.',
     uso: 'Para trozos de voz (Sade, Cerati) que quieras afinar a tu tonalidad o volver instrumentos. Sólo funciona con una voz o un instrumento solo: en acordes o mezclas sale mal.',

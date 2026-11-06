@@ -766,7 +766,7 @@ test.describe('efectos de carácter (estilo SP-404MKII)', () => {
     expect(r.orden).toEqual(['cassette', 'vinyl404', 'vinyl303', 'chorus', 'autopitch']);
     for (const id of r.orden) expect(r.out[id], id).toMatchObject({ n: true, finito: true, igual: true, difiere: true });
     for (const id of r.orden) expect(r.out[id].pico, id).toBeLessThanOrEqual(0.9801);
-    expect(r.p).toMatchObject({ age: 60, tone: 55, hiss: 0 });                 // fuera de rango se acota; lo ilegible vuelve al valor por defecto
+    expect(r.p).toMatchObject({ age: 60, tone: 40, hiss: 0 });                 // fuera de rango se acota; lo ilegible vuelve al valor por defecto
     expect(r.desc).toContain('Auto Pitch'); expect(r.desc).toContain('Tonalidad Do'); expect(r.desc).toContain('Robot'); expect(r.def.rate).toBe(1.4);
   });
   test('Chorus: mezcla 0 deja el original; EQ y nivel actúan', async ({ page }) => {
@@ -815,7 +815,7 @@ test.describe('efectos de carácter (estilo SP-404MKII)', () => {
     await expect(sh.getByRole('button', { name: 'Cassette Sim' })).toHaveAttribute('aria-pressed', 'true');
     await expect(sh).toContainText('Cómo se produce');
     await sh.getByRole('button', { name: 'Cinta vieja del cajón' }).click();
-    await expect(sh.getByLabel('Edad')).toHaveValue('45');
+    await expect(sh.getByLabel('Edad')).toHaveValue('50');
     await sh.getByLabel('Siseo').fill('10');
     await sh.getByRole('button', { name: '▶ Escuchar' }).click();
     await expect(sh.getByRole('button', { name: '▶ Escuchar' })).toBeEnabled({ timeout: 15000 });
@@ -828,7 +828,7 @@ test.describe('efectos de carácter (estilo SP-404MKII)', () => {
     await expect(page.locator('.undo-bar')).toContainText('Cassette Sim');
     await page.getByRole('button', { name: /Deshacer/ }).first().click();
     await page.getByRole('button', { name: 'Abrir los efectos' }).click();
-    await expect(page.locator('dialog.sheet').getByLabel('Edad')).toHaveValue('45');          // los ajustes se recuerdan
+    await expect(page.locator('dialog.sheet').getByLabel('Edad')).toHaveValue('50');          // los ajustes se recuerdan
   });
 });
 
