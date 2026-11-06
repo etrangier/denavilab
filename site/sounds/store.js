@@ -18,11 +18,12 @@ export const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date
 /** Campos de cada sonido y su valor por defecto; los guardados antes de tenerlos se completan al leerlos (sin migración de la base). */
 export const STATES = [['crudo', 'Crudo'], ['procesado', 'Procesado'], ['listo', 'Listo para K.O.']];
 export const CHAR_TAGS = ['cálido', 'oscuro', 'brillante', 'granular', 'metálico', 'etéreo', 'suave', 'áspero', 'cuerdas', 'teclas', 'ambiente'];
-export const META_DEFAULTS = { favorite: false, tags: [], key: null, bpm: null, comment: '', status: 'crudo', origin: '', replaced: false, process: [] };
+export const META_DEFAULTS = { favorite: false, tags: [], key: null, bpm: null, comment: '', status: 'crudo', origin: '', replaced: false, process: [], recipe: null };
 export const normalizeSample = s => {
   const o = { ...META_DEFAULTS, ...s };
   o.favorite = o.favorite === true; o.tags = Array.isArray(o.tags) ? o.tags : [];
   o.status = STATES.some(x => x[0] === o.status) ? o.status : 'crudo'; o.origin = o.origin ? String(o.origin) : ''; o.replaced = o.replaced === true; o.process = Array.isArray(o.process) ? o.process : [];
+  o.recipe = o.recipe && typeof o.recipe === 'object' && Array.isArray(o.recipe.chain) && o.recipe.chain.length ? o.recipe : null;   // receta: cadena de efectos + sonido de origen
   o.key = o.key ? String(o.key) : null; o.comment = o.comment ? String(o.comment) : '';
   return o;
 };
