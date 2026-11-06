@@ -9,9 +9,9 @@ const K_CHAIN = 'denavilab.sounds.fxChain', K_USER = 'denavilab.sounds.fxChains'
 const read = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
 const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
 
-/** ctx: { audio, rate, bpm, name, samples:[{id,name}], loadAudio(id)→{audio,rate}, onApply(out, label, notes), onSaveNew(out, notes), onSaveVariants([{out, notes}]) } */
+/** ctx: { initialChain, onUpdate(out, notes, chain), audio, rate, bpm, name, samples:[{id,name}], loadAudio(id)→{audio,rate}, onApply(out, label, notes), onSaveNew(out, notes), onSaveVariants([{out, notes}]) } */
 export function openRack(ctx) {
-  const st = { chain: cleanChain(read(K_CHAIN, [])), open: 0, busy: false, src: null, audioCtx: null, style: 'libre', intensity: 50, seed: Date.now() % 100000, user: read(K_USER, {}) };
+  const st = { chain: cleanChain(ctx.initialChain && ctx.initialChain.length ? ctx.initialChain : read(K_CHAIN, [])), open: 0, busy: false, src: null, audioCtx: null, style: 'libre', intensity: 50, seed: Date.now() % 100000, user: read(K_USER, {}) };
   if (!st.chain.length) st.chain = [newSlot('cassette')];
   const persist = () => write(K_CHAIN, st.chain);
   return sheet(close => {
@@ -44,7 +44,7 @@ export function openRack(ctx) {
         for (let i = 0; i < 4; i++) {
           status.textContent = `Variante ${i + 1} de 4…`;
           const chain = randomChain(st.seed + i * 977, { style: st.style, intensity: st.intensity / 100, bpm: ctx.bpm }), out = await render(chain);
-          list.push({ out, notes: describeChain(chain), style: STYLES[st.style].name });
+          list.push({ out, notes: describeChain(chain), chain, style: STYLES[st.style].name });
         }
         st.busy = false; await ctx.onSaveVariants(list); status.textContent = 'Guardadas 4 variantes como sonidos nuevos (procesados)'; paint();
       } catch (e) { st.busy = false; status.textContent = ''; paint(); toast('No se pudieron generar las variantes: ' + ((e && e.message) || e)); }
@@ -95,9 +95,10 @@ export function openRack(ctx) {
         label('Escuchar'),
         h('div', { class: 'row3' }, btn('▶ Original', { small: true, act: 'rack-original', disabled: st.busy, onclick: () => play('orig') }), btn(st.busy ? 'Procesando…' : '▶ Procesado', { small: true, kind: 'amber', act: 'rack-procesado', disabled: st.busy, onclick: () => play('fx') }), btn('■ Parar', { small: true, onclick: () => { stop(); status.textContent = ''; } })),
         status,
-        btn('Aplicar al sonido', { kind: 'amber', act: 'rack-aplicar', disabled: st.busy, onclick: () => finalize(async (out, notes) => { ctx.onApply(out, notes.length > 1 ? 'Cadena de efectos' : (notes[0] || 'Efecto').split(' (')[0], notes); close(); }) }),
-        btn('Guardar como sonido nuevo', { act: 'rack-nuevo', disabled: st.busy, onclick: () => finalize(async (out, notes) => { await ctx.onSaveNew(out, notes); status.textContent = `Guardado como sonido nuevo (procesado) · ${sayLen(out)}`; paint(); }) }),
-        muted('Aplicar cambia la toma actual (puedes deshacerlo en Editar). «Guardar como sonido nuevo» deja el original intacto y crea otro marcado «procesado», con su origen y la lista de efectos. Con delay, reverb o granular la toma puede alargarse.', 'tiny'));
+        ctx.onApply ? btn('Aplicar al sonido', { kind: 'amber', act: 'rack-aplicar', disabled: st.busy, onclick: () => finalize(async (out, notes) => { ctx.onApply(out, notes.length > 1 ? 'Cadena de efectos' : (notes[0] || 'Efecto').split(' (')[0], notes); close(); }) }) : null,
+        btn('Guardar como sonido nuevo', { act: 'rack-nuevo', disabled: st.busy, onclick: () => finalize(async (out, notes, chain) => { await ctx.onSaveNew(out, notes, chain); status.textContent = `Guardado como sonido nuevo (procesado) · ${sayLen(out)}`; paint(); }) }),
+        ctx.onUpdate ? btn('Actualizar este sonido con la receta', { kind: 'amber', act: 'rack-actualizar', disabled: st.busy, onclick: () => finalize(async (out, notes, chain) => { await ctx.onUpdate(out, notes, chain); close(); }) }) : null,
+        muted('Aplicar cambia la toma actual (puedes deshacerlo en Editar). «Guardar como sonido nuevo» deja el original intacto y crea otro marcado «procesado», con su origen, la lista de efectos y su receta (podrás volver a editar la cadena sobre el original). Con delay, reverb o granular la toma puede alargarse.', 'tiny'));
     }
     paint(); return box;
   }, { onClose: () => { try { st.src && st.src.stop(); st.audioCtx && st.audioCtx.close(); } catch (e) {} } });

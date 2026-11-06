@@ -927,6 +927,32 @@ test.describe('etapas 1–5 · cadena de efectos, granular, destrucción, ritmo 
     await expect(page.locator('#toast')).toContainText('aplicado', { timeout: 15000 }); await expect(page.locator('dialog.sheet')).toHaveCount(0);
     await expect(page.locator('.undo-bar')).toContainText('Cassette Sim');
   });
+  test('receta: el sonido procesado guarda su cadena y se re-edita sobre el original sin procesar dos veces', async ({ page }) => {
+    const sh = await abrirRack(page);
+    await sh.getByRole('button', { name: 'Guardar como sonido nuevo' }).click(); await expect(page.locator('#toast')).toContainText('con receta', { timeout: 15000 });
+    const q = await page.evaluate(async () => { const st = await import('/sounds/store.js'), l = await st.listSamples(), o = l.find(x => x.name === 'pad base'), n = l.find(x => x.name === 'pad base fx'); return { rec: n.recipe, orig: o.id, sin: o.recipe, len: (await st.getAudio(n.id)).length, id: n.id }; });
+    expect(q.sin).toBeNull(); expect(q.rec.from).toBe(q.orig); expect(q.rec.fromName).toBe('pad base'); expect(q.rec.chain[0].id).toBe('cassette');
+    // abrir el sonido procesado desde la biblioteca y re-editar su receta
+    await page.evaluate(id => { window.__rid = id; }, q.id);
+    await page.keyboard.press('Escape'); await page.reload(); await tab(page, 'biblioteca');
+    await page.locator('.row-btn', { hasText: 'pad base fx' }).first().click();
+    await expect(page.getByText('Receta de efectos')).toBeVisible();
+    await page.getByRole('button', { name: 'Re-editar la receta' }).click();
+    const s2 = page.locator('dialog.sheet'); await expect(s2.getByRole('heading', { name: 'Cadena de efectos' })).toBeVisible();
+    await expect(s2.locator('.slot').first()).toContainText('Cassette Sim');
+    await expect(s2.getByRole('button', { name: 'Aplicar al sonido' })).toHaveCount(0);
+    await s2.getByRole('button', { name: 'Granular', exact: true }).click(); await expect(s2.locator('.slot')).toHaveCount(2);
+    await s2.getByRole('button', { name: 'Actualizar este sonido con la receta' }).click(); await expect(page.locator('#toast')).toContainText('actualizado', { timeout: 20000 });
+    const r = await page.evaluate(async () => { const st = await import('/sounds/store.js'), l = await st.listSamples(), n = l.find(x => x.name === 'pad base fx'); return { n: l.filter(x => x.name === 'pad base fx').length, ids: n.recipe.chain.map(c => c.id), proc: n.process.join(' '), id: n.id }; });
+    expect(r.n).toBe(1); expect(r.id).toBe(q.id); expect(r.ids).toEqual(['cassette', 'granular']); expect(r.proc).toContain('Granular');
+  });
+  test('receta: si el sonido de origen ya no existe, avisa', async ({ page }) => {
+    const sh = await abrirRack(page);
+    await sh.getByRole('button', { name: 'Guardar como sonido nuevo' }).click(); await expect(page.locator('#toast')).toContainText('con receta', { timeout: 15000 });
+    await page.evaluate(async () => { const st = await import('/sounds/store.js'), o = (await st.listSamples()).find(x => x.name === 'pad base'); await st.deleteSamples([o.id]); });
+    await page.reload(); await tab(page, 'biblioteca'); await page.locator('.row-btn', { hasText: 'pad base fx' }).first().click();
+    await page.getByRole('button', { name: 'Re-editar la receta' }).click(); await expect(page.locator('#toast')).toContainText('ya no está');
+  });
   test('rack: todo apagado avisa, y mezclar otro sonido aparece como casilla', async ({ page }) => {
     const sh = await abrirRack(page, ['pad base', 'otro']);
     await sh.getByLabel('Mezclar con otro sonido').selectOption({ index: 1 }); await expect(sh.locator('.slot').last()).toContainText('Mezcla con «'); await expect(sh.getByLabel('Nivel del otro sonido')).toBeVisible();

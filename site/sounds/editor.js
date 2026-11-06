@@ -3,6 +3,7 @@ import { app, go, refreshSamples, sampleById } from './state.js';
 import { starBtn } from './screens.js';
 import { openLab } from './lab.js';
 import { openRack } from './fxui.js';
+import { describeChain, cleanChain } from './fxall.js';
 import { h, mount, fill, btn, link, chip, card, label, muted, title, toggleRow, sliderRow, logo, confirmSheet, toast, folderPicker, drawBars, fx, flash } from './ui.js';
 import { compute } from './work.js';
 import * as dsp from './dsp.js';
@@ -64,18 +65,34 @@ function runWorker(key, op, args, { done = null, onApplied = null } = {}) {
   }).catch(() => { fx.busy = null; app.render(); toast('No se pudo completar la acción'); });
 }
 
-/** Abre la cadena de efectos sobre la toma actual. Los sonidos nuevos salen como «procesados», con el origen del original y la lista de efectos. */
-function openFxRack(s) {
+/** Abre la cadena de efectos sobre la toma actual. Los sonidos nuevos salen como «procesados», con el origen del original, la lista de efectos y su receta
+ *  (la cadena + el sonido de origen). Con `rec` (la receta de un sonido ya procesado) se abre sobre el sonido de origen con la cadena puesta, para
+ *  re-editarla y actualizar el sonido sin volver a procesar un audio ya procesado. */
+async function openFxRack(s, rec = null) {
+  let src = s, srcAudio = ed.audio;
+  if (rec) {
+    src = app.samples.find(x => x.id === rec.from);
+    if (!src) return toast('El sonido de origen de esta receta ya no está en la biblioteca');
+    srcAudio = await getAudio(src.id);
+    if (!srcAudio.length) return toast('No se pudo leer el sonido de origen');
+  }
+  const recipe = chain => ({ from: src.id, fromName: src.name, chain: JSON.parse(JSON.stringify(chain)) });
   const saveNew = async (out, notes, suffix = ' fx', extra = {}) => {
-    const n = newSample(s.name + suffix, out, s.rate, { folder: s.folder, subfolder: s.subfolder || null, status: 'procesado', origin: s.origin || '', tags: [...(s.tags || [])], key: s.key || null, bpm: s.bpm || null,
-      comment: (extra.comment || 'Cadena de efectos sobre: ' + s.name) + (s.comment ? ' · ' + s.comment : ''), process: [...(s.process || []), ...notes] });
+    const n = newSample(src.name + suffix, out, src.rate, { folder: src.folder, subfolder: src.subfolder || null, status: 'procesado', origin: src.origin || '', tags: [...(src.tags || [])], key: src.key || null, bpm: src.bpm || null,
+      comment: (extra.comment || 'Cadena de efectos sobre: ' + src.name) + (src.comment ? ' · ' + src.comment : ''), process: [...(src.process || []), ...notes], recipe: extra.chain ? recipe(extra.chain) : null });
     await putSample(n, out); await refreshSamples();
   };
-  openRack({ audio: ed.audio, rate: s.rate, bpm: s.bpm || null, name: s.name, samples: app.samples.filter(x => x.id !== s.id).map(x => ({ id: x.id, name: x.name })),
-    loadAudio: async id => { const o = app.samples.find(x => x.id === id); return { audio: await getAudio(id), rate: o ? o.rate : s.rate }; },
-    onApply: (out, name) => { if (apply(() => out, 'fx404', name)) toast('Listo: ' + name + ' aplicado · puedes deshacerlo'); },
-    onSaveNew: async (out, notes) => { try { await saveNew(out, notes); toast('Guardado como sonido nuevo (procesado)'); } catch (e) { toast('No se pudo guardar el sonido nuevo'); } },
-    onSaveVariants: async list => { for (let i = 0; i < list.length; i++) await saveNew(list[i].out, list[i].notes, ` var ${i + 1}`, { comment: `Variante ${i + 1} (${list[i].style}) de: ${s.name}` }); toast('Guardadas 4 variantes (procesadas)'); } });
+  openRack({ audio: srcAudio, rate: src.rate, bpm: src.bpm || null, name: src.name, initialChain: rec ? rec.chain : null, samples: app.samples.filter(x => x.id !== s.id && x.id !== src.id).map(x => ({ id: x.id, name: x.name })),
+    loadAudio: async id => { const o = app.samples.find(x => x.id === id); return { audio: await getAudio(id), rate: o ? o.rate : src.rate }; },
+    onApply: rec ? null : (out, name) => { if (apply(() => out, 'fx404', name)) toast('Listo: ' + name + ' aplicado · puedes deshacerlo'); },
+    onUpdate: rec ? async (out, notes, chain) => {
+      try {
+        await putSample({ ...s, duration: out.length / s.rate, process: [...(src.process || []), ...notes], recipe: recipe(chain) }, out);
+        await refreshSamples(); stopPlay(); ed.id = null; toast('Sonido actualizado con la receta'); app.render();
+      } catch (e) { toast('No se pudo guardar el sonido actualizado'); }
+    } : null,
+    onSaveNew: async (out, notes, chain) => { try { await saveNew(out, notes, ' fx', { chain }); toast('Guardado como sonido nuevo (procesado, con receta)'); } catch (e) { toast('No se pudo guardar el sonido nuevo'); } },
+    onSaveVariants: async list => { for (let i = 0; i < list.length; i++) await saveNew(list[i].out, list[i].notes, ` var ${i + 1}`, { comment: `Variante ${i + 1} (${list[i].style}) de: ${src.name}`, chain: list[i].chain }); toast('Guardadas 4 variantes (procesadas, con receta)'); } });
 }
 function stepRaw(from, to, lfrom, lto) {
   const x = from.pop(); if (!x) return false;
@@ -206,7 +223,7 @@ export function renderEdit(root) {
       const [a, b] = sel();
       if (b - a < s.rate / 2) return toast('Marca al menos 0,5 s (o no marques nada para usar toda la toma)');
       toast('Creando el loop…');
-      runWorker('loop', 'loopSeamless', [ed.audio, a, b, s.rate, ed.cross, ed.refine], { onApplied: () => { ed.loop = true; }, done: () => `Listo: loop de ${dsp.stamp(ed.audio.length / s.rate)} · pulsa ▶ para oírlo` });
+      runWorker('loop', 'loopSeamless', [ed.audio, a, b, s.rate, ed.cross, ed.refine], { onApplied: () => { ed.loop = true; }, done: () => { const j = dsp.seamJump(ed.audio); return `Listo: loop de ${dsp.stamp(ed.audio.length / s.rate)} · empalme ${j < 1.5 ? 'inaudible' : j < 4 ? 'casi inaudible' : 'se nota (prueba otro empalme)'} · pulsa ▶ para oírlo`; } });
     } }),
     muted('Une el final con el principio para que el tramo se repita sin saltos, aunque no tenga ritmo: pads, cuerdas, ambientes. Se queda sólo con el loop; ya queda activado «Repetir» para oírlo con ▶. Puedes deshacer.', 'tiny'),
     label('Limpiar ruido'),
@@ -226,6 +243,7 @@ export function renderEdit(root) {
     muted('Suave y Fuerte cortan graves (respiración, soplidos) y apagan lo que suena bajito entre sonidos. «Quitar ruido de fondo» aprende el ruido de la parte más tranquila; «Con la selección» lo aprende de lo que marques. Puedes deshacer.', 'tiny'),
     sliderRow('Fundido', { min: 0, max: 200, step: 1, value: ed.fadeMs, fmt: v => v + ' ms', onInput: v => { ed.fadeMs = v; } }),
     bpmCard,
+    s.recipe ? card([h('b', {}, 'Receta de efectos'), h('p', { class: 'muted small' }, `Hecho a partir de «${s.recipe.fromName}»: ${describeChain(cleanChain(s.recipe.chain)).join(' → ')}`), btn('Re-editar la receta', { kind: 'amber', act: 'receta', onclick: () => openFxRack(s, s.recipe) }), h('p', { class: 'muted tiny' }, 'Abre la cadena sobre el sonido de origen, sin procesar dos veces el audio, y actualiza este sonido.')]) : null,
     card([h('b', {}, 'Cadena de efectos'), h('p', { class: 'muted small' }, 'Encadena cassette, vinilo, granular, distorsión, delay, reverb, efectos rítmicos y más para transformar el sonido en otro nuevo.'), btn('Abrir la cadena de efectos', { kind: 'amber', act: 'efectos', onclick: () => openFxRack(s) })]),
     card([h('b', {}, 'Laboratorio de pads'), h('p', { class: 'muted small' }, 'Bucle sin clics, estirar, tono, filtros, reverb, capas y teclado.'), btn('Abrir el laboratorio', { kind: 'amber', act: 'laboratorio', onclick: () => openLab(s) })]),
     btn(app.ko2 ? 'Chop en pads' : 'Chop', { sel: true, onclick: () => openChop(s, ed.audio) }),
