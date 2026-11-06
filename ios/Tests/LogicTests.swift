@@ -1138,11 +1138,16 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(FxChain.clean((0..<12).map { _ in FxSlot.make(.crusher) } + [FxSlot(fx: "nada")]).count, 8)
         let d = FxChain.describe([a, .layer("o", name: "otro", gain: 50), { var z = b; z.bypass = true; return z }()])
         XCTAssertEqual(d.count, 2); XCTAssertTrue(d[0].contains("Overdrive")); XCTAssertTrue(d[1].contains("Mezcla con «otro»"))
-        XCTAssertEqual(FxChain.randomChain(seed: 5, style: "sucio", intensity: 0.8), FxChain.randomChain(seed: 5, style: "sucio", intensity: 0.8).map { var s = $0; s.id = FxChain.randomChain(seed: 5, style: "sucio", intensity: 0.8).first { $0.fx == s.fx }!.id; return s })
-        XCTAssertNotEqual(FxChain.randomChain(seed: 5, style: "sucio").map(\.fx), FxChain.randomChain(seed: 6, style: "sucio").map(\.fx) + ["x"])
-        for st in FxChain.styles { for sd in 1...5 as ClosedRange<UInt32> {
-            for s in FxChain.randomChain(seed: sd, style: st.key, intensity: 1) { XCTAssertTrue((st.pool ?? Fx404.allOrder).contains(s.effect!)); XCTAssertEqual(s.params, Fx404.params(s.effect!, s.params)) }
-        } }
+        func sig(_ c: [FxSlot]) -> String { c.map { s in s.fx + "{" + s.params.keys.sorted().map { "\($0)=\(s.params[$0]!)" }.joined(separator: ",") + "}" }.joined(separator: ">") }
+        XCTAssertEqual(sig(FxChain.randomChain(seed: 5, style: "sucio", intensity: 0.8)), sig(FxChain.randomChain(seed: 5, style: "sucio", intensity: 0.8)))       // determinista por semilla
+        XCTAssertNotEqual(sig(FxChain.randomChain(seed: 5, style: "sucio", intensity: 0.8)), sig(FxChain.randomChain(seed: 6, style: "sucio", intensity: 0.8)))
+        for st in FxChain.styles {
+            for sd in UInt32(1)...UInt32(5) {
+                for s in FxChain.randomChain(seed: sd, style: st.key, intensity: 1) {
+                    XCTAssertTrue((st.pool ?? Fx404.allOrder).contains(s.effect!)); XCTAssertEqual(s.params, Fx404.params(s.effect!, s.params))
+                }
+            }
+        }
         XCTAssertTrue(FxChain.randomChain(seed: 3, style: "ritmico", intensity: 0.5, bpm: 87).filter { $0.params["bpm"] != nil }.allSatisfy { $0.params["bpm"] == 87 })
         XCTAssertEqual(FxChain.presets.count, 5)
         for p in FxChain.presets { XCTAssertTrue(FxChain.apply(p.chain, x, rate: rate).allSatisfy { $0.isFinite }, p.name) }
