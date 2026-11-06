@@ -216,3 +216,17 @@ extension View {
         modifier(ActionFX(key: key, busy: busy, flash: flash))
     }
 }
+
+/// Explicación breve plegada: un «ⓘ» que se abre al tocarlo (en vez de un párrafo fijo bajo cada botón).
+struct InfoTip: View {
+    let text: String
+    @State private var open = false
+    init(_ t: String) { text = t }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button { open.toggle() } label: { Text("ⓘ").font(Theme.font(14)).foregroundColor(Theme.muted).frame(minWidth: 44, minHeight: 28, alignment: .leading) }
+                .accessibilityLabel("Qué hace").accessibilityValue(open ? "abierto" : "cerrado")
+            if open { Text(text).font(Theme.font(12)).foregroundColor(Theme.muted) }
+        }
+    }
+}

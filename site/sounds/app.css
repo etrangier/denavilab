@@ -213,3 +213,17 @@ details.more > summary, .slot details > summary { cursor: pointer; min-height: 4
 .dock .tiny { text-align: center; }
 .slot .icon-btn { min-width: 38px; }
 .slot .slot-name b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- prioridades de la review: menos ruido, un solo botón principal ---- */
+details.tip { display: inline-block; }
+details.tip > summary { cursor: pointer; list-style: none; color: var(--muted); font-size: 14px; min-height: 28px; display: inline-flex; align-items: center; }
+details.tip > summary::-webkit-details-marker { display: none; }
+details.tip[open] { display: block; }
+details.rec-opts > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--muted); font-size: 14px; }
+details.rec-opts[open] > summary { color: var(--text); }
+.chips-row { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.chips-row::-webkit-scrollbar { display: none; }
+.chips-row .chip { flex: none; white-space: nowrap; }
+.chip.folder.sel { background: var(--amber); color: var(--ink); border-color: var(--amber); }
+.chip.folder.empty { color: var(--muted); border-color: var(--surface2); }
+.chip.sel { background: var(--amber); color: var(--ink); border-color: var(--amber); }

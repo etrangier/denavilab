@@ -50,8 +50,6 @@ struct ExportView: View {
             Text(Exporter.fileName(for: s)).font(Theme.font(13)).foregroundColor(Theme.text).lineLimit(1)
         }.card()
         levelControls
-        Text("Se envía un archivo .wav (mono, 16 bit): por correo, Bluetooth o AirDrop, Drive u otra app que elijas.")
-            .font(Theme.font(12)).foregroundColor(Theme.muted)
         Button("Compartir WAV") { share(s) }.buttonStyle(AmberButton()).padding(.top, 6)
         Button("Compartir todo (\(lib.samples.count)) en WAV") { shareAll() }
             .buttonStyle(OutlineButton()).disabled(lib.samples.isEmpty)

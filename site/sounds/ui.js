@@ -39,6 +39,8 @@ export const btn = (label, { kind = 'outline', sel = false, onclick, disabled = 
 export const link = (label, onclick) => h('button', { type: 'button', class: 'link', onclick }, label);
 export const chip = (label, selected, onclick) => h('button', { type: 'button', class: 'chip' + (selected ? ' sel' : ''), 'aria-pressed': String(!!selected), onclick }, label);
 export const card = (kids, hl = false) => h('div', { class: 'card' + (hl ? ' hl' : '') }, kids);
+/** Explicación breve plegada: un «ⓘ» que se abre al tocarlo (en vez de un párrafo fijo bajo cada botón). */
+export const tip = text => h('details', { class: 'tip' }, h('summary', { 'aria-label': 'Qué hace' }, 'ⓘ'), h('p', { class: 'muted tiny' }, text));
 export const label = text => h('div', { class: 'label' }, text);
 export const muted = (text, cls = '') => h('p', { class: 'muted ' + cls }, text);
 export const title = (text, sub, trailing) =>

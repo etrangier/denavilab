@@ -23,6 +23,7 @@ struct RecordView: View {
     @State private var showMetro = false
     @State private var showQuick = false
     @State private var showManual = false
+    @State private var showOpts = false
     @AppStorage("firstTakeDismissed") private var firstTakeDismissed = false
     @Environment(\.scenePhase) private var scenePhase
     @State private var savedNote: String?
@@ -47,11 +48,7 @@ struct RecordView: View {
                     }
                 }
                 if rec.micDenied { deniedCard } else {
-                    Text("Entrada · Micrófono del iPhone").font(Theme.font(14, weight: .medium)).foregroundColor(Theme.text).card()
-                    modeCard
-                    kindCard
                     levelCard
-                    tempoCard
                     waveCard
                     Text(timerText).font(Theme.font(44, weight: .bold)).foregroundColor(recording ? Theme.text : Theme.muted)
                         .monospacedDigit()
@@ -61,10 +58,19 @@ struct RecordView: View {
                     if firstTime { Text("↓ Empieza aquí").font(Theme.font(13, weight: .bold)).foregroundColor(Theme.amber)
                         .padding(.horizontal, 14).frame(minHeight: 32).overlay(Capsule().stroke(Theme.amber, lineWidth: 1.5)) }
                     controls
+                    Text("WAV · 16 bit · mono · 46 875 Hz").font(Theme.font(13)).foregroundColor(Theme.muted).frame(maxWidth: .infinity)
+                    DisclosureGroup(isExpanded: $showOpts) {
+                        VStack(spacing: 12) {
+                            Text("Entrada · Micrófono del iPhone").font(Theme.font(14, weight: .medium)).foregroundColor(Theme.text).card()
+                            modeCard
+                            kindCard
+                            tempoCard
+                        }.padding(.top, 8)
+                    } label: {
+                        Text("Ajustes de captura · \(captureMode == "materia" ? "materia prima" : "captura libre") · \(kind.title.lowercased())")
+                            .font(Theme.font(14)).foregroundColor(showOpts ? Theme.text : Theme.muted)
+                    }.tint(Theme.muted)
                     TextLink(title: "Manual técnico") { showManual = true }.frame(maxWidth: .infinity)
-                    Text("WAV · 16 bit · mono · 46 875 Hz").font(Theme.font(14, weight: .bold)).foregroundColor(Theme.amber)
-                        .frame(maxWidth: .infinity, minHeight: 48)
-                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.amber, lineWidth: 1.5))
                     if rec.clipped { Text("Clip: baja la ganancia de entrada").font(Theme.font(13)).foregroundColor(Theme.error) }
                     else if recording, kind.maxSec > 0, rec.elapsed > kind.maxSec {
                         Text("Ya pasa de \(Int(kind.maxSec)) s: para \(kind.title.lowercased()) conviene parar y grabar otra toma más corta")
@@ -139,7 +145,7 @@ struct RecordView: View {
             }
             Text("Toca tu patrón sin grabar: la app oye \(Tempo.seconds) s por el micrófono y te dice el BPM.").font(Theme.font(12)).foregroundColor(Theme.muted)
             Button(tempoBusy ? "Escuchando… \(tempoLeft) s · tocar para cancelar" : "Escuchar tempo") { listenTempo() }
-                .buttonStyle(AmberButton()).disabled(recording)
+                .buttonStyle(OutlineButton()).disabled(recording)
             switch tempoResult {
             case .failed(let m)?:
                 Text(m).font(Theme.font(13)).foregroundColor(Theme.error)
