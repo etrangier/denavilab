@@ -1,4 +1,4 @@
-// Componentes comunes: el mismo lenguaje visual de la app de iPhone (negro y verde).
+// Componentes comunes: el mismo lenguaje visual de la app de iPhone (negro, blanco y grises).
 export const $ = (sel, el = document) => el.querySelector(sel);
 
 export function h(tag, props, ...kids) {
@@ -67,7 +67,7 @@ export function logo(size = 64) {
   hs.forEach((v, i) => {
     const r = document.createElementNS(ns, 'rect'), hh = 52 * v;
     r.setAttribute('x', 4 + i * 9); r.setAttribute('y', 32 - hh / 2); r.setAttribute('width', 5.5); r.setAttribute('height', hh); r.setAttribute('rx', 2.75);
-    r.setAttribute('fill', '#1ed760'); svg.append(r);
+    r.setAttribute('fill', '#ffffff'); svg.append(r);
   });
   return svg;
 }
@@ -131,9 +131,9 @@ export function drawBars(canvas, pk, range = [0, 1], playhead = null, highlights
   pk.forEach((p, i) => {
     const f = i / pk.length, bh = Math.max(3, Math.min(1, p) * hh * 0.9);
     const lit = highlights ? highlights.some(([a, b]) => f >= a && f <= b) : (f >= range[0] && f <= range[1]);
-    g.fillStyle = lit ? '#1ed760' : '#16301f';
+    g.fillStyle = lit ? '#ffffff' : '#2e2e2e';
     g.beginPath(); g.roundRect ? g.roundRect(i * step + (step - bw) / 2, mid - bh / 2, bw, bh, bw / 2) : g.rect(i * step + (step - bw) / 2, mid - bh / 2, bw, bh); g.fill();
   });
-  if (cuts) { g.fillStyle = '#c9f7d8'; for (const c of cuts) g.fillRect(w * c - 1, 8, 2, hh - 16); }
-  if (playhead != null) { g.fillStyle = '#c9f7d8'; g.fillRect(w * playhead - 1, 0, 2, hh); }
+  if (cuts) { g.fillStyle = '#bdbdbd'; for (const c of cuts) g.fillRect(w * c - 1, 8, 2, hh - 16); }
+  if (playhead != null) { g.fillStyle = '#bdbdbd'; g.fillRect(w * playhead - 1, 0, 2, hh); }
 }
