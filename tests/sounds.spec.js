@@ -755,6 +755,83 @@ test.describe('escuchar tempo', () => {
   });
 });
 
+test.describe('efectos de carácter (estilo SP-404MKII)', () => {
+  const H = `(hz, N, rate) => Float32Array.from({ length: N }, (_, k) => { let s = 0; for (let h = 1; h <= 10; h++) s += Math.sin(2 * Math.PI * hz * h * k / rate) / h; return 0.25 * s; })`;
+  test('los cinco efectos: mismo largo, sin recortar, deterministas y con ajustes acotados', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const r = await page.evaluate(async hs => { const f = await import('/sounds/fx404.js'), rate = 48000, N = rate * 2, mk = eval(hs), x = mk(220, N, rate), out = {};
+      const pk = a => a.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+      for (const id of f.FX_ORDER) { const a = f.applyFx(id, x, rate, {}), b = f.applyFx(id, x, rate, {}); out[id] = { n: a.length === N, finito: a.every(Number.isFinite), pico: pk(a), igual: a.every((v, i) => v === b[i]), difiere: a.some((v, i) => Math.abs(v - x[i]) > 1e-3) }; }
+      return { out, orden: f.FX_ORDER, p: f.fxParams('cassette', { age: 999, tone: 'x', hiss: -5 }), desc: f.describeFx('autopitch', { key: 4, robot: true }), def: f.fxDefaults('chorus') }; }, H);
+    expect(r.orden).toEqual(['cassette', 'vinyl404', 'vinyl303', 'chorus', 'autopitch']);
+    for (const id of r.orden) expect(r.out[id], id).toMatchObject({ n: true, finito: true, igual: true, difiere: true });
+    for (const id of r.orden) expect(r.out[id].pico, id).toBeLessThanOrEqual(0.9801);
+    expect(r.p).toMatchObject({ age: 60, tone: 55, hiss: 0 });                 // fuera de rango se acota; lo ilegible vuelve al valor por defecto
+    expect(r.desc).toContain('Auto Pitch'); expect(r.desc).toContain('Tonalidad Do'); expect(r.desc).toContain('Robot'); expect(r.def.rate).toBe(1.4);
+  });
+  test('Chorus: mezcla 0 deja el original; EQ y nivel actúan', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const r = await page.evaluate(async hs => { const f = await import('/sounds/fx404.js'), rate = 48000, x = eval(hs)(220, rate, rate), rms = a => Math.sqrt(a.reduce((s, v) => s + v * v, 0) / a.length);
+      const seco = f.applyFx('chorus', x, rate, { balance: 0, level: 100 }), bajo = f.applyFx('chorus', x, rate, { balance: 0, level: 50 }), grave = f.applyFx('chorus', x, rate, { balance: 100, eqLow: 15, depth: 0 }), plano = f.applyFx('chorus', x, rate, { balance: 100, eqLow: 0, depth: 0 });
+      return { dif: Math.max(...seco.map((v, i) => Math.abs(v - x[i]))), nivel: rms(bajo) / rms(seco), grave: rms(grave) / rms(plano) }; }, H);
+    expect(r.dif).toBeLessThan(1e-6); expect(r.nivel).toBeGreaterThan(0.09); expect(r.nivel).toBeLessThan(0.11); expect(r.grave).toBeGreaterThan(1.5);     // nivel 50 = −20 dB; +15 dB de grave sube un tono de 220 Hz
+  });
+  test('Cassette y 404 VinylSim: la edad y la frecuencia oscurecen el sonido; el ruido se oye', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const r = await page.evaluate(async () => { const f = await import('/sounds/fx404.js'), rate = 48000, N = rate * 2;
+      const x = Float32Array.from({ length: N }, (_, k) => 0.3 * Math.sin(2 * Math.PI * 300 * k / rate) + 0.1 * Math.sin(2 * Math.PI * 7000 * k / rate));
+      const hf = a => { let s = 0, e = 0; for (let i = 1; i < a.length; i++) { const d = a[i] - a[i - 1]; s += d * d; e += a[i] * a[i]; } return s / e; };
+      const nuevo = f.applyFx('cassette', x, rate, { age: 0, tone: 100, hiss: 0, drive: 0, wow: 0, catch: 0 }), viejo = f.applyFx('cassette', x, rate, { age: 60, tone: 100, hiss: 0, drive: 0, wow: 0, catch: 0 });
+      const abierto = f.applyFx('vinyl404', x, rate, { frequency: 0, noise: 0, wow: 0 }), cerrado = f.applyFx('vinyl404', x, rate, { frequency: 100, noise: 0, wow: 0 });
+      const silencio = new Float32Array(N), ruido = f.applyFx('vinyl404', Float32Array.from(x), rate, { frequency: 0, noise: 100, wow: 0 }), limpio = f.applyFx('vinyl404', Float32Array.from(x), rate, { frequency: 0, noise: 0, wow: 0 });
+      const rms = a => Math.sqrt(a.reduce((s, v) => s + v * v, 0) / a.length), dif = Float32Array.from(ruido, (v, i) => v - limpio[i]);
+      // wow: el tono se mueve ⇒ el cruce por cero ya no es regular
+      const w0 = f.applyFx('vinyl303', x, rate, { comp: 0, noise: 0, wow: 0, level: 100 }), w1 = f.applyFx('vinyl303', x, rate, { comp: 0, noise: 0, wow: 100, level: 100 });
+      return { edad: hf(viejo) / hf(nuevo), freq: hf(cerrado) / hf(abierto), ruido: rms(dif) / rms(limpio), sinWow: Math.max(...w0.map((v, i) => Math.abs(v - x[i]))), conWow: Math.max(...w1.map((v, i) => Math.abs(v - x[i]))) }; });
+    expect(r.edad).toBeLessThan(0.6); expect(r.freq).toBeLessThan(0.6); expect(r.ruido).toBeGreaterThan(0.05); expect(r.sinWow).toBeLessThan(1e-3); expect(r.conWow).toBeGreaterThan(0.05);
+  });
+  test('Auto Pitch: +12 sube una octava, afina a la nota más cercana, a la tonalidad y el robot fija la nota', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const r = await page.evaluate(async hs => { const f = await import('/sounds/fx404.js'), rate = 48000, N = rate * 2, mk = eval(hs);
+      const f0 = a => { const t = f.trackPitch(a, rate), v = t.f0.filter(q => q > 0).sort((p, q) => p - q); return v.length ? v[v.length >> 1] : 0; };
+      const ap = (x, p) => f.applyFx('autopitch', x, rate, { balance: 100, atPitch: 100, ...p });
+      return { base: f0(mk(220, N, rate)), arriba: f0(ap(mk(220, N, rate), { pitch: 100, atPitch: 0 })), abajo: f0(ap(mk(220, N, rate), { pitch: -100, atPitch: 0 })), crom: f0(ap(mk(240, N, rate), {})), clave: f0(ap(mk(230, N, rate), { key: 4 })), sinFuerza: f0(ap(mk(240, N, rate), { atPitch: 0 })),
+        robot: f0(ap(Float32Array.from({ length: N }, (_, k) => { const hz = 200 + 80 * k / N; let s = 0; for (let h = 1; h <= 8; h++) s += Math.sin(2 * Math.PI * hz * h * k / rate) / h; return 0.25 * s; }), { robot: true })) }; }, H);
+    expect(r.base).toBeGreaterThan(218); expect(r.base).toBeLessThan(222);
+    expect(r.arriba / r.base).toBeGreaterThan(1.97); expect(r.arriba / r.base).toBeLessThan(2.03); expect(r.abajo / r.base).toBeGreaterThan(0.49); expect(r.abajo / r.base).toBeLessThan(0.51);
+    expect(r.crom).toBeGreaterThan(245); expect(r.crom).toBeLessThan(249);                  // 240 Hz es casi un Si3 (246,9 Hz)
+    expect(r.clave).toBeGreaterThan(218); expect(r.clave).toBeLessThan(222);                // 230 Hz en Do mayor cae en La3 (220 Hz): La♯ no pertenece a la escala
+    expect(r.sinFuerza).toBeGreaterThan(238); expect(r.sinFuerza).toBeLessThan(242);        // sin corrección se queda como estaba
+    expect(r.robot).toBeGreaterThan(274); expect(r.robot).toBeLessThan(280);                // toda la frase en una nota: la frecuencia sube de 200 a 360 Hz, mediana ≈ 280 → Do♯4 (277,2 Hz)
+  });
+  test('en Editar: abrir, elegir efecto, preajuste, ajustar, escuchar y aplicar (con deshacer)', async ({ page }) => {
+    await abrir(page, 'rolando'); await sembrar(page, ['pad base']);
+    await tab(page, 'biblioteca'); await page.getByText('Seleccionar').first().click(); await page.getByText('Cancelar').first().click();
+    await page.locator('.row-btn').first().click();
+    await expect(page.getByRole('heading', { name: 'Escuchar y editar' })).toBeVisible();
+    await page.getByRole('button', { name: 'Abrir los efectos' }).click();
+    const sh = page.locator('dialog.sheet');
+    await expect(sh.getByRole('heading', { name: 'Efectos de carácter' })).toBeVisible();
+    await expect(sh.getByRole('button', { name: 'Cassette Sim' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(sh).toContainText('Cómo se produce');
+    await sh.getByRole('button', { name: 'Cinta vieja del cajón' }).click();
+    await expect(sh.getByLabel('Edad')).toHaveValue('45');
+    await sh.getByLabel('Siseo').fill('10');
+    await sh.getByRole('button', { name: '▶ Escuchar' }).click();
+    await expect(sh.getByRole('button', { name: '▶ Escuchar' })).toBeEnabled({ timeout: 15000 });
+    await sh.getByRole('button', { name: 'Chorus', exact: true }).click(); await expect(sh.getByLabel('Mezcla (seco → efecto)')).toBeVisible();
+    await sh.getByRole('button', { name: 'Auto Pitch' }).click(); await expect(sh.getByRole('group', { name: 'Tonalidad' })).toBeVisible(); await expect(sh.getByLabel('Robot')).toBeVisible();
+    await sh.getByRole('button', { name: 'Cassette Sim' }).click();
+    await sh.getByRole('button', { name: 'Aplicar al sonido' }).click();
+    await expect(page.locator('#toast')).toContainText('Cassette Sim aplicado', { timeout: 15000 });
+    await expect(page.locator('dialog.sheet')).toHaveCount(0);
+    await expect(page.locator('.undo-bar')).toContainText('Cassette Sim');
+    await page.getByRole('button', { name: /Deshacer/ }).first().click();
+    await page.getByRole('button', { name: 'Abrir los efectos' }).click();
+    await expect(page.locator('dialog.sheet').getByLabel('Edad')).toHaveValue('45');          // los ajustes se recuerdan
+  });
+});
+
 test.describe('aspecto', () => {
   test.use({ deviceScaleFactor: 2 });                        // como un iPhone: con densidad doble el lienzo roto se realimentaba
   test('el lienzo de la onda del editor mantiene su tamaño (no se agranda solo)', async ({ page }) => {
