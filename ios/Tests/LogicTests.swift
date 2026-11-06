@@ -1118,7 +1118,7 @@ final class LogicTests: XCTestCase {
 
         let pad = stylePad(), beat = 60.0 / 90
         let l0 = try XCTUnwrap(StyleMemory.suggestLoop(pad, rate: r, bpm: 90, bpmConfidence: 0.5, m))
-        XCTAssertEqual(Double(l0.b - l0.a) / Double(r), beat * 4, accuracy: 0.1); XCTAssertEqual(l0.crossSec, 1); XCTAssertTrue(l0.refine)
+        XCTAssertEqual(Double(l0.b - l0.a) / Double(r), beat * 4, accuracy: 0.1); XCTAssertEqual(l0.crossSec, 0.5); XCTAssertTrue(l0.refine)      // el empalme nunca pasa de un cuarto del loop
         for _ in 0..<3 { m = StyleMemory.learnLoop(group: "sostenido", lenSec: beat * 2, bpm: 90, crossSec: 0.5, refine: false, m) }
         let l1 = try XCTUnwrap(StyleMemory.suggestLoop(pad, rate: r, bpm: 90, bpmConfidence: 0.5, m))
         XCTAssertEqual(Double(l1.b - l1.a) / Double(r), beat * 2, accuracy: 0.1); XCTAssertEqual(l1.crossSec, 0.5); XCTAssertFalse(l1.refine); XCTAssertEqual(l1.learned, 3)
