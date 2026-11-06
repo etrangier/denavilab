@@ -2,6 +2,7 @@
 import { app, refreshSamples } from './state.js';
 import { h, mount, fill, btn, link, chip, card, label, muted, toggleRow, sliderRow, sheet, toast, drawBars, fx, flash } from './ui.js';
 import * as dsp from './dsp.js';
+import { noteChanges } from './constellation.js';
 import * as hm from './harmony.js';
 import * as gd from './grid.js';
 import { putSample, newSample } from './store.js';
@@ -43,7 +44,11 @@ export function openChop(sample, audio) {
     const firstPick = () => S.style === 'libre' ? S.lay.loop : S.lay.arranged[0] || S.lay.patterns.best || S.lay.loop;
     const recompute = () => {
       if (S.mode === -1 && S.lay) { relayout(); S.ranges = barRanges(); stopPreview(); S.selected = new Set(); return; }
-      let starts = S.mode === 0 ? dsp.transients(audio, S.sens, Math.floor(sample.rate / 10), 11) : dsp.evenSlices(audio, S.mode);
+      let starts;
+      if (S.mode === -2) {          // por cambio de notas (constelación): acordes, pads y voz, donde el volumen no marca el corte
+        starts = noteChanges(audio, sample.rate, S.sens).map(i => dsp.nearestZeroCross(audio, i, 256));
+        if (!starts.length) { starts = dsp.evenSlices(audio, 4); toast('No encuentro cambios de nota claros: dividí en 4 partes iguales'); }
+      } else starts = S.mode === 0 ? dsp.transients(audio, S.sens, Math.floor(sample.rate / 10), 11) : dsp.evenSlices(audio, S.mode);
       if (S.grid && S.bpm) starts = dsp.snapToGrid(starts, sample.rate * 60 / S.bpm / 4);
       S.ranges = dsp.slices(starts, audio.length).slice(0, 12);
       stopPreview(); S.selected = new Set();                   // al cambiar los cortes, los números ya no significan lo mismo
@@ -256,8 +261,8 @@ export function openChop(sample, audio) {
       fill(box,
         h('div', { class: 'title-row' }, h('div', {}, h('h2', {}, app.ko2 ? 'Chop en pads' : 'Chop'), h('p', { class: 'muted small' }, `${total} cortes · ${n} seleccionado${n === 1 ? '' : 's'}`)), link('Cerrar', close)),
         card([canvas]),
-        h('div', { class: 'wrap' }, [[4, '4'], [8, '8'], [12, '12'], [0, 'Auto'], ...(S.lay ? [[-1, 'Compases']] : [])].map(([m, t]) => chip(t, S.mode === m, () => { S.mode = m; recompute(); paint(); }))),
-        S.mode === 0 ? sliderRow('Sensibilidad de golpes', { min: 0, max: 1, step: 0.01, value: S.sens, fmt: v => v < 0.34 ? 'Baja' : v < 0.67 ? 'Media' : 'Alta', onInput: v => { S.sens = v; }, onChange: () => { recompute(); paint(); } }) : null,
+        h('div', { class: 'wrap' }, [[4, '4'], [8, '8'], [12, '12'], [0, 'Golpes'], [-2, 'Notas'], ...(S.lay ? [[-1, 'Compases']] : [])].map(([m, t]) => chip(t, S.mode === m, () => { S.mode = m; recompute(); paint(); }))),
+        S.mode === 0 || S.mode === -2 ? sliderRow(S.mode === -2 ? 'Sensibilidad a cambios de nota' : 'Sensibilidad de golpes', { min: 0, max: 1, step: 0.01, value: S.sens, fmt: v => v < 0.34 ? 'Baja' : v < 0.67 ? 'Media' : 'Alta', onInput: v => { S.sens = v; }, onChange: () => { recompute(); paint(); } }) : null,
         toggleRow('Detectar acordes y compases', 'Aproximado: acordes mayores y menores, compás de 4 tiempos', S.hm, v => {
           if (!v) { S.hm = false; S.an = S.lay = S.pick = null; if (S.mode === -1) S.mode = 8; recompute(); return paint(); }
           if (analyzeWith(S.bpm)) { S.hm = true; recompute(); } paint();
