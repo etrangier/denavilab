@@ -577,7 +577,7 @@ test.describe('etapa 3 · modo materia prima', () => {
     await ajustes(page); await expect(page.getByText('luego eliges un fragmento')).toBeVisible();
     await page.getByRole('button', { name: 'Captura libre' }).click();
     await expect(page.getByText('la toma se guarda entera')).toBeVisible();
-    await page.reload(); await tab(page, 'grabar'); await expect(page.getByText('la toma se guarda entera')).toBeVisible();
+    await page.reload(); await tab(page, 'grabar'); await ajustes(page); await expect(page.getByText('la toma se guarda entera')).toBeVisible();
   });
   test('ventana más enérgica y fragmento sin clics', async ({ page }) => {
     await abrir(page, 'rolando');
@@ -2305,7 +2305,7 @@ test.describe('memoria de estilo: aprende de cómo recortas y armas loops', () =
       for (let i = 0; i < 3; i++) m = L.learnLoop({ group: 'sostenido', lenSec: 60 / 90 * 2, bpm: 90, crossSec: 0.5, refine: false }, m);
       const b = L.suggestLoop(x, r, { bpm: 90, bpmConfidence: 0.5 }, m), corto = L.suggestLoop(kick(), r, {}, m);
       return { a: [(a.b - a.a) / r, a.crossSec, a.refine, a.learned], sin: (sinPulso.b - sinPulso.a) / r, b: [(b.b - b.a) / r, b.crossSec, b.refine, b.learned], corto, beat: 60 / 90 };`);
-    expect(q.a[0]).toBeCloseTo(q.beat * 4, 1); expect(q.a[1]).toBe(1); expect(q.a[2]).toBe(true); expect(q.a[3]).toBe(0);
+    expect(q.a[0]).toBeCloseTo(q.beat * 4, 1); expect(q.a[1]).toBe(0.5);      // el empalme nunca pasa de un cuarto del loop (2,7 s → ≤0,67 s) expect(q.a[2]).toBe(true); expect(q.a[3]).toBe(0);
     expect(q.b[0]).toBeCloseTo(q.beat * 2, 1); expect(q.b[1]).toBe(0.5); expect(q.b[2]).toBe(false); expect(q.b[3]).toBe(3); expect(q.sin).toBeGreaterThan(1);
   });
   test('Editar: las sugerencias marcan la selección y Recortar enseña; la memoria se ve y se olvida', async ({ page }) => {
@@ -2319,7 +2319,7 @@ test.describe('memoria de estilo: aprende de cómo recortas y armas loops', () =
     await page.getByRole('button', { name: 'Recortar', exact: true }).click(); await expect(page.locator('#toast')).toContainText('recortado');
     const m = await page.evaluate(async () => (await import('/sounds/learn.js')).load()); expect(m.trim.golpe.n).toBe(1);
     await page.getByRole('button', { name: '✨ Loop inteligente' }).click(); await expect(page.locator('#toast')).toContainText(/Loop de|zona estable/);
-    await tab(page, 'biblioteca'); await page.locator('details.style-mem > summary').click();
+    await tab(page, 'biblioteca'); await page.getByRole('button', { name: '‹ Biblioteca' }).click(); await page.locator('details.style-mem > summary').click();
     await expect(page.locator('details.style-mem')).toContainText('Recortes de golpes (1)');
     await page.getByRole('button', { name: 'Olvidar todo' }).click(); await page.locator('dialog.sheet').getByRole('button', { name: 'Olvidar' }).click();
     await expect(page.locator('#toast')).toContainText('borrada'); expect((await page.evaluate(async () => (await import('/sounds/learn.js')).load())).seen).toBe(0);

@@ -188,6 +188,7 @@ const tempoCard = rec => {
       muted('Si suena a la mitad o al doble de lo que tocas, usa ÷2 o ×2.', 'tiny')) : null]);
 };
 
+const recOpts = { open: false };      // los ajustes de captura recuerdan si estaban abiertos al volver a dibujar la pantalla
 export function renderRecord(root) {
   const e = app.engine, m = app.metro, rec = e.state === 'recording', listening = e.state === 'listening';
   const pill = (text, onclick, aria) => h('button', { type: 'button', class: 'pill', onclick, 'aria-label': aria }, text);
@@ -231,7 +232,7 @@ export function renderRecord(root) {
         recBtn,
         side('Retro', '↺', null, openRetro)),
       h('div', { class: 'format' }, `WAV · 16 bit · mono · ${hz(exportRate())}`),
-      h('details', { class: 'rec-opts' }, h('summary', {}, 'Ajustes de captura · ', captureMode() === 'materia' ? 'materia prima' : 'captura libre', ' · ', dsp.SOUND_KINDS[kind].label.toLowerCase()),
+      h('details', { class: 'rec-opts', open: recOpts.open ? '' : null, ontoggle: e => { recOpts.open = e.target.open; } }, h('summary', {}, 'Ajustes de captura · ', captureMode() === 'materia' ? 'materia prima' : 'captura libre', ' · ', dsp.SOUND_KINDS[kind].label.toLowerCase()),
         h('div', { class: 'stack tight' },
           card([h('b', {}, 'Entrada · Micrófono del dispositivo')]),
           card([h('b', {}, 'Modo de captura'),
