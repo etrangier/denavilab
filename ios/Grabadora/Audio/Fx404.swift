@@ -271,14 +271,18 @@ enum Fx404 {
         let hg = Float(ref * dB(-40 + 28 * amt) * 1.7), rg = Float(ref * dB(-50 + 22 * amt) * 6)
         for i in 0..<n { out[i] = hiss[i] * hg + rumble[i] * rg }
         let lam = clicksPerSec * pow(amt, 1.4) / Double(rate)
+        var cl = [Float](repeating: 0, count: n)
         for i in 0..<n {
             if g.next() >= lam { continue }
-            let u = g.next(), pop = g.next() < 0.06
+            let u = g.next(), pop = g.next() < 0.05
             let sign: Double = g.next() < 0.5 ? -1 : 1
-            let amp = ref * dB(-14 + 10 * amt) * (0.25 + 2.2 * u * u * u) * (pop ? 2.5 : 1) * sign, tauS = Double(rate) * (pop ? 0.0022 : 0.0004)
+            let amp = ref * dB(-22 + 11 * amt) * (0.25 + 2.0 * u * u * u) * (pop ? 1.8 : 1) * sign, tauS = Double(rate) * (pop ? 0.0025 : 0.0005)
             let m = min(n - i, Int((tauS * 6).rounded()))
-            for k in 0..<m { out[i + k] += Float(amp * exp(-Double(k) / tauS)) }
+            for k in 0..<m { cl[i + k] += Float(amp * exp(-Double(k) / tauS)) }
         }
+        // los chasquidos pasan por un filtro de banda (sin «clic digital» seco ni golpe grave): suenan a polvo en el surco
+        let soft = biquad(biquad(cl, .hp, 700, rate), .lp, 7000, rate)
+        for i in 0..<n { out[i] += soft[i] * 1.6 }
         return out
     }
 
@@ -315,6 +319,7 @@ enum Fx404 {
         var y = varDelay(x, wobbleDelay(x.count, rate, wow: 0.010 * w, wowHz: 0.555, flutter: 0.004 * w, flutHz: 6.1, seed: 12))
         let q = 0.7 + 0.5 * f                                                                          // más resonancia al cerrar: color «de radio»
         y = biquad(biquad(y, .hp, 60 * pow(6.7, f), rate, q: q), .lp, 12000 * pow(0.183, f), rate, q: q)          // respuesta del tocadiscos: de amplia a «de radio»
+        y = matchLevel(y, x, rate)                                                                       // el recorte de graves y agudos no baja el volumen
         let noise = vinylNoise(x.count, rate, amt: n, ref: activeLevel(x, rate), seed: 22, clicksPerSec: 11)
         for i in y.indices { y[i] += noise[i] }
         return finish(y)

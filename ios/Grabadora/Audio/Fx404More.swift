@@ -35,7 +35,7 @@ extension Fx404 {
             return Info(name: "Granular", about: "Corta el sonido en granos de milésimas de segundo y los vuelve a lanzar en nube: sirve para congelar un instante, alargar un golpe hasta hacerlo pad o convertir una frase en una niebla.",
                 how: "Cada grano es un trocito de 10–300 ms con una ventana (Hann) que evita clics. Densidad = granos por segundo; la posición decide de dónde se toman (fija = congelar; avanzando = recorrido); la dispersión mueve esa posición al azar; el tono de cada grano se cambia leyéndolo más rápido o más lento.",
                 uso: "La herramienta más fuerte para volver un sonido en otro: un golpe de teclas se vuelve un pad; una voz, una niebla.",
-                params: [rg("size", "Tamaño del grano", 10, 300, 90, unit: " ms"), rg("density", "Densidad", 4, 80, 24, unit: " granos/s"), ch("stretch", "Duración", ["×1", "×2", "×4", "×8"], 1), bl("freeze", "Congelar en una posición"),
+                params: [rg("size", "Tamaño del grano", 10, 300, 90, unit: " ms"), rg("density", "Densidad", 4, 80, 40, unit: " granos/s"), ch("stretch", "Duración", ["×1", "×2", "×4", "×8"], 1), bl("freeze", "Congelar en una posición"),
                          rg("position", "Posición (al congelar)", 0, 100, 50, unit: " %"), rg("spray", "Dispersión", 0, 100, 30), rg("pitch", "Tono", -24, 24, 0, unit: " st"), rg("jitter", "Variación de tono", 0, 1200, 15, unit: " cent", step: 5),
                          rg("reverse", "Granos al revés", 0, 100, 0, unit: " %"), ch("shape", "Ventana", ["Suave", "Triangular", "Plana"]), rg("balance", "Mezcla (seco → efecto)", 0, 100, 100, unit: " %")],
                 presets: [("Pad desde un golpe", ["size": 140, "density": 30, "stretch": 2, "freeze": 1, "position": 25, "spray": 25, "pitch": 0, "jitter": 12, "reverse": 0, "shape": 0, "balance": 100]),
@@ -45,7 +45,7 @@ extension Fx404 {
             return Info(name: "Crusher", about: "Baja los bits y la frecuencia de muestreo: sonido de sampler antiguo, áspero y digital.",
                 how: "Se redondea cada muestra a pocos niveles (menos bits = más ruido de cuantización) y se repite el valor cada N muestras (menos frecuencia = aliasing metálico).",
                 uso: "Para ensuciar baterías y teclas hasta el sabor de un sampler de los 90.",
-                params: [rg("bits", "Bits", 1, 16, 8), rg("rateDiv", "Reducción de frecuencia", 1, 50, 6, unit: " ×"), rg("balance", "Mezcla (seco → efecto)", 0, 100, 100, unit: " %")],
+                params: [rg("bits", "Bits", 1, 16, 8), rg("rateDiv", "Reducción de frecuencia", 1, 50, 4, unit: " ×"), rg("balance", "Mezcla (seco → efecto)", 0, 100, 100, unit: " %")],
                 presets: [("Sampler de 12 bits", ["bits": 12, "rateDiv": 3, "balance": 100]), ("Radio rota", ["bits": 5, "rateDiv": 14, "balance": 100])])
         case .overdrive:
             return Info(name: "Overdrive", about: "Saturación cálida de válvula: engorda y comprime los picos.",
@@ -63,7 +63,7 @@ extension Fx404 {
             return Info(name: "Ring Mod", about: "Multiplica el sonido por un tono: crea campanas y timbres metálicos que no estaban.",
                 how: "Al multiplicar por una onda de frecuencia f, cada componente f₀ se reemplaza por f₀+f y f₀−f; el resultado es inarmónico (como una campana).",
                 uso: "Para convertir un pad cálido en algo extraterrestre.",
-                params: [rg("freq", "Frecuencia", 20, 2000, 220, unit: " Hz"), ch("shape", "Onda", ["Seno", "Cuadrada"]), rg("mix", "Mezcla", 0, 100, 50, unit: " %")],
+                params: [rg("freq", "Frecuencia", 20, 2000, 220, unit: " Hz"), ch("shape", "Onda", ["Seno", "Cuadrada"]), rg("mix", "Mezcla", 0, 100, 35, unit: " %")],
                 presets: [("Campana", ["freq": 440, "shape": 0, "mix": 60]), ("Robot", ["freq": 90, "shape": 1, "mix": 80])])
         case .filterdrive:
             return Info(name: "Filter+Drive", about: "Filtro con resonancia, saturación y movimiento: pasa-bajos, pasa-altos o pasa-banda que se desplazan solos.",
@@ -162,9 +162,10 @@ extension Fx404 {
 
     nonisolated private static func granular(_ x: [Float], _ rate: Int, _ p: Params) -> [Float] {
         let N = x.count, stretch = stretches[min(3, max(0, Int(p["stretch"]!)))], M = Int((Double(N) * Double(stretch)).rounded())
-        var g = RNG(77), out = [Double](repeating: 0, count: M)
+        var g = RNG(77), out = [Double](repeating: 0, count: M), wsq = [Double](repeating: 0, count: M)
         let G = max(16, Int((p["size"]! / 1000 * Double(rate)).rounded())), step = Double(rate) / p["density"]!, win = grainWindow(G, Int(p["shape"]!))
         let freeze = p["freeze"]! >= 0.5, position = p["position"]!, spray = p["spray"]!, pitch = p["pitch"]!, jitter = p["jitter"]!, rev = p["reverse"]!
+        let search = Int((min(Double(rate) * 0.02, max(Double(rate) * 0.006, Double(G) * 0.05))).rounded()), Lc = min(G >> 1, Int((Double(rate) * 0.03).rounded()))
         var t = 0.0
         while t < Double(M) {
             let base = freeze ? position / 100 * Double(N) : t / Double(M) * Double(N)
@@ -172,16 +173,40 @@ extension Fx404 {
             let gr = pow(2, (pitch + (g.next() * 2 - 1) * jitter / 100) / 12)
             let reversed = g.next() * 100 < rev
             let start = Int((t - Double(G) / 2).rounded())
+            var dlt = 0
+            if !reversed {          // alinea la fase del grano con lo que ya sonó (como WSOLA): evita que los granos se cancelen y el sonido «tiemble»
+                var best = -Double.infinity
+                var d = -search
+                while d <= search {
+                    var num = 0.0, den = 1e-9
+                    var k = 0
+                    while k < Lc {
+                        let o = start + k
+                        if o >= 0 && o < M && wsq[o] >= 0.05 {
+                            let sp = pos + Double(d) + (Double(k) - Double(G) / 2) * gr, j = Int(floor(sp))
+                            if j >= 0 && j + 1 < N {
+                                let sv = Double(x[j]) * (1 - (sp - Double(j))) + Double(x[j + 1]) * (sp - Double(j))
+                                num += out[o] * sv; den += sv * sv
+                            }
+                        }
+                        k += 4
+                    }
+                    let sc = num / den.squareRoot()
+                    if sc > best { best = sc; dlt = d }
+                    d += 2
+                }
+            }
             for k in 0..<G {
                 let o = start + k
                 if o < 0 || o >= M { continue }
-                let src = pos + (Double(reversed ? G - 1 - k : k) - Double(G) / 2) * gr, j = Int(floor(src))
+                let src = pos + Double(dlt) + (Double(reversed ? G - 1 - k : k) - Double(G) / 2) * gr, j = Int(floor(src))
                 if j < 0 || j + 1 >= N { continue }
                 let f = src - Double(j)
-                out[o] += (Double(x[j]) * (1 - f) + Double(x[j + 1]) * f) * Double(win[k])
+                out[o] += (Double(x[j]) * (1 - f) + Double(x[j + 1]) * f) * Double(win[k]); wsq[o] += Double(win[k]) * Double(win[k])
             }
             t += step * (0.85 + 0.3 * g.next())
         }
+        for i in 0..<M { out[i] /= max(0.35, wsq[i].squareRoot()) }          // el volumen no sube ni baja según cuántos granos se solapan
         let wet = matchLevel(out.map { Float($0) }, x, rate), b = Float(p["balance"]! / 100), dry = grow(x, M)
         var y = [Float](repeating: 0, count: M)
         for i in 0..<M { y[i] = dry[i] * (1 - b) + wet[i] * b }
@@ -200,23 +225,39 @@ extension Fx404 {
         return finish(matchLevel(y, x, rate))
     }
 
+    /// Aplica una curva no lineal a 4× la frecuencia de muestreo y vuelve a bajar con un filtro de 24 dB/oct: así la distorsión no «silba» (aliasing).
+    nonisolated private static func oversampled(_ x: [Float], _ rate: Int, _ shaper: (Double) -> Double, factor F: Int = 4) -> [Float] {
+        let n = x.count
+        guard n > 0 else { return x }
+        var up = [Float](repeating: 0, count: n * F)
+        func at(_ k: Int) -> Double { Double(x[k < 0 ? 0 : (k >= n ? n - 1 : k)]) }
+        for i in 0..<n {
+            let a = at(i - 1), b = Double(x[i]), c = at(i + 1), e = at(i + 2)
+            for u in 0..<F {
+                let f = Double(u) / Double(F)
+                let v = b + 0.5 * f * (c - a + f * (2 * a - 5 * b + 4 * c - e + f * (3 * (b - c) + e - a)))          // Catmull-Rom
+                up[i * F + u] = Float(shaper(v))
+            }
+        }
+        let lp = biquad(biquad(up, .lp, Double(rate) * 0.45, rate * F, q: 0.54), .lp, Double(rate) * 0.45, rate * F, q: 1.31)
+        return (0..<n).map { lp[$0 * F] }
+    }
+
     nonisolated private static func drive(_ x: [Float], _ rate: Int, _ p: Params, hard: Bool) -> [Float] {
         let ref = max(peakRef(x), 1e-6), k = 1 + (hard ? 24.0 : 14.0) * p["drive"]! / 100, bias = 0.3 * (p["asym"] ?? 0) / 100
         let fold = hard && (p["mode"] ?? 0) >= 0.5, pre = hard ? biquad(x, .hp, 90, rate) : x
-        var y = [Float](repeating: 0, count: x.count)
-        for i in x.indices {
-            let v = Double(pre[i]) / ref
-            if hard {
-                var q = k * v
-                if fold {
-                    q = (q + 1).truncatingRemainder(dividingBy: 4)
+        let shape: (Double) -> Double
+        if hard {
+            if fold {
+                shape = { q0 in
+                    var q = (k * q0 + 1).truncatingRemainder(dividingBy: 4)
                     if q < 0 { q += 4 }
-                    q = q > 2 ? 3 - q : q - 1
-                    y[i] = Float(q)
-                } else { y[i] = Float(min(1, max(-1, q))) }
-            } else { y[i] = Float(tanh(k * (v + bias)) - tanh(k * bias)) }
-        }
-        var o = matchLevel(biquad(y, .lp, 1200 * pow(10, p["tone"]! / 100), rate), x, rate)
+                    return q > 2 ? 3 - q : q - 1
+                }
+            } else { shape = { min(1, max(-1, k * $0)) } }
+        } else { shape = { tanh(k * ($0 + bias)) - tanh(k * bias) } }
+        let yo = oversampled(pre.map { Float(Double($0) / ref) }, rate, shape)
+        var o = matchLevel(biquad(yo, .lp, 1200 * pow(10, p["tone"]! / 100), rate), x, rate)
         let g = levelGain(p["level"]!)
         for i in o.indices { o[i] *= g }
         return finish(o)
@@ -226,7 +267,7 @@ extension Fx404 {
         let f = p["freq"]!, m = Float(p["mix"]! / 100), sq = (p["shape"] ?? 0) >= 0.5
         var car = [Float](repeating: 0, count: x.count)
         for i in x.indices { let s = sin(tau * f * Double(i) / Double(rate)); car[i] = Float(sq ? tanh(6 * s) : s) }
-        let ring = matchLevel((0..<x.count).map { x[$0] * car[$0] }, x, rate)
+        let ring = matchLevel(biquad((0..<x.count).map { x[$0] * car[$0] }, .lp, 9500, rate), x, rate)
         var y = x
         for i in x.indices { y[i] = x[i] * (1 - m) + ring[i] * m }
         return finish(y)
@@ -280,37 +321,68 @@ extension Fx404 {
         return finish(y)
     }
 
+    /// Reverb de red de retardos realimentados (FDN de 8 líneas, matriz de Hadamard): más densa y suave que los peines de Schroeder, que «suenan a lata».
+    /// Difusores a la entrada, primeras reflexiones, amortiguación de agudos en cada línea y retardos que se mueven muy despacio (rompe el timbre metálico).
     nonisolated static func reverbTail(_ x: [Float], _ rate: Int, size: Double, damp: Double, preMs: Double, mix: Double, tailSec: Double) -> [Float] {
-        let N = x.count, M = N + Int((Double(rate) * tailSec).rounded()), inp = grow(x, M), decay = 0.4 + 7.6 * size / 100, pre = Int((preMs / 1000 * Double(rate)).rounded()), d = damp / 100
+        let N = x.count, M = N + Int((Double(rate) * tailSec).rounded()), inp = grow(x, M), rt = 0.4 + 7.6 * size / 100
+        let pre = Int((preMs / 1000 * Double(rate)).rounded()), d = damp / 100
+        _ = N
+        // 1) entrada difusa: cuatro pasa-todo en serie
+        var dif = [Float](repeating: 0, count: M)
+        for i in pre..<max(pre, M) { dif[i] = inp[i - pre] }
+        for (ms, gg) in [(4.7, 0.62), (3.6, 0.62), (12.7, 0.55), (9.3, 0.55)] as [(Double, Float)] {
+            let n = max(1, Int((ms / 1000 * Double(rate)).rounded()))
+            var buf = [Float](repeating: 0, count: n)
+            var idx = 0
+            for i in 0..<M { let v = dif[i], bo = buf[idx], o = -gg * v + bo; buf[idx] = v + gg * o; dif[i] = o; idx += 1; if idx == n { idx = 0 } }
+        }
+        // 2) primeras reflexiones (sobre la entrada sin difundir)
+        var er = [Float](repeating: 0, count: M)
+        let room = 0.6 + 0.8 * size / 100
+        for (ms, gg) in [(7.0, 0.5), (13.0, -0.4), (19.0, 0.35), (26.0, -0.3), (34.0, 0.22), (43.0, -0.18)] as [(Double, Float)] {
+            let o = Int((ms * room / 1000 * Double(rate)).rounded())
+            if o + pre < M { for i in (o + pre)..<M { er[i] += gg * inp[i - o - pre] } }
+        }
+        // 3) red de 8 retardos con mezcla ortogonal
+        let base: [Double] = [0.0297, 0.0371, 0.0411, 0.0437, 0.0533, 0.0617, 0.0719, 0.0833]
+        let L = 8, sc = 0.7 + 0.8 * size / 100
+        let len = base.map { max(8, Int(($0 * sc * Double(rate)).rounded())) }
+        var bufs = len.map { [Double](repeating: 0, count: $0 + 64) }
+        var idx = [Int](repeating: 0, count: L), lp = [Double](repeating: 0, count: L)
+        let gains = (0..<L).map { pow(10.0, -3 * (Double(len[$0]) / Double(rate)) / rt) }
+        let a = 0.08 + 0.72 * d
+        var v = [Double](repeating: 0, count: L), o = [Double](repeating: 0, count: L)
         var wet = [Float](repeating: 0, count: M)
-        for dl in [0.0297, 0.0371, 0.0411, 0.0437, 0.0533, 0.0617] {
-            let n = max(1, Int((dl * Double(rate)).rounded())), g = Float(pow(10.0, -3 * dl / decay))
-            var buf = [Float](repeating: 0, count: n)
-            var idx = 0
-            var lp: Float = 0
-            let k1 = Float(0.15 + 0.6 * d)
-            for i in 0..<M {
-                let o = buf[idx]
-                lp = o * (1 - k1) + lp * k1
-                buf[idx] = (i >= pre ? inp[i - pre] : 0) + lp * g
-                idx += 1; if idx == n { idx = 0 }
-                wet[i] += o
+        let modHz = (0..<L).map { 0.07 + 0.04 * Double($0) }, modAmp = min(24.0, Double(rate) * 0.0004)
+        let sgn: [Double] = [1, -1, 1, -1, 1, -1, 1, -1]
+        for i in 0..<M {
+            var sum = 0.0
+            for l in 0..<L {
+                let n = len[l]
+                let dly = Double(n) - modAmp * (0.5 + 0.5 * sin(tau * modHz[l] * Double(i) / Double(rate))) - 1
+                let rp = Double(idx[l]) - dly, k = Int(floor(rp)), f = rp - Double(k)
+                let i0 = ((k % n) + n) % n, i1 = (i0 + 1) % n
+                o[l] = bufs[l][i0] * (1 - f) + bufs[l][i1] * f
+                lp[l] = o[l] * (1 - a) + lp[l] * a
+                v[l] = lp[l] * gains[l]
+                sum += sgn[l] * o[l]
             }
-        }
-        for (dl, g) in [(0.005, Float(0.7)), (0.0017, Float(0.7))] {
-            let n = max(1, Int((dl * Double(rate)).rounded()))
-            var buf = [Float](repeating: 0, count: n)
-            var idx = 0
-            for i in 0..<M {
-                let v = wet[i], bo = buf[idx], o = -g * v + bo
-                buf[idx] = v + g * o
-                idx += 1; if idx == n { idx = 0 }
-                wet[i] = o
+            var h = 1
+            while h < L {                                              // Hadamard
+                var j = 0
+                while j < L { for q in j..<(j + h) { let u = v[q], w = v[q + h]; v[q] = u + w; v[q + h] = u - w }; j += h << 1 }
+                h <<= 1
             }
+            let din = Double(dif[i]) * 0.35
+            for l in 0..<L {
+                bufs[l][idx[l]] = v[l] * 0.35355339 + din * sgn[(l + 1) % L]
+                idx[l] += 1; if idx[l] == len[l] { idx[l] = 0 }
+            }
+            wet[i] = Float(sum * 0.5) + er[i] * 0.6
         }
-        let m = Float(mix / 100), gw = m * 1.2 / 3
+        let hp = biquad(wet, .hp, 140, rate), m = Float(mix / 100), gw = m * 1.1
         var y = [Float](repeating: 0, count: M)
-        for i in 0..<M { y[i] = inp[i] * (1 - m * 0.5) + wet[i] * gw }
+        for i in 0..<M { y[i] = inp[i] * (1 - m * 0.5) + hp[i] * gw }
         return y
     }
 

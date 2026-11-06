@@ -186,14 +186,14 @@ export function renderEdit(root) {
       btn('Normalizar', { small: true, act: 'normalizar', onclick: () => run('normalizar', x => dsp.normalize(x), { done: 'Listo: normalizado a −1 dB' }) }),
       btn('Fundido', { small: true, act: 'fundido', onclick: () => run('fundido', x => dsp.fade(x, fade, fade), { done: 'Listo: fundido aplicado' }) })),
     h('div', { class: 'row2' },
-      btn('✨ Recorte inteligente', { small: true, act: 'recorte-ia', onclick: () => {
+      btn(fx.flash === 'recorte-ia' ? '✓ Recorte sugerido' : '✨ Recorte inteligente', { small: true, act: 'recorte-ia', onclick: () => {
         const r = learn.suggestTrim(ed.audio, s.rate); if (!r) return toast('No encuentro un sonido claro para sugerir un recorte');
-        ed.start = r.a / ed.audio.length; ed.end = r.b / ed.audio.length; ed.fadeMs = r.fadeMs; toast(r.why + ' · ajusta y pulsa Recortar', 8000); app.render();
+        ed.start = r.a / ed.audio.length; ed.end = r.b / ed.audio.length; ed.fadeMs = r.fadeMs; toast(r.why + ' · ajusta y pulsa Recortar', 8000); flash('recorte-ia'); app.render();
       } }),
-      btn('✨ Loop inteligente', { small: true, act: 'loop-ia', onclick: () => {
+      btn(fx.flash === 'loop-ia' ? '✓ Loop sugerido' : '✨ Loop inteligente', { small: true, act: 'loop-ia', onclick: () => {
         const est = s.bpm ? { bpm: s.bpm, confidence: 1 } : dsp.estimateBPM(ed.audio, s.rate), r = learn.suggestLoop(ed.audio, s.rate, { bpm: est ? est.bpm : null, bpmConfidence: est ? est.confidence : 0 });
         if (!r) return toast('No encuentro una zona estable de al menos 0,5 s para sugerir un loop');
-        ed.start = r.a / ed.audio.length; ed.end = r.b / ed.audio.length; ed.cross = r.crossSec; ed.refine = r.refine; toast(r.why + ' · ajusta y pulsa Hacer loop continuo', 8000); app.render();
+        ed.start = r.a / ed.audio.length; ed.end = r.b / ed.audio.length; ed.cross = r.crossSec; ed.refine = r.refine; toast(r.why + ' · ajusta y pulsa Hacer loop continuo', 8000); flash('loop-ia'); app.render();
       } })),
     btn('Nivelar volumen', { small: true, act: 'nivelar', onclick: () => {
       const r = dsp.levelTo(ed.audio, s.rate);

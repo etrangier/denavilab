@@ -29,7 +29,7 @@ enum StyleMemory {
     }
     struct StyleGuess { let kind: String?; let group: String; let confidence: Double }
     struct TrimSuggestion { let a: Int; let b: Int; let fadeMs: Double; let group: String; let learned: Int; let why: String }
-    struct LoopSuggestion { let a: Int; let b: Int; let crossSec: Double; let refine: Bool; let group: String; let learned: Int; let why: String }
+    struct LoopSuggestion { let a: Int; let b: Int; let crossSec: Double; let refine: Bool; let group: String; let learned: Int; let seam: Double?; let periodo: Double?; let why: String }
 
     // MARK: persistencia
     static func load() -> Model {
@@ -190,17 +190,34 @@ enum StyleMemory {
             let beats = fit.contains(pref) ? pref : (fit.last ?? 0)
             if beats > 0 { lenMs = Double(beats) * beatMs; how = "\(beats) tiempos a \(Int(bpm.rounded())) BPM" + (fit.contains(pref) ? " (tu largo habitual)" : "") }
         }
+        var periodo: Double?
+        if lenMs == 0 {      // sin pulso: ¿el sonido se repite solo? (histograma de desfases entre picos iguales, como en Shazam)
+            let z0 = max(0, Int(startMs / 1000 * Double(rate))), z1 = min(x.count, Int(f.endMs / 1000 * Double(rate)))
+            if z1 - z0 > rate {
+                let rep = Constellation.repetition(Array(x[z0..<z1]), rate: rate, minSec: 0.3, maxSec: min(20, availMs / 1000))
+                if let best = rep.first(where: { $0.sec * 1000 <= availMs }) {
+                    var k = 1
+                    while best.sec * Double(k) < 1.0 && best.sec * Double(k + 1) * 1000 <= availMs { k += 1 }          // al menos ~1 s: se juntan periodos enteros
+                    lenMs = best.sec * Double(k) * 1000; periodo = best.sec
+                    how = "\(comma(lenMs / 1000)) s (\(k == 1 ? "un periodo" : "\(k) periodos"): se repite cada \(comma(best.sec, 2)) s)"
+                }
+            }
+        }
         if lenMs == 0 {
             lenMs = min(availMs, l.map { $0.lenSec * 1000 } ?? availMs)
             how = "\(comma(lenMs / 1000)) s" + (l != nil ? " (tu largo habitual)" : " de la zona estable")
         }
-        let a = snap(x, Int(startMs / 1000 * Double(rate)).clampedZero), b = min(x.count, a + Int(lenMs / 1000 * Double(rate)))
+        let a = snap(x, Int(startMs / 1000 * Double(rate)).clampedZero)
+        var b = min(x.count, a + Int(lenMs / 1000 * Double(rate))), seam: Double?
+        let cmap = Constellation.build(x, rate: rate)                          // el final se afina por continuidad espectral
+        let rf = Constellation.refineLoopEnd(cmap, a, b, rangeSec: 0.1)
+        if rf.score >= 0.3 { b = min(x.count, snap(x, rf.b)); seam = rf.score } else if rf.score >= 0 { seam = rf.score }
         var cross = l.flatMap { mode($0.cross) }.flatMap { Double($0) } ?? 1
         cross = max(0.5, min(cross, Double(b - a) / Double(rate) / 4))
         let snapped = [0.5, 1.0, 2.0, 4.0].min { abs($0 - cross) < abs($1 - cross) } ?? 1
         let src = l.map { " (aprendido de \($0.n) loops tuyos)" } ?? " (valores de fábrica)"
-        return LoopSuggestion(a: a, b: b, crossSec: snapped, refine: l.map { $0.refine >= 0.5 } ?? true, group: st.group, learned: l?.n ?? 0,
-                              why: "Loop de \(how), empalme de \(String(format: "%g", snapped).replacingOccurrences(of: ".", with: ",")) s" + src)
+        return LoopSuggestion(a: a, b: b, crossSec: snapped, refine: l.map { $0.refine >= 0.5 } ?? true, group: st.group, learned: l?.n ?? 0, seam: seam, periodo: periodo,
+                              why: "Loop de \(how)" + (seam.map { $0 >= 0.3 ? ", continuidad espectral \(Int(($0 * 100).rounded())) %" : ", sin repetición clara: el empalme depende del fundido" } ?? "") + ", empalme de \(String(format: "%g", snapped).replacingOccurrences(of: ".", with: ",")) s" + src)
     }
 
     /// Frases para mostrar al usuario qué ha aprendido (transparencia).

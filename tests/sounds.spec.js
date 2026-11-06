@@ -870,6 +870,26 @@ test.describe('etapas 1–5 · cadena de efectos, granular, destrucción, ritmo 
     expect(r.notch).toBeLessThan(0.1); expect(r.lo).toBeLessThan(0.05); expect(r.fin).toBe(true); expect(r.dif).toEqual([true, true]); expect(r.fam).toEqual(['Espacio', 'Espacio']);
     for (const v of r.nivel) { expect(v).toBeGreaterThan(0.8); expect(v).toBeLessThan(1.25); }
   });
+  test('calidad: la distorsión no silba (aliasing), el granular no tiembla y la reverb es densa, estable y de nivel parejo', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const r = await ev(page, `const d = await import('/sounds/dsp.js');
+      const spec = (y, N, off) => { const re = new Float64Array(N), im = new Float64Array(N); for (let i = 0; i < N; i++) re[i] = (y[off + i] || 0) * (0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1))); d.fftInPlace(re, im, false); const m = new Float64Array(N / 2); for (let k = 0; k < N / 2; k++) m[k] = re[k] * re[k] + im[k] * im[k]; return m; };
+      const f0 = 3100, s31 = Float32Array.from({ length: rate * 2 }, (_, i) => 0.5 * Math.sin(2 * Math.PI * f0 * i / rate));
+      const alias = y => { const N = 16384, m = spec(y, N, rate / 2), bin = rate / N; let tot = 0, nh = 0; for (let k = 2; k < N / 2; k++) { const fr = k * bin; tot += m[k]; if (Math.abs(fr - Math.round(fr / f0) * f0) > 70) nh += m[k]; } return 10 * Math.log10(nh / tot + 1e-12); };
+      const s440 = Float32Array.from({ length: rate * 3 }, (_, i) => 0.4 * Math.sin(2 * Math.PI * 440 * i / rate));
+      const ripple = y => { const w = Math.round(rate * 0.01), e = []; for (let i = Math.round(0.3 * rate); i + w < 2.5 * rate; i += w) { let q = 0; for (let j = 0; j < w; j++) q += y[i + j] ** 2; e.push(Math.sqrt(q / w)); } const mu = e.reduce((a, b) => a + b) / e.length; return Math.sqrt(e.reduce((a, b) => a + (b - mu) ** 2, 0) / e.length) / mu; };
+      const imp = new Float32Array(rate * 2); imp[100] = 1;
+      const rv = f.applyOne('reverb', imp, rate, { size: 50, mix: 100, predelay: 0 }), sm = (y, off) => { const m = spec(y, 32768, off), db = []; for (let k = 160; k < 5500; k++) db.push(10 * Math.log10(m[k] + 1e-20)); let q = 0, c = 0; for (let i = 8; i < db.length - 8; i++) { let a = 0; for (let j = -8; j <= 8; j++) a += db[i + j]; q += (db[i] - a / 17) ** 2; c++; } return Math.sqrt(q / c); };
+      let seed = 1; const nz = Float32Array.from({ length: rate * 2 }, () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return (seed / 0x7fffffff * 2 - 1) * 0.2; });
+      const wet = f.applyOne('reverb', nz, rate, { mix: 30 }), dryR = rms(nz), wetR = rms(wet.slice(0, nz.length));
+      let fin = true, pk = 0; for (const v of rv) { if (!Number.isFinite(v)) fin = false; pk = Math.max(pk, Math.abs(v)); }
+      const cola = rms(rv.slice(Math.round(rate * 1.2), Math.round(rate * 1.4))) / rms(rv.slice(Math.round(rate * 0.2), Math.round(rate * 0.4)));
+      return { dist: alias(f.applyOne('distortion', s31, rate, {})), over: alias(f.applyOne('overdrive', s31, rate, {})), gran: ripple(f.applyOne('granular', s440, rate, {})), rip: sm(rv, Math.round(rate * 0.2)), fin, pk, cola, nivel: 20 * Math.log10(wetR / dryR), hp: rms(f.applyOne('vinyl404', x, rate, {})) / rms(x) };`);
+    expect(r.dist).toBeLessThan(-38); expect(r.over).toBeLessThan(-45);           // antes −22 y −31 dB
+    expect(r.gran).toBeLessThan(0.12);                                            // antes ≈0,4 (un volumen que subía y bajaba)
+    expect(r.rip).toBeLessThan(8.5); expect(r.fin).toBe(true); expect(r.pk).toBeLessThan(1); expect(r.cola).toBeLessThan(1); expect(r.cola).toBeGreaterThan(0.05);
+    expect(Math.abs(r.nivel)).toBeLessThan(2.5); expect(r.hp).toBeGreaterThan(0.7); expect(r.hp).toBeLessThan(1.4);
+  });
   test('ritmo: el slicer calla los pasos apagados, el tartamudeo repite, el tremolo baja el volumen y la parada de cinta frena', async ({ page }) => {
     await abrir(page, 'rolando');
     const r = await ev(page, `const sl = f.applyOne('slicer', x, rate, { bpm: 120, division: 1, pattern: 0, depth: 100, smooth: 0 }), paso = 12000;     // corcheas a 120 BPM = 0,25 s = 12000 muestras
@@ -1690,6 +1710,8 @@ test.describe('acordes, compases y loop', () => {
     await expect(t.getByRole('button', { name: 'Daft Punk', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expect(t).toContainText('Daft Punk: trozos cortos'); await expect(t.getByRole('button', { name: 'Arreglo A A A B' })).toBeVisible();
     await expect(t.getByLabel('Bombeo (sidechain)')).toBeChecked();
+    await expect(t.getByLabel('Tartamudeo en el primer tiempo')).not.toBeChecked(); await expect(t.getByLabel('Compresión (pegamento)')).not.toBeChecked();
+    await expect(t.getByRole('button', { name: 'Se abre', exact: true })).toBeVisible(); await t.getByRole('button', { name: 'Se abre', exact: true }).click(); await expect(t.getByRole('button', { name: 'Se abre', exact: true })).toHaveAttribute('aria-pressed', 'true'); await t.getByRole('button', { name: 'Sin filtro', exact: true }).click();
     await expect(t.getByRole('button', { name: '2 compases', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await hoja.getByRole('button', { name: 'Guardar selección como loop' }).click();
     await expect(page.locator('#toast')).toContainText('Arreglo A A A B de 4 compases guardado');
@@ -2316,6 +2338,7 @@ test.describe('memoria de estilo: aprende de cómo recortas y armas loops', () =
     await page.locator('.row-btn').first().click();
     await expect(page.getByRole('heading', { name: 'Escuchar y editar' })).toBeVisible();
     await page.getByRole('button', { name: '✨ Recorte inteligente' }).click(); await expect(page.locator('#toast')).toContainText('antes del ataque');
+    await expect(page.getByRole('button', { name: '✓ Recorte sugerido' })).toBeVisible(); await expect(page.locator('.btn.fx-flash')).toHaveCount(1);      // confirmación visible del clic
     await page.getByRole('button', { name: 'Recortar', exact: true }).click(); await expect(page.locator('#toast')).toContainText('recortado');
     const m = await page.evaluate(async () => (await import('/sounds/learn.js')).load()); expect(m.trim.golpe.n).toBe(1);
     await page.getByRole('button', { name: '✨ Loop inteligente' }).click(); await expect(page.locator('#toast')).toContainText(/Loop de|zona estable/);
@@ -2323,5 +2346,88 @@ test.describe('memoria de estilo: aprende de cómo recortas y armas loops', () =
     await expect(page.locator('details.style-mem')).toContainText('Recortes de golpes (1)');
     await page.getByRole('button', { name: 'Olvidar todo' }).click(); await page.locator('dialog.sheet').getByRole('button', { name: 'Olvidar' }).click();
     await expect(page.locator('#toast')).toContainText('borrada'); expect((await page.evaluate(async () => (await import('/sounds/learn.js')).load())).seen).toBe(0);
+  });
+});
+
+
+test.describe('escucha por constelación (Avery Wang): repetición, continuidad del empalme y cambios de nota', () => {
+  const PRE = `const C = await import('/sounds/constellation.js'), L = await import('/sounds/learn.js'), D = await import('/sounds/dsp.js'), rate = 48000;
+    let sd = 3; const rnd = () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; };
+    const tone = (x, o, len, freqs, amp = 0.2) => { for (let i = 0; i < len && o + i < x.length; i++) { const t = i / rate, env = Math.min(1, i / (rate * 0.01)) * Math.exp(-t * 3); let v = 0; for (const f of freqs) for (let h = 1; h <= 3; h++) v += Math.sin(2 * Math.PI * f * h * t) / h; x[o + i] += amp * env * v / freqs.length; } };
+    const pat = new Float32Array(rate * 5); for (let rep = 0; rep < 5; rep++) [220, 277.2, 330, 262].forEach((fr, i) => tone(pat, Math.round((rep + i * 0.25) * rate), Math.round(0.25 * rate), [fr])); for (let i = 0; i < pat.length; i++) pat[i] += 0.01 * (rnd() * 2 - 1);
+    const chords = [[220, 277, 330], [175, 220, 262], [262, 330, 392], [196, 247, 294], [220, 277, 330]], ch = new Float32Array(rate * 5);
+    chords.forEach((fr, i) => { for (let k = 0; k < rate; k++) { const t = (i * rate + k) / rate, env = Math.min(1, k / (rate * 0.03)) * Math.min(1, (rate - k) / (rate * 0.03)); let v = 0; for (const f of fr) v += Math.sin(2 * Math.PI * f * t); ch[i * rate + k] = 0.15 * v * env; } });`;
+  const ev = (page, body) => page.evaluate(`(async () => { ${PRE} ${body} })()`);
+  test('el sonido contra sí mismo: halla el periodo en que se repite y no inventa uno en un pad sin repetición', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `const pad = new Float32Array(rate * 5); [[220, 0], [247, 1], [294, 2.1], [349, 3.3], [392, 4]].forEach(([f, t]) => tone(pad, Math.round(t * rate), rate * 2, [f, f * 1.5], 0.2));
+      const k = C.constellation(pat, rate), x2 = Float32Array.from(pat, v => v * 0.25);          // la constelación no depende del volumen
+      return { rep: C.repetition(pat, rate).map(o => o.sec), pad: C.repetition(pad, rate).length, bajo: C.repetition(x2, rate).map(o => o.sec), picos: k.peaks.length, cuadros: k.T, h: C.hashes(k).length };`);
+    expect(q.rep[0]).toBeGreaterThan(0.98); expect(q.rep[0]).toBeLessThan(1.02); expect(q.pad).toBe(0); expect(q.bajo[0]).toBeCloseTo(q.rep[0], 1);
+    expect(q.picos).toBeGreaterThan(20); expect(q.picos).toBeLessThan(q.cuadros * 5 + 1); expect(q.h).toBeGreaterThan(30);
+  });
+  test('continuidad del empalme: alta en el periodo (y sus múltiplos), baja a media distancia, y el afinado se acerca al punto bueno', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `const c = C.constellation(pat, rate), s = b => C.seamScore(c, 0, Math.round(b * rate)), r = C.refineLoopEnd(c, 0, Math.round(1.04 * rate));
+      return { p1: s(1), p2: s(2), mal: s(1.125), medio: s(1.5), fin: r.b / rate, sc: r.score };`);
+    expect(q.p1).toBeGreaterThan(0.85); expect(q.p2).toBeGreaterThan(0.85); expect(q.mal).toBeLessThan(0.3); expect(q.medio).toBeLessThan(q.p1);
+    expect(Math.abs(q.fin - 1)).toBeLessThan(0.03); expect(q.sc).toBeGreaterThan(0.85);
+  });
+  test('cortes por cambio de nota: a volumen constante encuentra los cambios de acorde; un acorde fijo no da cortes', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `const fijo = new Float32Array(rate * 4); for (let i = 0; i < fijo.length; i++) fijo[i] = 0.15 * (Math.sin(2 * Math.PI * 220 * i / rate) + Math.sin(2 * Math.PI * 277 * i / rate) + Math.sin(2 * Math.PI * 330 * i / rate));
+      return { notas: C.noteChanges(ch, rate, 0.5).map(s => s / rate), fijo: C.noteChanges(fijo, rate, 0.5).length, poco: C.noteChanges(new Float32Array(100), rate).length };`);
+    expect(q.notas.length).toBe(4); [1, 2, 3, 4].forEach((t, i) => expect(Math.abs(q.notas[i] - t)).toBeLessThan(0.08)); expect(q.fijo).toBe(0); expect(q.poco).toBe(0);
+  });
+  test('loop inteligente sin pulso: usa el periodo detectado y lo explica con la continuidad espectral', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `const m = { v: 1, on: true, seen: 0, kinds: {}, trim: {}, loop: {}, ids: {} }, r = L.suggestLoop(pat, rate, {}, m);
+      return { len: (r.b - r.a) / rate, periodo: r.periodo, seam: r.seam, why: r.why };`);
+    expect(q.periodo).toBeGreaterThan(0.98); expect(q.periodo).toBeLessThan(1.02); expect(q.len % 1).toBeLessThan(0.05 + 0.0); expect(q.seam).toBeGreaterThan(0.6); expect(q.why).toContain('se repite cada'); expect(q.why).toContain('continuidad espectral');
+  });
+  test('Chop: aparece el modo Notas y corta por cambio de nota', async ({ page }) => {
+    await abrir(page, 'rolando'); await sembrar(page, ['acordes']);
+    await page.evaluate(async () => { const st = await import('/sounds/store.js'), s = (await st.listSamples())[0], r = 48000, x = new Float32Array(r * 4), chords = [[220, 277, 330], [175, 220, 262], [262, 330, 392], [196, 247, 294]];
+      chords.forEach((fr, i) => { for (let k = 0; k < r; k++) { const t = (i * r + k) / r, env = Math.min(1, k / (r * 0.03)) * Math.min(1, (r - k) / (r * 0.03)); let v = 0; for (const f of fr) v += Math.sin(2 * Math.PI * f * t); x[i * r + k] = 0.15 * v * env; } });
+      await st.putSample({ ...s, rate: r, duration: 4 }, x); });
+    await page.reload(); await tab(page, 'biblioteca'); await page.getByText('Seleccionar').first().click(); await page.getByText('Cancelar').first().click();
+    await page.locator('.row-btn').first().click();
+    await expect(page.getByRole('heading', { name: 'Escuchar y editar' })).toBeVisible();
+    await page.getByRole('button', { name: /Chop/ }).click();
+    const sh = page.locator('dialog.sheet'); await expect(sh.getByRole('heading', { name: /Chop/ })).toBeVisible();
+    await sh.getByRole('button', { name: 'Notas', exact: true }).click();
+    await expect(sh).toContainText('4 cortes'); await expect(sh.getByLabel('Sensibilidad a cambios de nota')).toBeVisible();
+  });
+});
+
+
+test.describe('gestos de loop del estilo french house: barrido de filtro, tartamudeo y compresión', () => {
+  const PRE = `const G = await import('/sounds/loopfx.js'), rate = 48000; let sd = 5; const rnd = () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; };
+    const noise = Float32Array.from({ length: rate * 4 }, () => (rnd() * 2 - 1) * 0.3), hf = (y, a, b) => { let e = 0, t = 0; for (let i = Math.round(a * rate) + 2; i < Math.round(b * rate); i++) { const d = y[i] - y[i - 1]; e += d * d; t += y[i] * y[i]; } return e / Math.max(t, 1e-12); };`;
+  const ev = (page, body) => page.evaluate(`(async () => { ${PRE} ${body} })()`);
+  test('el barrido de filtro abre o cierra el brillo a lo largo del loop', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `const ab = G.filterSweep(noise, rate, 1), ce = G.filterSweep(noise, rate, 2);
+      return { abIni: hf(ab, 0.1, 0.5), abFin: hf(ab, 3.5, 3.9), ceIni: hf(ce, 0.1, 0.5), ceFin: hf(ce, 3.5, 3.9), len: ab.length, fin: ab.every(Number.isFinite) && ce.every(Number.isFinite), pk: ab.reduce((m, v) => Math.max(m, Math.abs(v)), 0), sin: G.filterSweep(noise, rate, 0) === noise };`);
+    expect(q.abFin).toBeGreaterThan(q.abIni * 5); expect(q.ceIni).toBeGreaterThan(q.ceFin * 5); expect(q.len).toBe(noise_len()); expect(q.fin).toBe(true); expect(q.pk).toBeLessThan(1); expect(q.sin).toBe(true);
+    function noise_len() { return 48000 * 4; }
+  });
+  test('el tartamudeo repite el arranque en el primer tiempo y deja el resto intacto', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `const bpm = 120, beat = 24000, piece = beat / 4, y = G.stutterIntro(noise, rate, bpm);
+      let rep = 0, mismo = 0; for (let k = 1; k < 4; k++) for (let i = 200; i < piece - 200; i += 50) if (Math.abs(y[k * piece + i] - y[i]) < 1e-6) rep++;
+      for (let i = beat + 10; i < noise.length; i += 997) if (y[i] === noise[i]) mismo++;
+      return { rep, esperado: 3 * Math.floor((piece - 400) / 50), mismo, total: Math.floor((noise.length - beat - 10) / 997) + 1, sinBpm: G.stutterIntro(noise, rate, 0) === noise, len: y.length };`);
+    expect(q.rep).toBe(q.esperado); expect(q.mismo).toBe(q.total); expect(q.sinBpm).toBe(true); expect(q.len).toBe(48000 * 4);
+  });
+  test('la compresión de pegamento cierra el rango entre lo fuerte y lo normal sin cambiar el nivel general', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `const d = new Float32Array(rate * 2); for (let b = 0; b < 4; b++) for (let i = 0; i < 6000; i++) d[b * 24000 + i] = 0.9 * Math.sin(2 * Math.PI * 60 * i / rate) * Math.exp(-i / 2500);
+      for (let i = 0; i < d.length; i++) d[i] += 0.12 * Math.sin(2 * Math.PI * 880 * i / rate);
+      const y = G.glue(d, rate), win = a => { const w = 2400, e = []; for (let i = 0; i + w <= a.length; i += w) { let q = 0; for (let j = 0; j < w; j++) q += a[i + j] ** 2; e.push(Math.sqrt(q / w)); } e.sort((p, q) => p - q); return e; }, dyn = a => { const e = win(a); return e[Math.floor(e.length * 0.95)] / e[Math.floor(e.length * 0.5)]; };
+      const rms = a => Math.sqrt(a.reduce((s, v) => s + v * v, 0) / a.length);
+      return { c0: dyn(d), c1: dyn(y), r: rms(y) / rms(d), fin: y.every(Number.isFinite), todo: G.applyGestures(d, rate, 120, { stutter: true, glueOn: true, sweep: 1 }).every(Number.isFinite) };`);
+    expect(q.c1).toBeLessThan(q.c0);          // el rango entre lo fuerte y lo normal se cierra
+    expect(q.r).toBeGreaterThan(0.6); expect(q.r).toBeLessThan(1.6); expect(q.fin).toBe(true); expect(q.todo).toBe(true);
   });
 });

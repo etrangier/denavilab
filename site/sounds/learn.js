@@ -6,6 +6,7 @@
 //     qué fundido usas, qué largo de loop prefieres y cuántos tiempos/compases dura.
 //  4) Con eso sugiere un recorte o un loop (tú lo corriges y la memoria aprende de la corrección).
 import { fftInPlace, transients, nearestZeroCross } from './dsp.js';
+import { constellation, repetition, refineLoopEnd, seamScore } from './constellation.js';
 
 const KEY = 'denavilab.sounds.style';
 export const MIN_SEEN = 3;            // con menos ejemplos que esto se usan valores de fábrica
@@ -128,11 +129,24 @@ export function suggestLoop(x, rate, { bpm = null, bpmConfidence = 0 } = {}, mod
     const beats = fit.includes(pref) ? pref : fit.length ? fit[fit.length - 1] : 0;
     if (beats) { lenMs = beats * beatMs; how = `${beats} tiempos a ${Math.round(bpm)} BPM${fit.includes(pref) ? ' (tu largo habitual)' : ''}`; }
   }
+  let periodo = null;
+  if (!lenMs) {      // sin pulso: ¿el sonido se repite solo? (histograma de desfases entre picos iguales, como en Shazam)
+    const zone = x.subarray(Math.round(startMs / 1000 * rate), Math.min(x.length, Math.round(f.endMs / 1000 * rate))), rep = repetition(zone, rate, { minSec: 0.3, maxSec: Math.min(20, availMs / 1000) });
+    const best = rep.find(r => r.sec * 1000 <= availMs);
+    if (best) {
+      let k = 1; while (best.sec * k < 1.0 && best.sec * (k + 1) * 1000 <= availMs) k++;          // al menos ~1 s: se juntan periodos enteros
+      lenMs = best.sec * k * 1000; periodo = best.sec; how = `${(lenMs / 1000).toFixed(1).replace('.', ',')} s (${k === 1 ? 'un periodo' : k + ' periodos'}: se repite cada ${best.sec.toFixed(2).replace('.', ',')} s)`;
+    }
+  }
   if (!lenMs) { lenMs = Math.min(availMs, l ? l.lenSec * 1000 : availMs); how = l ? `${(lenMs / 1000).toFixed(1).replace('.', ',')} s (tu largo habitual)` : `${(lenMs / 1000).toFixed(1).replace('.', ',')} s de la zona estable`; }
-  const a = snap(x, Math.round(startMs / 1000 * rate)), b = Math.min(x.length, a + Math.round(lenMs / 1000 * rate));
+  const a = snap(x, Math.round(startMs / 1000 * rate)); let b = Math.min(x.length, a + Math.round(lenMs / 1000 * rate)), seam = null;
+  try {                // el final se afina por continuidad espectral: lo que sigue a b debe parecerse a lo que sigue a a
+    const c = constellation(x, rate), r = refineLoopEnd(c, a, b, 0.1);
+    if (r && r.score >= 0.3) { b = Math.min(x.length, snap(x, r.b)); seam = r.score; } else seam = r ? r.score : null;
+  } catch (e) {}
   let crossSec = l && mode(l.cross) ? +mode(l.cross) : 1; crossSec = Math.max(0.5, Math.min(crossSec, (b - a) / rate / 4));
   const choices = [0.5, 1, 2, 4], cross = choices.reduce((p, c) => Math.abs(c - crossSec) < Math.abs(p - crossSec) ? c : p, 1);
-  return { a, b, crossSec: cross, refine: l ? l.refine >= 0.5 : true, group: st.group, kind: st.kind, learned: l ? l.n : 0, why: `Loop de ${how}, empalme de ${String(cross).replace('.', ',')} s${l ? ` (aprendido de ${l.n} loops tuyos)` : ' (valores de fábrica)'}` };
+  return { a, b, crossSec: cross, refine: l ? l.refine >= 0.5 : true, group: st.group, kind: st.kind, learned: l ? l.n : 0, seam, periodo, why: `Loop de ${how}${seam != null ? (seam >= 0.3 ? `, continuidad espectral ${Math.round(seam * 100)} %` : ', sin repetición clara: el empalme depende del fundido') : ''}, empalme de ${String(cross).replace('.', ',')} s${l ? ` (aprendido de ${l.n} loops tuyos)` : ' (valores de fábrica)'}` };
 }
 
 /** Frases para mostrar al usuario qué ha aprendido (transparencia). */
