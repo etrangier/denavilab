@@ -26,11 +26,12 @@ struct Sample: Identifiable, Codable, Equatable {
     var key: String?                  // nota o tonalidad aproximada (opcional)
     var comment = ""
     var process: [String] = []        // qué se le aplicó en el laboratorio de pads
+    var recipe: Recipe?               // cadena de efectos + sonido de origen: permite volver a editarla sobre el original
     var fileName: String { "\(id.uuidString).wav" }
 
     enum CodingKeys: String, CodingKey {
         case id, name, folder, subfolder, bpm, tags, slot, sampleRate, effects, created, duration, kind
-        case favorite, status, origin, replaced, key, comment, process
+        case favorite, status, origin, replaced, key, comment, process, recipe
     }
 }
 
@@ -58,7 +59,15 @@ extension Sample {
         key = try c.decodeIfPresent(String.self, forKey: .key)
         comment = try c.decodeIfPresent(String.self, forKey: .comment) ?? ""
         process = try c.decodeIfPresent([String].self, forKey: .process) ?? []
+        recipe = try? c.decodeIfPresent(Recipe.self, forKey: .recipe)
     }
+}
+
+/// Receta de un sonido procesado: de qué sonido salió y con qué cadena de efectos (se vuelve a editar sobre el original, sin procesar dos veces).
+struct Recipe: Codable, Equatable {
+    var from: UUID
+    var fromName: String
+    var chain: [FxSlot]
 }
 
 /// Estado de trabajo de un sonido: materia prima → ya trabajada → lista para llevar al K.O. II.

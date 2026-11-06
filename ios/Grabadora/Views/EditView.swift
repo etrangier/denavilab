@@ -65,6 +65,8 @@ struct EditorBody: View {
     @State private var showDetails = false
     @State private var showLab = false
     @State private var showFx = false
+    @State private var showRecipe = false
+    @State private var recipeSource: [Float] = []
     @State private var confirmDelete = false
     @State private var message: String?
     private let tick = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
@@ -122,6 +124,11 @@ struct EditorBody: View {
                 Button("Edición precisa (zoom)") { showPrecise = true }.buttonStyle(OutlineButton(selected: true))
                 Button("Chop en pads") { showChop = true }.buttonStyle(OutlineButton())
                 Button("Efectos de carácter (estilo SP-404)") { showFx = true }.buttonStyle(OutlineButton(selected: true))
+                if let r = sample.recipe {
+                    Text("Receta de efectos: hecho a partir de «\(r.fromName)»: " + FxChain.describe(r.chain).joined(separator: " → ")).font(Theme.font(12)).foregroundColor(Theme.muted)
+                    Button("Re-editar la receta") { openRecipe() }.buttonStyle(AmberButton())
+                    Text("Abre la cadena sobre el sonido de origen, sin procesar dos veces el audio, y actualiza este sonido.").font(Theme.font(11)).foregroundColor(Theme.muted)
+                }
                 Text("Cassette, vinilo, chorus y Auto Pitch, antes de compartir el sonido.").font(Theme.font(12)).foregroundColor(Theme.muted)
                 Button("Laboratorio de pads") { showLab = true }.buttonStyle(OutlineButton(selected: true))
                 Text("Bucle sin clics, estirar, tono, filtros, reverb, capas y teclado (con MIDI).").font(Theme.font(12)).foregroundColor(Theme.muted)
@@ -177,11 +184,29 @@ struct EditorBody: View {
                             return (lib.audio(for: o), o.sampleRate)
                         },
                         onApply: { out, name, _ in apply({ _ in out }, label: name); message = "Listo: \(name) aplicado · puedes deshacerlo" },
-                        onSaveNew: { out, notes in saveProcessed(out, notes: notes, suffix: " fx", comment: "Cadena de efectos sobre: " + sample.name); message = "Guardado como sonido nuevo (procesado)" },
+                        onSaveNew: { out, notes, chain in saveProcessed(out, notes: notes, suffix: " fx", comment: "Cadena de efectos sobre: " + sample.name, chain: chain); message = "Guardado como sonido nuevo (procesado, con receta)" },
                         onSaveVariants: { list in
-                            for (i, v) in list.enumerated() { saveProcessed(v.out, notes: v.notes, suffix: " var \(i + 1)", comment: "Variante \(i + 1) (\(v.style)) de: " + sample.name) }
-                            message = "Guardadas 4 variantes (procesadas)"
+                            for (i, v) in list.enumerated() { saveProcessed(v.out, notes: v.notes, suffix: " var \(i + 1)", comment: "Variante \(i + 1) (\(v.style)) de: " + sample.name, chain: v.chain) }
+                            message = "Guardadas 4 variantes (procesadas, con receta)"
                         }).presentationDetents([.large])
+        }
+        .sheet(isPresented: $showRecipe) {
+            if let r = sample.recipe, let src = lib.samples.first(where: { $0.id == r.from }) {
+                FxRackSheet(audio: recipeSource, rate: src.sampleRate, bpm: src.bpm, name: src.name,
+                            others: lib.samples.filter { $0.id != sample.id && $0.id != src.id }.map { FxRackSheet.Other(id: $0.id.uuidString, name: $0.name) },
+                            loadAudio: { id in
+                                guard let u = UUID(uuidString: id), let o = lib.samples.first(where: { $0.id == u }) else { return nil }
+                                return (lib.audio(for: o), o.sampleRate)
+                            },
+                            onApply: { _, _, _ in },
+                            onSaveNew: { out, notes, chain in saveProcessed(out, notes: notes, suffix: " fx", comment: "Cadena de efectos sobre: " + src.name, chain: chain, source: src); message = "Guardado como sonido nuevo (procesado, con receta)" },
+                            onSaveVariants: { list in
+                                for (i, v) in list.enumerated() { saveProcessed(v.out, notes: v.notes, suffix: " var \(i + 1)", comment: "Variante \(i + 1) (\(v.style)) de: " + src.name, chain: v.chain, source: src) }
+                                message = "Guardadas 4 variantes (procesadas, con receta)"
+                            },
+                            initialChain: r.chain,
+                            onUpdate: { out, notes, chain in updateFromRecipe(out, notes: notes, chain: chain, source: src) }).presentationDetents([.large])
+            }
         }
         .sheet(isPresented: $showLab) { PadLabSheet(sample: sample).presentationDetents([.large]) }
         .sheet(isPresented: $showDetails) { DetailsSheet(sample: sample) { sample = $0; lib.update($0) }.presentationDetents([.large]) }
@@ -418,12 +443,34 @@ struct EditorBody: View {
 
     // MARK: acciones
 
-    /// Guarda un resultado como sonido nuevo «procesado», con el origen, las etiquetas y la lista de efectos del original.
-    private func saveProcessed(_ out: [Float], notes: [String], suffix: String, comment: String) {
-        guard var n = lib.add(name: sample.name + suffix, audio: out, sampleRate: sample.sampleRate) else { return }
-        n.folder = sample.folder; n.subfolder = sample.subfolder; n.status = SampleStatus.procesado; n.origin = sample.origin; n.tags = sample.tags
-        n.key = sample.key; n.bpm = sample.bpm; n.comment = comment + (sample.comment.isEmpty ? "" : " · " + sample.comment); n.process = sample.process + notes
+    /// Guarda un resultado como sonido nuevo «procesado», con el origen, las etiquetas y la lista de efectos del original, y su receta (cadena + sonido de origen).
+    private func saveProcessed(_ out: [Float], notes: [String], suffix: String, comment: String, chain: [FxSlot], source: Sample? = nil) {
+        let src = source ?? sample
+        guard var n = lib.add(name: src.name + suffix, audio: out, sampleRate: src.sampleRate) else { return }
+        n.folder = src.folder; n.subfolder = src.subfolder; n.status = SampleStatus.procesado; n.origin = src.origin; n.tags = src.tags
+        n.key = src.key; n.bpm = src.bpm; n.comment = comment + (src.comment.isEmpty ? "" : " · " + src.comment); n.process = src.process + notes
+        n.recipe = Recipe(from: src.id, fromName: src.name, chain: FxChain.clean(chain))
         lib.update(n)
+    }
+
+    /// Abre la receta de este sonido: la cadena se pone sobre el sonido de origen (no sobre el ya procesado).
+    private func openRecipe() {
+        guard let r = sample.recipe else { return }
+        guard let src = lib.samples.first(where: { $0.id == r.from }) else { message = "El sonido de origen de esta receta ya no está en la biblioteca"; return }
+        let a = lib.audio(for: src)
+        guard !a.isEmpty else { message = "No se pudo leer el sonido de origen"; return }
+        recipeSource = a; showRecipe = true
+    }
+
+    /// Reemplaza el audio de este sonido por el resultado de la receta editada y renueva su lista de procesos.
+    private func updateFromRecipe(_ out: [Float], notes: [String], chain: [FxSlot], source: Sample) {
+        player?.stop()
+        sample.process = source.process + notes
+        sample.recipe = Recipe(from: source.id, fromName: source.name, chain: FxChain.clean(chain))
+        lib.update(sample); lib.replaceAudio(sample, with: out)
+        if let s = lib.samples.first(where: { $0.id == sample.id }) { sample = s }
+        audio = out; savedAudio = out; undo = []; undoLabels = []; redo = []; redoLabels = []; start = 0; end = 1
+        refreshPeaks(); message = "Sonido actualizado con la receta"
     }
 
     private func apply(_ f: ([Float]) -> [Float], label: String = "Cambio") {

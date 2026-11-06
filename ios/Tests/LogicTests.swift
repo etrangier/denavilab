@@ -1053,6 +1053,24 @@ final class LogicTests: XCTestCase {
         return (re * re + im * im).squareRoot() / Double(a.count) * 2
     }
 
+    func testSampleRecipeRoundTripsAndOldIndexesStillLoad() throws {
+        var a = Sample(name: "pad base fx", sampleRate: 48_000)
+        let src = UUID()
+        a.recipe = Recipe(from: src, fromName: "pad base", chain: [.make(.cassette), .make(.flanger, ["rate": 0.5]), .layer("abc", name: "otro", gain: 40)])
+        let data = try JSONEncoder().encode([a])
+        let back = try JSONDecoder().decode([Sample].self, from: data)
+        XCTAssertEqual(back.first?.recipe?.from, src); XCTAssertEqual(back.first?.recipe?.fromName, "pad base")
+        XCTAssertEqual(back.first?.recipe?.chain.map(\.fx), ["cassette", "flanger", "layer"]); XCTAssertEqual(back.first?.recipe?.chain[1].params["rate"], 0.5)
+        XCTAssertEqual(back.first?.recipe?.chain.last?.ref, "abc")
+        // un índice guardado antes de existir las recetas (sin la clave) sigue leyéndose
+        var plain = Sample(name: "viejo", sampleRate: 48_000)
+        plain.recipe = nil
+        let old = try JSONDecoder().decode([Sample].self, from: try JSONEncoder().encode([plain]))
+        XCTAssertNil(old.first?.recipe); XCTAssertEqual(old.first?.name, "viejo")
+        let raw = #"[{"name":"x","sampleRate":44100}]"#.data(using: .utf8)!
+        XCTAssertNil(try JSONDecoder().decode([Sample].self, from: raw).first?.recipe)
+    }
+
     func testFxCatalogHas19EffectsWithPresetsAndDeterministicOutput() {
         let rate = 48_000, x = harmonicVoice(220, seconds: 1, rate: rate)
         XCTAssertEqual(Fx404.allOrder.count, 19)

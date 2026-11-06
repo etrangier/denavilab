@@ -12,8 +12,11 @@ struct FxRackSheet: View {
     let others: [Other]
     let loadAudio: (String) -> ([Float], Int)?
     let onApply: ([Float], String, [String]) -> Void
-    let onSaveNew: ([Float], [String]) -> Void
-    let onSaveVariants: ([(out: [Float], notes: [String], style: String)]) -> Void
+    let onSaveNew: ([Float], [String], [FxSlot]) -> Void
+    let onSaveVariants: ([(out: [Float], notes: [String], style: String, chain: [FxSlot])]) -> Void
+    /// Receta: cadena con la que se abre (en vez de la última usada) y, si hay, botón para actualizar el sonido procesado (y se oculta «Aplicar»).
+    var initialChain: [FxSlot]? = nil
+    var onUpdate: (([Float], [String], [FxSlot]) -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var chain: [FxSlot] = []
@@ -53,12 +56,18 @@ struct FxRackSheet: View {
                         Button("■ Parar") { player?.stop(); status = "" }.buttonStyle(OutlineButton())
                     }.font(Theme.font(13))
                     if !status.isEmpty { Text(status).font(Theme.font(13)).foregroundColor(Theme.amber).accessibilityAddTraits(.updatesFrequently) }
-                    Button("Aplicar al sonido") { finalize { out, notes in
-                        onApply(out, notes.count > 1 ? "Cadena de efectos" : (notes.first ?? "Efecto").components(separatedBy: " (").first ?? "Efecto", notes); dismiss() } }
-                        .buttonStyle(AmberButton()).disabled(busy)
-                    Button("Guardar como sonido nuevo") { finalize { out, notes in onSaveNew(out, notes); status = "Guardado como sonido nuevo (procesado) · \(lenText(out))" } }
+                    if onUpdate == nil {
+                        Button("Aplicar al sonido") { finalize { out, notes, _ in
+                            onApply(out, notes.count > 1 ? "Cadena de efectos" : (notes.first ?? "Efecto").components(separatedBy: " (").first ?? "Efecto", notes); dismiss() } }
+                            .buttonStyle(AmberButton()).disabled(busy)
+                    }
+                    Button("Guardar como sonido nuevo") { finalize { out, notes, c in onSaveNew(out, notes, c); status = "Guardado como sonido nuevo (procesado, con receta) · \(lenText(out))" } }
                         .buttonStyle(OutlineButton()).disabled(busy)
-                    Text("Aplicar cambia la toma actual (puedes deshacerlo en Editar). «Guardar como sonido nuevo» deja el original intacto y crea otro marcado «procesado», con su origen y la lista de efectos. Con delay, reverb o granular la toma puede alargarse.")
+                    if let onUpdate {
+                        Button("Actualizar este sonido con la receta") { finalize { out, notes, c in onUpdate(out, notes, c); dismiss() } }
+                            .buttonStyle(AmberButton()).disabled(busy)
+                    }
+                    Text("Aplicar cambia la toma actual (puedes deshacerlo en Editar). «Guardar como sonido nuevo» deja el original intacto y crea otro marcado «procesado», con su origen, la lista de efectos y su receta (podrás volver a editar la cadena sobre el original). Con delay, reverb o granular la toma puede alargarse.")
                         .font(Theme.font(12)).foregroundColor(Theme.muted)
                 }.padding(16)
             }
@@ -239,26 +248,26 @@ struct FxRackSheet: View {
         }
     }
 
-    private func finalize(_ done: @escaping ([Float], [String]) -> Void) {
+    private func finalize(_ done: @escaping ([Float], [String], [FxSlot]) -> Void) {
         let c = FxChain.clean(chain)
         guard c.contains(where: { !$0.bypass }) else { status = "Todos los efectos están apagados: no hay nada que aplicar"; return }
         player?.stop(); busy = true; status = "Procesando…"
         Task {
             let out = await render(c)
             busy = false
-            done(out, FxChain.describe(c))
+            done(out, FxChain.describe(c), c)
         }
     }
 
     private func saveVariants() {
         player?.stop(); busy = true
         Task {
-            var list: [(out: [Float], notes: [String], style: String)] = []
+            var list: [(out: [Float], notes: [String], style: String, chain: [FxSlot])] = []
             let sName = FxChain.styles.first { $0.key == style }?.name ?? "Libre"
             for i in 0..<4 {
                 status = "Variante \(i + 1) de 4…"
                 let c = FxChain.randomChain(seed: seed &+ UInt32(i) &* 977, style: style, intensity: intensity / 100, bpm: bpm)
-                list.append((await render(c), FxChain.describe(c), sName))
+                list.append((await render(c), FxChain.describe(c), sName, c))
             }
             onSaveVariants(list)
             status = "Guardadas 4 variantes como sonidos nuevos (procesados)"
@@ -271,7 +280,8 @@ struct FxRackSheet: View {
     private func load() {
         guard chain.isEmpty else { return }
         let d = UserDefaults.standard
-        if let data = d.data(forKey: "fxChain"), let c = try? JSONDecoder().decode([FxSlot].self, from: data) { chain = FxChain.clean(c) }
+        if let ic = initialChain, !FxChain.clean(ic).isEmpty { chain = FxChain.clean(ic) }
+        else if let data = d.data(forKey: "fxChain"), let c = try? JSONDecoder().decode([FxSlot].self, from: data) { chain = FxChain.clean(c) }
         if let data = d.data(forKey: "fxChains"), let u = try? JSONDecoder().decode([String: [FxSlot]].self, from: data) { user = u }
         if chain.isEmpty { chain = [.make(.cassette)] }
     }
