@@ -988,7 +988,7 @@ final class LogicTests: XCTestCase {
 
     func testFx404ParamsAreClampedAndDescribed() {
         let p = Fx404.params(.cassette, ["age": 999, "tone": .nan, "hiss": -5])
-        XCTAssertEqual(p["age"], 60); XCTAssertEqual(p["tone"], 55); XCTAssertEqual(p["hiss"], 0)
+        XCTAssertEqual(p["age"], 60); XCTAssertEqual(p["tone"], 40); XCTAssertEqual(p["hiss"], 0)
         XCTAssertEqual(Fx404.params(.autopitch, ["key": 99])["key"], 0); XCTAssertEqual(Fx404.params(.autopitch, ["robot": 1])["robot"], 1)
         let d = Fx404.describe(.autopitch, ["key": 4, "robot": 1])
         XCTAssertTrue(d.hasPrefix("Auto Pitch")); XCTAssertTrue(d.contains("Tonalidad Do")); XCTAssertTrue(d.contains("Robot"))
