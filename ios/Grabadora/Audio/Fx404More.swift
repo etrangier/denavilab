@@ -21,7 +21,7 @@ extension Fx404 {
     nonisolated static func familyMore(_ id: ID) -> String {
         switch id {
         case .granular: return "Textura"
-        case .tapeecho, .reverb: return "Espacio"
+        case .tapeecho, .flanger, .phaser, .reverb: return "Espacio"
         case .filterdrive, .overdrive, .distortion, .crusher, .ringmod: return "Destruir"
         default: return "Ritmo"
         }
@@ -77,6 +77,18 @@ extension Fx404 {
                 uso: "Para dar profundidad y rastro a golpes y teclas.",
                 params: [rg("time", "Tiempo", 40, 900, 320, unit: " ms"), rg("feedback", "Repeticiones", 0, 95, 45, unit: " %"), rg("tone", "Tono", 0, 100, 50), rg("wow", "Wow", 0, 100, 30), rg("mix", "Mezcla", 0, 100, 40, unit: " %")],
                 presets: [("Eco corto", ["time": 140, "feedback": 30, "tone": 60, "wow": 15, "mix": 35]), ("Eco largo oscuro", ["time": 520, "feedback": 65, "tone": 25, "wow": 40, "mix": 50])])
+        case .flanger:
+            return Info(name: "Flanger", about: "El «jet»: un barrido metálico, como un avión que pasa, que sube y baja por todo el sonido.",
+                how: "El sonido se mezcla con una copia retrasada pocos milisegundos; un LFO mueve ese retardo y se forman muescas de peine equidistantes en Hz (de ahí el timbre metálico). La realimentación las vuelve más resonantes.",
+                uso: "Para dar movimiento a platillos, texturas y pads, o un «jet» en baterías rotas.",
+                params: [rg("rate", "Velocidad", 0.05, 5, 0.35, unit: " Hz", step: 0.05), rg("depth", "Profundidad", 0, 100, 70), rg("manual", "Retardo base", 0.5, 10, 3, unit: " ms", step: 0.1), rg("feedback", "Realimentación", 0, 100, 55), ch("polarity", "Polaridad", ["Positiva", "Negativa"]), ch("shape", "Onda", ["Seno", "Triángulo"]), rg("mix", "Mezcla", 0, 100, 50)],
+                presets: [("Suave", ["rate": 0.2, "depth": 50, "manual": 4, "feedback": 25, "polarity": 0, "shape": 0, "mix": 40]), ("Jet", ["rate": 0.12, "depth": 90, "manual": 2.5, "feedback": 80, "polarity": 0, "shape": 1, "mix": 50]), ("Metálico", ["rate": 0.6, "depth": 70, "manual": 1.2, "feedback": 85, "polarity": 1, "shape": 0, "mix": 55])])
+        case .phaser:
+            return Info(name: "Phaser", about: "Un remolino suave: el sonido gira y respira sin el metal del flanger.",
+                how: "Una cadena de filtros pasa-todo desfasa el sonido según la frecuencia; al mezclarlo con el original se cancelan bandas que se desplazan con un LFO. Cada par de etapas añade una muesca.",
+                uso: "Para animar pads, teclas y guitarras con un movimiento lento y cálido.",
+                params: [rg("rate", "Velocidad", 0.05, 6, 0.4, unit: " Hz", step: 0.05), rg("depth", "Profundidad", 0, 100, 80), rg("center", "Centro", 200, 3000, 700, unit: " Hz", step: 10), ch("stages", "Etapas", ["2", "4", "6", "8", "12"], 2), rg("feedback", "Realimentación", 0, 100, 40), ch("shape", "Onda", ["Seno", "Triángulo"]), rg("mix", "Mezcla", 0, 100, 50)],
+                presets: [("Suave", ["rate": 0.25, "depth": 60, "center": 600, "stages": 1, "feedback": 20, "shape": 0, "mix": 45]), ("Remolino", ["rate": 0.5, "depth": 90, "center": 800, "stages": 3, "feedback": 55, "shape": 0, "mix": 50]), ("Profundo", ["rate": 0.15, "depth": 100, "center": 500, "stages": 4, "feedback": 70, "shape": 1, "mix": 55])])
         case .reverb:
             return Info(name: "Reverb", about: "Reverberación larga con cola: de un cuarto pequeño a una catedral.",
                 how: "Seis filtros peine con distintos retardos, con amortiguación de agudos, más dos difusores: es el diseño clásico de Schroeder. El tamaño decide cuánto dura la cola (0,4 a 8 s).",
@@ -114,6 +126,8 @@ extension Fx404 {
         switch id {
         case .granular: return granular(x, rate, p)
         case .tapeecho: return tapeEcho(x, rate, p)
+        case .flanger: return flanger(x, rate, p)
+        case .phaser: return phaser(x, rate, p)
         case .reverb: return finish(reverbTail(x, rate, size: p["size"]!, damp: p["damping"]!, preMs: p["predelay"]!, mix: p["mix"]!, tailSec: min(6, 0.4 + 7.6 * p["size"]! / 100 * 0.7)))
         case .filterdrive: return filterDrive(x, rate, p)
         case .overdrive: return drive(x, rate, p, hard: false)
@@ -333,6 +347,40 @@ extension Fx404 {
             y[i] = x[i] * Float(1 - d * (1 - lfo))
         }
         return finish(y)
+    }
+
+    nonisolated private static func lfoAt(_ ph: Double, _ shape: Int) -> Double { shape == 1 ? (ph < 0.5 ? 4 * ph - 1 : 3 - 4 * ph) : sin(tau * ph) }
+
+    nonisolated private static func flanger(_ x: [Float], _ rate: Int, _ p: Params) -> [Float] {
+        let n = x.count, depth = p["depth"]! / 100, m = p["mix"]! / 100, fb = p["feedback"]! / 100 * (Int(p["polarity"]!) == 1 ? -1 : 1) * 0.92
+        let c = p["manual"]! / 1000 * Double(rate), shape = Int(p["shape"]!)
+        var w = [Double](repeating: 0, count: n), y = [Float](repeating: 0, count: n)
+        func at(_ k: Int) -> Double { w[k < 0 ? 0 : k] }
+        for i in 0..<n {
+            let ph = (p["rate"]! * Double(i) / Double(rate)).truncatingRemainder(dividingBy: 1)
+            let d = max(4, c * (1 + 0.9 * depth * lfoAt(ph, shape))), q = Double(i) - d, k = Int(q.rounded(.down)), f = q - Double(k)
+            let a = at(k - 1), b = at(k), cc = at(k + 1), e = at(min(k + 2, i - 1))
+            let tap = b + 0.5 * f * (cc - a + f * (2 * a - 5 * b + 4 * cc - e + f * (3 * (b - cc) + e - a)))
+            w[i] = Double(x[i]) + fb * tap
+            y[i] = Float(Double(x[i]) * (1 - m) + tap * m)
+        }
+        return finish(matchLevel(y, x, rate))
+    }
+
+    nonisolated private static func phaser(_ x: [Float], _ rate: Int, _ p: Params) -> [Float] {
+        let n = x.count, depth = p["depth"]! / 100, m = p["mix"]! / 100, fb = p["feedback"]! / 100 * 0.9
+        let N = [2, 4, 6, 8, 12][min(4, max(0, Int(p["stages"]!)))], shape = Int(p["shape"]!)
+        let lo = p["center"]! / pow(2, 1.5 * depth + 0.01), hi = p["center"]! * pow(2, 1.5 * depth + 0.01)
+        var z = [Double](repeating: 0, count: N), y = [Float](repeating: 0, count: n), last = 0.0
+        for i in 0..<n {
+            let u = 0.5 + 0.5 * lfoAt((p["rate"]! * Double(i) / Double(rate)).truncatingRemainder(dividingBy: 1), shape)
+            let fc = min(Double(rate) * 0.45, lo * pow(hi / lo, u)), t = tan(Double.pi * fc / Double(rate)), a = (t - 1) / (t + 1)
+            var v = Double(x[i]) + fb * last
+            for s in 0..<N { let o = a * v + z[s]; z[s] = v - a * o; v = o }
+            last = abs(v) < 1e-20 ? 0 : v
+            y[i] = Float(Double(x[i]) * (1 - m) + v * m)
+        }
+        return finish(matchLevel(y, x, rate))
     }
 
     nonisolated private static func stutter(_ x: [Float], _ rate: Int, _ p: Params) -> [Float] {

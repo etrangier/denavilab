@@ -69,7 +69,7 @@ export const STYLES = {
   libre: { name: 'Libre', pool: null, count: [2, 4] },
   oscuro: { name: 'Oscuro', pool: ['cassette', 'filterdrive', 'overdrive', 'reverb', 'vinyl404'], count: [2, 3] },
   sucio: { name: 'Sucio', pool: ['crusher', 'overdrive', 'distortion', 'vinyl303', 'ringmod', 'cassette'], count: [2, 3] },
-  eterero: { name: 'Etéreo', pool: ['granular', 'chorus', 'reverb', 'tapeecho', 'filterdrive'], count: [2, 3] },
+  eterero: { name: 'Etéreo', pool: ['granular', 'chorus', 'phaser', 'flanger', 'reverb', 'tapeecho', 'filterdrive'], count: [2, 3] },
   ritmico: { name: 'Rítmico', pool: ['slicer', 'stutter', 'tapeecho', 'tremolo', 'tapestop'], count: [2, 3] },
 };
 /** Ajustes al azar alrededor de los de fábrica; `intensity` 0–1 = cuánto se alejan. Determinista según la semilla. */

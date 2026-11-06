@@ -814,11 +814,11 @@ test.describe('etapas 1–5 · cadena de efectos, granular, destrucción, ritmo 
     mag = (a, hz) => { let re = 0, im = 0; for (let i = 0; i < a.length; i++) { re += a[i] * Math.cos(2 * Math.PI * hz * i / rate); im += a[i] * Math.sin(2 * Math.PI * hz * i / rate); } return Math.hypot(re, im) / a.length * 2; };`;
   const ev = (page, body) => page.evaluate(`(async (hs) => { ${PRE} ${body} })(${JSON.stringify(H)})`);
 
-  test('catálogo: 17 efectos en 6 familias, cada uno con ajustes acotados y preajustes que funcionan', async ({ page }) => {
+  test('catálogo: 19 efectos en 6 familias, cada uno con ajustes acotados y preajustes que funcionan', async ({ page }) => {
     await abrir(page, 'rolando');
     const r = await ev(page, `const out = {}; for (const id of f.ALL_ORDER) { const d = f.ALL[id]; out[id] = { fam: d.family, np: d.params.length, pre: d.presets.length, ok: d.presets.every(([n, v]) => { const p = f.paramsOf(id, v); return Object.keys(p).length === d.params.length; }), txt: !!(d.about && d.how && d.uso) }; }
       return { out, n: f.ALL_ORDER.length, fam: [...new Set(f.ALL_ORDER.map(id => f.ALL[id].family))].sort(), clamp: f.paramsOf('granular', { size: 99999, density: -4, stretch: 9, freeze: 1, shape: 'x' }) };`);
-    expect(r.n).toBe(17); expect(r.fam).toEqual(['Carácter', 'Destruir', 'Espacio', 'Ritmo', 'Textura', 'Voz'].sort());
+    expect(r.n).toBe(19); expect(r.fam).toEqual(['Carácter', 'Destruir', 'Espacio', 'Ritmo', 'Textura', 'Voz'].sort());
     for (const [id, o] of Object.entries(r.out)) expect(o, id).toMatchObject({ ok: true, txt: true });
     expect(r.clamp).toMatchObject({ size: 300, density: 4, stretch: 1, freeze: true, shape: 0 });
   });
@@ -857,6 +857,17 @@ test.describe('etapas 1–5 · cadena de efectos, granular, destrucción, ritmo 
       return { e1: pico(e, 12000 - 200, 12000 + 200), e2: pico(e, 24000 - 400, 24000 + 400), vacio: pico(e, 3000, 9000), len: rv.length - N, cola: rms(rv.slice(N)) / rms(rv.slice(0, N)), seco: seco.slice(0, N).every((v, i) => Math.abs(v - x[i]) < 1e-6) };`);
     expect(r.e1).toBeGreaterThan(0.2); expect(r.e2).toBeGreaterThan(0.05); expect(r.e2).toBeLessThan(r.e1); expect(r.vacio).toBeLessThan(0.05);
     expect(r.len).toBeGreaterThan(48000); expect(r.cola).toBeGreaterThan(0.02); expect(r.seco).toBe(true);
+  });
+  test('flanger y phaser: el flanger abre muescas de peine, el phaser cancela una banda, y los dos mantienen el nivel', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const r = await ev(page, `let s = 1; const z = new Float32Array(rate * 2); for (let i = 0; i < z.length; i++) { s = (s * 1103515245 + 12345) & 0x7fffffff; z[i] = (s / 0x7fffffff * 2 - 1) * 0.3; }
+      const pw = (y, fr) => { let re = 0, im = 0; for (let i = 0; i < y.length; i++) { const a = 2 * Math.PI * fr * i / rate; re += y[i] * Math.cos(a); im += y[i] * Math.sin(a); } return (re * re + im * im) / y.length; };
+      const fl = f.applyOne('flanger', z, rate, { depth: 0, manual: 3, feedback: 0, mix: 50 }), ph = f.applyOne('phaser', z, rate, { depth: 0, center: 700, stages: 1, feedback: 0, mix: 50 });
+      let lo = 1e9; for (let fr = 100; fr < 4000; fr += 50) lo = Math.min(lo, pw(ph, fr) / pw(z, fr));
+      const def = ['flanger', 'phaser'].map(id => f.applyOne(id, z, rate, {}));
+      return { notch: pw(fl, 167) / pw(fl, 333), lo, nivel: def.map(y => rms(y) / rms(z)), fin: def.every(y => y.every(Number.isFinite)), dif: def.map(y => y.some((v, i) => Math.abs(v - z[i]) > 1e-3)), fam: [f.ALL.flanger.family, f.ALL.phaser.family] };`);
+    expect(r.notch).toBeLessThan(0.1); expect(r.lo).toBeLessThan(0.05); expect(r.fin).toBe(true); expect(r.dif).toEqual([true, true]); expect(r.fam).toEqual(['Espacio', 'Espacio']);
+    for (const v of r.nivel) { expect(v).toBeGreaterThan(0.8); expect(v).toBeLessThan(1.25); }
   });
   test('ritmo: el slicer calla los pasos apagados, el tartamudeo repite, el tremolo baja el volumen y la parada de cinta frena', async ({ page }) => {
     await abrir(page, 'rolando');

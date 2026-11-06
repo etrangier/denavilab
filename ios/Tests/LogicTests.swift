@@ -1053,9 +1053,9 @@ final class LogicTests: XCTestCase {
         return (re * re + im * im).squareRoot() / Double(a.count) * 2
     }
 
-    func testFxCatalogHas17EffectsWithPresetsAndDeterministicOutput() {
+    func testFxCatalogHas19EffectsWithPresetsAndDeterministicOutput() {
         let rate = 48_000, x = harmonicVoice(220, seconds: 1, rate: rate)
-        XCTAssertEqual(Fx404.allOrder.count, 17)
+        XCTAssertEqual(Fx404.allOrder.count, 19)
         XCTAssertEqual(Set(Fx404.allOrder.map { Fx404.family($0) }), Set(Fx404.families))
         for id in Fx404.allOrder {
             let inf = Fx404.info(id)
@@ -1116,6 +1116,12 @@ final class LogicTests: XCTestCase {
         XCTAssertGreaterThan(rv.count - x.count, 48_000); XCTAssertGreaterThan(rmsOf(Array(rv[x.count...])) / rmsOf(Array(rv[0..<x.count])), 0.02)
         let sl = Fx404.apply(.slicer, x, rate: rate, ["bpm": 120, "division": 1, "pattern": 0, "depth": 100, "smooth": 0])
         XCTAssertGreaterThan(rmsOf(Array(sl[1000..<11_000])) / rmsOf(x), 0.7); XCTAssertLessThan(rmsOf(Array(sl[15_000..<23_000])) / rmsOf(x), 0.1)
+        var seed: UInt64 = 12345
+        let noise: [Float] = (0..<rate).map { _ in seed = seed &* 6364136223846793005 &+ 1442695040888963407; return Float(Double(seed >> 33) / Double(1 << 31) - 1) * 0.3 }
+        let fl = Fx404.apply(.flanger, noise, rate: rate, ["rate": 0.05, "depth": 0, "manual": 3, "feedback": 0, "polarity": 0, "shape": 0, "mix": 50])
+        XCTAssertLessThan(mag(fl, 167, rate: rate) * 2, mag(fl, 333, rate: rate))                    // muesca del peine a 1/(2·3 ms), pico al doble
+        let ph = Fx404.apply(.phaser, x, rate: rate, ["rate": 0.4, "depth": 80, "center": 700, "stages": 2, "feedback": 40, "shape": 0, "mix": 50])
+        XCTAssertTrue(zip(ph, x).contains { abs($0 - $1) > 0.01 }); XCTAssertEqual(ph.count, x.count)
         XCTAssertLessThan(rmsOf(Fx404.apply(.tremolo, x, rate: rate, ["rate": 4, "depth": 100, "shape": 0])) / rmsOf(x), 0.9)
         XCTAssertEqual(Fx404.apply(.stutter, x, rate: rate, ["bpm": 120, "division": 1, "chance": 0]).enumerated().filter { abs($0.element - x[$0.offset]) > 1e-6 }.count, 0)
         XCTAssertTrue(zip(Fx404.apply(.stutter, x, rate: rate, ["bpm": 120, "division": 1, "chance": 100]), x).contains { abs($0 - $1) > 1e-3 })
