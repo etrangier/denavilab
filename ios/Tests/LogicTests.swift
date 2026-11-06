@@ -1126,6 +1126,68 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(StyleMemory.summary(StyleMemory.Model()).count, 1)
     }
 
+    // MARK: escucha por constelación (Avery Wang)
+
+    private func conTone(_ x: inout [Float], _ o: Int, _ len: Int, _ freqs: [Double], rate: Int, amp: Double = 0.2) {
+        for i in 0..<len where o + i < x.count {
+            let t = Double(i) / Double(rate), env = min(1, Double(i) / (Double(rate) * 0.01)) * exp(-t * 3)
+            var v = 0.0
+            for f in freqs { for h in 1...3 { v += sin(2 * Double.pi * f * Double(h) * t) / Double(h) } }
+            x[o + i] += Float(amp * env * v / Double(freqs.count))
+        }
+    }
+    private func conPattern(rate: Int) -> [Float] {
+        var x = [Float](repeating: 0, count: rate * 5)
+        for rep in 0..<5 { for (i, f) in [220.0, 277.2, 330.0, 262.0].enumerated() { conTone(&x, Int((Double(rep) + Double(i) * 0.25) * Double(rate)), rate / 4, [f], rate: rate) } }
+        var s: UInt32 = 3
+        for i in x.indices { s = s &* 1664525 &+ 1013904223; x[i] += Float(0.01 * (Double(s) / 4294967296 * 2 - 1)) }
+        return x
+    }
+
+    func testConstellationFindsRepetitionPeriodAndSeamContinuity() throws {
+        let rate = 48_000, pat = conPattern(rate: rate)
+        let rep = Constellation.repetition(pat, rate: rate)
+        XCTAssertFalse(rep.isEmpty); XCTAssertEqual(rep[0].sec, 1.0, accuracy: 0.02)
+        let quiet = pat.map { $0 * 0.25 }                                                       // la constelación no depende del volumen
+        XCTAssertEqual(Constellation.repetition(quiet, rate: rate).first?.sec ?? 0, rep[0].sec, accuracy: 0.05)
+        var pad = [Float](repeating: 0, count: rate * 5)
+        for (f, t) in [(220.0, 0.0), (247.0, 1.0), (294.0, 2.1), (349.0, 3.3), (392.0, 4.0)] { conTone(&pad, Int(t * Double(rate)), rate * 2, [f, f * 1.5], rate: rate) }
+        XCTAssertTrue(Constellation.repetition(pad, rate: rate).isEmpty)                         // un pad sin repetición no inventa un periodo
+        let c = Constellation.build(pat, rate: rate)
+        func s(_ b: Double) -> Double { Constellation.seamScore(c, 0, Int(b * Double(rate))) ?? -1 }
+        XCTAssertGreaterThan(s(1.0), 0.85); XCTAssertGreaterThan(s(2.0), 0.85); XCTAssertLessThan(s(1.125), 0.3); XCTAssertLessThan(s(1.5), s(1.0))
+        let r = Constellation.refineLoopEnd(c, 0, Int(1.04 * Double(rate)))
+        XCTAssertEqual(Double(r.b) / Double(rate), 1.0, accuracy: 0.03); XCTAssertGreaterThan(r.score, 0.85)
+    }
+
+    func testConstellationNoteChangesFindChordChangesAtConstantVolume() {
+        let rate = 48_000
+        var ch = [Float](repeating: 0, count: rate * 5)
+        let chords: [[Double]] = [[220, 277, 330], [175, 220, 262], [262, 330, 392], [196, 247, 294], [220, 277, 330]]
+        for (i, fr) in chords.enumerated() {
+            for k in 0..<rate {
+                let t = Double(i * rate + k) / Double(rate), env = min(1, Double(k) / (Double(rate) * 0.03)) * min(1, Double(rate - k) / (Double(rate) * 0.03))
+                var v = 0.0
+                for f in fr { v += sin(2 * Double.pi * f * t) }
+                ch[i * rate + k] = Float(0.15 * v * env)
+            }
+        }
+        let cuts = Constellation.noteChanges(ch, rate: rate).map { Double($0) / Double(rate) }
+        XCTAssertEqual(cuts.count, 4)
+        for (i, t) in [1.0, 2.0, 3.0, 4.0].enumerated() where i < cuts.count { XCTAssertEqual(cuts[i], t, accuracy: 0.08) }
+        var fixed = [Float](repeating: 0, count: rate * 4)
+        for i in fixed.indices { let t = Double(i) / Double(rate); fixed[i] = Float(0.15 * (sin(2 * Double.pi * 220 * t) + sin(2 * Double.pi * 277 * t) + sin(2 * Double.pi * 330 * t))) }
+        XCTAssertTrue(Constellation.noteChanges(fixed, rate: rate).isEmpty)                      // un acorde fijo no da cortes
+        XCTAssertTrue(Constellation.noteChanges([Float](repeating: 0, count: 100), rate: rate).isEmpty)
+    }
+
+    func testSmartLoopWithoutPulseUsesTheDetectedPeriod() throws {
+        let rate = 48_000, pat = conPattern(rate: rate)
+        let r = try XCTUnwrap(StyleMemory.suggestLoop(pat, rate: rate, bpm: nil, bpmConfidence: 0, StyleMemory.Model()))
+        XCTAssertEqual(try XCTUnwrap(r.periodo), 1.0, accuracy: 0.02)
+        XCTAssertGreaterThan(try XCTUnwrap(r.seam), 0.6); XCTAssertTrue(r.why.contains("se repite cada")); XCTAssertTrue(r.why.contains("continuidad espectral"))
+    }
+
     func testEveryFxHasADistinctIcon() {
         let symbols = Fx404.allOrder.map { Fx404.symbol($0) }
         XCTAssertEqual(symbols.count, 19); XCTAssertTrue(symbols.allSatisfy { !$0.isEmpty }); XCTAssertEqual(Set(symbols).count, symbols.count)

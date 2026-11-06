@@ -50,8 +50,14 @@ struct ChopSheet: View {
             selected = []
             return
         }
-        var starts = mode == 0 ? Editing.transients(audio, sensitivity: sensitivity, minGapSamples: sample.sampleRate / 10, maxCount: 11)
+        var starts: [Int]
+        if mode == -2 {          // por cambio de notas (constelación): acordes, pads y voz, donde el volumen no marca el corte
+            starts = Constellation.noteChanges(audio, rate: sample.sampleRate, sensitivity: sensitivity).map { Editing.nearestZeroCross(audio, to: $0, window: 256) }
+            if starts.isEmpty { starts = Editing.evenSlices(audio, count: 4) }
+        } else {
+            starts = mode == 0 ? Editing.transients(audio, sensitivity: sensitivity, minGapSamples: sample.sampleRate / 10, maxCount: 11)
                                : Editing.evenSlices(audio, count: mode)
+        }
         if grid, let b = bpm { starts = Editing.snapToGrid(starts, step: Double(sample.sampleRate) * 60 / b / 4) }
         ranges = Array(Editing.slices(starts: starts, total: audio.count).prefix(12))
         stopPreview()
@@ -67,8 +73,8 @@ struct ChopSheet: View {
                                 trailing: AnyView(TextLink(title: "Cerrar") { stopPreview(); dismiss() }))
                     wave
                     modeChips
-                    if mode == 0 {
-                        SliderRow(title: "Sensibilidad de golpes", valueText: sensitivity < 0.34 ? "Baja" : sensitivity < 0.67 ? "Media" : "Alta", value: $sensitivity)
+                    if mode == 0 || mode == -2 {
+                        SliderRow(title: mode == -2 ? "Sensibilidad a cambios de nota" : "Sensibilidad de golpes", valueText: sensitivity < 0.34 ? "Baja" : sensitivity < 0.67 ? "Media" : "Alta", value: $sensitivity)
                     }
                     ToggleRow(title: "Detectar acordes y compases", subtitle: "Aproximado: acordes mayores y menores, compás de 4 tiempos",
                               isOn: Binding(get: { harmonyOn }, set: { setHarmony($0) }))
@@ -108,7 +114,7 @@ struct ChopSheet: View {
     }
 
     private var modeChips: some View {
-        let modes: [Int] = lay == nil ? [4, 8, 12, 0] : [4, 8, 12, 0, -1]
+        let modes: [Int] = lay == nil ? [4, 8, 12, 0, -2] : [4, 8, 12, 0, -2, -1]
         return HStack(spacing: 8) {
             ForEach(modes, id: \.self) { m in
                 Chip(title: modeTitle(m), selected: mode == m) { mode = m }
@@ -117,7 +123,8 @@ struct ChopSheet: View {
     }
 
     private func modeTitle(_ m: Int) -> String {
-        if m == 0 { return "Auto" }
+        if m == 0 { return "Golpes" }
+        if m == -2 { return "Notas" }
         if m == -1 { return "Compases" }
         return "\(m)"
     }
