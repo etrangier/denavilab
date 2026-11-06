@@ -1039,4 +1039,112 @@ final class LogicTests: XCTestCase {
         }
         XCTAssertEqual(medianF0(ap(glide, ["robot": 1]), rate: rate), 277.2, accuracy: 4)                // toda la frase en una nota
     }
+
+    // MARK: Cadena de efectos, granular, destrucción, delay y reverb, ritmo y variaciones
+
+    private func zcr(_ a: [Float]) -> Double {
+        var c = 0
+        for i in 1..<a.count where (a[i] >= 0) != (a[i - 1] >= 0) { c += 1 }
+        return Double(c) / Double(max(1, a.count))
+    }
+    private func mag(_ a: [Float], _ hz: Double, rate: Int) -> Double {
+        var re = 0.0, im = 0.0
+        for i in a.indices { let ph = 2 * Double.pi * hz * Double(i) / Double(rate); re += Double(a[i]) * cos(ph); im += Double(a[i]) * sin(ph) }
+        return (re * re + im * im).squareRoot() / Double(a.count) * 2
+    }
+
+    func testFxCatalogHas17EffectsWithPresetsAndDeterministicOutput() {
+        let rate = 48_000, x = harmonicVoice(220, seconds: 1, rate: rate)
+        XCTAssertEqual(Fx404.allOrder.count, 17)
+        XCTAssertEqual(Set(Fx404.allOrder.map { Fx404.family($0) }), Set(Fx404.families))
+        for id in Fx404.allOrder {
+            let inf = Fx404.info(id)
+            XCTAssertFalse(inf.presets.isEmpty, "\(id)"); XCTAssertFalse(inf.how.isEmpty, "\(id)")
+            for pr in inf.presets { XCTAssertEqual(Fx404.params(id, pr.values).count, inf.params.count, "\(id)") }
+        }
+        for id in Fx404.allOrder where !Fx404.order.contains(id) {
+            let a = Fx404.apply(id, x, rate: rate), b = Fx404.apply(id, x, rate: rate)
+            XCTAssertTrue(a.allSatisfy { $0.isFinite }, "\(id)"); XCTAssertEqual(a, b, "\(id) no es determinista")
+            XCTAssertLessThanOrEqual(a.map(abs).max() ?? 0, 1.0001, "\(id)")
+        }
+        XCTAssertEqual(Fx404.apply(.granular, x, rate: rate).count, x.count * 2)            // ×2 por defecto
+        XCTAssertGreaterThan(Fx404.apply(.tapeecho, x, rate: rate).count, x.count); XCTAssertGreaterThan(Fx404.apply(.reverb, x, rate: rate).count, x.count)
+        XCTAssertEqual(Fx404.apply(.crusher, x, rate: rate).count, x.count)
+        let c = Fx404.params(.granular, ["size": 99999, "density": -4, "stretch": 9, "freeze": 1, "shape": .nan])
+        XCTAssertEqual(c["size"], 300); XCTAssertEqual(c["density"], 4); XCTAssertEqual(c["stretch"], 1); XCTAssertEqual(c["freeze"], 1); XCTAssertEqual(c["shape"], 0)
+    }
+
+    func testGranularStretchPitchAndDryMix() {
+        let rate = 48_000, x = harmonicVoice(220, seconds: 1, rate: rate)
+        let base: Fx404.Params = ["balance": 100, "spray": 0, "jitter": 0, "reverse": 0, "stretch": 0, "freeze": 1, "position": 50, "size": 120, "density": 40]
+        XCTAssertEqual(Fx404.apply(.granular, x, rate: rate, base.merging(["stretch": 2]) { $1 }).count, x.count * 4)
+        let up = Fx404.apply(.granular, x, rate: rate, base.merging(["pitch": 12]) { $1 }), flat = Fx404.apply(.granular, x, rate: rate, base)
+        let ratio = zcr(up) / zcr(flat)
+        XCTAssertGreaterThan(ratio, 1.5); XCTAssertLessThan(ratio, 2.6)
+        let level = rmsOf(flat) / rmsOf(x)
+        XCTAssertGreaterThan(level, 0.6); XCTAssertLessThan(level, 1.5)
+        let dry = Fx404.apply(.granular, x, rate: rate, ["balance": 0, "stretch": 0])
+        XCTAssertEqual(zip(dry, x).map { abs($0 - $1) }.max() ?? 1, 0, accuracy: 1e-6)
+    }
+
+    func testDestroyEffectsDoWhatTheyClaim() {
+        let rate = 48_000
+        let sine: [Float] = (0..<(rate * 2)).map { Float(0.4 * sin(2 * Double.pi * 220 * Double($0) / Double(rate))) }
+        let voice = harmonicVoice(220, seconds: 2, rate: rate)
+        let cr = Fx404.apply(.crusher, voice, rate: rate, ["bits": 3, "rateDiv": 1, "balance": 100])
+        XCTAssertLessThanOrEqual(Set(cr.prefix(20_000)).count, 8)
+        let crh = Fx404.apply(.crusher, voice, rate: rate, ["bits": 16, "rateDiv": 10, "balance": 100])
+        XCTAssertGreaterThan((1..<5000).filter { crh[$0] == crh[$0 - 1] }.count, 4000)
+        let rm = Fx404.apply(.ringmod, sine, rate: rate, ["freq": 100, "shape": 0, "mix": 100])
+        XCTAssertLessThan(mag(rm, 220, rate: rate), 0.02); XCTAssertGreaterThan(mag(rm, 120, rate: rate), 0.1); XCTAssertGreaterThan(mag(rm, 320, rate: rate), 0.1)
+        let ds = Fx404.apply(.distortion, sine, rate: rate, ["drive": 90, "mode": 0, "tone": 90, "level": 100])
+        XCTAssertGreaterThan(mag(ds, 660, rate: rate) / mag(ds, 220, rate: rate), 0.1)
+        let mix: [Float] = (0..<voice.count).map { voice[$0] + Float(0.2 * sin(2 * Double.pi * 3000 * Double($0) / Double(rate))) }
+        let lp = Fx404.apply(.filterdrive, mix, rate: rate, ["type": 0, "cutoff": 25, "resonance": 10, "drive": 0, "sweep": 0])
+        XCTAssertLessThan(roughness(lp) / roughness(mix), 0.3)
+    }
+
+    func testEchoReverbAndRhythmEffects() {
+        let rate = 48_000
+        var imp = [Float](repeating: 0, count: rate); imp[0] = 0.8
+        let e = Fx404.apply(.tapeecho, imp, rate: rate, ["time": 250, "feedback": 50, "tone": 100, "wow": 0, "mix": 100])
+        func pico(_ a: [Float], _ lo: Int, _ hi: Int) -> Float { a[lo..<hi].map(abs).max() ?? 0 }
+        let e1 = pico(e, 11_800, 12_200), e2 = pico(e, 23_600, 24_400)
+        XCTAssertGreaterThan(e1, 0.2); XCTAssertGreaterThan(e2, 0.05); XCTAssertLessThan(e2, e1); XCTAssertLessThan(pico(e, 3000, 9000), 0.05)
+        let x = harmonicVoice(220, seconds: 2, rate: rate)
+        let rv = Fx404.apply(.reverb, x, rate: rate, ["size": 60, "damping": 40, "predelay": 0, "mix": 50])
+        XCTAssertGreaterThan(rv.count - x.count, 48_000); XCTAssertGreaterThan(rmsOf(Array(rv[x.count...])) / rmsOf(Array(rv[0..<x.count])), 0.02)
+        let sl = Fx404.apply(.slicer, x, rate: rate, ["bpm": 120, "division": 1, "pattern": 0, "depth": 100, "smooth": 0])
+        XCTAssertGreaterThan(rmsOf(Array(sl[1000..<11_000])) / rmsOf(x), 0.7); XCTAssertLessThan(rmsOf(Array(sl[15_000..<23_000])) / rmsOf(x), 0.1)
+        XCTAssertLessThan(rmsOf(Fx404.apply(.tremolo, x, rate: rate, ["rate": 4, "depth": 100, "shape": 0])) / rmsOf(x), 0.9)
+        XCTAssertEqual(Fx404.apply(.stutter, x, rate: rate, ["bpm": 120, "division": 1, "chance": 0]).enumerated().filter { abs($0.element - x[$0.offset]) > 1e-6 }.count, 0)
+        XCTAssertTrue(zip(Fx404.apply(.stutter, x, rate: rate, ["bpm": 120, "division": 1, "chance": 100]), x).contains { abs($0 - $1) > 1e-3 })
+        let ts = Fx404.apply(.tapestop, x, rate: rate, ["where": 0, "time": 0.8, "depth": 100])
+        XCTAssertEqual(ts.count, x.count); XCTAssertLessThan(zcr(Array(ts[(x.count - 9000)...])) / zcr(Array(ts[0..<9000])), 0.4)
+    }
+
+    func testChainOrderBypassLayerCapAndRandomVariations() {
+        let rate = 48_000, x = harmonicVoice(220, seconds: 1, rate: rate)
+        let a = FxSlot.make(.overdrive, ["drive": 90]), b = FxSlot.make(.filterdrive, ["type": 0, "cutoff": 20, "resonance": 40])
+        let ab = FxChain.apply([a, b], x, rate: rate), ba = FxChain.apply([b, a], x, rate: rate)
+        XCTAssertTrue(zip(ab, ba).contains { abs($0 - $1) > 1e-3 })                                          // el orden importa
+        var off = a; off.bypass = true
+        XCTAssertEqual(FxChain.apply([off, b], x, rate: rate), FxChain.apply([b], x, rate: rate))           // apagar = quitar
+        let other: [Float] = (0..<4800).map { Float(0.3 * sin(2 * Double.pi * 1000 * Double($0) / Double(rate))) }
+        let withLayer = FxChain.apply([.layer("o", name: "otro", gain: 100)], x, rate: rate, layers: ["o": (other, rate)])
+        XCTAssertGreaterThan(mag(withLayer, 1000, rate: rate) - mag(x, 1000, rate: rate), 0.1)
+        let big = FxChain.apply((0..<3).map { _ in FxSlot.make(.granular, ["stretch": 3, "size": 100, "density": 20]) }, x, rate: rate)
+        XCTAssertLessThanOrEqual(Double(big.count) / Double(rate), 60.01)
+        XCTAssertEqual(FxChain.clean((0..<12).map { _ in FxSlot.make(.crusher) } + [FxSlot(fx: "nada")]).count, 8)
+        let d = FxChain.describe([a, .layer("o", name: "otro", gain: 50), { var z = b; z.bypass = true; return z }()])
+        XCTAssertEqual(d.count, 2); XCTAssertTrue(d[0].contains("Overdrive")); XCTAssertTrue(d[1].contains("Mezcla con «otro»"))
+        XCTAssertEqual(FxChain.randomChain(seed: 5, style: "sucio", intensity: 0.8), FxChain.randomChain(seed: 5, style: "sucio", intensity: 0.8).map { var s = $0; s.id = FxChain.randomChain(seed: 5, style: "sucio", intensity: 0.8).first { $0.fx == s.fx }!.id; return s })
+        XCTAssertNotEqual(FxChain.randomChain(seed: 5, style: "sucio").map(\.fx), FxChain.randomChain(seed: 6, style: "sucio").map(\.fx) + ["x"])
+        for st in FxChain.styles { for sd in 1...5 as ClosedRange<UInt32> {
+            for s in FxChain.randomChain(seed: sd, style: st.key, intensity: 1) { XCTAssertTrue((st.pool ?? Fx404.allOrder).contains(s.effect!)); XCTAssertEqual(s.params, Fx404.params(s.effect!, s.params)) }
+        } }
+        XCTAssertTrue(FxChain.randomChain(seed: 3, style: "ritmico", intensity: 0.5, bpm: 87).filter { $0.params["bpm"] != nil }.allSatisfy { $0.params["bpm"] == 87 })
+        XCTAssertEqual(FxChain.presets.count, 5)
+        for p in FxChain.presets { XCTAssertTrue(FxChain.apply(p.chain, x, rate: rate).allSatisfy { $0.isFinite }, p.name) }
+    }
 }
