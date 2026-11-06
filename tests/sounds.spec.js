@@ -899,6 +899,8 @@ test.describe('etapas 1–5 · cadena de efectos, granular, destrucción, ritmo 
     expect(r.igual).toBe(true); expect(r.dist).toBe(true); expect(r.ok).toBe(true); expect(r.bpm).toBe(true); expect(r.n).toBe(5); expect(r.pre.every(Boolean)).toBe(true);
   });
 
+  const anadir = async (sh, nombre) => { await sh.getByRole('button', { name: '＋ Añadir efecto' }).click(); await sh.getByRole('button', { name: nombre, exact: true }).click(); };
+  const mas = async sh => { if (!await sh.locator('details.more[open]').count()) await sh.locator('details.more > summary').click(); };
   const abrirRack = async (page, nombres = ['pad base']) => {
     await abrir(page, 'rolando'); await sembrar(page, nombres);
     await page.evaluate(async () => { const st = await import('/sounds/store.js'), s = (await st.listSamples())[0]; await st.putSample({ ...s, origin: 'Mi balcón', tags: ['cálido'], key: 'Am' }); });
@@ -912,14 +914,14 @@ test.describe('etapas 1–5 · cadena de efectos, granular, destrucción, ritmo 
   test('rack: añadir, ordenar, apagar, ajustar, preajustes de cadena, guardar la propia y quitar', async ({ page }) => {
     const sh = await abrirRack(page);
     await expect(sh.locator('.slot')).toHaveCount(1);
-    await sh.getByRole('button', { name: 'Granular', exact: true }).click(); await expect(sh.locator('.slot')).toHaveCount(2);
+    await anadir(sh, 'Granular'); await expect(sh.locator('.slot')).toHaveCount(2);
     await expect(sh.getByLabel('Tamaño del grano')).toBeVisible();                                   // la casilla nueva queda abierta
     await sh.getByRole('button', { name: 'Subir 2. Granular'.replace('2. ', '') }).click();
     await expect(sh.locator('.slot').first()).toContainText('1. Granular');
     await sh.getByRole('button', { name: /Apagar Granular/ }).click(); await expect(sh.locator('.slot').first()).toContainText('apagado');
     await sh.getByRole('button', { name: /Encender Granular/ }).click();
     await sh.getByLabel('Densidad').fill('50'); await sh.getByRole('button', { name: 'Niebla' }).click(); await expect(sh.getByLabel('Tamaño del grano')).toHaveValue('220');
-    await sh.getByRole('button', { name: 'Nube etérea' }).click(); await expect(sh.locator('.slot')).toHaveCount(3);
+    await mas(sh); await sh.getByRole('button', { name: 'Nube etérea' }).click(); await expect(sh.locator('.slot')).toHaveCount(3);
     await sh.getByRole('button', { name: 'Guardar esta cadena…' }).click();
     await page.locator('dialog.sheet').last().getByLabel('Guardar la cadena').fill('Mi nube'); await page.locator('dialog.sheet').last().getByRole('button', { name: 'Guardar', exact: true }).click();
     await expect(sh.getByRole('button', { name: '★ Mi nube' })).toBeVisible();
@@ -952,7 +954,7 @@ test.describe('etapas 1–5 · cadena de efectos, granular, destrucción, ritmo 
     const s2 = page.locator('dialog.sheet'); await expect(s2.getByRole('heading', { name: 'Cadena de efectos' })).toBeVisible();
     await expect(s2.locator('.slot').first()).toContainText('Cassette Sim');
     await expect(s2.getByRole('button', { name: 'Aplicar al sonido' })).toHaveCount(0);
-    await s2.getByRole('button', { name: 'Granular', exact: true }).click(); await expect(s2.locator('.slot')).toHaveCount(2);
+    await anadir(s2, 'Granular'); await expect(s2.locator('.slot')).toHaveCount(2);
     await s2.getByRole('button', { name: 'Actualizar este sonido con la receta' }).click(); await expect(page.locator('#toast')).toContainText('actualizado', { timeout: 20000 });
     const r = await page.evaluate(async () => { const st = await import('/sounds/store.js'), l = await st.listSamples(), n = l.find(x => x.name === 'pad base fx'); return { n: l.filter(x => x.name === 'pad base fx').length, ids: n.recipe.chain.map(c => c.id), proc: n.process.join(' '), id: n.id }; });
     expect(r.n).toBe(1); expect(r.id).toBe(q.id); expect(r.ids).toEqual(['cassette', 'granular']); expect(r.proc).toContain('Granular');
@@ -964,15 +966,25 @@ test.describe('etapas 1–5 · cadena de efectos, granular, destrucción, ritmo 
     await page.reload(); await tab(page, 'biblioteca'); await page.locator('.row-btn', { hasText: 'pad base fx' }).first().click();
     await page.getByRole('button', { name: 'Re-editar la receta' }).click(); await expect(page.locator('#toast')).toContainText('ya no está');
   });
+  test('rack: cada efecto tiene su icono, la escucha previa está siempre a la mano y se prueba un efecto solo', async ({ page }) => {
+    const sh = await abrirRack(page);
+    await expect(sh.locator('.slot .fxi svg')).toHaveCount(1);
+    await sh.getByRole('button', { name: '＋ Añadir efecto' }).click();
+    const n = await sh.locator('.fxtile').count(); expect(n).toBe(19); await expect(sh.locator('.fxtile .fxi svg')).toHaveCount(19);
+    await sh.getByRole('button', { name: '− Cerrar la lista' }).click(); await expect(sh.locator('.fxtile')).toHaveCount(0);
+    await expect(sh.locator('.dock').getByRole('button', { name: '▶ Procesado' })).toBeVisible(); await expect(sh.locator('.dock').getByRole('button', { name: 'Guardar como sonido nuevo' })).toBeVisible();
+    await sh.locator('.slot-name').first().click(); await sh.getByRole('button', { name: '▶ Solo este efecto' }).click(); await expect(sh).toContainText('Escuchando solo este efecto', { timeout: 15000 });
+    const col = await page.evaluate(() => getComputedStyle(document.body).backgroundColor); expect(col).toBe('rgb(0, 0, 0)');
+  });
   test('rack: todo apagado avisa, y mezclar otro sonido aparece como casilla', async ({ page }) => {
     const sh = await abrirRack(page, ['pad base', 'otro']);
-    await sh.getByLabel('Mezclar con otro sonido').selectOption({ index: 1 }); await expect(sh.locator('.slot').last()).toContainText('Mezcla con «'); await expect(sh.getByLabel('Nivel del otro sonido')).toBeVisible();
+    await mas(sh); await sh.getByLabel('Mezclar con otro sonido').selectOption({ index: 1 }); await expect(sh.locator('.slot').last()).toContainText('Mezcla con «'); await expect(sh.getByLabel('Nivel del otro sonido')).toBeVisible();
     await sh.getByRole('button', { name: /Apagar Cassette Sim/ }).click(); await sh.getByRole('button', { name: /Apagar Mezcla con/ }).click();
     await sh.getByRole('button', { name: 'Aplicar al sonido' }).click(); await expect(page.locator('#toast')).toContainText('no hay nada que aplicar');
   });
   test('rack: el dado genera una cadena y 4 variantes se guardan como sonidos procesados ligados al original', async ({ page }) => {
     const sh = await abrirRack(page);
-    await sh.getByRole('button', { name: 'Sucio', exact: true }).click(); await sh.getByRole('button', { name: '🎲 Generar una cadena' }).click();
+    await mas(sh); await sh.getByRole('button', { name: 'Sucio', exact: true }).click(); await sh.getByRole('button', { name: '🎲 Generar una cadena' }).click();
     const n = await sh.locator('.slot').count(); expect(n).toBeGreaterThanOrEqual(2); expect(n).toBeLessThanOrEqual(3);
     await sh.getByRole('button', { name: 'Guardar 4 variantes' }).click(); await expect(sh).toContainText('Guardadas 4 variantes', { timeout: 60000 });
     const l = await page.evaluate(async () => (await (await import('/sounds/store.js')).listSamples()).filter(x => / var \d$/.test(x.name)));

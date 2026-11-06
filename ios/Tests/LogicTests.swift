@@ -1071,6 +1071,12 @@ final class LogicTests: XCTestCase {
         XCTAssertNil(try JSONDecoder().decode([Sample].self, from: raw).first?.recipe)
     }
 
+    func testEveryFxHasADistinctIcon() {
+        let symbols = Fx404.allOrder.map { Fx404.symbol($0) }
+        XCTAssertEqual(symbols.count, 19); XCTAssertTrue(symbols.allSatisfy { !$0.isEmpty }); XCTAssertEqual(Set(symbols).count, symbols.count)
+        XCTAssertFalse(Fx404.layerSymbol.isEmpty)
+    }
+
     func testFxCatalogHas19EffectsWithPresetsAndDeterministicOutput() {
         let rate = 48_000, x = harmonicVoice(220, seconds: 1, rate: rate)
         XCTAssertEqual(Fx404.allOrder.count, 19)

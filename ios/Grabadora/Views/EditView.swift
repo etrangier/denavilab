@@ -123,13 +123,12 @@ struct EditorBody: View {
                     .font(Theme.font(12)).foregroundColor(Theme.muted)
                 Button("Edición precisa (zoom)") { showPrecise = true }.buttonStyle(OutlineButton(selected: true))
                 Button("Chop en pads") { showChop = true }.buttonStyle(OutlineButton())
-                Button("Efectos de carácter (estilo SP-404)") { showFx = true }.buttonStyle(OutlineButton(selected: true))
+                Button("Cadena de efectos") { showFx = true }.buttonStyle(OutlineButton(selected: true))
                 if let r = sample.recipe {
-                    Text("Receta de efectos: hecho a partir de «\(r.fromName)»: " + FxChain.describe(r.chain).joined(separator: " → ")).font(Theme.font(12)).foregroundColor(Theme.muted)
+                    Text("Receta · de «\(r.fromName)»: " + FxChain.describe(r.chain).map { $0.components(separatedBy: " (").first ?? $0 }.joined(separator: " → ")).font(Theme.font(12)).foregroundColor(Theme.muted)
                     Button("Re-editar la receta") { openRecipe() }.buttonStyle(AmberButton())
-                    Text("Abre la cadena sobre el sonido de origen, sin procesar dos veces el audio, y actualiza este sonido.").font(Theme.font(11)).foregroundColor(Theme.muted)
+                    Text("Se edita sobre el original y actualiza este sonido.").font(Theme.font(11)).foregroundColor(Theme.muted)
                 }
-                Text("Cassette, vinilo, chorus y Auto Pitch, antes de compartir el sonido.").font(Theme.font(12)).foregroundColor(Theme.muted)
                 Button("Laboratorio de pads") { showLab = true }.buttonStyle(OutlineButton(selected: true))
                 Text("Bucle sin clics, estirar, tono, filtros, reverb, capas y teclado (con MIDI).").font(Theme.font(12)).foregroundColor(Theme.muted)
                 Button("Armonizar bordes (sin clics)") { let r = sample.sampleRate; run("armonizar", done: "Listo: bordes armonizados") { Harmonize.harmonize($0, rate: r) } }.buttonStyle(OutlineButton()).font(Theme.font(13))

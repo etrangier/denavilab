@@ -1,16 +1,16 @@
 import SwiftUI
 
-/// Tokens del diseño de Canva (DAHX-TlarCw).
+/// Negro con líneas y letras verdes (estilo Spotify). `amber` es el color de acento y ahora es verde; se conserva el nombre para no tocar toda la app.
 enum Theme {
-    static let bg = Color(hex: 0x14131b)
-    static let surface = Color(hex: 0x1d1b26)
-    static let surface2 = Color(hex: 0x26232f)
-    static let line = Color(hex: 0x322e3f)
-    static let text = Color(hex: 0xede9f3)
-    static let muted = Color(hex: 0x9b95ab)
-    static let amber = Color(hex: 0xe8a94a)
-    static let ink = Color(hex: 0x1a1207)
-    static let error = Color(hex: 0xff8a8a)
+    static let bg = Color(hex: 0x000000)
+    static let surface = Color(hex: 0x0b0f0c)
+    static let surface2 = Color(hex: 0x121a14)
+    static let line = Color(hex: 0x1f7a45)
+    static let text = Color(hex: 0xc9f7d8)
+    static let muted = Color(hex: 0x6fbf8a)
+    static let amber = Color(hex: 0x1ed760)
+    static let ink = Color(hex: 0x00140a)
+    static let error = Color(hex: 0xff6b6b)
 
     /// Ubuntu (incluida en Fonts/); si faltara, SwiftUI usa la del sistema.
     static func font(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
