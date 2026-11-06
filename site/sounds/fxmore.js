@@ -19,17 +19,31 @@ export function grainWindow(G, shape) {
   return w;
 }
 function granular(x, rate, p) {
-  const N = x.length, stretch = STRETCHES[p.stretch | 0] || 1, M = Math.round(N * stretch), r = rng(77), out = new Float64Array(M + rate);
-  const G = Math.max(16, Math.round(p.size / 1000 * rate)), step = rate / p.density, win = grainWindow(G, p.shape | 0);
+  const N = x.length, stretch = STRETCHES[p.stretch | 0] || 1, M = Math.round(N * stretch), r = rng(77), out = new Float64Array(M + rate), wsq = new Float64Array(M + rate);
+  const G = Math.max(16, Math.round(p.size / 1000 * rate)), step = rate / p.density, win = grainWindow(G, p.shape | 0), search = Math.round(Math.min(rate * 0.02, Math.max(rate * 0.006, G * 0.05))), Lc = Math.min(G >> 1, Math.round(rate * 0.03));
   for (let t = 0; t < M; t += step * (0.85 + 0.3 * r())) {
     const base = p.freeze ? p.position / 100 * N : (t / M) * N, pos = base + (r() * 2 - 1) * p.spray * 0.005 * rate;
     const g = Math.pow(2, (p.pitch + (r() * 2 - 1) * p.jitter / 100) / 12), rev = r() * 100 < p.reverse, start = Math.round(t - G / 2);
+    let dlt = 0;
+    if (!rev) {          // alinea la fase del grano con lo que ya sonó (como WSOLA): evita que los granos se cancelen entre sí y el sonido «tiemble»
+      let best = -Infinity;
+      for (let d = -search; d <= search; d += 2) {
+        let num = 0, den = 1e-9;
+        for (let k = 0; k < Lc; k += 4) {
+          const o = start + k; if (o < 0 || o >= M || wsq[o] < 0.05) continue;
+          const sp = pos + d + (k - G / 2) * g, j = Math.floor(sp); if (j < 0 || j + 1 >= N) continue;
+          const sv = x[j] * (1 - (sp - j)) + x[j + 1] * (sp - j); num += out[o] * sv; den += sv * sv;
+        }
+        const sc = num / Math.sqrt(den); if (sc > best) { best = sc; dlt = d; }
+      }
+    }
     for (let k = 0; k < G; k++) {
       const o = start + k; if (o < 0 || o >= M) continue;
-      const src = pos + ((rev ? G - 1 - k : k) - G / 2) * g, j = Math.floor(src); if (j < 0 || j + 1 >= N) continue;
-      const f = src - j; out[o] += (x[j] * (1 - f) + x[j + 1] * f) * win[k];
+      const src = pos + dlt + ((rev ? G - 1 - k : k) - G / 2) * g, j = Math.floor(src); if (j < 0 || j + 1 >= N) continue;
+      const f = src - j; out[o] += (x[j] * (1 - f) + x[j + 1] * f) * win[k]; wsq[o] += win[k] * win[k];
     }
   }
+  for (let i = 0; i < M; i++) out[i] /= Math.max(0.35, Math.sqrt(wsq[i]));          // el volumen no sube ni baja según cuántos granos se solapan
   const wet = matchLevel(Float32Array.from(out.subarray(0, M)), x, rate), b = p.balance / 100, dry = grow(x, M), y = new Float32Array(M);
   for (let i = 0; i < M; i++) y[i] = dry[i] * (1 - b) + wet[i] * b;
   return finish(y);
@@ -42,14 +56,25 @@ function crusher(x, rate, p) {
   for (let i = 0; i < x.length; i++) { if (i % div === 0) held = Math.round((x[i] * 0.5 + 0.5) * L) / L * 2 - 1; y[i] = x[i] * (1 - b) + held * b; }
   return finish(matchLevel(y, x, rate));
 }
+/** Aplica una curva no lineal a 4× la frecuencia de muestreo y vuelve a bajar con un filtro de 24 dB/oct: así la distorsión no «silba» (aliasing). */
+function oversampled(x, rate, shaper, F = 4) {
+  const n = x.length, up = new Float32Array(n * F), at = k => x[k < 0 ? 0 : k >= n ? n - 1 : k];
+  for (let i = 0; i < n; i++) {
+    const a = at(i - 1), b = x[i], c = at(i + 1), e = at(i + 2);
+    for (let u = 0; u < F; u++) { const f = u / F; up[i * F + u] = shaper(b + 0.5 * f * (c - a + f * (2 * a - 5 * b + 4 * c - e + f * (3 * (b - c) + e - a)))); }     // Catmull-Rom
+  }
+  const lp = biquad(biquad(up, 'lp', rate * 0.45, rate * F, 0, 0.54), 'lp', rate * 0.45, rate * F, 0, 1.31), y = new Float32Array(n);
+  for (let i = 0; i < n; i++) y[i] = lp[i * F];
+  return y;
+}
 function drive(x, rate, p, hard) {
   const ref = Math.max(peakRef(x), 1e-6), k = 1 + (hard ? 24 : 14) * p.drive / 100, bias = 0.3 * (p.asym || 0) / 100, y = new Float32Array(x.length);
   const fold = hard && p.mode === 1, pre = hard ? biquad(x, 'hp', 90, rate) : x;
-  for (let i = 0; i < x.length; i++) {
-    const v = pre[i] / ref;
-    if (hard) { let q = k * v; if (fold) { q = ((q + 1) % 4 + 4) % 4; q = q > 2 ? 3 - q : q - 1; y[i] = q; } else y[i] = clamp(q, -1, 1); }
-    else y[i] = Math.tanh(k * (v + bias)) - Math.tanh(k * bias);
-  }
+  const shape = hard
+    ? (fold ? q0 => { const q = ((k * q0 + 1) % 4 + 4) % 4; return q > 2 ? 3 - q : q - 1; } : q0 => clamp(k * q0, -1, 1))
+    : q0 => Math.tanh(k * (q0 + bias)) - Math.tanh(k * bias);
+  const yo = oversampled(Float32Array.from(pre, v => v / ref), rate, shape);
+  for (let i = 0; i < x.length; i++) y[i] = yo[i];
   let o = matchLevel(biquad(y, 'lp', 1200 * Math.pow(10, p.tone / 100), rate), x, rate);
   const g = levelGain(p.level); for (let i = 0; i < o.length; i++) o[i] *= g;
   return finish(o);
@@ -58,7 +83,7 @@ const overdrive = (x, rate, p) => drive(x, rate, p, false), distortion = (x, rat
 function ringmod(x, rate, p) {
   const f = p.freq, m = p.mix / 100, y = new Float32Array(x.length), sq = p.shape === 1;
   for (let i = 0; i < x.length; i++) { const s = Math.sin(TAU * f * i / rate), c = sq ? Math.tanh(6 * s) : s; y[i] = c; }
-  const ring = matchLevel(Float32Array.from(x, (v, i) => v * y[i]), x, rate);
+  const ring = matchLevel(biquad(Float32Array.from(x, (v, i) => v * y[i]), 'lp', 9500, rate), x, rate);
   for (let i = 0; i < x.length; i++) y[i] = x[i] * (1 - m) + ring[i] * m;
   return finish(y);
 }
@@ -95,16 +120,40 @@ function tapeEcho(x, rate, p) {
   }
   return finish(y);
 }
+/**
+ * Reverb de red de retardos realimentados (FDN de 8 líneas, matriz de Hadamard): mucho más densa y suave que los peines de Schroeder, que «suenan a lata».
+ * Difusores a la entrada, primeras reflexiones, amortiguación de agudos en cada línea y retardos que se mueven muy despacio (rompe el timbre metálico).
+ */
 export function reverbTail(x, rate, size, damp, preMs, mix, tailSec) {
-  const N = x.length, M = N + Math.round(rate * tailSec), inp = grow(x, M), decay = 0.4 + 7.6 * size / 100, pre = Math.round(preMs / 1000 * rate), wet = new Float32Array(M);
-  const d = damp / 100;
-  for (const dl of [0.0297, 0.0371, 0.0411, 0.0437, 0.0533, 0.0617]) {
-    const n = Math.max(1, Math.round(dl * rate)), g = Math.pow(10, -3 * dl / decay), buf = new Float32Array(n); let idx = 0, lp = 0;
-    for (let i = 0; i < M; i++) { const o = buf[idx]; lp = o * (1 - 0.15 - 0.6 * d) + lp * (0.15 + 0.6 * d); buf[idx] = (i >= pre ? inp[i - pre] : 0) + lp * g; if (++idx === n) idx = 0; wet[i] += o; }
+  const N = x.length, M = N + Math.round(rate * tailSec), inp = grow(x, M), rt = 0.4 + 7.6 * size / 100, pre = Math.round(preMs / 1000 * rate), d = damp / 100;
+  // 1) entrada difusa: cuatro pasa-todo en serie
+  let dif = new Float32Array(M); for (let i = 0; i < M; i++) dif[i] = i >= pre ? inp[i - pre] : 0;
+  for (const [ms, g] of [[4.7, 0.62], [3.6, 0.62], [12.7, 0.55], [9.3, 0.55]]) {
+    const n = Math.max(1, Math.round(ms / 1000 * rate)), buf = new Float32Array(n); let idx = 0;
+    for (let i = 0; i < M; i++) { const v = dif[i], bo = buf[idx], o = -g * v + bo; buf[idx] = v + g * o; dif[i] = o; if (++idx === n) idx = 0; }
   }
-  for (const [dl, g] of [[0.005, 0.7], [0.0017, 0.7]]) { const n = Math.max(1, Math.round(dl * rate)), buf = new Float32Array(n); let idx = 0; for (let i = 0; i < M; i++) { const v = wet[i], bo = buf[idx], o = -g * v + bo; buf[idx] = v + g * o; if (++idx === n) idx = 0; wet[i] = o; } }
-  const m = mix / 100, y = new Float32Array(M), gw = m * 1.2 / 3;
-  for (let i = 0; i < M; i++) y[i] = inp[i] * (1 - m * 0.5) + wet[i] * gw;
+  // 2) primeras reflexiones (sobre la entrada sin difundir)
+  const er = new Float32Array(M), ERT = [[7, 0.5], [13, -0.4], [19, 0.35], [26, -0.3], [34, 0.22], [43, -0.18]], room = 0.6 + 0.8 * size / 100;
+  for (const [ms, g] of ERT) { const o = Math.round(ms * room / 1000 * rate); for (let i = o + pre; i < M; i++) er[i] += g * inp[i - o - pre]; }
+  // 3) red de 8 retardos con mezcla ortogonal
+  const BASE = [0.0297, 0.0371, 0.0411, 0.0437, 0.0533, 0.0617, 0.0719, 0.0833], L = 8, sc = 0.7 + 0.8 * size / 100;
+  const len = BASE.map(b => Math.max(8, Math.round(b * sc * rate))), bufs = len.map(n => new Float64Array(n + 64)), idx = new Int32Array(L), lp = new Float64Array(L);
+  const g = BASE.map((b, i) => Math.pow(10, -3 * (len[i] / rate) / rt)), a = 0.08 + 0.72 * d, v = new Float64Array(L), o = new Float64Array(L), wet = new Float32Array(M);
+  const modHz = BASE.map((_, i) => 0.07 + 0.04 * i), modAmp = Math.min(24, rate * 0.0004), sgn = [1, -1, 1, -1, 1, -1, 1, -1];
+  for (let i = 0; i < M; i++) {
+    let sum = 0;
+    for (let l = 0; l < L; l++) {
+      const n = len[l], buf = bufs[l], dly = n - modAmp * (0.5 + 0.5 * Math.sin(TAU * modHz[l] * i / rate)) - 1, rp = idx[l] - dly, k = Math.floor(rp), f = rp - k;
+      const i0 = ((k % n) + n) % n, i1 = (i0 + 1) % n; o[l] = buf[i0] * (1 - f) + buf[i1] * f;
+      lp[l] = o[l] * (1 - a) + lp[l] * a; v[l] = lp[l] * g[l]; sum += sgn[l] * o[l];
+    }
+    for (let h = 1; h < L; h <<= 1) for (let j = 0; j < L; j += h << 1) for (let q = j; q < j + h; q++) { const u = v[q], w = v[q + h]; v[q] = u + w; v[q + h] = u - w; }       // Hadamard
+    const din = dif[i] * 0.35;
+    for (let l = 0; l < L; l++) { bufs[l][idx[l]] = v[l] * 0.35355339 + din * sgn[(l + 1) % L]; if (++idx[l] === len[l]) idx[l] = 0; }
+    wet[i] = sum * 0.5 + er[i] * 0.6;
+  }
+  const hp = biquad(wet, 'hp', 140, rate), m = mix / 100, y = new Float32Array(M), gw = m * 1.1;
+  for (let i = 0; i < M; i++) y[i] = inp[i] * (1 - m * 0.5) + hp[i] * gw;
   return y;
 }
 const reverb = (x, rate, p) => finish(reverbTail(x, rate, p.size, p.damping, p.predelay, p.mix, Math.min(6, 0.4 + 7.6 * p.size / 100 * 0.7)));
@@ -190,11 +239,11 @@ export const MORE = {
   granular: { name: 'Granular', family: 'Textura', about: 'Corta el sonido en granos de milésimas de segundo y los vuelve a lanzar en nube: sirve para congelar un instante, alargar un golpe hasta hacerlo pad o convertir una frase en una niebla.',
     how: 'Cada grano es un trocito de 10–300 ms con una ventana (Hann) que evita clics. Densidad = granos por segundo; la posición decide de dónde se toman (fija = congelar; avanzando = recorrido); la dispersión mueve esa posición al azar; el tono de cada grano se cambia leyéndolo más rápido o más lento.',
     uso: 'La herramienta más fuerte para volver un sonido en otro: un golpe de teclas se vuelve un pad; una voz, una niebla.',
-    params: [R('size', 'Tamaño del grano', 10, 300, 90, ' ms'), R('density', 'Densidad', 4, 80, 24, ' granos/s'), C('stretch', 'Duración', ['×1', '×2', '×4', '×8'], 1), B('freeze', 'Congelar en una posición'), R('position', 'Posición (al congelar)', 0, 100, 50, ' %'),
+    params: [R('size', 'Tamaño del grano', 10, 300, 90, ' ms'), R('density', 'Densidad', 4, 80, 40, ' granos/s'), C('stretch', 'Duración', ['×1', '×2', '×4', '×8'], 1), B('freeze', 'Congelar en una posición'), R('position', 'Posición (al congelar)', 0, 100, 50, ' %'),
       R('spray', 'Dispersión', 0, 100, 30), R('pitch', 'Tono', -24, 24, 0, ' st'), R('jitter', 'Variación de tono', 0, 1200, 15, ' cent', 5), R('reverse', 'Granos al revés', 0, 100, 0, ' %'), C('shape', 'Ventana', ['Suave', 'Triangular', 'Plana']), R('balance', 'Mezcla (seco → efecto)', 0, 100, 100, ' %')],
     presets: [['Pad desde un golpe', { size: 140, density: 30, stretch: 2, freeze: true, position: 25, spray: 25, pitch: 0, jitter: 12, reverse: 0, shape: 0, balance: 100 }], ['Niebla', { size: 220, density: 50, stretch: 1, freeze: false, position: 50, spray: 70, pitch: 0, jitter: 40, reverse: 10, shape: 0, balance: 100 }], ['Polvo de estrellas', { size: 30, density: 60, stretch: 1, freeze: false, position: 50, spray: 90, pitch: 12, jitter: 300, reverse: 25, shape: 1, balance: 70 }]], run: granular },
   crusher: { name: 'Crusher', family: 'Destruir', about: 'Baja los bits y la frecuencia de muestreo: sonido de sampler antiguo, áspero y digital.', how: 'Se redondea cada muestra a pocos niveles (menos bits = más ruido de cuantización) y se repite el valor cada N muestras (menos frecuencia = aliasing metálico).', uso: 'Para ensuciar baterías y teclas hasta el sabor de un sampler de los 90.',
-    params: [R('bits', 'Bits', 1, 16, 8), R('rateDiv', 'Reducción de frecuencia', 1, 50, 6, ' ×'), R('balance', 'Mezcla (seco → efecto)', 0, 100, 100, ' %')],
+    params: [R('bits', 'Bits', 1, 16, 8), R('rateDiv', 'Reducción de frecuencia', 1, 50, 4, ' ×'), R('balance', 'Mezcla (seco → efecto)', 0, 100, 100, ' %')],
     presets: [['Sampler de 12 bits', { bits: 12, rateDiv: 3, balance: 100 }], ['Radio rota', { bits: 5, rateDiv: 14, balance: 100 }]], run: crusher },
   overdrive: { name: 'Overdrive', family: 'Destruir', about: 'Saturación cálida de válvula: engorda y comprime los picos.', how: 'Una curva tanh asimétrica añade armónicos (también los pares, más musicales) y un filtro suaviza los agudos.', uso: 'Para dar cuerpo a pads y bajos sin romperlos.',
     params: [R('drive', 'Ganancia', 0, 100, 50), R('tone', 'Tono', 0, 100, 60), R('asym', 'Asimetría', 0, 100, 20), R('level', 'Nivel', 0, 100, 100)],
@@ -203,7 +252,7 @@ export const MORE = {
     params: [R('drive', 'Ganancia', 0, 100, 60), C('mode', 'Modo', ['Duro', 'Doblado']), R('tone', 'Tono', 0, 100, 55), R('level', 'Nivel', 0, 100, 100)],
     presets: [['Fuzz', { drive: 70, mode: 0, tone: 45, level: 100 }], ['Metal fundido', { drive: 90, mode: 1, tone: 60, level: 100 }]], run: distortion },
   ringmod: { name: 'Ring Mod', family: 'Destruir', about: 'Multiplica el sonido por un tono: crea campanas y timbres metálicos que no estaban.', how: 'Al multiplicar por una onda de frecuencia f, cada componente f₀ se reemplaza por f₀+f y f₀−f; el resultado es inarmónico (como una campana).', uso: 'Para convertir un pad cálido en algo extraterrestre.',
-    params: [R('freq', 'Frecuencia', 20, 2000, 220, ' Hz'), C('shape', 'Onda', ['Seno', 'Cuadrada']), R('mix', 'Mezcla', 0, 100, 50, ' %')],
+    params: [R('freq', 'Frecuencia', 20, 2000, 220, ' Hz'), C('shape', 'Onda', ['Seno', 'Cuadrada']), R('mix', 'Mezcla', 0, 100, 35, ' %')],
     presets: [['Campana', { freq: 440, shape: 0, mix: 60 }], ['Robot', { freq: 90, shape: 1, mix: 80 }]], run: ringmod },
   filterdrive: { name: 'Filter+Drive', family: 'Destruir', about: 'Filtro con resonancia, saturación y movimiento: pasa-bajos, pasa-altos o pasa-banda que se desplazan solos.', how: 'Un filtro de variables de estado que se puede resonar mucho; el barrido mueve el corte con una onda lenta (hasta ±2 octavas) y la saturación previa le da mordida.', uso: 'Para oscurecer, abrir o «hacer hablar» una textura.',
     params: [C('type', 'Tipo', ['Pasa-bajos', 'Pasa-altos', 'Pasa-banda']), R('cutoff', 'Corte', 0, 100, 55), R('resonance', 'Resonancia', 0, 100, 40), R('drive', 'Saturación', 0, 100, 30), R('sweep', 'Barrido', 0, 100, 0), R('sweepRate', 'Velocidad del barrido', 0.1, 4, 0.5, ' Hz', 0.05)],

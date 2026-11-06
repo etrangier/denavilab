@@ -870,6 +870,26 @@ test.describe('etapas 1–5 · cadena de efectos, granular, destrucción, ritmo 
     expect(r.notch).toBeLessThan(0.1); expect(r.lo).toBeLessThan(0.05); expect(r.fin).toBe(true); expect(r.dif).toEqual([true, true]); expect(r.fam).toEqual(['Espacio', 'Espacio']);
     for (const v of r.nivel) { expect(v).toBeGreaterThan(0.8); expect(v).toBeLessThan(1.25); }
   });
+  test('calidad: la distorsión no silba (aliasing), el granular no tiembla y la reverb es densa, estable y de nivel parejo', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const r = await ev(page, `const d = await import('/sounds/dsp.js');
+      const spec = (y, N, off) => { const re = new Float64Array(N), im = new Float64Array(N); for (let i = 0; i < N; i++) re[i] = (y[off + i] || 0) * (0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1))); d.fftInPlace(re, im, false); const m = new Float64Array(N / 2); for (let k = 0; k < N / 2; k++) m[k] = re[k] * re[k] + im[k] * im[k]; return m; };
+      const f0 = 3100, s31 = Float32Array.from({ length: rate * 2 }, (_, i) => 0.5 * Math.sin(2 * Math.PI * f0 * i / rate));
+      const alias = y => { const N = 16384, m = spec(y, N, rate / 2), bin = rate / N; let tot = 0, nh = 0; for (let k = 2; k < N / 2; k++) { const fr = k * bin; tot += m[k]; if (Math.abs(fr - Math.round(fr / f0) * f0) > 70) nh += m[k]; } return 10 * Math.log10(nh / tot + 1e-12); };
+      const s440 = Float32Array.from({ length: rate * 3 }, (_, i) => 0.4 * Math.sin(2 * Math.PI * 440 * i / rate));
+      const ripple = y => { const w = Math.round(rate * 0.01), e = []; for (let i = Math.round(0.3 * rate); i + w < 2.5 * rate; i += w) { let q = 0; for (let j = 0; j < w; j++) q += y[i + j] ** 2; e.push(Math.sqrt(q / w)); } const mu = e.reduce((a, b) => a + b) / e.length; return Math.sqrt(e.reduce((a, b) => a + (b - mu) ** 2, 0) / e.length) / mu; };
+      const imp = new Float32Array(rate * 2); imp[100] = 1;
+      const rv = f.applyOne('reverb', imp, rate, { size: 50, mix: 100, predelay: 0 }), sm = (y, off) => { const m = spec(y, 32768, off), db = []; for (let k = 160; k < 5500; k++) db.push(10 * Math.log10(m[k] + 1e-20)); let q = 0, c = 0; for (let i = 8; i < db.length - 8; i++) { let a = 0; for (let j = -8; j <= 8; j++) a += db[i + j]; q += (db[i] - a / 17) ** 2; c++; } return Math.sqrt(q / c); };
+      let seed = 1; const nz = Float32Array.from({ length: rate * 2 }, () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return (seed / 0x7fffffff * 2 - 1) * 0.2; });
+      const wet = f.applyOne('reverb', nz, rate, { mix: 30 }), dryR = rms(nz), wetR = rms(wet.slice(0, nz.length));
+      let fin = true, pk = 0; for (const v of rv) { if (!Number.isFinite(v)) fin = false; pk = Math.max(pk, Math.abs(v)); }
+      const cola = rms(rv.slice(Math.round(rate * 1.2), Math.round(rate * 1.4))) / rms(rv.slice(Math.round(rate * 0.2), Math.round(rate * 0.4)));
+      return { dist: alias(f.applyOne('distortion', s31, rate, {})), over: alias(f.applyOne('overdrive', s31, rate, {})), gran: ripple(f.applyOne('granular', s440, rate, {})), rip: sm(rv, Math.round(rate * 0.2)), fin, pk, cola, nivel: 20 * Math.log10(wetR / dryR), hp: rms(f.applyOne('vinyl404', x, rate, {})) / rms(x) };`);
+    expect(r.dist).toBeLessThan(-38); expect(r.over).toBeLessThan(-45);           // antes −22 y −31 dB
+    expect(r.gran).toBeLessThan(0.12);                                            // antes ≈0,4 (un volumen que subía y bajaba)
+    expect(r.rip).toBeLessThan(8.5); expect(r.fin).toBe(true); expect(r.pk).toBeLessThan(1); expect(r.cola).toBeLessThan(1); expect(r.cola).toBeGreaterThan(0.05);
+    expect(Math.abs(r.nivel)).toBeLessThan(2.5); expect(r.hp).toBeGreaterThan(0.7); expect(r.hp).toBeLessThan(1.4);
+  });
   test('ritmo: el slicer calla los pasos apagados, el tartamudeo repite, el tremolo baja el volumen y la parada de cinta frena', async ({ page }) => {
     await abrir(page, 'rolando');
     const r = await ev(page, `const sl = f.applyOne('slicer', x, rate, { bpm: 120, division: 1, pattern: 0, depth: 100, smooth: 0 }), paso = 12000;     // corcheas a 120 BPM = 0,25 s = 12000 muestras
@@ -2316,6 +2336,7 @@ test.describe('memoria de estilo: aprende de cómo recortas y armas loops', () =
     await page.locator('.row-btn').first().click();
     await expect(page.getByRole('heading', { name: 'Escuchar y editar' })).toBeVisible();
     await page.getByRole('button', { name: '✨ Recorte inteligente' }).click(); await expect(page.locator('#toast')).toContainText('antes del ataque');
+    await expect(page.getByRole('button', { name: '✓ Recorte sugerido' })).toBeVisible(); await expect(page.locator('.btn.fx-flash')).toHaveCount(1);      // confirmación visible del clic
     await page.getByRole('button', { name: 'Recortar', exact: true }).click(); await expect(page.locator('#toast')).toContainText('recortado');
     const m = await page.evaluate(async () => (await import('/sounds/learn.js')).load()); expect(m.trim.golpe.n).toBe(1);
     await page.getByRole('button', { name: '✨ Loop inteligente' }).click(); await expect(page.locator('#toast')).toContainText(/Loop de|zona estable/);

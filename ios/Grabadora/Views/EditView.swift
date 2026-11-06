@@ -121,8 +121,8 @@ struct EditorBody: View {
                     .actionFX("nivelar", busy: fxBusy, flash: fxFlash)
                 InfoTip("Lleva el volumen típico de la toma a \(Int(Level.target)) dB (no el pico): así un golpe seco y un pad suenan igual de fuertes. El nivel se cambia en Compartir. Puedes deshacer.")
                 HStack(spacing: 8) {
-                    Button("✨ Recorte inteligente") { smartTrim() }.actionFX("recorte-ia", busy: fxBusy, flash: fxFlash)
-                    Button("✨ Loop inteligente") { smartLoop() }.actionFX("loop-ia", busy: fxBusy, flash: fxFlash)
+                    Button(fxFlash == "recorte-ia" ? "✓ Recorte sugerido" : "✨ Recorte inteligente") { smartTrim() }.actionFX("recorte-ia", busy: fxBusy, flash: fxFlash)
+                    Button(fxFlash == "loop-ia" ? "✓ Loop sugerido" : "✨ Loop inteligente") { smartLoop() }.actionFX("loop-ia", busy: fxBusy, flash: fxFlash)
                 }.buttonStyle(OutlineButton()).font(Theme.font(13))
                 Button("Edición precisa (zoom)") { showPrecise = true }.buttonStyle(OutlineButton())
                 Button("Chop en pads") { showChop = true }.buttonStyle(OutlineButton())
@@ -309,6 +309,7 @@ struct EditorBody: View {
         guard let r = StyleMemory.suggestTrim(audio, rate: sample.sampleRate) else { message = "No encuentro un sonido claro para sugerir un recorte"; return }
         start = Double(r.a) / Double(audio.count); end = Double(r.b) / Double(audio.count); fadeMs = r.fadeMs
         message = r.why + " · ajusta y pulsa Recortar"
+        flashFX("recorte-ia")
     }
 
     private func smartLoop() {
@@ -318,6 +319,7 @@ struct EditorBody: View {
         }
         start = Double(r.a) / Double(audio.count); end = Double(r.b) / Double(audio.count); loopCross = r.crossSec; loopRefine = r.refine
         message = r.why + " · ajusta y pulsa Hacer loop continuo"
+        flashFX("loop-ia")
     }
 
     private func makeLoop() {

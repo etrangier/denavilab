@@ -85,12 +85,15 @@ export function vinylNoise(n, rate, amt, ref, seed, clicksPerSec = 12) {
   const r = rng(seed), hiss = biquad(biquad(whiteNoise(n, r), 'hp', 400, rate), 'lp', 9000, rate), rumble = biquad(whiteNoise(n, r), 'lp', 55, rate);
   const hg = ref * dB(-40 + 28 * amt) * 1.7, rg = ref * dB(-50 + 22 * amt) * 6;
   for (let i = 0; i < n; i++) out[i] = hiss[i] * hg + rumble[i] * rg;
-  const lam = clicksPerSec * Math.pow(amt, 1.4) / rate;
+  const lam = clicksPerSec * Math.pow(amt, 1.4) / rate, cl = new Float32Array(n);
   for (let i = 0; i < n; i++) {
     if (r() >= lam) continue;
-    const u = r(), pop = r() < 0.06, amp = ref * dB(-14 + 10 * amt) * (0.25 + 2.2 * u * u * u) * (pop ? 2.5 : 1) * (r() < 0.5 ? -1 : 1), tau = rate * (pop ? 0.0022 : 0.0004);
-    for (let k = 0, m = Math.min(n - i, Math.round(tau * 6)); k < m; k++) out[i + k] += amp * Math.exp(-k / tau);
+    const u = r(), pop = r() < 0.05, amp = ref * dB(-22 + 11 * amt) * (0.25 + 2.0 * u * u * u) * (pop ? 1.8 : 1) * (r() < 0.5 ? -1 : 1), tau = rate * (pop ? 0.0025 : 0.0005);
+    for (let k = 0, m = Math.min(n - i, Math.round(tau * 6)); k < m; k++) cl[i + k] += amp * Math.exp(-k / tau);
   }
+  // los chasquidos pasan por un filtro de banda (sin «clic digital» seco ni golpe grave): suenan a polvo en el surco
+  const soft = biquad(biquad(cl, 'hp', 700, rate), 'lp', 7000, rate);
+  for (let i = 0; i < n; i++) out[i] += soft[i] * 1.6;
   return out;
 }
 
@@ -116,6 +119,7 @@ function vinyl404(x, rate, p) {
   let y = varDelay(x, wobbleDelay(x.length, rate, { wow: 0.010 * w, wowHz: 0.555, flutter: 0.004 * w, flutHz: 6.1 }, 12));
   const Q = 0.7 + 0.5 * f;                                                                              // más resonancia al cerrar: color «de radio»
   y = biquad(biquad(y, 'hp', 60 * Math.pow(6.7, f), rate, 0, Q), 'lp', 12000 * Math.pow(0.183, f), rate, 0, Q);     // respuesta del tocadiscos: de amplia a «de radio»
+  y = matchLevel(y, x, rate);                                                                           // el recorte de graves y agudos no baja el volumen
   add(y, vinylNoise(x.length, rate, n, activeLevel(x, rate), 22, 11));
   return finish(y);
 }
