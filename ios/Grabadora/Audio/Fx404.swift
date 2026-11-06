@@ -5,8 +5,14 @@ import Foundation
 /// Mismo cálculo, mismos rangos y mismos números que `fx404.js` de la PWA. Deterministas y sin cambiar el largo de la toma.
 /// Los rangos y nombres de parámetros son los del manual; cómo suena cada uno por dentro es una interpretación propia (por confirmar contra el aparato).
 enum Fx404 {
-    enum ID: String, CaseIterable { case cassette, vinyl404, vinyl303, chorus, autopitch }
+    enum ID: String, CaseIterable {
+        case cassette, vinyl404, vinyl303, chorus, autopitch
+        case granular, tapeecho, reverb, filterdrive, overdrive, distortion, crusher, ringmod, slicer, stutter, tremolo, tapestop
+    }
+    /// Los cinco estilo SP-404 y, después, los nuevos (misma lista y orden que `ALL_ORDER` de la PWA).
     nonisolated static let order: [ID] = [.cassette, .vinyl404, .vinyl303, .chorus, .autopitch]
+    nonisolated static let allOrder: [ID] = order + [.granular, .tapeecho, .reverb, .filterdrive, .overdrive, .distortion, .crusher, .ringmod, .slicer, .stutter, .tremolo, .tapestop]
+    nonisolated static let families = ["Carácter", "Espacio", "Textura", "Destruir", "Ritmo", "Voz"]
 
     enum Kind { case range, choice, bool }
     struct Param {
@@ -14,6 +20,7 @@ enum Fx404 {
         var min = 0.0, max = 100.0, def = 0.0, step = 1.0
         var unit = ""
         var options: [String] = []
+        var hint = ""
     }
     struct Info {
         let name: String, about: String, how: String, uso: String
@@ -61,8 +68,19 @@ enum Fx404 {
                 how: "Se mide la altura de la voz cada 8 ms (YIN) y se re-sintetiza con TD-PSOLA: se copian granos de un período de la voz original y se colocan más juntos o más separados para cambiar el tono; al leer cada grano más rápido o más lento cambia el formante. ROBOT fija todo a una sola nota.",
                 uso: "Para trozos de voz (Sade, Cerati) que quieras afinar a tu tonalidad o volver instrumentos. Sólo funciona con una voz o un instrumento solo: en acordes o mezclas sale mal.",
                 params: [rng("pitch", "Tono", -100, 100, 0), rng("formant", "Formante", -100, 100, 0), rng("balance", "Mezcla (seco → efecto)", 0, 100, 100, unit: " %"), rng("atPitch", "Fuerza de corrección", 0, 100, 70),
-                         Param(key: "key", label: "Tonalidad", kind: .choice, min: 0, max: 12, def: 0, options: keys), Param(key: "robot", label: "Robot", kind: .bool, min: 0, max: 1, def: 0)],
+                         Param(key: "key", label: "Tonalidad", kind: .choice, min: 0, max: 12, def: 0, options: keys), Param(key: "robot", label: "Robot", kind: .bool, min: 0, max: 1, def: 0, hint: "Deja la voz sin inflexión, siempre en la misma nota")],
                 presets: [("Afinar (cromático)", ["pitch": 0, "formant": 0, "balance": 100, "atPitch": 100, "key": 0, "robot": 0]), ("Voz robótica", ["pitch": 0, "formant": 0, "balance": 100, "atPitch": 100, "key": 0, "robot": 1])])
+        default:
+            return infoMore(id)
+        }
+    }
+
+    nonisolated static func family(_ id: ID) -> String {
+        switch id {
+        case .cassette, .vinyl404, .vinyl303: return "Carácter"
+        case .chorus: return "Espacio"
+        case .autopitch: return "Voz"
+        default: return familyMore(id)
         }
     }
 
@@ -112,13 +130,14 @@ enum Fx404 {
         case .cassette: return cassette(x, rate, p)
         case .chorus: return chorus(x, rate, p)
         case .autopitch: return autoPitch(x, rate, p)
+        default: return applyMore(id, x, rate, p)
         }
     }
 
     // MARK: Herramientas
 
-    nonisolated private static let tau = 2 * Double.pi
-    nonisolated private static func dB(_ v: Double) -> Double { pow(10, v / 20) }
+    nonisolated static let tau = 2 * Double.pi
+    nonisolated static func dB(_ v: Double) -> Double { pow(10, v / 20) }
 
     /// Aleatorio con semilla (LCG): [0, 1).
     struct RNG {
@@ -127,7 +146,7 @@ enum Fx404 {
         mutating func next() -> Double { s = s &* 1_664_525 &+ 1_013_904_223; return Double(s) / 4_294_967_296 }
     }
 
-    nonisolated private static func whiteNoise(_ n: Int, _ g: inout RNG) -> [Float] { (0..<n).map { _ in Float(g.next() * 2 - 1) } }
+    nonisolated static func whiteNoise(_ n: Int, _ g: inout RNG) -> [Float] { (0..<n).map { _ in Float(g.next() * 2 - 1) } }
 
     enum BQ { case lp, hp, lowShelf, highShelf }
 
@@ -183,7 +202,7 @@ enum Fx404 {
         return (s / Double(c)).squareRoot()
     }
 
-    nonisolated private static func matchLevel(_ y: [Float], _ x: [Float], _ rate: Int) -> [Float] {
+    nonisolated static func matchLevel(_ y: [Float], _ x: [Float], _ rate: Int) -> [Float] {
         let a = activeLevel(y, rate), b = activeLevel(x, rate)
         guard a > 1e-9, b > 1e-9 else { return y }
         let g = Float(b / a)
@@ -264,7 +283,7 @@ enum Fx404 {
     }
 
     /// Protege del recorte sin tocar lo que ya cabe.
-    nonisolated private static func finish(_ y: [Float]) -> [Float] {
+    nonisolated static func finish(_ y: [Float]) -> [Float] {
         var p: Float = 0
         for v in y { p = max(p, abs(v)) }
         guard p > 0.98 else { return y }
@@ -272,7 +291,7 @@ enum Fx404 {
         return y.map { $0 * g }
     }
 
-    nonisolated private static func levelGain(_ lv: Double) -> Float { Float(dB(-40 * (1 - lv / 100))) }
+    nonisolated static func levelGain(_ lv: Double) -> Float { Float(dB(-40 * (1 - lv / 100))) }
 
     // MARK: Efectos
 

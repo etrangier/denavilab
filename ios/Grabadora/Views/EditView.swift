@@ -170,9 +170,18 @@ struct EditorBody: View {
         }
         .sheet(isPresented: $showChop) { ChopSheet(sample: sample, audio: audio).presentationDetents([.large]) }
         .sheet(isPresented: $showFx) {
-            Fx404Sheet(audio: audio, rate: sample.sampleRate) { out, name in
-                apply({ _ in out }, label: name); message = "Listo: \(name) aplicado · puedes deshacerlo"
-            }.presentationDetents([.large])
+            FxRackSheet(audio: audio, rate: sample.sampleRate, bpm: sample.bpm, name: sample.name,
+                        others: lib.samples.filter { $0.id != sample.id }.map { FxRackSheet.Other(id: $0.id.uuidString, name: $0.name) },
+                        loadAudio: { id in
+                            guard let u = UUID(uuidString: id), let o = lib.samples.first(where: { $0.id == u }) else { return nil }
+                            return (lib.audio(for: o), o.sampleRate)
+                        },
+                        onApply: { out, name, _ in apply({ _ in out }, label: name); message = "Listo: \(name) aplicado · puedes deshacerlo" },
+                        onSaveNew: { out, notes in saveProcessed(out, notes: notes, suffix: " fx", comment: "Cadena de efectos sobre: " + sample.name); message = "Guardado como sonido nuevo (procesado)" },
+                        onSaveVariants: { list in
+                            for (i, v) in list.enumerated() { saveProcessed(v.out, notes: v.notes, suffix: " var \(i + 1)", comment: "Variante \(i + 1) (\(v.style)) de: " + sample.name) }
+                            message = "Guardadas 4 variantes (procesadas)"
+                        }).presentationDetents([.large])
         }
         .sheet(isPresented: $showLab) { PadLabSheet(sample: sample).presentationDetents([.large]) }
         .sheet(isPresented: $showDetails) { DetailsSheet(sample: sample) { sample = $0; lib.update($0) }.presentationDetents([.large]) }
@@ -408,6 +417,14 @@ struct EditorBody: View {
     }
 
     // MARK: acciones
+
+    /// Guarda un resultado como sonido nuevo «procesado», con el origen, las etiquetas y la lista de efectos del original.
+    private func saveProcessed(_ out: [Float], notes: [String], suffix: String, comment: String) {
+        guard var n = lib.add(name: sample.name + suffix, audio: out, sampleRate: sample.sampleRate) else { return }
+        n.folder = sample.folder; n.subfolder = sample.subfolder; n.status = SampleStatus.procesado; n.origin = sample.origin; n.tags = sample.tags
+        n.key = sample.key; n.bpm = sample.bpm; n.comment = comment + (sample.comment.isEmpty ? "" : " · " + sample.comment); n.process = sample.process + notes
+        lib.update(n)
+    }
 
     private func apply(_ f: ([Float]) -> [Float], label: String = "Cambio") {
         let out = f(audio)

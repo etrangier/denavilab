@@ -2,11 +2,11 @@
 // 303 VinylSim, 404 VinylSim, Cassette Sim, Chorus y Auto Pitch. Se aplican al sonido antes de compartirlo o llevarlo a un sampler.
 // Todo es determinista (mismo sonido y mismos ajustes, mismo resultado) y deja la toma con el mismo largo.
 // Los rangos y nombres de parámetros son los del manual; cómo suena cada uno por dentro es una interpretación propia (por confirmar contra el aparato).
-const TAU = 2 * Math.PI, dB = v => Math.pow(10, v / 20), clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+export const TAU = 2 * Math.PI, dB = v => Math.pow(10, v / 20), clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 /** Aleatorio con semilla (LCG): [0,1). */
 export function rng(seed) { let s = (seed >>> 0) || 1; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; }
-const whiteNoise = (n, r) => { const o = new Float32Array(n); for (let i = 0; i < n; i++) o[i] = r() * 2 - 1; return o; };
+export const whiteNoise = (n, r) => { const o = new Float32Array(n); for (let i = 0; i < n; i++) o[i] = r() * 2 - 1; return o; };
 
 /** Biquad RBJ. type: lp, hp, lowshelf, highshelf. */
 export function biquad(x, type, fc, rate, gainDB = 0, Q = Math.SQRT1_2) {
@@ -41,7 +41,7 @@ export function activeLevel(x, rate) {
   let s = 0, c = 0; for (const v of r) if (v > m * 0.06) { s += v; c++; }
   return Math.sqrt(s / c);
 }
-const matchLevel = (y, x, rate) => { const a = activeLevel(y, rate), b = activeLevel(x, rate); if (a < 1e-9 || b < 1e-9) return y; const g = b / a; for (let i = 0; i < y.length; i++) y[i] *= g; return y; };
+export const matchLevel = (y, x, rate) => { const a = activeLevel(y, rate), b = activeLevel(x, rate); if (a < 1e-9 || b < 1e-9) return y; const g = b / a; for (let i = 0; i < y.length; i++) y[i] *= g; return y; };
 
 /** Curva de retardo (en muestras) que mueve el tono como un disco o una cinta irregulares.
  *  Cada componente se da como desviación de tono (fracción, 0,004 = 0,4 %): para un seno de frecuencia f, retardo D → desviación máxima 2π·f·D/rate. */
@@ -94,13 +94,13 @@ export function vinylNoise(n, rate, amt, ref, seed, clicksPerSec = 12) {
   return out;
 }
 
-const finish = (y, ref) => {   // protege del recorte sin tocar lo que ya cabe
+export const finish = (y, ref) => {   // protege del recorte sin tocar lo que ya cabe
   let p = 0; for (let i = 0; i < y.length; i++) p = Math.max(p, Math.abs(y[i]));
   if (p > 0.98) { const g = 0.98 / p; for (let i = 0; i < y.length; i++) y[i] *= g; }
   return y;
 };
-const add = (a, b) => { for (let i = 0; i < a.length; i++) a[i] += b[i]; return a; };
-const levelGain = lv => dB(-40 * (1 - lv / 100));
+export const add = (a, b) => { for (let i = 0; i < a.length; i++) a[i] += b[i]; return a; };
+export const levelGain = lv => dB(-40 * (1 - lv / 100));
 
 // ---------------------------------------------------------------------------------------------------- efectos
 function vinyl303(x, rate, p) {

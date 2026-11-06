@@ -2,11 +2,11 @@
 import { app, go, refreshSamples, sampleById } from './state.js';
 import { starBtn } from './screens.js';
 import { openLab } from './lab.js';
-import { openFx } from './fxui.js';
+import { openRack } from './fxui.js';
 import { h, mount, fill, btn, link, chip, card, label, muted, title, toggleRow, sliderRow, logo, confirmSheet, toast, folderPicker, drawBars, fx, flash } from './ui.js';
 import { compute } from './work.js';
 import * as dsp from './dsp.js';
-import { putSample, getAudio, deleteSamples } from './store.js';
+import { putSample, getAudio, deleteSamples, newSample } from './store.js';
 import { openChop } from './chop.js';
 import * as sc from './scratch.js';
 
@@ -62,6 +62,20 @@ function runWorker(key, op, args, { done = null, onApplied = null } = {}) {
     if (ed.audio !== base || ed.id !== id) { fx.busy = null; app.render(); return toast('La toma cambió mientras trabajaba: no se aplicó'); }
     if (apply(() => out, key, LABELS[key] || key)) { if (onApplied) { onApplied(); app.render(); } if (done) toast(typeof done === 'function' ? done() : done); }
   }).catch(() => { fx.busy = null; app.render(); toast('No se pudo completar la acción'); });
+}
+
+/** Abre la cadena de efectos sobre la toma actual. Los sonidos nuevos salen como «procesados», con el origen del original y la lista de efectos. */
+function openFxRack(s) {
+  const saveNew = async (out, notes, suffix = ' fx', extra = {}) => {
+    const n = newSample(s.name + suffix, out, s.rate, { folder: s.folder, subfolder: s.subfolder || null, status: 'procesado', origin: s.origin || '', tags: [...(s.tags || [])], key: s.key || null, bpm: s.bpm || null,
+      comment: (extra.comment || 'Cadena de efectos sobre: ' + s.name) + (s.comment ? ' · ' + s.comment : ''), process: [...(s.process || []), ...notes] });
+    await putSample(n, out); await refreshSamples();
+  };
+  openRack({ audio: ed.audio, rate: s.rate, bpm: s.bpm || null, name: s.name, samples: app.samples.filter(x => x.id !== s.id).map(x => ({ id: x.id, name: x.name })),
+    loadAudio: async id => { const o = app.samples.find(x => x.id === id); return { audio: await getAudio(id), rate: o ? o.rate : s.rate }; },
+    onApply: (out, name) => { if (apply(() => out, 'fx404', name)) toast('Listo: ' + name + ' aplicado · puedes deshacerlo'); },
+    onSaveNew: async (out, notes) => { try { await saveNew(out, notes); toast('Guardado como sonido nuevo (procesado)'); } catch (e) { toast('No se pudo guardar el sonido nuevo'); } },
+    onSaveVariants: async list => { for (let i = 0; i < list.length; i++) await saveNew(list[i].out, list[i].notes, ` var ${i + 1}`, { comment: `Variante ${i + 1} (${list[i].style}) de: ${s.name}` }); toast('Guardadas 4 variantes (procesadas)'); } });
 }
 function stepRaw(from, to, lfrom, lto) {
   const x = from.pop(); if (!x) return false;
@@ -212,7 +226,7 @@ export function renderEdit(root) {
     muted('Suave y Fuerte cortan graves (respiración, soplidos) y apagan lo que suena bajito entre sonidos. «Quitar ruido de fondo» aprende el ruido de la parte más tranquila; «Con la selección» lo aprende de lo que marques. Puedes deshacer.', 'tiny'),
     sliderRow('Fundido', { min: 0, max: 200, step: 1, value: ed.fadeMs, fmt: v => v + ' ms', onInput: v => { ed.fadeMs = v; } }),
     bpmCard,
-    card([h('b', {}, 'Efectos de carácter'), h('p', { class: 'muted small' }, 'Cassette, vinilo, chorus y Auto Pitch, al estilo de la SP-404MKII, antes de compartir el sonido.'), btn('Abrir los efectos', { kind: 'amber', act: 'efectos', onclick: () => openFx(ed.audio, s.rate, (out, name) => { if (apply(() => out, 'fx404', name)) toast('Listo: ' + name + ' aplicado · puedes deshacerlo'); }) })]),
+    card([h('b', {}, 'Cadena de efectos'), h('p', { class: 'muted small' }, 'Encadena cassette, vinilo, granular, distorsión, delay, reverb, efectos rítmicos y más para transformar el sonido en otro nuevo.'), btn('Abrir la cadena de efectos', { kind: 'amber', act: 'efectos', onclick: () => openFxRack(s) })]),
     card([h('b', {}, 'Laboratorio de pads'), h('p', { class: 'muted small' }, 'Bucle sin clics, estirar, tono, filtros, reverb, capas y teclado.'), btn('Abrir el laboratorio', { kind: 'amber', act: 'laboratorio', onclick: () => openLab(s) })]),
     btn(app.ko2 ? 'Chop en pads' : 'Chop', { sel: true, onclick: () => openChop(s, ed.audio) }),
     folderPicker(fp, async st => { await putSample({ ...s, folder: st.folder, subfolder: st.sub }); await refreshSamples(); }),

@@ -199,3 +199,5 @@ textarea.field { resize: vertical; font: inherit; }
 .labkeys .key[aria-pressed="true"] { background: var(--amber); color: var(--ink); }
 .lab .btn[aria-pressed="true"] { border-color: var(--amber); }
 @media (max-width: 480px) { .labkeys { grid-template-columns: repeat(7, 1fr); } }
+.slot .slot-name { background: none; border: 0; color: var(--text); text-align: left; cursor: pointer; min-height: 44px; font: inherit; }
+.slot.off { opacity: .6; } .fam { flex-basis: 100%; }

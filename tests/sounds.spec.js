@@ -804,33 +804,146 @@ test.describe('efectos de carácter (estilo SP-404MKII)', () => {
     expect(r.sinFuerza).toBeGreaterThan(238); expect(r.sinFuerza).toBeLessThan(242);        // sin corrección se queda como estaba
     expect(r.robot).toBeGreaterThan(274); expect(r.robot).toBeLessThan(280);                // toda la frase en una nota: la frecuencia sube de 200 a 360 Hz, mediana ≈ 280 → Do♯4 (277,2 Hz)
   });
-  test('en Editar: abrir, elegir efecto, preajuste, ajustar, escuchar y aplicar (con deshacer)', async ({ page }) => {
-    await abrir(page, 'rolando'); await sembrar(page, ['pad base']);
-    await tab(page, 'biblioteca'); await page.getByText('Seleccionar').first().click(); await page.getByText('Cancelar').first().click();
+});
+
+test.describe('etapas 1–5 · cadena de efectos, granular, destrucción, ritmo y variaciones', () => {
+  const H = `(hz, N, rate) => Float32Array.from({ length: N }, (_, k) => { let s = 0; for (let h = 1; h <= 8; h++) s += Math.sin(2 * Math.PI * hz * h * k / rate) / h; return 0.25 * s; })`;
+  const PRE = `const f = await import('/sounds/fxall.js'), m = await import('/sounds/fxmore.js'), rate = 48000, N = rate * 2, mk = eval(hs), x = mk(220, N, rate),
+    rms = a => Math.sqrt(a.reduce((s, v) => s + v * v, 0) / a.length), zc = a => { let c = 0; for (let i = 1; i < a.length; i++) if ((a[i] >= 0) !== (a[i - 1] >= 0)) c++; return c / a.length; },
+    rough = a => { let d = 0, e = 0; for (let i = 1; i < a.length; i++) { d += (a[i] - a[i - 1]) ** 2; e += a[i] * a[i]; } return d / e; },
+    mag = (a, hz) => { let re = 0, im = 0; for (let i = 0; i < a.length; i++) { re += a[i] * Math.cos(2 * Math.PI * hz * i / rate); im += a[i] * Math.sin(2 * Math.PI * hz * i / rate); } return Math.hypot(re, im) / a.length * 2; };`;
+  const ev = (page, body) => page.evaluate(`(async (hs) => { ${PRE} ${body} })(${JSON.stringify(H)})`);
+
+  test('catálogo: 17 efectos en 6 familias, cada uno con ajustes acotados y preajustes que funcionan', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const r = await ev(page, `const out = {}; for (const id of f.ALL_ORDER) { const d = f.ALL[id]; out[id] = { fam: d.family, np: d.params.length, pre: d.presets.length, ok: d.presets.every(([n, v]) => { const p = f.paramsOf(id, v); return Object.keys(p).length === d.params.length; }), txt: !!(d.about && d.how && d.uso) }; }
+      return { out, n: f.ALL_ORDER.length, fam: [...new Set(f.ALL_ORDER.map(id => f.ALL[id].family))].sort(), clamp: f.paramsOf('granular', { size: 99999, density: -4, stretch: 9, freeze: 1, shape: 'x' }) };`);
+    expect(r.n).toBe(17); expect(r.fam).toEqual(['Carácter', 'Destruir', 'Espacio', 'Ritmo', 'Textura', 'Voz'].sort());
+    for (const [id, o] of Object.entries(r.out)) expect(o, id).toMatchObject({ ok: true, txt: true });
+    expect(r.clamp).toMatchObject({ size: 300, density: 4, stretch: 1, freeze: true, shape: 0 });
+  });
+  test('todos los efectos nuevos: finitos, deterministas, sin recortar y con el largo esperado', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const r = await ev(page, `const out = {}; for (const id of m.MORE_ORDER) { const a = f.applyOne(id, x, rate, {}), b = f.applyOne(id, x, rate, {}); out[id] = { len: a.length, fin: a.every(Number.isFinite), igual: a.every((v, i) => v === b[i]), pico: a.reduce((q, v) => Math.max(q, Math.abs(v)), 0), dif: a.length === N ? a.some((v, i) => Math.abs(v - x[i]) > 1e-3) : true }; } return out;`);
+    for (const [id, o] of Object.entries(r)) { expect(o, id).toMatchObject({ fin: true, igual: true, dif: true }); expect(o.pico, id).toBeLessThanOrEqual(1.0001); }
+    for (const id of ['filterdrive', 'overdrive', 'distortion', 'crusher', 'ringmod', 'slicer', 'stutter', 'tremolo', 'tapestop']) expect(r[id].len, id).toBe(96000);
+    expect(r.granular.len).toBe(192000); expect(r.tapeecho.len).toBeGreaterThan(96000); expect(r.reverb.len).toBeGreaterThan(96000);
+  });
+  test('Granular: ×4 alarga cuatro veces, +12 st sube el tono, congelar mantiene el sonido y dispersión 0 es regular', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const r = await ev(page, `const g = (p) => f.applyOne('granular', x, rate, { balance: 100, spray: 0, jitter: 0, reverse: 0, ...p });
+      const largo = g({ stretch: 2 }), sube = g({ stretch: 0, pitch: 12, freeze: true, position: 50, size: 120, density: 40 }), base = g({ stretch: 0, pitch: 0, freeze: true, position: 50, size: 120, density: 40 });
+      const alRev = f.applyOne('granular', x, rate, { balance: 100, spray: 0, jitter: 0, reverse: 100, stretch: 0, size: 60, density: 40 });
+      return { largo: largo.length, zc: zc(sube) / zc(base), nivel: rms(base) / rms(x), rev: rms(alRev) / rms(x), sec: f.applyOne('granular', x, rate, { balance: 0, stretch: 0 }).every((v, i) => Math.abs(v - x[i]) < 1e-6) };`);
+    expect(r.largo).toBe(96000 * 4); expect(r.zc).toBeGreaterThan(1.5); expect(r.zc).toBeLessThan(2.6); expect(r.nivel).toBeGreaterThan(0.6); expect(r.nivel).toBeLessThan(1.5); expect(r.rev).toBeGreaterThan(0.5); expect(r.sec).toBe(true);
+  });
+  test('destrucción: Crusher cuantiza y repite, la distorsión añade armónicos, el Ring Mod crea bandas laterales, el filtro filtra', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const r = await ev(page, `const sine = Float32Array.from({ length: N }, (_, k) => 0.4 * Math.sin(2 * Math.PI * 220 * k / rate)), valores = a => new Set(a.slice(0, 20000)).size;
+      const cr = f.applyOne('crusher', x, rate, { bits: 3, rateDiv: 1, balance: 100 }), crh = f.applyOne('crusher', x, rate, { bits: 16, rateDiv: 10, balance: 100 });
+      let runs = 0; for (let i = 1; i < 5000; i++) if (crh[i] === crh[i - 1]) runs++;
+      const rm = f.applyOne('ringmod', sine, rate, { freq: 100, shape: 0, mix: 100 }), od = f.applyOne('distortion', sine, rate, { drive: 90, mode: 0, tone: 90, level: 100 });
+      const mezcla = Float32Array.from(x, (v, i) => v + 0.2 * Math.sin(2 * Math.PI * 3000 * i / rate)), lp = f.applyOne('filterdrive', mezcla, rate, { type: 0, cutoff: 25, resonance: 10, drive: 0, sweep: 0 }), hp = f.applyOne('filterdrive', mezcla, rate, { type: 1, cutoff: 80, resonance: 10, drive: 0, sweep: 0 });
+      return { niveles: valores(cr), runs, f220: mag(rm, 220), f120: mag(rm, 120), f320: mag(rm, 320), h3: mag(od, 660) / mag(od, 220), h3orig: mag(sine, 660) / mag(sine, 220) + 1e-9, lpR: rough(lp) / rough(mezcla), hpR: rms(hp) / rms(mezcla) };`);
+    expect(r.niveles).toBeLessThanOrEqual(8); expect(r.runs).toBeGreaterThan(4000);
+    expect(r.f220).toBeLessThan(0.02); expect(r.f120).toBeGreaterThan(0.1); expect(r.f320).toBeGreaterThan(0.1);
+    expect(r.h3).toBeGreaterThan(0.1); expect(r.lpR).toBeLessThan(0.3);
+  });
+  test('espacio: el eco cae donde toca y se oscurece, la reverb deja cola y mezcla 0 no cambia el sonido', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const r = await ev(page, `const imp = new Float32Array(rate); imp[0] = 0.8; const e = f.applyOne('tapeecho', imp, rate, { time: 250, feedback: 50, tone: 100, wow: 0, mix: 100 });
+      const pico = (a, lo, hi) => { let q = 0; for (let i = lo; i < hi; i++) q = Math.max(q, Math.abs(a[i])); return q; };
+      const rv = f.applyOne('reverb', x, rate, { size: 60, damping: 40, predelay: 0, mix: 50 }), seco = f.applyOne('reverb', x, rate, { mix: 0 });
+      return { e1: pico(e, 12000 - 200, 12000 + 200), e2: pico(e, 24000 - 400, 24000 + 400), vacio: pico(e, 3000, 9000), len: rv.length - N, cola: rms(rv.slice(N)) / rms(rv.slice(0, N)), seco: seco.slice(0, N).every((v, i) => Math.abs(v - x[i]) < 1e-6) };`);
+    expect(r.e1).toBeGreaterThan(0.2); expect(r.e2).toBeGreaterThan(0.05); expect(r.e2).toBeLessThan(r.e1); expect(r.vacio).toBeLessThan(0.05);
+    expect(r.len).toBeGreaterThan(48000); expect(r.cola).toBeGreaterThan(0.02); expect(r.seco).toBe(true);
+  });
+  test('ritmo: el slicer calla los pasos apagados, el tartamudeo repite, el tremolo baja el volumen y la parada de cinta frena', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const r = await ev(page, `const sl = f.applyOne('slicer', x, rate, { bpm: 120, division: 1, pattern: 0, depth: 100, smooth: 0 }), paso = 12000;     // corcheas a 120 BPM = 0,25 s = 12000 muestras
+      const tr = f.applyOne('tremolo', x, rate, { rate: 4, depth: 100, shape: 0 }), st0 = f.applyOne('stutter', x, rate, { bpm: 120, division: 1, chance: 0 }), st1 = f.applyOne('stutter', x, rate, { bpm: 120, division: 1, chance: 100 });
+      const ts = f.applyOne('tapestop', x, rate, { where: 0, time: 0.8, depth: 100 }), ar = f.applyOne('tapestop', x, rate, { where: 1, time: 0.8, depth: 100 });
+      return { encendido: rms(sl.slice(1000, 11000)) / rms(x), apagado: rms(sl.slice(paso + 3000, 2 * paso - 1000)) / rms(x), trem: rms(tr) / rms(x), igual0: st0.every((v, i) => Math.abs(v - x[i]) < 1e-6), dif1: st1.some((v, i) => Math.abs(v - x[i]) > 1e-3),
+        frenoFin: zc(ts.slice(N - 9000)) / zc(ts.slice(0, 9000)), arranque: zc(ar.slice(0, 9000)) / zc(ar.slice(N - 9000)), len: ts.length };`);
+    expect(r.encendido).toBeGreaterThan(0.7); expect(r.apagado).toBeLessThan(0.1); expect(r.trem).toBeLessThan(0.9); expect(r.igual0).toBe(true); expect(r.dif1).toBe(true);
+    expect(r.frenoFin).toBeLessThan(0.4); expect(r.arranque).toBeLessThan(0.5); expect(r.len).toBe(96000);
+  });
+  test('cadena: el orden importa, apagar equivale a quitar, mezclar otro sonido suma y nada pasa de un minuto', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const r = await ev(page, `const a = f.newSlot('overdrive', { drive: 90 }), b = f.newSlot('filterdrive', { type: 0, cutoff: 20, resonance: 40 });
+      const ab = f.applyChain([a, b], x, rate), ba = f.applyChain([b, a], x, rate), off = f.applyChain([{ ...a, bypass: true }, b], x, rate), solo = f.applyChain([b], x, rate);
+      const otro = Float32Array.from({ length: 4800 }, (_, k) => 0.3 * Math.sin(2 * Math.PI * 1000 * k / rate)), con = f.applyChain([{ id: 'layer', ref: 'o', name: 'otro', gain: 100 }], x, rate, { o: { audio: otro, rate } });
+      const largo = f.applyChain([f.newSlot('granular', { stretch: 3, size: 100, density: 20 }), f.newSlot('granular', { stretch: 3, size: 100, density: 20 }), f.newSlot('granular', { stretch: 3 })], x, rate);
+      const sucio = f.cleanChain([{ id: 'nada' }, null, ...Array.from({ length: 12 }, () => ({ id: 'crusher' }))]);
+      return { difOrden: ab.some((v, i) => Math.abs(v - ba[i]) > 1e-3), apagado: off.every((v, i) => v === solo[i]), mil: mag(con, 1000) - mag(x, 1000), max: largo.length / rate, n: sucio.length, desc: f.describeChain([a, { id: 'layer', ref: 'o', name: 'otro', gain: 50 }, { ...b, bypass: true }]) };`);
+    expect(r.difOrden).toBe(true); expect(r.apagado).toBe(true); expect(r.mil).toBeGreaterThan(0.1); expect(r.max).toBeLessThanOrEqual(60.01); expect(r.n).toBe(8);
+    expect(r.desc.length).toBe(2); expect(r.desc[0]).toContain('Overdrive'); expect(r.desc[1]).toContain('Mezcla con «otro»');
+  });
+  test('variaciones: deterministas por semilla, respetan el estilo y los ajustes, y los presets de cadena corren', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const r = await ev(page, `const a = f.randomChain(5, { style: 'sucio', intensity: 0.8 }), b = f.randomChain(5, { style: 'sucio', intensity: 0.8 }), c = f.randomChain(6, { style: 'sucio', intensity: 0.8 });
+      const ok = Object.keys(f.STYLES).every(st => [1, 2, 3, 4, 5].every(sd => f.randomChain(sd, { style: st, intensity: 1 }).every(s => (f.STYLES[st].pool || f.ALL_ORDER).includes(s.id) && JSON.stringify(f.paramsOf(s.id, s.params)) === JSON.stringify(s.params))));
+      const ritmo = f.randomChain(3, { style: 'ritmico', intensity: 0.5, bpm: 87 }), pre = f.CHAIN_PRESETS.map(([n, ch]) => f.applyChain(ch, x, rate).every(Number.isFinite));
+      return { igual: JSON.stringify(a) === JSON.stringify(b), dist: JSON.stringify(a) !== JSON.stringify(c), ok, bpm: ritmo.filter(s => 'bpm' in s.params).every(s => s.params.bpm === 87), pre, n: f.CHAIN_PRESETS.length };`);
+    expect(r.igual).toBe(true); expect(r.dist).toBe(true); expect(r.ok).toBe(true); expect(r.bpm).toBe(true); expect(r.n).toBe(5); expect(r.pre.every(Boolean)).toBe(true);
+  });
+
+  const abrirRack = async (page, nombres = ['pad base']) => {
+    await abrir(page, 'rolando'); await sembrar(page, nombres);
+    await page.evaluate(async () => { const st = await import('/sounds/store.js'), s = (await st.listSamples())[0]; await st.putSample({ ...s, origin: 'Mi balcón', tags: ['cálido'], key: 'Am' }); });
+    await page.reload(); await tab(page, 'biblioteca'); await page.getByText('Seleccionar').first().click(); await page.getByText('Cancelar').first().click();
     await page.locator('.row-btn').first().click();
     await expect(page.getByRole('heading', { name: 'Escuchar y editar' })).toBeVisible();
-    await page.getByRole('button', { name: 'Abrir los efectos' }).click();
-    const sh = page.locator('dialog.sheet');
-    await expect(sh.getByRole('heading', { name: 'Efectos de carácter' })).toBeVisible();
-    await expect(sh.getByRole('button', { name: 'Cassette Sim' })).toHaveAttribute('aria-pressed', 'true');
-    await expect(sh).toContainText('Cómo se produce');
-    await sh.getByRole('button', { name: 'Cinta vieja del cajón' }).click();
-    await expect(sh.getByLabel('Edad')).toHaveValue('50');
-    await sh.getByLabel('Siseo').fill('10');
-    await sh.getByRole('button', { name: '▶ Escuchar' }).click();
-    await expect(sh.getByRole('button', { name: '▶ Escuchar' })).toBeEnabled({ timeout: 15000 });
-    await sh.getByRole('button', { name: 'Chorus', exact: true }).click(); await expect(sh.getByLabel('Mezcla (seco → efecto)')).toBeVisible();
-    await sh.getByRole('button', { name: 'Auto Pitch' }).click(); await expect(sh.getByRole('group', { name: 'Tonalidad' })).toBeVisible(); await expect(sh.getByLabel('Robot')).toBeVisible();
-    await sh.getByRole('button', { name: 'Cassette Sim' }).click();
+    await page.getByRole('button', { name: 'Abrir la cadena de efectos' }).click();
+    const sh = page.locator('dialog.sheet'); await expect(sh.getByRole('heading', { name: 'Cadena de efectos' })).toBeVisible();
+    return sh;
+  };
+  test('rack: añadir, ordenar, apagar, ajustar, preajustes de cadena, guardar la propia y quitar', async ({ page }) => {
+    const sh = await abrirRack(page);
+    await expect(sh.locator('.slot')).toHaveCount(1);
+    await sh.getByRole('button', { name: 'Granular', exact: true }).click(); await expect(sh.locator('.slot')).toHaveCount(2);
+    await expect(sh.getByLabel('Tamaño del grano')).toBeVisible();                                   // la casilla nueva queda abierta
+    await sh.getByRole('button', { name: 'Subir 2. Granular'.replace('2. ', '') }).click();
+    await expect(sh.locator('.slot').first()).toContainText('1. Granular');
+    await sh.getByRole('button', { name: /Apagar Granular/ }).click(); await expect(sh.locator('.slot').first()).toContainText('apagado');
+    await sh.getByRole('button', { name: /Encender Granular/ }).click();
+    await sh.getByLabel('Densidad').fill('50'); await sh.getByRole('button', { name: 'Niebla' }).click(); await expect(sh.getByLabel('Tamaño del grano')).toHaveValue('220');
+    await sh.getByRole('button', { name: 'Nube etérea' }).click(); await expect(sh.locator('.slot')).toHaveCount(3);
+    await sh.getByRole('button', { name: 'Guardar esta cadena…' }).click();
+    await page.locator('dialog.sheet').last().getByLabel('Guardar la cadena').fill('Mi nube'); await page.locator('dialog.sheet').last().getByRole('button', { name: 'Guardar', exact: true }).click();
+    await expect(sh.getByRole('button', { name: '★ Mi nube' })).toBeVisible();
+    await sh.getByRole('button', { name: 'Casete ancho' }).click(); await expect(sh.locator('.slot')).toHaveCount(2);
+    await sh.getByRole('button', { name: '★ Mi nube' }).click(); await expect(sh.locator('.slot')).toHaveCount(3);
+    await sh.getByRole('button', { name: /Quitar Reverb/ }).click(); await expect(sh.locator('.slot')).toHaveCount(2);
+  });
+  test('rack: escuchar original y procesado, aplicar con deshacer, y guardar como sonido nuevo conservando el origen', async ({ page }) => {
+    const sh = await abrirRack(page);
+    await sh.getByRole('button', { name: '▶ Original' }).click(); await expect(sh).toContainText('Escuchando el original');
+    await sh.getByRole('button', { name: '▶ Procesado' }).click(); await expect(sh).toContainText('Escuchando el procesado', { timeout: 15000 });
+    await sh.getByRole('button', { name: 'Guardar como sonido nuevo' }).click(); await expect(page.locator('#toast')).toContainText('Guardado como sonido nuevo', { timeout: 15000 });
+    const s = await page.evaluate(async () => (await (await import('/sounds/store.js')).listSamples()).find(x => x.name === 'pad base fx'));
+    expect(s).toMatchObject({ status: 'procesado', origin: 'Mi balcón', key: 'Am' }); expect(s.tags).toContain('cálido'); expect(s.process.join(' ')).toContain('Cassette Sim');
     await sh.getByRole('button', { name: 'Aplicar al sonido' }).click();
-    await expect(page.locator('#toast')).toContainText('Cassette Sim aplicado', { timeout: 15000 });
-    await expect(page.locator('dialog.sheet')).toHaveCount(0);
+    await expect(page.locator('#toast')).toContainText('aplicado', { timeout: 15000 }); await expect(page.locator('dialog.sheet')).toHaveCount(0);
     await expect(page.locator('.undo-bar')).toContainText('Cassette Sim');
-    await page.getByRole('button', { name: /Deshacer/ }).first().click();
-    await page.getByRole('button', { name: 'Abrir los efectos' }).click();
-    await expect(page.locator('dialog.sheet').getByLabel('Edad')).toHaveValue('50');          // los ajustes se recuerdan
+  });
+  test('rack: todo apagado avisa, y mezclar otro sonido aparece como casilla', async ({ page }) => {
+    const sh = await abrirRack(page, ['pad base', 'otro']);
+    await sh.getByLabel('Mezclar con otro sonido').selectOption({ index: 1 }); await expect(sh.locator('.slot').last()).toContainText('Mezcla con «'); await expect(sh.getByLabel('Nivel del otro sonido')).toBeVisible();
+    await sh.getByRole('button', { name: /Apagar Cassette Sim/ }).click(); await sh.getByRole('button', { name: /Apagar Mezcla con/ }).click();
+    await sh.getByRole('button', { name: 'Aplicar al sonido' }).click(); await expect(page.locator('#toast')).toContainText('no hay nada que aplicar');
+  });
+  test('rack: el dado genera una cadena y 4 variantes se guardan como sonidos procesados ligados al original', async ({ page }) => {
+    const sh = await abrirRack(page);
+    await sh.getByRole('button', { name: 'Sucio', exact: true }).click(); await sh.getByRole('button', { name: '🎲 Generar una cadena' }).click();
+    const n = await sh.locator('.slot').count(); expect(n).toBeGreaterThanOrEqual(2); expect(n).toBeLessThanOrEqual(3);
+    await sh.getByRole('button', { name: 'Guardar 4 variantes' }).click(); await expect(sh).toContainText('Guardadas 4 variantes', { timeout: 60000 });
+    const l = await page.evaluate(async () => (await (await import('/sounds/store.js')).listSamples()).filter(x => / var \d$/.test(x.name)));
+    expect(l.length).toBe(4); for (const v of l) expect(v).toMatchObject({ status: 'procesado', origin: 'Mi balcón' }); expect(l[0].comment).toContain('Variante');
+    expect(new Set(l.map(v => v.process.join('|'))).size).toBe(4);                  // cada variante es distinta
   });
 });
+
 
 test.describe('aspecto', () => {
   test.use({ deviceScaleFactor: 2 });                        // como un iPhone: con densidad doble el lienzo roto se realimentaba
