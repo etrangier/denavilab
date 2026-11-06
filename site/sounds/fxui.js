@@ -44,7 +44,7 @@ export function openFx(audio, rate, onApply) {
     function paint() {
       const id = st.id, fx = FX[id];
       fill(box,
-        h('div', { class: 'title-row' }, h('div', {}, h('h2', {}, 'Efectos de carácter'), h('p', { class: 'muted small' }, 'Inspirados en la SP-404MKII · se aplican antes de llevar el sonido al K.O. II')), link('Cerrar', () => { stop(); close(); })),
+        h('div', { class: 'title-row' }, h('div', {}, h('h2', {}, 'Efectos de carácter'), h('p', { class: 'muted small' }, 'Inspirados en la SP-404MKII · se aplican antes de compartir el sonido')), link('Cerrar', () => { stop(); close(); })),
         h('div', { class: 'wrap', role: 'group', 'aria-label': 'Efecto' }, FX_ORDER.map(k => chip(FX[k].name, k === id, () => { st.id = k; persist(); paint(); }))),
         card([h('b', {}, fx.name), h('p', { class: 'small' }, fx.about), h('p', { class: 'muted small' }, 'Para tu estilo: ' + fx.uso),
           h('details', {}, h('summary', {}, 'Cómo se produce'), h('p', { class: 'muted small' }, fx.how))]),

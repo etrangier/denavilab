@@ -1,7 +1,7 @@
 import Foundation
 
 /// Efectos de carácter inspirados en los de la Roland SP-404MKII (manual de referencia, lista «MFX»):
-/// 303 VinylSim, 404 VinylSim, Cassette Sim, Chorus y Auto Pitch. Se aplican al sonido antes de llevarlo al K.O. II.
+/// 303 VinylSim, 404 VinylSim, Cassette Sim, Chorus y Auto Pitch. Se aplican al sonido antes de compartirlo o llevarlo a un sampler.
 /// Mismo cálculo, mismos rangos y mismos números que `fx404.js` de la PWA. Deterministas y sin cambiar el largo de la toma.
 /// Los rangos y nombres de parámetros son los del manual; cómo suena cada uno por dentro es una interpretación propia (por confirmar contra el aparato).
 enum Fx404 {
@@ -52,7 +52,7 @@ enum Fx404 {
         case .chorus:
             return Info(name: "Chorus", about: "Amplitud y riqueza: duplica el sonido con una copia ligeramente desafinada que se mueve.",
                 how: "Dos copias con retardo de 7–12 ms que oscila lentamente cambian su tono un poquito (efecto Doppler); al sumarlas con el original aparece un batido que se oye como «varias fuentes». En mono, además, produce un filtro peine que da color. El periodo va de 0,33 a 2,30 s.",
-                uso: "Para ensanchar pads, teclas y guitarras limpias antes del K.O. II (que tiene poco procesamiento propio).",
+                uso: "Para ensanchar pads, teclas y guitarras limpias antes de compartirlos (los samplers suelen traer poco procesamiento propio).",
                 params: [rng("depth", "Profundidad", 0, 100, 45), rng("rate", "Periodo", 0.33, 2.3, 1.4, unit: " s", step: 0.01), rng("balance", "Mezcla (seco → efecto)", 0, 100, 50, unit: " %"),
                          rng("eqLow", "EQ grave", -15, 15, 0, unit: " dB"), rng("eqHigh", "EQ agudo", -15, 15, 0, unit: " dB"), rng("level", "Nivel", 0, 100, 100)],
                 presets: [("Pad ancho", ["depth": 55, "rate": 1.8, "balance": 50, "eqLow": 0, "eqHigh": 0, "level": 100]), ("Teclas suaves", ["depth": 30, "rate": 1.1, "balance": 40, "eqLow": -3, "eqHigh": 2, "level": 100])])

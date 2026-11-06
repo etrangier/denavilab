@@ -25,7 +25,7 @@ struct Fx404Sheet: View {
             Theme.bg.ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    ScreenTitle(title: "Efectos de carácter", subtitle: "Inspirados en la SP-404MKII · se aplican antes de llevar el sonido al K.O. II",
+                    ScreenTitle(title: "Efectos de carácter", subtitle: "Inspirados en la SP-404MKII · se aplican antes de compartir el sonido",
                                 trailing: AnyView(TextLink(title: "Cerrar") { player?.stop(); dismiss() }))
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 8, alignment: .leading)], alignment: .leading, spacing: 8) {
                         ForEach(Fx404.order, id: \.self) { k in

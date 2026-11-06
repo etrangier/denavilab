@@ -1,5 +1,5 @@
 // Efectos de carácter inspirados en los de la Roland SP-404MKII (manual de referencia, lista «MFX»):
-// 303 VinylSim, 404 VinylSim, Cassette Sim, Chorus y Auto Pitch. Se aplican al sonido antes de llevarlo al K.O. II.
+// 303 VinylSim, 404 VinylSim, Cassette Sim, Chorus y Auto Pitch. Se aplican al sonido antes de compartirlo o llevarlo a un sampler.
 // Todo es determinista (mismo sonido y mismos ajustes, mismo resultado) y deja la toma con el mismo largo.
 // Los rangos y nombres de parámetros son los del manual; cómo suena cada uno por dentro es una interpretación propia (por confirmar contra el aparato).
 const TAU = 2 * Math.PI, dB = v => Math.pow(10, v / 20), clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -223,7 +223,7 @@ export const FX = {
     presets: [['Casete de los 80', { tone: 50, hiss: 25, age: 20, drive: 35, wow: 30, catch: 15 }], ['Cinta vieja del cajón', { tone: 35, hiss: 45, age: 45, drive: 50, wow: 50, catch: 40 }]], run: cassette },
   chorus: { name: 'Chorus', about: 'Amplitud y riqueza: duplica el sonido con una copia ligeramente desafinada que se mueve.',
     how: 'Dos copias con retardo de 7–12 ms que oscila lentamente cambian su tono un poquito (efecto Doppler); al sumarlas con el original aparece un batido que se oye como «varias fuentes». En mono, además, produce un filtro peine que da color. El periodo va de 0,33 a 2,30 s.',
-    uso: 'Para ensanchar pads, teclas y guitarras limpias antes del K.O. II (que tiene poco procesamiento propio).',
+    uso: 'Para ensanchar pads, teclas y guitarras limpias antes de compartirlos (los samplers suelen traer poco procesamiento propio).',
     params: [R('depth', 'Profundidad', 0, 100, 45), R('rate', 'Periodo', 0.33, 2.3, 1.4, ' s', 0.01), R('balance', 'Mezcla (seco → efecto)', 0, 100, 50, ' %'), R('eqLow', 'EQ grave', -15, 15, 0, ' dB'), R('eqHigh', 'EQ agudo', -15, 15, 0, ' dB'), R('level', 'Nivel', 0, 100, 100)],
     presets: [['Pad ancho', { depth: 55, rate: 1.8, balance: 50, eqLow: 0, eqHigh: 0, level: 100 }], ['Teclas suaves', { depth: 30, rate: 1.1, balance: 40, eqLow: -3, eqHigh: 2, level: 100 }]], run: chorus },
   autopitch: { name: 'Auto Pitch', about: 'Procesa una voz: la afina a una tonalidad, cambia su tono y su timbre (formante) y puede dejarla «robótica».',

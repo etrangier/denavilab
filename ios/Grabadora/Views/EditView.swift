@@ -122,7 +122,7 @@ struct EditorBody: View {
                 Button("Edición precisa (zoom)") { showPrecise = true }.buttonStyle(OutlineButton(selected: true))
                 Button("Chop en pads") { showChop = true }.buttonStyle(OutlineButton())
                 Button("Efectos de carácter (estilo SP-404)") { showFx = true }.buttonStyle(OutlineButton(selected: true))
-                Text("Cassette, vinilo, chorus y Auto Pitch, antes de llevar el sonido al K.O. II.").font(Theme.font(12)).foregroundColor(Theme.muted)
+                Text("Cassette, vinilo, chorus y Auto Pitch, antes de compartir el sonido.").font(Theme.font(12)).foregroundColor(Theme.muted)
                 Button("Laboratorio de pads") { showLab = true }.buttonStyle(OutlineButton(selected: true))
                 Text("Bucle sin clics, estirar, tono, filtros, reverb, capas y teclado (con MIDI).").font(Theme.font(12)).foregroundColor(Theme.muted)
                 Button("Armonizar bordes (sin clics)") { let r = sample.sampleRate; run("armonizar", done: "Listo: bordes armonizados") { Harmonize.harmonize($0, rate: r) } }.buttonStyle(OutlineButton()).font(Theme.font(13))
