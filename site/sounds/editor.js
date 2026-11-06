@@ -2,6 +2,7 @@
 import { app, go, refreshSamples, sampleById } from './state.js';
 import { starBtn } from './screens.js';
 import { openLab } from './lab.js';
+import { openFx } from './fxui.js';
 import { h, mount, fill, btn, link, chip, card, label, muted, title, toggleRow, sliderRow, logo, confirmSheet, toast, folderPicker, drawBars, fx, flash } from './ui.js';
 import { compute } from './work.js';
 import * as dsp from './dsp.js';
@@ -211,6 +212,7 @@ export function renderEdit(root) {
     muted('Suave y Fuerte cortan graves (respiración, soplidos) y apagan lo que suena bajito entre sonidos. «Quitar ruido de fondo» aprende el ruido de la parte más tranquila; «Con la selección» lo aprende de lo que marques. Puedes deshacer.', 'tiny'),
     sliderRow('Fundido', { min: 0, max: 200, step: 1, value: ed.fadeMs, fmt: v => v + ' ms', onInput: v => { ed.fadeMs = v; } }),
     bpmCard,
+    card([h('b', {}, 'Efectos de carácter'), h('p', { class: 'muted small' }, 'Cassette, vinilo, chorus y Auto Pitch, al estilo de la SP-404MKII, antes de compartir el sonido.'), btn('Abrir los efectos', { kind: 'amber', act: 'efectos', onclick: () => openFx(ed.audio, s.rate, (out, name) => { if (apply(() => out, 'fx404', name)) toast('Listo: ' + name + ' aplicado · puedes deshacerlo'); }) })]),
     card([h('b', {}, 'Laboratorio de pads'), h('p', { class: 'muted small' }, 'Bucle sin clics, estirar, tono, filtros, reverb, capas y teclado.'), btn('Abrir el laboratorio', { kind: 'amber', act: 'laboratorio', onclick: () => openLab(s) })]),
     btn(app.ko2 ? 'Chop en pads' : 'Chop', { sel: true, onclick: () => openChop(s, ed.audio) }),
     folderPicker(fp, async st => { await putSample({ ...s, folder: st.folder, subfolder: st.sub }); await refreshSamples(); }),
