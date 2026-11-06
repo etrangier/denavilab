@@ -10,6 +10,7 @@ const comoBanda = (page, quien = 'rolando') =>
 
 function vigilarErrores(page) {
   const errores = [];
+  page.route('**/favicon.ico', r => r.fulfill({ status: 204 }));      // el navegador lo pide solo y el sitio no tiene: no es un error de la app
   page.on('pageerror', e => errores.push(String(e)));
   page.on('console', m => { if (m.type() === 'error') errores.push(m.text()); });
   return errores;
