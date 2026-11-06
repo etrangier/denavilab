@@ -82,7 +82,7 @@ enum FxChain {
         Style(key: "libre", name: "Libre", pool: nil, count: 2...4),
         Style(key: "oscuro", name: "Oscuro", pool: [.cassette, .filterdrive, .overdrive, .reverb, .vinyl404], count: 2...3),
         Style(key: "sucio", name: "Sucio", pool: [.crusher, .overdrive, .distortion, .vinyl303, .ringmod, .cassette], count: 2...3),
-        Style(key: "eterero", name: "Etéreo", pool: [.granular, .chorus, .reverb, .tapeecho, .filterdrive], count: 2...3),
+        Style(key: "eterero", name: "Etéreo", pool: [.granular, .chorus, .phaser, .flanger, .reverb, .tapeecho, .filterdrive], count: 2...3),
         Style(key: "ritmico", name: "Rítmico", pool: [.slicer, .stutter, .tapeecho, .tremolo, .tapestop], count: 2...3),
     ]
 

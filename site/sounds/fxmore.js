@@ -134,6 +134,35 @@ function tremolo(x, rate, p) {
   }
   return finish(y);
 }
+// ------------------------------------------------------------------------------------------------ FLANGER Y PHASER
+// Los dos mezclan el sonido con una copia retrasada o desfasada que un LFO mueve: aparecen «muescas» (filtro de peine) que suben y bajan.
+// El flanger usa un retardo de pocos milisegundos (muescas separadas por una distancia fija en Hz); el phaser, filtros pasa-todo en cascada (muescas repartidas, más suaves).
+const lfoAt = (ph, shape) => shape === 1 ? (ph < 0.5 ? 4 * ph - 1 : 3 - 4 * ph) : Math.sin(TAU * ph);      // −1…1: seno o triángulo
+function flanger(x, rate, p) {
+  const n = x.length, depth = p.depth / 100, m = p.mix / 100, fb = (p.feedback / 100) * (p.polarity === 1 ? -1 : 1) * 0.92, c = (p.manual / 1000) * rate, w = new Float32Array(n), y = new Float32Array(n);
+  const at = k => w[k < 0 ? 0 : k]; let ph0 = 0;
+  for (let i = 0; i < n; i++) {
+    ph0 = (p.rate * i / rate) % 1;
+    const d = Math.max(4, c * (1 + 0.9 * depth * lfoAt(ph0, p.shape | 0))), q = i - d, k = Math.floor(q), f = q - k;
+    const a = at(k - 1), b = at(k), cc = at(k + 1), e = at(Math.min(k + 2, i - 1));          // Catmull-Rom sobre lo ya calculado (d ≥ 4 muestras)
+    const tap = b + 0.5 * f * (cc - a + f * (2 * a - 5 * b + 4 * cc - e + f * (3 * (b - cc) + e - a)));
+    w[i] = x[i] + fb * tap; y[i] = x[i] * (1 - m) + tap * m;
+  }
+  return finish(matchLevel(y, x, rate));
+}
+function phaser(x, rate, p) {
+  const n = x.length, depth = p.depth / 100, m = p.mix / 100, fb = p.feedback / 100 * 0.9, N = [2, 4, 6, 8, 12][p.stages | 0] || 6, y = new Float32Array(n);
+  const z1 = new Float64Array(N), lo = p.center / Math.pow(2, 1.5 * depth + 0.01), hi = p.center * Math.pow(2, 1.5 * depth + 0.01);      // barre hasta ±1,5 octavas
+  let last = 0;
+  for (let i = 0; i < n; i++) {
+    const u = 0.5 + 0.5 * lfoAt((p.rate * i / rate) % 1, p.shape | 0), fc = Math.min(rate * 0.45, lo * Math.pow(hi / lo, u)), t = Math.tan(Math.PI * fc / rate), a = (t - 1) / (t + 1);
+    let v = x[i] + fb * last;
+    for (let s = 0; s < N; s++) { const o = a * v + z1[s]; z1[s] = v - a * o; v = o; }          // pasa-todo de primer orden
+    last = Math.abs(v) < 1e-20 ? 0 : v; y[i] = x[i] * (1 - m) + v * m;
+  }
+  return finish(matchLevel(y, x, rate));
+}
+
 function stutter(x, rate, p) {
   const S = Math.max(64, Math.round(60 / p.bpm * DIV_BEATS[p.division | 0] * rate)), r = rng(555), y = Float32Array.from(x), fade = Math.round(rate * 0.003);
   for (let a = 0; a + S <= x.length; a += S) {
@@ -191,6 +220,12 @@ export const MORE = {
   tremolo: { name: 'Tremolo', family: 'Ritmo', about: 'Sube y baja el volumen de forma periódica.', how: 'Una onda lenta (seno, triángulo o cuadrada suave) multiplica el volumen.', uso: 'Para dar pulso a un pad sin cortarlo.',
     params: [R('rate', 'Velocidad', 0.2, 20, 4, ' Hz', 0.1), R('depth', 'Profundidad', 0, 100, 60), C('shape', 'Onda', ['Seno', 'Triángulo', 'Cuadrada suave'])],
     presets: [['Suave', { rate: 3, depth: 40, shape: 0 }], ['Helicóptero', { rate: 12, depth: 90, shape: 2 }]], run: tremolo },
+  flanger: { name: 'Flanger', family: 'Espacio', about: 'El «jet»: un barrido metálico, como un avión que pasa, que sube y baja por todo el sonido.', how: 'El sonido se mezcla con una copia retrasada pocos milisegundos; un LFO mueve ese retardo y se forman muescas de peine equidistantes en Hz (de ahí el timbre metálico). La realimentación las vuelve más resonantes.', uso: 'Para dar movimiento a platillos, texturas y pads, o un «jet» en baterías rotas.',
+    params: [R('rate', 'Velocidad', 0.05, 5, 0.35, ' Hz', 0.05), R('depth', 'Profundidad', 0, 100, 70), R('manual', 'Retardo base', 0.5, 10, 3, ' ms', 0.1), R('feedback', 'Realimentación', 0, 100, 55), C('polarity', 'Polaridad', ['Positiva', 'Negativa']), C('shape', 'Onda', ['Seno', 'Triángulo']), R('mix', 'Mezcla', 0, 100, 50)],
+    presets: [['Suave', { rate: 0.2, depth: 50, manual: 4, feedback: 25, polarity: 0, shape: 0, mix: 40 }], ['Jet', { rate: 0.12, depth: 90, manual: 2.5, feedback: 80, polarity: 0, shape: 1, mix: 50 }], ['Metálico', { rate: 0.6, depth: 70, manual: 1.2, feedback: 85, polarity: 1, shape: 0, mix: 55 }]], run: flanger },
+  phaser: { name: 'Phaser', family: 'Espacio', about: 'Un remolino suave: el sonido gira y respira sin el metal del flanger.', how: 'Una cadena de filtros pasa-todo desfasa el sonido según la frecuencia; al mezclarlo con el original se cancelan bandas que se desplazan con un LFO. Cada par de etapas añade una muesca.', uso: 'Para animar pads, teclas y guitarras con un movimiento lento y cálido.',
+    params: [R('rate', 'Velocidad', 0.05, 6, 0.4, ' Hz', 0.05), R('depth', 'Profundidad', 0, 100, 80), R('center', 'Centro', 200, 3000, 700, ' Hz', 10), C('stages', 'Etapas', ['2', '4', '6', '8', '12'], 2), R('feedback', 'Realimentación', 0, 100, 40), C('shape', 'Onda', ['Seno', 'Triángulo']), R('mix', 'Mezcla', 0, 100, 50)],
+    presets: [['Suave', { rate: 0.25, depth: 60, center: 600, stages: 1, feedback: 20, shape: 0, mix: 45 }], ['Remolino', { rate: 0.5, depth: 90, center: 800, stages: 3, feedback: 55, shape: 0, mix: 50 }], ['Profundo', { rate: 0.15, depth: 100, center: 500, stages: 4, feedback: 70, shape: 1, mix: 55 }]], run: phaser },
   stutter: { name: 'Tartamudeo', family: 'Ritmo', about: 'Repite al azar el inicio de algunos pasos: el clásico «tartamudeo» de DJ.', how: 'Cada paso tiene una probabilidad de repetir su primer trozo 2, 3, 4, 6 u 8 veces, con fundidos de 3 ms.', uso: 'Para romper un patrón con repeticiones nerviosas.',
     params: [R('bpm', 'Tempo', 40, 240, 100, ' BPM'), C('division', 'Paso', DIVISIONS, 1), R('chance', 'Probabilidad', 0, 100, 40, ' %')],
     presets: [['Sutil', { bpm: 100, division: 1, chance: 20 }], ['Nervioso', { bpm: 100, division: 2, chance: 70 }]], run: stutter },
@@ -198,4 +233,4 @@ export const MORE = {
     params: [C('where', 'Dónde', ['Al final', 'Arranque', 'En el medio']), R('time', 'Duración', 0.1, 2, 0.6, ' s', 0.05), R('depth', 'Profundidad', 0, 100, 100)],
     presets: [['Freno corto', { where: 0, time: 0.4, depth: 100 }], ['Arranque lento', { where: 1, time: 1.2, depth: 90 }]], run: tapeStop },
 };
-export const MORE_ORDER = ['granular', 'tapeecho', 'reverb', 'filterdrive', 'overdrive', 'distortion', 'crusher', 'ringmod', 'slicer', 'stutter', 'tremolo', 'tapestop'];
+export const MORE_ORDER = ['granular', 'tapeecho', 'flanger', 'phaser', 'reverb', 'filterdrive', 'overdrive', 'distortion', 'crusher', 'ringmod', 'slicer', 'stutter', 'tremolo', 'tapestop'];

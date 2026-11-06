@@ -7,11 +7,11 @@ import Foundation
 enum Fx404 {
     enum ID: String, CaseIterable {
         case cassette, vinyl404, vinyl303, chorus, autopitch
-        case granular, tapeecho, reverb, filterdrive, overdrive, distortion, crusher, ringmod, slicer, stutter, tremolo, tapestop
+        case granular, tapeecho, flanger, phaser, reverb, filterdrive, overdrive, distortion, crusher, ringmod, slicer, stutter, tremolo, tapestop
     }
     /// Los cinco estilo SP-404 y, después, los nuevos (misma lista y orden que `ALL_ORDER` de la PWA).
     nonisolated static let order: [ID] = [.cassette, .vinyl404, .vinyl303, .chorus, .autopitch]
-    nonisolated static let allOrder: [ID] = order + [.granular, .tapeecho, .reverb, .filterdrive, .overdrive, .distortion, .crusher, .ringmod, .slicer, .stutter, .tremolo, .tapestop]
+    nonisolated static let allOrder: [ID] = order + [.granular, .tapeecho, .flanger, .phaser, .reverb, .filterdrive, .overdrive, .distortion, .crusher, .ringmod, .slicer, .stutter, .tremolo, .tapestop]
     nonisolated static let families = ["Carácter", "Espacio", "Textura", "Destruir", "Ritmo", "Voz"]
 
     enum Kind { case range, choice, bool }
