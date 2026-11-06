@@ -146,7 +146,7 @@ export function suggestLoop(x, rate, { bpm = null, bpmConfidence = 0 } = {}, mod
   } catch (e) {}
   let crossSec = l && mode(l.cross) ? +mode(l.cross) : 1; crossSec = Math.max(0.5, Math.min(crossSec, (b - a) / rate / 4));
   const choices = [0.5, 1, 2, 4], cross = choices.reduce((p, c) => Math.abs(c - crossSec) < Math.abs(p - crossSec) ? c : p, 1);
-  return { a, b, crossSec: cross, refine: l ? l.refine >= 0.5 : true, group: st.group, kind: st.kind, learned: l ? l.n : 0, seam, periodo, why: `Loop de ${how}${seam != null && seam >= 0 ? `, continuidad espectral ${Math.round(seam * 100)} %` : ''}, empalme de ${String(cross).replace('.', ',')} s${l ? ` (aprendido de ${l.n} loops tuyos)` : ' (valores de fábrica)'}` };
+  return { a, b, crossSec: cross, refine: l ? l.refine >= 0.5 : true, group: st.group, kind: st.kind, learned: l ? l.n : 0, seam, periodo, why: `Loop de ${how}${seam != null ? (seam >= 0.3 ? `, continuidad espectral ${Math.round(seam * 100)} %` : ', sin repetición clara: el empalme depende del fundido') : ''}, empalme de ${String(cross).replace('.', ',')} s${l ? ` (aprendido de ${l.n} loops tuyos)` : ' (valores de fábrica)'}` };
 }
 
 /** Frases para mostrar al usuario qué ha aprendido (transparencia). */

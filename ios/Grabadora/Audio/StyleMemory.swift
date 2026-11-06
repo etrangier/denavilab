@@ -217,7 +217,7 @@ enum StyleMemory {
         let snapped = [0.5, 1.0, 2.0, 4.0].min { abs($0 - cross) < abs($1 - cross) } ?? 1
         let src = l.map { " (aprendido de \($0.n) loops tuyos)" } ?? " (valores de fábrica)"
         return LoopSuggestion(a: a, b: b, crossSec: snapped, refine: l.map { $0.refine >= 0.5 } ?? true, group: st.group, learned: l?.n ?? 0, seam: seam, periodo: periodo,
-                              why: "Loop de \(how)" + (seam.map { $0 >= 0 ? ", continuidad espectral \(Int(($0 * 100).rounded())) %" : "" } ?? "") + ", empalme de \(String(format: "%g", snapped).replacingOccurrences(of: ".", with: ",")) s" + src)
+                              why: "Loop de \(how)" + (seam.map { $0 >= 0.3 ? ", continuidad espectral \(Int(($0 * 100).rounded())) %" : ", sin repetición clara: el empalme depende del fundido" } ?? "") + ", empalme de \(String(format: "%g", snapped).replacingOccurrences(of: ".", with: ",")) s" + src)
     }
 
     /// Frases para mostrar al usuario qué ha aprendido (transparencia).
