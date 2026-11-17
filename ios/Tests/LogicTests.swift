@@ -1234,6 +1234,59 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(KoPrep.prepare(x, rate: 48_000).rate, 48_000); XCTAssertEqual(KoPrep.level(quiet, rate: 48_000), quiet)
     }
 
+    // MARK: asistente Pistorius
+
+    private func pNote(_ f: Double, _ dur: Double, cents: Double = 0, amp: Double = 0.3, rate: Int = 48_000) -> [Float] {
+        let ff = f * pow(2, cents / 1200)
+        return (0..<Int(dur * Double(rate))).map { i in
+            let t = Double(i) / Double(rate), env = min(1, t / 0.005) * exp(-t * 1.2)
+            var v = 0.0
+            for h in 1...4 { v += sin(2 * Double.pi * ff * Double(h) * t) / Double(h) }
+            return Float(amp * env * v)
+        }
+    }
+
+    func testPistoriusMeasuresTuningAndPicksTheStableStretch() throws {
+        let rate = 48_000
+        let n = pNote(110, 2, cents: 30), t1 = try XCTUnwrap(Pistorius.estimateTuning(n, rate: rate))
+        XCTAssertEqual(t1.mode, "nota"); XCTAssertEqual(t1.note, "La2"); XCTAssertEqual(t1.cents, 30, accuracy: 3)
+        var ch = [Float](repeating: 0, count: rate * 3)
+        for f in [220.0, 261.63, 329.63] { let s = pNote(f, 3, cents: 25, amp: 0.15); for i in ch.indices { ch[i] += s[i] } }
+        let t2 = try XCTUnwrap(Pistorius.estimateTuning(ch, rate: rate))
+        XCTAssertEqual(t2.mode, "acorde"); XCTAssertEqual(t2.cents, 25, accuracy: 5); XCTAssertGreaterThan(t2.confidence, 0.8)
+        XCTAssertEqual(Pistorius.noteName(45), "La2"); XCTAssertEqual(Pistorius.noteName(69), "La4"); XCTAssertEqual(Pistorius.noteName(60), "Do4")
+        var pad = [Float](repeating: 0, count: rate * 8), s: UInt32 = 9
+        for i in pad.indices { let t = Double(i) / Double(rate); s = s &* 1664525 &+ 1013904223; pad[i] = Float(0.2 * sin(2 * Double.pi * 220 * t) + 0.15 * sin(2 * Double.pi * 277 * t) + 0.02 * (Double(s) / 4294967296 * 2 - 1)) }
+        for i in 0..<4000 { pad[3 * rate + i] += Float(0.8 * sin(2 * Double.pi * 60 * Double(i) / Double(rate)) * exp(-Double(i) / 800)) }
+        let w = Pistorius.stableWindow(pad, rate: rate, sec: 3)
+        XCTAssertTrue(w.b <= 3 * rate || w.a >= Int(3.1 * Double(rate)))                          // no toma el golpe como parte de la textura
+        let fixed = Pistorius.applyTuning(n, cents: t1.cents), t3 = try XCTUnwrap(Pistorius.estimateTuning(fixed, rate: rate))
+        XCTAssertEqual(t3.cents, 0, accuracy: 5)
+    }
+
+    func testPistoriusRecipesAndGuidance() throws {
+        let rate = 48_000
+        let n = pNote(110, 2, cents: 30)
+        var pad = [Float](repeating: 0, count: rate * 8), s: UInt32 = 9
+        for i in pad.indices { let t = Double(i) / Double(rate); s = s &* 1664525 &+ 1013904223; pad[i] = Float(0.2 * sin(2 * Double.pi * 220 * t) + 0.15 * sin(2 * Double.pi * 277 * t) + 0.01 * (Double(s) / 4294967296 * 2 - 1)) }
+        for g in Pistorius.goals {
+            let r = Pistorius.run(goal: g.id, g.id == "pad" || g.id == "ambiente" ? pad : n, rate: rate, source: "musica", base: "disco")
+            XCTAssertTrue(r.audio.allSatisfy { $0.isFinite }, g.id); XCTAssertFalse(r.notes.isEmpty, g.id); XCTAssertLessThanOrEqual(r.audio.map { abs($0) }.max() ?? 0, 1.0001, g.id)
+        }
+        let b = Pistorius.run(goal: "bajo", n, rate: rate, source: "instrumento", base: "b")
+        XCTAssertTrue(b.name.contains("La2")); XCTAssertEqual(try XCTUnwrap(Pistorius.estimateTuning(b.audio, rate: rate)).cents, 0, accuracy: 6)
+        let pr = Pistorius.run(goal: "pad", pad, rate: rate, source: "musica", base: "p")
+        XCTAssertEqual(pr.kind, "textura"); XCTAssertLessThan(Creative.seamJump(pr.audio), 4); XCTAssertGreaterThan(Double(pr.audio.count) / Double(rate), 3)
+        var seq = [Float](repeating: 0, count: rate * 4)
+        for (f, t) in [(220.0, 0), (261.63, 1), (329.63, 2), (392.0, 3)] { let s = pNote(f, 1); for i in s.indices { seq[t * rate + i] = s[i] } }
+        func adv(_ x: [Float], _ g: String) -> Pistorius.Advice { Pistorius.advise(x, rate: rate, Pistorius.analyze(x, rate: rate), goal: g) }
+        XCTAssertEqual(adv(n, "nota").action, "cortar"); XCTAssertEqual(adv(seq, "nota").action, "chop"); XCTAssertEqual(adv(seq, "nota").chopMode, -2)
+        XCTAssertEqual(adv(seq, "acorde").chopMode, -2); XCTAssertEqual(adv(pad, "pad").action, "cortar"); XCTAssertTrue(adv(pad, "pad").title.contains("sin chop"))
+        XCTAssertEqual(adv(n, "golpe").action, "cortar"); XCTAssertEqual(adv(n, "limpiar").action, "cortar")
+        XCTAssertTrue(adv(seq, "nota").refs.joined().contains("Wang")); XCTAssertTrue(adv(n, "nota").refs.joined().contains("Russ"))
+        XCTAssertFalse(Pistorius.goalsFor("instrumento").isEmpty); XCTAssertEqual(Pistorius.goalsFor("instrumento").first?.id, "nota"); XCTAssertEqual(Pistorius.goalsFor("otro").count, Pistorius.goals.count)
+    }
+
     func testEveryFxHasADistinctIcon() {
         let symbols = Fx404.allOrder.map { Fx404.symbol($0) }
         XCTAssertEqual(symbols.count, 19); XCTAssertTrue(symbols.allSatisfy { !$0.isEmpty }); XCTAssertEqual(Set(symbols).count, symbols.count)
