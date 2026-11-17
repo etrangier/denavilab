@@ -3,6 +3,7 @@ import { app, refreshSamples } from './state.js';
 import { h, mount, fill, btn, link, card, label, muted, sheet, toast, drawBars } from './ui.js';
 import * as dsp from './dsp.js';
 import { putSample, newSample } from './store.js';
+import { koPrepare, koLevel } from './koprep.js';
 
 export const TAKE_SECONDS = 15, SOFT_LIMIT = 6, MIN_FRAGMENT = 0.1;
 
@@ -24,7 +25,8 @@ export function cutFragment(x, rate, a, b) {
 const storeError = err => err && (err.name === 'QuotaExceededError' || /quota/i.test(String(err.message))) ? 'No se pudo guardar: el dispositivo se quedó sin espacio. Libera espacio o borra sonidos viejos.' : 'No se pudo guardar el sonido (' + ((err && err.message) || 'error desconocido') + ').';
 
 /** Hoja de recorte. `take` es la toma completa (Float32Array mono). */
-export function openMateria(take, rate) {
+export function openMateria(take0, rate0) {
+  const { audio: take, rate } = koPrepare(take0, rate0);         // «listo para el K.O. II»: a 46 875 Hz
   const total = take.length / rate, pk = dsp.peaks(take, 120);
   const [a0, b0] = bestWindow(take, rate, Math.min(4, total));
   const ed = { start: a0, end: b0 }; let src = null, ctx = null, raf = 0, t0 = 0;
@@ -71,7 +73,7 @@ export function openMateria(take, rate) {
     const save = btn('Guardar como crudo', { kind: 'amber', act: 'guardar-crudo', onclick: async () => {
       stop(); save.disabled = true;
       try {
-        const out = cutFragment(take, rate, ed.start, ed.end), kind = kindKey !== 'libre' && dsp.SOUND_KINDS[kindKey] ? { kind: kindKey } : {};
+        const out = koLevel(cutFragment(take, rate, ed.start, ed.end), rate), kind = kindKey !== 'libre' && dsp.SOUND_KINDS[kindKey] ? { kind: kindKey } : {};
         await putSample(newSample(name.value.trim() || name.placeholder, out, rate, { status: 'crudo', origin: origin.value.trim(), ...kind }), out);
         await refreshSamples(); toast(`Guardada como crudo · ${dsp.stamp(out.length / rate)}` + (origin.value.trim() ? '' : ' · falta el origen (Detalles)'));
       } catch (err) { toast(storeError(err)); save.disabled = false; return; }

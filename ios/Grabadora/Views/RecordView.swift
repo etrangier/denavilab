@@ -24,6 +24,7 @@ struct RecordView: View {
     @State private var showQuick = false
     @State private var showManual = false
     @State private var showOpts = false
+    @AppStorage("koPrep") private var koPrep = true               // listo para el K.O. II: 46 875 Hz y volumen nivelado
     @AppStorage("firstTakeDismissed") private var firstTakeDismissed = false
     @Environment(\.scenePhase) private var scenePhase
     @State private var savedNote: String?
@@ -58,9 +59,10 @@ struct RecordView: View {
                     if firstTime { Text("↓ Empieza aquí").font(Theme.font(13, weight: .bold)).foregroundColor(Theme.amber)
                         .padding(.horizontal, 14).frame(minHeight: 32).overlay(Capsule().stroke(Theme.amber, lineWidth: 1.5)) }
                     controls
-                    Text("WAV · 16 bit · mono · 46 875 Hz").font(Theme.font(13)).foregroundColor(Theme.muted).frame(maxWidth: .infinity)
+                    Text(koPrep ? "WAV · 16 bit · mono · 46 875 Hz · listo para el K.O. II" : "WAV · 16 bit · mono · \(rec.sampleRate) Hz").font(Theme.font(13)).foregroundColor(Theme.muted).frame(maxWidth: .infinity)
                     DisclosureGroup(isExpanded: $showOpts) {
                         VStack(spacing: 12) {
+                            ToggleRow(title: "Dejar listo para el K.O. II", subtitle: "46 875 Hz, mono, 16 bit y volumen nivelado al guardar", isOn: $koPrep)
                             Text("Entrada · Micrófono del iPhone").font(Theme.font(14, weight: .medium)).foregroundColor(Theme.text).card()
                             modeCard
                             kindCard
@@ -103,7 +105,8 @@ struct RecordView: View {
             RetroSheet { audio in
                 showRetro = false
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    let t = Take(audio: audio, rate: rec.sampleRate)
+                    let prep = KoPrep.prepare(audio, rate: rec.sampleRate)
+                    let t = Take(audio: prep.audio, rate: prep.rate)
                     if captureMode == "materia" { materiaTake = t } else { take = t }
                 }
             }.presentationDetents([.large])
@@ -114,14 +117,15 @@ struct RecordView: View {
     }
 
     /// Al parar: guardado rápido si está activo; si no, hoja para elegir nombre y carpeta.
-    private func finish(_ a: [Float]) {
-        guard !a.isEmpty else { return }
-        if captureMode == "materia" { materiaTake = Take(audio: a, rate: rec.sampleRate); return }
+    private func finish(_ a0: [Float]) {
+        guard !a0.isEmpty else { return }
+        let prep = KoPrep.prepare(a0, rate: rec.sampleRate), a = prep.audio, rate = prep.rate          // «listo para el K.O. II»: a 46 875 Hz
+        if captureMode == "materia" { materiaTake = Take(audio: a, rate: rate); return }
         let s = QuickSave.Settings.load()
-        guard s.enabled else { take = Take(audio: a, rate: rec.sampleRate); return }
-        let out = QuickSave.process(a, rate: rec.sampleRate, s)
+        guard s.enabled else { take = Take(audio: a, rate: rate); return }
+        let out = QuickSave.process(a, rate: rate, s)
         let name = QuickSave.autoName(count: lib.samples.count, prefix: kind.prefix)
-        let rate = rec.sampleRate, kindTag: String? = kind == .libre ? nil : kind.rawValue
+        let kindTag: String? = kind == .libre ? nil : kind.rawValue
         let before = Double(a.count) / Double(rate), after = Double(out.count) / Double(rate)
         Task {
             var sug: Suggestion?

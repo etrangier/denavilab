@@ -1220,6 +1220,20 @@ final class LogicTests: XCTestCase {
         XCTAssertTrue(LoopFx.apply(d, rate, bpm: 120, stutter: true, glueOn: true, sweep: 1).allSatisfy { $0.isFinite })
     }
 
+    func testKoPrepResamplesToDeviceRateAndLevels() {
+        defer { UserDefaults.standard.removeObject(forKey: "koPrep") }
+        UserDefaults.standard.removeObject(forKey: "koPrep")
+        XCTAssertTrue(KoPrep.on)                                                               // encendido por defecto
+        let x = harmonicVoice(220, seconds: 1, rate: 48_000)
+        let p = KoPrep.prepare(x, rate: 48_000)
+        XCTAssertEqual(p.rate, 46_875); XCTAssertLessThan(abs(p.audio.count - Int(Double(x.count) * 46_875 / 48_000)), 3)
+        XCTAssertEqual(KoPrep.prepare(p.audio, rate: 46_875).audio.count, p.audio.count)         // ya a 46 875 Hz: no se toca
+        let quiet = x.map { $0 * 0.05 }, lv = KoPrep.level(quiet, rate: 46_875)
+        XCTAssertGreaterThan(Level.levelDB(lv, rate: 46_875), Level.levelDB(quiet, rate: 46_875) + 6)
+        KoPrep.on = false
+        XCTAssertEqual(KoPrep.prepare(x, rate: 48_000).rate, 48_000); XCTAssertEqual(KoPrep.level(quiet, rate: 48_000), quiet)
+    }
+
     func testEveryFxHasADistinctIcon() {
         let symbols = Fx404.allOrder.map { Fx404.symbol($0) }
         XCTAssertEqual(symbols.count, 19); XCTAssertTrue(symbols.allSatisfy { !$0.isEmpty }); XCTAssertEqual(Set(symbols).count, symbols.count)

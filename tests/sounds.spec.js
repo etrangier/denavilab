@@ -2431,3 +2431,26 @@ test.describe('gestos de loop del estilo french house: barrido de filtro, tartam
     expect(q.r).toBeGreaterThan(0.6); expect(q.r).toBeLessThan(1.6); expect(q.fin).toBe(true); expect(q.todo).toBe(true);
   });
 });
+
+
+test.describe('listo para el K.O. II: lo grabado queda a 46 875 Hz y nivelado por defecto', () => {
+  test('con el K.O. II: remuestrea, nivela, se puede apagar, y el formato de Grabar lo dice', async ({ page }) => {
+    await abrir(page, 'rolando'); await tab(page, 'grabar');
+    await expect(page.locator('.format')).toContainText('46 875 Hz'); await expect(page.locator('.format')).toContainText('listo para el K.O. II');
+    const q = await page.evaluate(async () => {
+      const K = await import('/sounds/koprep.js'), d = await import('/sounds/dsp.js'), rate = 48000, x = Float32Array.from({ length: rate }, (_, i) => 0.03 * Math.sin(2 * Math.PI * 220 * i / rate));
+      const on = K.koPrepare(x, rate), igual = K.koPrepare(on.audio, on.rate), lv = K.koLevel(x, rate);
+      K.setKoPrep(false); const off = K.koPrepare(x, rate), offLv = K.koLevel(x, rate); K.setKoPrep(true);
+      return { on: K.koPrepOn(), rate: on.rate, len: on.audio.length, esperado: Math.floor(rate * 46875 / 48000), igual: igual.audio === on.audio, subio: d.levelDB(lv, rate) - d.levelDB(x, rate), offRate: off.rate, offSame: off.audio === x && offLv === x };
+    });
+    expect(q.rate).toBe(46875); expect(Math.abs(q.len - q.esperado)).toBeLessThan(3); expect(q.igual).toBe(true); expect(q.subio).toBeGreaterThan(6); expect(q.offRate).toBe(48000); expect(q.offSame).toBe(true);
+    await page.locator('details.rec-opts > summary').click();
+    await expect(page.getByLabel('Dejar listo para el K.O. II')).toBeChecked();
+    await page.getByLabel('Dejar listo para el K.O. II').uncheck(); await expect(page.locator('.format')).not.toContainText('K.O. II');
+  });
+  test('sin el K.O. II (Schair) no aparece ni se aplica nada del aparato', async ({ page }) => {
+    await abrir(page, 'schair'); await tab(page, 'grabar');
+    await expect(page.locator('#screen')).not.toContainText(/K\.O\.|46 875/);
+    const on = await page.evaluate(async () => (await import('/sounds/koprep.js')).koPrepOn()); expect(on).toBe(false);
+  });
+});

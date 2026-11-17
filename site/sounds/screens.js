@@ -12,6 +12,7 @@ import { rateLabel, exportRates, KO_EXPORT } from './profile.js';
 import { openLab } from './lab.js';
 import { listenTempo, confidenceLabel, bpmAlternatives, LISTEN_SECONDS } from './tempo.js';
 import { openMateria, TAKE_SECONDS } from './materia.js';
+import { koPrepOn, setKoPrep, koPrepare, KO_RATE } from './koprep.js';
 import { KO_RATES, KO_DEFAULTS, koOpts, koPlan, buildKoBatch, LONG_FADE_MS } from './koexport.js';
 
 const ls = {
@@ -231,9 +232,10 @@ export function renderRecord(root) {
         side('Escuchar', '🎧', e.monitoring, () => e.setMonitoring(!e.monitoring)),
         recBtn,
         side('Retro', '↺', null, openRetro)),
-      h('div', { class: 'format' }, `WAV · 16 bit · mono · ${hz(exportRate())}`),
+      h('div', { class: 'format' }, `WAV · 16 bit · mono · ${hz(koPrepOn() ? KO_RATE : exportRate())}${koPrepOn() ? ' · listo para el K.O. II' : ''}`),
       h('details', { class: 'rec-opts', open: recOpts.open ? '' : null, ontoggle: e => { recOpts.open = e.target.open; } }, h('summary', {}, 'Ajustes de captura · ', captureMode() === 'materia' ? 'materia prima' : 'captura libre', ' · ', dsp.SOUND_KINDS[kind].label.toLowerCase()),
         h('div', { class: 'stack tight' },
+          app.ko2 ? toggleRow('Dejar listo para el K.O. II', '46 875 Hz, mono, 16 bit y volumen nivelado al guardar', koPrepOn(), v => { setKoPrep(v); app.render(); }) : null,
           card([h('b', {}, 'Entrada · Micrófono del dispositivo')]),
           card([h('b', {}, 'Modo de captura'),
         h('div', { class: 'row2', role: 'group', 'aria-label': 'Modo de captura' }, btn('Materia prima', { small: true, sel: captureMode() === 'materia', act: 'modo-materia', onclick: () => { ls.set('captureMode', 'materia'); app.render(); } }),
@@ -291,9 +293,9 @@ const longNote = secs => secs > MAX_TEXTURE + 0.05 ? ` · dura más de ${MAX_TEX
 const storeError = err => err && (err.name === 'QuotaExceededError' || /quota/i.test(String(err.message))) ? 'No se pudo guardar: el dispositivo se quedó sin espacio. Libera espacio o borra sonidos viejos.' : 'No se pudo guardar el sonido (' + ((err && err.message) || 'error desconocido') + ').';
 
 /** Al terminar una toma: guardado rápido si está activo; si no, hoja para elegir nombre y carpeta. */
-export async function finishTake(audio) {
-  if (!audio || !audio.length) return;
-  const rate = app.engine.rate, q = loadQuick();
+export async function finishTake(audio0) {
+  if (!audio0 || !audio0.length) return;
+  const { audio, rate } = koPrepare(audio0, app.engine.rate), q = loadQuick();
   if (captureMode() === 'materia') return openMateria(audio, rate);
   if (!q.enabled) return showSave(audio, rate);
   const kind = ls.get('kind', 'libre'), kd = dsp.SOUND_KINDS[kind] || dsp.SOUND_KINDS.libre;
@@ -307,7 +309,8 @@ export async function finishTake(audio) {
 }
 
 // ---------- hoja: guardar grabación ----------
-function showSave(audio, rate) {
+function showSave(audio0, rate0) {
+  const { audio, rate } = koPrepare(audio0, rate0);         // «listo para el K.O. II»: a 46 875 Hz
   const st = { folder: UNSORTED, sub: null };
   const stampName = (() => { const d = new Date(); return 'Grabación ' + d.toLocaleDateString('es', { day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }); })();
   sheet(close => {

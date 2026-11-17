@@ -135,7 +135,7 @@ struct MateriaSheet: View {
 
     private func save() {
         stop()
-        let out = fragment()
+        let out = KoPrep.level(fragment(), rate: take.rate)          // «listo para el K.O. II»: volumen nivelado
         let nm = name.trimmingCharacters(in: .whitespaces).isEmpty ? placeholder : name.trimmingCharacters(in: .whitespaces)
         guard var x = lib.add(name: nm, audio: out, sampleRate: take.rate) else { return }
         x.origin = origin.trimmingCharacters(in: .whitespaces)
