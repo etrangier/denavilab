@@ -68,12 +68,14 @@ export function repetition(x, rate, { minSec = 0.25, maxSec = 20, maxCands = 4 }
     if (ts.length < 2 || ts.length > 40) continue;                                 // las claves que aparecen en todas partes no informan
     for (let i = 0; i < ts.length; i++) for (let j = i + 1; j < ts.length; j++) { const lag = ts[j] - ts[i]; if (lag >= minLag && lag <= maxLag) hist[lag] += 1 / Math.sqrt(ts.length); }
   }
+  for (let l = minLag; l <= maxLag; l++) hist[l] *= c.T / Math.max(1, c.T - l);                    // menos pares posibles a mayor desfase: se compensa para que un sonido estacionario dé un histograma plano
   const sm = new Float64Array(hist.length); for (let i = 1; i < hist.length - 1; i++) sm[i] = hist[i - 1] * 0.5 + hist[i] + hist[i + 1] * 0.5;
   let mean = 0, cnt = 0; for (let i = minLag; i <= maxLag; i++) { mean += sm[i]; cnt++; } mean /= Math.max(1, cnt);
   let sd = 0; for (let i = minLag; i <= maxLag; i++) sd += (sm[i] - mean) ** 2; sd = Math.sqrt(sd / Math.max(1, cnt)) + 1e-9;
   const picks = [];
   for (let i = minLag + 1; i < maxLag; i++) if (sm[i] >= sm[i - 1] && sm[i] > sm[i + 1]) { const z = (sm[i] - mean) / sd; if (z > 4 && sm[i] >= 6) picks.push({ i, score: sm[i], z }); }
   picks.sort((a, b) => b.score - a.score);
+  if (picks.length > 1) { const top = picks[0].score, k = picks.findIndex(p => p.score >= top * 0.5 && p.i === Math.min(...picks.filter(q => q.score >= top * 0.5).map(q => q.i))); if (k > 0) picks.unshift(picks.splice(k, 1)[0]); }          // el periodo fundamental (el menor) antes que sus múltiplos
   const out = [];
   for (const p of picks) {
     const lag = p.i + (sm[p.i - 1] - sm[p.i + 1]) / (2 * (sm[p.i - 1] - 2 * sm[p.i] + sm[p.i + 1]) || 1e9);

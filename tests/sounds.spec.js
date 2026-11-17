@@ -2455,3 +2455,71 @@ test.describe('listo para el K.O. II: lo grabado queda a 46 875 Hz y nivelado po
     const on = await page.evaluate(async () => (await import('/sounds/koprep.js')).koPrepOn()); expect(on).toBe(false);
   });
 });
+
+test.describe('asistente Pistorius: qué grabaste, qué quieres hacer y si cortar o chopear', () => {
+  const PRE = `const P = await import('/sounds/pistorius.js'), D = await import('/sounds/dsp.js'), rate = 48000; let sd = 9; const rnd = () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; };
+    const note = (f, dur, cents = 0, amp = 0.3) => { const x = new Float32Array(Math.round(dur * rate)), ff = f * Math.pow(2, cents / 1200); for (let i = 0; i < x.length; i++) { const t = i / rate, env = Math.min(1, t / 0.005) * Math.exp(-t * 1.2); let v = 0; for (let h = 1; h <= 4; h++) v += Math.sin(2 * Math.PI * ff * h * t) / h; x[i] = amp * env * v; } return x; };`;
+  const ev = (page, body) => page.evaluate(`(async () => { ${PRE} ${body} })()`);
+  test('mide la afinación (nota y acorde), elige el tramo estable y no confunde un golpe con la textura', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `const n = note(110, 2, 30), t1 = P.estimateTuning(n, rate), ch = new Float32Array(rate * 3); for (const f of [220, 261.63, 329.63]) { const s = note(f, 3, 25, 0.15); for (let i = 0; i < ch.length; i++) ch[i] += s[i]; }
+      const t2 = P.estimateTuning(ch, rate), pad = new Float32Array(rate * 8); for (let i = 0; i < pad.length; i++) { const t = i / rate; pad[i] = 0.2 * Math.sin(2 * Math.PI * 220 * t) + 0.15 * Math.sin(2 * Math.PI * 277 * t) + 0.02 * (rnd() * 2 - 1); } for (let i = 0; i < 4000; i++) pad[3 * rate + i] += 0.8 * Math.sin(2 * Math.PI * 60 * i / rate) * Math.exp(-i / 800);
+      const w = P.stableWindow(pad, rate, 3), fixed = P.applyTuning(n, t1.cents), t3 = P.estimateTuning(fixed, rate);
+      return { t1: [t1.mode, t1.note, t1.cents], t2: [t2.mode, t2.cents, t2.confidence], a: w.a / rate, b: w.b / rate, despues: t3.cents, nombre: [P.noteName(45), P.noteName(69), P.noteName(60)] };`);
+    expect(q.t1[0]).toBe('nota'); expect(q.t1[1]).toBe('La2'); expect(Math.abs(q.t1[2] - 30)).toBeLessThan(3); expect(q.t2[0]).toBe('acorde'); expect(Math.abs(q.t2[1] - 25)).toBeLessThan(5); expect(q.t2[2]).toBeGreaterThan(0.8);
+    expect(q.b <= 3 || q.a >= 3.1).toBe(true); expect(Math.abs(q.despues)).toBeLessThan(5); expect(q.nombre).toEqual(['La2', 'La4', 'Do4']);
+  });
+  test('cada meta devuelve audio finito con su lista de pasos; el bajo sale afinado y con el nombre de la nota; el pad no tiene golpes ni clics', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `const out = {}, n = note(110, 2, 30), pad = new Float32Array(rate * 8); for (let i = 0; i < pad.length; i++) { const t = i / rate; pad[i] = 0.2 * Math.sin(2 * Math.PI * 220 * t) + 0.15 * Math.sin(2 * Math.PI * 277 * t) + 0.01 * (rnd() * 2 - 1); }
+      for (const g of P.GOALS) { const r = P.run(g.id, g.id === 'pad' || g.id === 'ambiente' ? pad : n, rate, { source: 'musica', base: 'disco' }); out[g.id] = { fin: r.audio.every(Number.isFinite), n: r.notes.length, len: r.audio.length / rate, pico: r.audio.reduce((m, v) => Math.max(m, Math.abs(v)), 0), kind: r.kind, name: r.name }; }
+      const b = P.run('bajo', n, rate, { source: 'instrumento', base: 'b' }), pr = P.run('pad', pad, rate, { source: 'musica', base: 'p' });
+      return { out, bajoCents: P.estimateTuning(b.audio, rate).cents, bajoName: b.name, salto: D.seamJump(pr.audio), padLen: pr.audio.length / rate };`);
+    for (const [id, o] of Object.entries(q.out)) { expect(o.fin, id).toBe(true); expect(o.n, id).toBeGreaterThan(0); expect(o.pico, id).toBeLessThan(1.0001); }
+    expect(q.out.pad.kind).toBe('textura'); expect(q.out.bajo.kind).toBe('bajo'); expect(Math.abs(q.bajoCents)).toBeLessThan(6); expect(q.bajoName).toContain('La2'); expect(q.salto).toBeLessThan(4); expect(q.padLen).toBeGreaterThan(3);
+  });
+  test('la guía decide: una nota sola se corta, varias notas se chopean por nota, una textura estable no se chopea', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `const n = note(110, 2), seq = new Float32Array(rate * 4); [[220, 0], [261.63, 1], [329.63, 2], [392, 3]].forEach(([f, t]) => seq.set(note(f, 1), Math.round(t * rate)));
+      const pad = new Float32Array(rate * 6); for (let i = 0; i < pad.length; i++) { const t = i / rate; pad[i] = 0.2 * Math.sin(2 * Math.PI * 220 * t) + 0.15 * Math.sin(2 * Math.PI * 277 * t) + 0.01 * (rnd() * 2 - 1); }
+      const A = (x, g) => P.advise(x, rate, P.analyze(x, rate), g);
+      return { sola: A(n, 'nota'), varias: A(seq, 'nota'), acordes: A(seq, 'acorde'), pad: A(pad, 'pad'), golpe: A(n, 'golpe'), limpiar: A(n, 'limpiar') };`);
+    expect(q.sola.action).toBe('cortar'); expect(q.varias.action).toBe('chop'); expect(q.varias.chopMode).toBe(-2); expect(q.acordes.chopMode).toBe(-2); expect(q.pad.action).toBe('cortar'); expect(q.pad.title).toContain('sin chop');
+    expect(q.golpe.action).toBe('cortar'); expect(q.limpiar.action).toBe('cortar'); expect(q.varias.refs.join(' ')).toContain('Wang'); expect(q.sola.refs.join(' ')).toContain('Russ'); expect(q.varias.why.length).toBeGreaterThan(0);
+  });
+  test('desactivado por defecto: grabar sigue como siempre; activado pregunta, y el asistente guía hasta guardar el resultado y la toma original', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const toma = `Float32Array.from({ length: 48000 * 3 }, (_, i) => { const t = i / 48000; return 0.3 * Math.min(1, t / 0.005) * Math.exp(-t * 1.2) * (Math.sin(2 * Math.PI * 110 * t) + Math.sin(2 * Math.PI * 220 * t) / 2); })`;
+    await page.evaluate(`(async () => { const s = await import('/sounds/screens.js'); window.__take = ${toma}; s.finishTake(window.__take); })()`);
+    await expect(page.locator('dialog.sheet').getByRole('heading', { name: 'Guardar grabación' })).toBeVisible();           // sin asistente: la hoja de siempre
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => localStorage.setItem('denavilab.sounds.pistorius', 'true'));
+    await page.evaluate(`(async () => { const s = await import('/sounds/screens.js'); s.finishTake(window.__take); })()`);
+    const sh = page.locator('dialog.sheet'); await expect(sh.getByRole('heading', { name: '¿Cómo seguimos?' })).toBeVisible();
+    await sh.getByRole('button', { name: /Asistente Pistorius/ }).click();
+    await expect(sh.getByRole('heading', { name: '¿Qué grabaste?' })).toBeVisible();
+    await sh.getByRole('button', { name: /Un instrumento/ }).click();
+    await expect(sh.getByRole('heading', { name: /¿Qué quieres hacer/ })).toBeVisible();
+    await expect(sh.locator('.fxtile.big').first()).toContainText('Una nota');                                  // lo sugerido primero para un instrumento
+    await sh.locator('.fxtile.big').first().click();
+    await expect(sh.getByText('Mi sugerencia')).toBeVisible({ timeout: 15000 }); await expect(sh.getByText('En qué me baso')).toBeVisible();
+    await sh.getByRole('button', { name: 'Seguir la sugerencia' }).click();
+    await expect(sh.getByText('Lo que hice')).toBeVisible({ timeout: 20000 }); await expect(sh.locator('.steps li').first()).toBeVisible();
+    await sh.getByRole('button', { name: '▶ Resultado' }).click(); await expect(sh.getByRole('button', { name: '■ Resultado' })).toBeVisible(); await sh.getByRole('button', { name: '■ Resultado' }).click();
+    await sh.getByRole('button', { name: 'Guardar', exact: true }).click(); await expect(page.locator('#toast')).toContainText('Guardado', { timeout: 15000 });
+    const m = await page.evaluate(async () => (await (await import('/sounds/store.js')).listSamples()).map(v => ({ n: v.name, st: v.status, k: v.kind || null, p: v.process.length, key: v.key })));
+    const proc = m.find(v => v.st === 'procesado'), crudo = m.find(v => v.st === 'crudo');
+    expect(proc).toBeTruthy(); expect(proc.p).toBeGreaterThan(2); expect(proc.key).toBe('La2'); expect(crudo.n).toContain('(original)');
+  });
+  test('Editar ofrece el asistente sobre un sonido guardado y «Convencional» sigue el camino de siempre', async ({ page }) => {
+    await abrir(page, 'rolando'); await page.evaluate(() => localStorage.setItem('denavilab.sounds.pistorius', 'true'));
+    await page.evaluate(`(async () => { const s = await import('/sounds/screens.js'); s.finishTake(Float32Array.from({ length: 48000 * 2 }, (_, i) => 0.3 * Math.sin(2 * Math.PI * 220 * i / 48000))); })()`);
+    const sh = page.locator('dialog.sheet'); await sh.getByRole('button', { name: /Edición convencional/ }).click();
+    await expect(page.locator('dialog.sheet').getByRole('heading', { name: 'Guardar grabación' })).toBeVisible({ timeout: 5000 });
+    await page.keyboard.press('Escape');
+    await page.evaluate(`(async () => { const st = await import('/sounds/store.js'), a = Float32Array.from({ length: 48000 * 2 }, (_, i) => 0.3 * Math.sin(2 * Math.PI * 220 * i / 48000)); await st.putSample(st.newSample('sonido viejo', a, 48000, {}), a); })()`);
+    await page.reload(); await tab(page, 'biblioteca'); await page.locator('.row-btn').first().click();
+    await page.getByRole('button', { name: 'Abrir el asistente' }).click();
+    await expect(page.locator('dialog.sheet').getByRole('heading', { name: '¿Qué grabaste?' })).toBeVisible();
+  });
+});

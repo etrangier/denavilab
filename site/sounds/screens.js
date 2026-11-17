@@ -13,6 +13,7 @@ import { openLab } from './lab.js';
 import { listenTempo, confidenceLabel, bpmAlternatives, LISTEN_SECONDS } from './tempo.js';
 import { openMateria, TAKE_SECONDS } from './materia.js';
 import { koPrepOn, setKoPrep, koPrepare, KO_RATE } from './koprep.js';
+import { pistoriusOn, setPistorius, afterCapture } from './pistoriusui.js';
 import { KO_RATES, KO_DEFAULTS, koOpts, koPlan, buildKoBatch, LONG_FADE_MS } from './koexport.js';
 
 const ls = {
@@ -235,6 +236,7 @@ export function renderRecord(root) {
       h('div', { class: 'format' }, `WAV · 16 bit · mono · ${hz(koPrepOn() ? KO_RATE : exportRate())}${koPrepOn() ? ' · listo para el K.O. II' : ''}`),
       h('details', { class: 'rec-opts', open: recOpts.open ? '' : null, ontoggle: e => { recOpts.open = e.target.open; } }, h('summary', {}, 'Ajustes de captura · ', captureMode() === 'materia' ? 'materia prima' : 'captura libre', ' · ', dsp.SOUND_KINDS[kind].label.toLowerCase()),
         h('div', { class: 'stack tight' },
+          toggleRow('Asistente Pistorius', 'Después de grabar te pregunta si sigues con la edición convencional o con el asistente', pistoriusOn(), v => { setPistorius(v); app.render(); }),
           app.ko2 ? toggleRow('Dejar listo para el K.O. II', '46 875 Hz, mono, 16 bit y volumen nivelado al guardar', koPrepOn(), v => { setKoPrep(v); app.render(); }) : null,
           card([h('b', {}, 'Entrada · Micrófono del dispositivo')]),
           card([h('b', {}, 'Modo de captura'),
@@ -293,9 +295,10 @@ const longNote = secs => secs > MAX_TEXTURE + 0.05 ? ` · dura más de ${MAX_TEX
 const storeError = err => err && (err.name === 'QuotaExceededError' || /quota/i.test(String(err.message))) ? 'No se pudo guardar: el dispositivo se quedó sin espacio. Libera espacio o borra sonidos viejos.' : 'No se pudo guardar el sonido (' + ((err && err.message) || 'error desconocido') + ').';
 
 /** Al terminar una toma: guardado rápido si está activo; si no, hoja para elegir nombre y carpeta. */
-export async function finishTake(audio0) {
+export async function finishTake(audio0, { assist = true } = {}) {
   if (!audio0 || !audio0.length) return;
   const { audio, rate } = koPrepare(audio0, app.engine.rate), q = loadQuick();
+  if (assist && pistoriusOn()) return afterCapture(audio, rate, () => finishTake(audio0, { assist: false }));          // asistente Pistorius: ¿edición convencional o asistente?
   if (captureMode() === 'materia') return openMateria(audio, rate);
   if (!q.enabled) return showSave(audio, rate);
   const kind = ls.get('kind', 'libre'), kd = dsp.SOUND_KINDS[kind] || dsp.SOUND_KINDS.libre;
@@ -352,7 +355,7 @@ function openRetro() {
     timer = setInterval(refresh, 500); setTimeout(refresh, 30);
     const saveBtn = btn(`Guardar los últimos ${e.retroSeconds} s`, { kind: 'amber', disabled: e.state === 'idle', onclick: () => {
       const a = e.captureRetro(); if (!a.length) return toast('Todavía no hay nada en el búfer');
-      close(); setTimeout(() => captureMode() === 'materia' ? openMateria(a, e.rate) : showSave(a, e.rate), 250);
+      close(); setTimeout(() => { const conv = () => captureMode() === 'materia' ? openMateria(a, e.rate) : showSave(a, e.rate), pr = koPrepare(a, e.rate); afterCapture(pr.audio, pr.rate, conv); }, 250);
     } });
     return h('div', { class: 'stack' },
       h('div', { class: 'title-row' }, h('h2', {}, 'Captura retroactiva'), link('Cerrar', close)),

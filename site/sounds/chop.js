@@ -16,9 +16,9 @@ function playSlice(audio, rate, [a, b]) {
   const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination); src.start();
 }
 
-export function openChop(sample, audio) {
+export function openChop(sample, audio, opts = {}) {
   const pads = app.ko2 ? 'pads' : 'cortes';
-  const S = { mode: 8, sens: 0.5, grid: false, harm: true, hm: false, an: null, lay: null, shift: 0, per: 1, want: 4, pick: null, style: 'libre', pump: false, sweep: 0, stut: false, glue: false, auto: true, saved: new Map(), G: { on: false, bars: 2, steps: 8, cells: gd.emptyCells(2, 8), brush: null, tool: 'paint', sel: new Set(), clip: null }, fix: true, fixBpm: null, ranges: [], selected: new Set(), bpm: sample.bpm || (dsp.estimateBPM(audio, sample.rate) || {}).bpm || null };
+  const S = { mode: Number.isFinite(opts.mode) ? opts.mode : 8, sens: 0.5, grid: false, harm: true, hm: false, an: null, lay: null, shift: 0, per: 1, want: 4, pick: null, style: 'libre', pump: false, sweep: 0, stut: false, glue: false, auto: true, saved: new Map(), G: { on: false, bars: 2, steps: 8, cells: gd.emptyCells(2, 8), brush: null, tool: 'paint', sel: new Set(), clip: null }, fix: true, fixBpm: null, ranges: [], selected: new Set(), bpm: sample.bpm || (dsp.estimateBPM(audio, sample.rate) || {}).bpm || null };
   const peaks = dsp.peaks(audio, 56);
   const padEls = [];                       // botones de los pads, para iluminar el que está sonando
   let preview = null;                      // { src, raf } mientras suena «Escuchar selección»

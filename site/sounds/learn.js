@@ -132,7 +132,7 @@ export function suggestLoop(x, rate, { bpm = null, bpmConfidence = 0 } = {}, mod
   let periodo = null;
   if (!lenMs) {      // sin pulso: ¿el sonido se repite solo? (histograma de desfases entre picos iguales, como en Shazam)
     const zone = x.subarray(Math.round(startMs / 1000 * rate), Math.min(x.length, Math.round(f.endMs / 1000 * rate))), rep = repetition(zone, rate, { minSec: 0.3, maxSec: Math.min(20, availMs / 1000) });
-    const best = rep.find(r => r.sec * 1000 <= availMs);
+    const best = rep.find(r => r.z >= 8 && r.sec * 1000 <= availMs);
     if (best) {
       let k = 1; while (best.sec * k < 1.0 && best.sec * (k + 1) * 1000 <= availMs) k++;          // al menos ~1 s: se juntan periodos enteros
       lenMs = best.sec * k * 1000; periodo = best.sec; how = `${(lenMs / 1000).toFixed(1).replace('.', ',')} s (${k === 1 ? 'un periodo' : k + ' periodos'}: se repite cada ${best.sec.toFixed(2).replace('.', ',')} s)`;

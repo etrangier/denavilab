@@ -3,6 +3,7 @@ import { app, go, refreshSamples, sampleById } from './state.js';
 import { starBtn } from './screens.js';
 import { openLab } from './lab.js';
 import { openRack } from './fxui.js';
+import { openPistorius } from './pistoriusui.js';
 import { describeChain, cleanChain } from './fxall.js';
 import { h, mount, fill, btn, link, chip, card, label, muted, tip, title, toggleRow, sliderRow, logo, confirmSheet, toast, folderPicker, drawBars, fx, flash } from './ui.js';
 import { compute } from './work.js';
@@ -258,6 +259,7 @@ export function renderEdit(root) {
     sliderRow('Fundido', { min: 0, max: 200, step: 1, value: ed.fadeMs, fmt: v => v + ' ms', onInput: v => { ed.fadeMs = v; } }),
     bpmCard,
     s.recipe ? card([h('b', {}, 'Receta de efectos'), h('p', { class: 'muted small' }, `De «${s.recipe.fromName}»: ${describeChain(cleanChain(s.recipe.chain)).map(x => x.split(' (')[0]).join(' → ')}`), btn('Re-editar la receta', { act: 'receta', onclick: () => openFxRack(s, s.recipe) }), h('p', { class: 'muted tiny' }, 'Se edita sobre el original y actualiza este sonido.')]) : null,
+    card([h('b', {}, 'Asistente Pistorius'), h('p', { class: 'muted small' }, 'Te guía para convertir este sonido en pad, nota, acorde, bajo, golpe o chop.'), btn('Abrir el asistente', { act: 'pistorius', onclick: () => openPistorius(ed.audio, s.rate, { base: s.name, origin: s.origin || '', folder: s.folder, subfolder: s.subfolder || null, fromSample: true }) })]),
     card([h('b', {}, 'Cadena de efectos'), h('p', { class: 'muted small' }, 'Cassette, vinilo, granular, delay, reverb y más.'), btn('Abrir la cadena de efectos', { act: 'efectos', onclick: () => openFxRack(s) })]),
     card([h('b', {}, 'Laboratorio de pads'), h('p', { class: 'muted small' }, 'Bucle sin clics, estirar, tono, filtros, reverb, capas y teclado.'), btn('Abrir el laboratorio', { act: 'laboratorio', onclick: () => openLab(s) })]),
     btn(app.ko2 ? 'Chop en pads' : 'Chop', { onclick: () => openChop(s, ed.audio) }),
