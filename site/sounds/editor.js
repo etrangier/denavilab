@@ -181,21 +181,28 @@ export function renderEdit(root) {
       h('div', { class: 'side' }, h('button', { type: 'button', class: 'circle', 'aria-label': 'Al inicio', onclick: () => { stopPlay(); app.render(); } }, '⏮'), h('span', { class: 'muted tiny' }, 'Al inicio')),
       h('button', { type: 'button', class: 'play-btn', 'aria-label': playing ? 'Parar' : 'Reproducir', onclick: () => { playing ? stopPlay() : play(); app.render(); } }, playing ? '❚❚' : '▶'),
       h('div', { class: 'side' }, h('button', { type: 'button', class: 'circle' + (ed.loop ? ' on' : ''), 'aria-pressed': String(ed.loop), 'aria-label': 'Repetir', onclick: () => { ed.loop = !ed.loop; if (src) src.loop = ed.loop; app.render(); } }, '↻'), h('span', { class: 'muted tiny' }, 'Repetir'))),
-    label('Herramientas'),
+    label('Recortar'),
     h('div', { class: 'row3' },
       btn('Recortar', { small: true, act: 'recortar', onclick: () => { const [a, b] = sel(); try { if (a > 0 || b < ed.audio.length) { const f = learn.features(ed.audio, s.rate); if (f) learn.learnTrim({ f, group: styleGroup(s, f), startMs: a / s.rate * 1000, endMs: b / s.rate * 1000, fadeMs: ed.fadeMs }); } } catch (e) {} run('recortar', x => dsp.fade(dsp.trim(x, a, b), fade, fade), { done: 'Listo: recortado' }); } }),
-      btn('Normalizar', { small: true, act: 'normalizar', onclick: () => run('normalizar', x => dsp.normalize(x), { done: 'Listo: normalizado a −1 dB' }) }),
       btn('Fundido', { small: true, act: 'fundido', onclick: () => run('fundido', x => dsp.fade(x, fade, fade), { done: 'Listo: fundido aplicado' }) })),
     h('div', { class: 'row2' },
       btn(fx.flash === 'recorte-ia' ? '✓ Recorte sugerido' : '✨ Recorte inteligente', { small: true, act: 'recorte-ia', onclick: () => {
         const r = learn.suggestTrim(ed.audio, s.rate); if (!r) return toast('No encuentro un sonido claro para sugerir un recorte');
         ed.start = r.a / ed.audio.length; ed.end = r.b / ed.audio.length; ed.fadeMs = r.fadeMs; toast(r.why + ' · ajusta y pulsa Recortar', 8000); flash('recorte-ia'); app.render();
-      } }),
+      } })),
+    sliderRow('Fundido', { min: 0, max: 200, step: 1, value: ed.fadeMs, fmt: v => v + ' ms', onInput: v => { ed.fadeMs = v; } }),
+    btn(app.ko2 ? 'Chop en pads' : 'Chop', { onclick: () => openChop(s, ed.audio) }),
+    s.recipe ? card([h('b', {}, 'Receta de efectos'), h('p', { class: 'muted small' }, `De «${s.recipe.fromName}»: ${describeChain(cleanChain(s.recipe.chain)).map(x => x.split(' (')[0]).join(' → ')}`), btn('Re-editar la receta', { act: 'receta', onclick: () => openFxRack(s, s.recipe) }), h('p', { class: 'muted tiny' }, 'Se edita sobre el original y actualiza este sonido.')]) : null,
+    card([h('b', {}, 'Cadena de efectos'), h('p', { class: 'muted small' }, 'Cassette, vinilo, granular, delay, reverb y más.'), btn('Abrir la cadena de efectos', { act: 'efectos', onclick: () => openFxRack(s) })]),
+    card([h('b', {}, 'Asistente Pistorius'), h('p', { class: 'muted small' }, 'Te guía para convertir este sonido en pad, nota, acorde, bajo, golpe o chop.'), btn('Abrir el asistente', { act: 'pistorius', onclick: () => openPistorius(ed.audio, s.rate, { base: s.name, origin: s.origin || '', folder: s.folder, subfolder: s.subfolder || null, fromSample: true }) })]),
+    h('details', { class: 'more', open: (() => { try { return JSON.parse(localStorage.getItem('denavilab.sounds.editMore')) === true; } catch (x) { return false; } })() ? '' : null, ontoggle: e => { try { localStorage.setItem('denavilab.sounds.editMore', JSON.stringify(e.target.open)); } catch (x) {} } }, h('summary', {}, 'Más herramientas'), h('div', { class: 'stack' },
+      label('Volumen y bordes'),
+      btn('Normalizar', { small: true, act: 'normalizar', onclick: () => run('normalizar', x => dsp.normalize(x), { done: 'Listo: normalizado a −1 dB' }) }),
       btn(fx.flash === 'loop-ia' ? '✓ Loop sugerido' : '✨ Loop inteligente', { small: true, act: 'loop-ia', onclick: () => {
         const est = s.bpm ? { bpm: s.bpm, confidence: 1 } : dsp.estimateBPM(ed.audio, s.rate), r = learn.suggestLoop(ed.audio, s.rate, { bpm: est ? est.bpm : null, bpmConfidence: est ? est.confidence : 0 });
         if (!r) return toast('No encuentro una zona estable de al menos 0,5 s para sugerir un loop');
         ed.start = r.a / ed.audio.length; ed.end = r.b / ed.audio.length; ed.cross = r.crossSec; ed.refine = r.refine; toast(r.why + ' · ajusta y pulsa Hacer loop continuo', 8000); flash('loop-ia'); app.render();
-      } })),
+      } }),
     btn('Nivelar volumen', { small: true, act: 'nivelar', onclick: () => {
       const r = dsp.levelTo(ed.audio, s.rate);
       if (r.beforeDB < -80) return toast('La toma está casi en silencio: no hay nada que nivelar');
@@ -256,13 +263,9 @@ export function renderEdit(root) {
       } })),
     sliderRow('Intensidad', { min: 0.5, max: 3, step: 0.1, value: ed.noiseAmt, fmt: v => v < 1.2 ? 'Suave' : v < 2.2 ? 'Normal' : 'Fuerte', onInput: v => { ed.noiseAmt = v; } }),
     tip('Suave y Fuerte cortan graves (respiración, soplidos) y apagan lo que suena bajito entre sonidos. «Quitar ruido de fondo» aprende el ruido de la parte más tranquila; «Con la selección» lo aprende de lo que marques. Puedes deshacer.'),
-    sliderRow('Fundido', { min: 0, max: 200, step: 1, value: ed.fadeMs, fmt: v => v + ' ms', onInput: v => { ed.fadeMs = v; } }),
     bpmCard,
-    s.recipe ? card([h('b', {}, 'Receta de efectos'), h('p', { class: 'muted small' }, `De «${s.recipe.fromName}»: ${describeChain(cleanChain(s.recipe.chain)).map(x => x.split(' (')[0]).join(' → ')}`), btn('Re-editar la receta', { act: 'receta', onclick: () => openFxRack(s, s.recipe) }), h('p', { class: 'muted tiny' }, 'Se edita sobre el original y actualiza este sonido.')]) : null,
-    card([h('b', {}, 'Asistente Pistorius'), h('p', { class: 'muted small' }, 'Te guía para convertir este sonido en pad, nota, acorde, bajo, golpe o chop.'), btn('Abrir el asistente', { act: 'pistorius', onclick: () => openPistorius(ed.audio, s.rate, { base: s.name, origin: s.origin || '', folder: s.folder, subfolder: s.subfolder || null, fromSample: true }) })]),
-    card([h('b', {}, 'Cadena de efectos'), h('p', { class: 'muted small' }, 'Cassette, vinilo, granular, delay, reverb y más.'), btn('Abrir la cadena de efectos', { act: 'efectos', onclick: () => openFxRack(s) })]),
     card([h('b', {}, 'Laboratorio de pads'), h('p', { class: 'muted small' }, 'Bucle sin clics, estirar, tono, filtros, reverb, capas y teclado.'), btn('Abrir el laboratorio', { act: 'laboratorio', onclick: () => openLab(s) })]),
-    btn(app.ko2 ? 'Chop en pads' : 'Chop', { onclick: () => openChop(s, ed.audio) }),
+    )),
     folderPicker(fp, async st => { await putSample({ ...s, folder: st.folder, subfolder: st.sub }); await refreshSamples(); }),
     label('¿Qué hacemos con esta toma?'),
     h('div', { class: 'row3' },

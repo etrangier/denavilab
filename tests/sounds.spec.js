@@ -11,6 +11,7 @@ const abrir = async (page, quien = 'rolando', extra = {}) => {
     try {
       localStorage.setItem('denavilab.sesion', q);
       localStorage.setItem('denavilab.sounds.onboarded', '1');
+      localStorage.setItem('denavilab.sounds.editMore', 'true');             // «Más herramientas» de Editar viene plegado; las pruebas viejas lo parten abierto
       localStorage.setItem('denavilab.sounds.pistorius', 'false');          // el asistente viene encendido de fábrica; las pruebas viejas parten sin él (las del asistente lo encienden o lo dejan de fábrica con '')
       localStorage.setItem('denavilab.sounds.captureMode', '"libre"');      // las pruebas viejas guardan la toma tal cual; el modo materia prima tiene las suyas
       for (const [k, v] of Object.entries(ex)) localStorage.setItem(k, v);
@@ -2662,23 +2663,27 @@ test.describe('Pistorius: limpia material viejo por sí solo', () => {
   });
 });
 
-test.describe('apariencia: temas de color', () => {
-  test('de fábrica es Atardecer; en Inicio se cambia de tema, se recuerda al recargar y «Clásico» vuelve al negro y gris', async ({ page }) => {
+test.describe('apariencia y Editar minimalista', () => {
+  test('hay una sola apariencia (Atardecer): sin selector de temas', async ({ page }) => {
     await abrir(page, 'rolando');
-    const tema = () => page.evaluate(() => document.documentElement.dataset.theme), acento = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--amber').trim());
-    expect(await tema()).toBe('atardecer'); expect(await acento()).toBe('#f2a65a');
-    await page.getByRole('button', { name: 'Cinta y madera' }).click(); expect(await tema()).toBe('cinta'); expect(await acento()).toBe('#e3a43a');
-    await page.reload(); expect(await tema()).toBe('cinta');
-    await page.getByRole('button', { name: 'Clásico' }).click(); expect(await acento()).toBe('#ffffff');
-    await page.getByRole('button', { name: 'Solo movimiento' }).click(); expect(await tema()).toBe('movimiento');
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--amber').trim())).toBe('#f2a65a');
+    await expect(page.getByText('Apariencia')).toHaveCount(0); await expect(page.getByRole('button', { name: 'Cinta y madera' })).toHaveCount(0);
   });
   test('los sonidos llevan su franja por tipo y, con «reducir movimiento», no hay animaciones', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await abrir(page, 'rolando');
     await page.evaluate(async () => { const st = await import('/sounds/store.js'), { refreshSamples } = await import('/sounds/state.js'), a = new Float32Array(4800).map((_, i) => 0.2 * Math.sin(i * 0.05)); await st.putSample(st.newSample('Pad', a, 48000, { kind: 'textura' }), a); await refreshSamples(); });
     await tab(page, 'biblioteca');
-    const f = await page.locator('.row-btn[data-kind="textura"]').first().evaluate(e => getComputedStyle(e).borderLeftColor);
-    expect(f).toBe('rgb(127, 181, 171)');
+    expect(await page.locator('.row-btn[data-kind="textura"]').first().evaluate(e => getComputedStyle(e).borderLeftColor)).toBe('rgb(127, 181, 171)');
     expect(await page.locator('#screen > *').first().evaluate(e => getComputedStyle(e).animationName)).toBe('none');
+  });
+  test('Editar muestra tres rutas (Recortar, Efectos y Pistorius) y el resto queda plegado en «Más herramientas», que recuerda si lo abriste', async ({ page }) => {
+    await abrir(page, 'rolando', { 'denavilab.sounds.editMore': 'false' });
+    await page.evaluate(async () => { const st = await import('/sounds/store.js'), { refreshSamples, openSample } = await import('/sounds/state.js'), a = new Float32Array(48000).map((_, i) => 0.3 * Math.sin(i * 0.05)); const s = st.newSample('Toma', a, 48000, {}); await st.putSample(s, a); await refreshSamples(); openSample(s); });
+    const sc = page.locator('#screen');
+    for (const n of ['Recortar', 'Fundido', 'Abrir la cadena de efectos', 'Abrir el asistente']) await expect(sc.getByRole('button', { name: n, exact: true })).toBeVisible();
+    for (const n of ['Normalizar', 'Nivelar volumen', 'Scratchear', 'Hacer loop continuo', 'Abrir el laboratorio']) await expect(sc.getByRole('button', { name: n })).toBeHidden();
+    await sc.getByText('Más herramientas').click(); await expect(sc.getByRole('button', { name: 'Normalizar' })).toBeVisible(); await expect(sc.getByRole('button', { name: 'Abrir el laboratorio' })).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem('denavilab.sounds.editMore'))).toBe('true');
   });
 });

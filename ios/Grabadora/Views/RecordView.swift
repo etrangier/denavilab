@@ -351,11 +351,11 @@ struct RecordView: View {
             } label: {
                 ZStack {
                     if firstTime { Circle().stroke(Theme.amber.opacity(0.25), lineWidth: 10).frame(width: 112, height: 112) }
-                    if recording && Theme.palette != .clasico {
+                    if recording {
                         Circle().stroke(Theme.error.opacity(pulse ? 0.10 : 0.30), lineWidth: pulse ? 16 : 8).frame(width: 112, height: 112)
                     }
-                    Circle().stroke(recording && Theme.palette != .clasico ? Theme.error : Theme.amber, lineWidth: 4).frame(width: 96, height: 96)
-                    if recording { RoundedRectangle(cornerRadius: 10).fill(Theme.palette != .clasico ? Theme.error : Theme.amber).frame(width: 40, height: 40) }
+                    Circle().stroke(recording ? Theme.error : Theme.amber, lineWidth: 4).frame(width: 96, height: 96)
+                    if recording { RoundedRectangle(cornerRadius: 10).fill(Theme.error).frame(width: 40, height: 40) }
                     else { Circle().fill(Theme.amber).frame(width: 72, height: 72) }
                 }
                 .onChange(of: recording) { on in

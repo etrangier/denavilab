@@ -7,8 +7,6 @@ struct GrabadoraApp: App {
     @StateObject private var metronome = Metronome()
     @StateObject private var state = AppState()
 
-    @AppStorage("theme") private var themeRaw = "atardecer"
-
     init() { Self.applyTabBar() }
 
     /// La barra de pestañas es de UIKit: hay que repintarla cuando cambia la apariencia.
@@ -28,8 +26,6 @@ struct GrabadoraApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
-                .id(themeRaw)
-                .onChange(of: themeRaw) { _ in Self.applyTabBar() }
                 .environmentObject(recorder)
                 .environmentObject(library)
                 .environmentObject(metronome)
