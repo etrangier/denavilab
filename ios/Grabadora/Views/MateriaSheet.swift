@@ -93,7 +93,7 @@ struct MateriaSheet: View {
                     Button(playing ? "■ Parar" : "▶ Escuchar en bucle") { toggle() }.buttonStyle(OutlineButton(selected: playing))
                     ToggleRow(title: "Fade-out largo", subtitle: "La textura se apaga en vez de quedar cortada (hasta 1,5 s)", isOn: $longFade)
                     ToggleRow(title: "Quitar crujidos de vinilo", subtitle: clickRate > 1 ? "Detecté unos \(Int(clickRate.rounded())) clics por segundo" : "No detecté crujidos; actívalo si los oyes", isOn: $declickOn)
-                    ToggleRow(title: "Quitar zumbido", subtitle: hum.map { "Detecté zumbido de \($0.hz) Hz (y \($0.harmonics.count - 1) armónicos)" } ?? "No detecté zumbido de 50 o 60 Hz", isOn: $dehumOn)
+                    ToggleRow(title: "Quitar zumbido", subtitle: hum.map { "Detecté zumbido de \($0.hz) Hz y sus armónicos" } ?? "No detecté zumbido de 50 o 60 Hz", isOn: $dehumOn)
                     SectionLabel("Origen")
                     TextField("Artista, disco, minuto… o «mi balcón»", text: $origin).font(Theme.font(15)).foregroundColor(Theme.text).card()
                     SectionLabel("Nombre")

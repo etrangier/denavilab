@@ -243,3 +243,5 @@ details.rec-opts[open] > summary { color: var(--text); }
 .tn-needle{position:absolute;top:-4px;width:4px;height:18px;margin-left:-2px;border-radius:2px;background:var(--amber,#e8a33d);left:50%;transition:left .15s}
 .tn-info{grid-column:1/-1}
 .tn-presets{gap:4px}
+.card.opt-row{flex-direction:row;align-items:center;justify-content:space-between;gap:14px;text-align:left}.card.opt-row input{flex:none;width:22px;height:22px}
+.tn-presets{margin:6px 0 2px}

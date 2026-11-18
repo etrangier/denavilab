@@ -77,11 +77,11 @@ export function openMateria(take0, rate0) {
       } catch (e) { src = null; toast('No se pudo reproducir'); }
     };
     const crk = clickRate(take, rate), hum = findHum(take, rate), prefs = { longFade: true, declick: crk > 1, dehum: !!hum };
-    const opt = (title, sub, key, act) => { const cb = h('input', { type: 'checkbox', 'data-act': act, checked: prefs[key] ? '' : null, onchange: () => { prefs[key] = cb.checked; } }); cb.checked = !!prefs[key]; return h('label', { class: 'card between' }, h('span', {}, h('b', {}, title), h('br', {}), h('span', { class: 'muted small' }, sub)), cb); };
+    const opt = (title, sub, key, act) => { const cb = h('input', { type: 'checkbox', 'data-act': act, checked: prefs[key] ? '' : null, onchange: () => { prefs[key] = cb.checked; } }); cb.checked = !!prefs[key]; return h('div', { class: 'card opt-row' }, h('span', {}, h('b', {}, title), h('br', {}), h('span', { class: 'muted small' }, sub)), cb); };
     const restoreBox = h('div', { class: 'stack tight' },
       opt('Fade-out largo', 'La textura se apaga en vez de quedar cortada (hasta 1,5 s)', 'longFade', 'fade-largo'),
       opt('Quitar crujidos de vinilo', crk > 1 ? `Detecté unos ${Math.round(crk)} clics por segundo` : 'No detecté crujidos; actívalo si los oyes', 'declick', 'quitar-crujidos'),
-      opt('Quitar zumbido', hum ? `Detecté zumbido de ${hum.hz} Hz (y ${hum.harmonics.length - 1} armónicos)` : 'No detecté zumbido de 50 o 60 Hz', 'dehum', 'quitar-zumbido'));
+      opt('Quitar zumbido', hum ? `Detecté zumbido de ${hum.hz} Hz y sus armónicos` : 'No detecté zumbido de 50 o 60 Hz', 'dehum', 'quitar-zumbido'));
     const name = h('input', { type: 'text', class: 'field name', 'aria-label': 'Nombre', placeholder: dsp.autoName(app.samples.length, (dsp.SOUND_KINDS[kindKey] || dsp.SOUND_KINDS.libre).prefix) });
     const origin = h('input', { type: 'text', class: 'field', 'aria-label': 'Origen del sonido', maxlength: '200', placeholder: 'Artista, disco, minuto… o «mi balcón», «piano de casa»' });
     const save = btn('Guardar como crudo', { kind: 'amber', act: 'guardar-crudo', onclick: async () => {

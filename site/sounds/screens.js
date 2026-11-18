@@ -201,8 +201,8 @@ export function renderRecord(root) {
   const tunerOn = ls.get('tuner', true), tunerPreset = ls.get('tunerPreset', 'cromatico'), tSm = tunerSmoother();
   const tNote = h('b', { class: 'tn-note' }, '—'), tInfo = h('span', { class: 'muted small tn-info' }, 'Toca una nota'), tNeedle = h('i', { class: 'tn-needle' });
   const tunerCard = !tunerOn ? null : card([
-    h('div', { class: 'sr-head' }, h('span', { class: 'muted small' }, 'Afinador'),
-      h('span', { class: 'wrap tn-presets', role: 'group', 'aria-label': 'Afinación' }, Object.entries(TUNER_PRESETS).map(([k, v]) => chip(v.label, tunerPreset === k, () => { ls.set('tunerPreset', k); app.render(); })))),
+    h('div', { class: 'muted small' }, 'Afinador'),
+    h('div', { class: 'wrap tn-presets', role: 'group', 'aria-label': 'Afinación' }, Object.entries(TUNER_PRESETS).map(([k, v]) => chip(v.label, tunerPreset === k, () => { ls.set('tunerPreset', k); app.render(); }))),
     h('div', { class: 'tn-row', 'data-tuner': '' }, tNote, h('div', { class: 'tn-gauge' }, h('i', { class: 'tn-mid' }), tNeedle), tInfo)]);
   let tAt = 0;
   const paintTuner = () => {
