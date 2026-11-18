@@ -2567,7 +2567,8 @@ test.describe('afinador en vivo', () => {
   });
   test('en la pantalla Grabar aparece el afinador y se actualiza con lo que entra por el micrófono', async ({ page }) => {
     await abrir(page, 'rolando'); await tab(page, 'grabar');
-    await expect(page.locator('[data-tuner]')).toBeVisible();
+    await expect(page.locator('.tn-card summary')).toContainText('Afinador'); await expect(page.locator('[data-tuner]')).toBeHidden();       // plegado por defecto
+    await page.locator('.tn-card summary').click(); await expect(page.locator('[data-tuner]')).toBeVisible();
     await page.evaluate(async () => { const { app } = await import('/sounds/state.js'), e = app.engine; e.state = 'listening'; e.lastSamples = n => Float32Array.from({ length: n }, (_, i) => 0.3 * Math.sin(2 * Math.PI * 261.63 * i / e.rate)); });
     await expect(page.locator('.tn-note')).toHaveText('Do4');
     await expect(page.locator('.tn-info')).toContainText('cents');

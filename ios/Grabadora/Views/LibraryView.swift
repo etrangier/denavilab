@@ -197,8 +197,9 @@ struct SampleRow: View {
                     .font(Theme.font(12)).foregroundColor(Theme.muted).lineLimit(1)
             }
             Spacer()
-            Text(sample.slot.map { "slot \($0)" } ?? "sin enviar").font(Theme.font(12, weight: .medium))
-                .foregroundColor(sample.slot == nil ? Theme.muted : Theme.amber)
+            if let slot = sample.slot {
+                Text("slot \(slot)").font(Theme.font(12, weight: .medium)).foregroundColor(Theme.amber)
+            }
         }.card()
     }
 }

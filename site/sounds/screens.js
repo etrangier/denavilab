@@ -51,7 +51,7 @@ const listenBtn = s => h('button', { type: 'button', class: 'icon-btn' + (aud.id
   'aria-label': (aud.id === s.id ? 'Parar ' : 'Escuchar ') + s.name, onclick: () => toggleAudition(s) }, aud.id === s.id ? '■' : '▶');
 
 // ---------- favoritos, orden y filtro ----------
-export const SORTS = [['fecha', 'Fecha (recientes primero)'], ['nombre', 'Nombre (A–Z)'], ['duracion', 'Duración (largos primero)'], ['favoritos', 'Favoritos primero']];
+export const SORTS = [['fecha', 'Recientes'], ['nombre', 'Nombre A–Z'], ['duracion', 'Más largos'], ['favoritos', 'Favoritos']];
 /** «Listo para K.O.» sólo se nombra así para quien tiene el aparato; el resto ve «Listo». */
 export const stateName = k => k === 'listo' && !app.ko2 ? 'Listo' : (STATES.find(x => x[0] === k) || STATES[0])[1];
 const charTags = () => { const v = ls.get('charTags', null); return Array.isArray(v) && v.length ? v : CHAR_TAGS; };
@@ -102,7 +102,7 @@ export function viewBar(repaint) {
   const clear = link('Quitar filtros', () => { view.onlyFav = false; view.status = ''; view.tags = []; view.origin = ''; app.render(); });
   const det = h('details', { class: 'filters', open: view.status || view.tags.length || view.origin ? '' : null }, h('summary', {}, 'Filtros', view.active ? ' (activos)' : ''),
     h('div', { class: 'stack tight' }, st, origin, label('Etiquetas (deben estar todas)'), tagBox, view.active ? clear : null));
-  return h('div', { class: 'viewbar' }, onlyBtn, sel, det);
+  return h('div', { class: 'viewbar' }, onlyBtn, det, sel);
 }
 /** Atajo F: marca o desmarca el sonido con el foco en la lista, el abierto en Editar o, en modo selección, los elegidos. */
 document.addEventListener('keydown', e => {
@@ -118,7 +118,7 @@ document.addEventListener('keydown', e => {
 });
 
 export function sampleRow(s, { onclick, trailing, listen = false } = {}) {
-  const right = trailing !== undefined ? trailing : (app.ko2 ? (s.slot ? 'slot ' + s.slot : 'sin enviar') : '');
+  const right = trailing !== undefined ? trailing : (app.ko2 && s.slot ? 'slot ' + s.slot : '');
   const row = h('button', { type: 'button', class: 'card row-btn', onclick: onclick || (() => { stopAudition(); openSample(s); }) },
     h('span', { class: 'rb-text' }, h('b', {}, s.name), h('small', {}, pathOf(s) + ' · ' + dsp.stamp(s.duration) + (s.status !== 'crudo' ? ' · ' + stateName(s.status) : ''))),
     right ? h('span', { class: 'amber small' }, right) : null);
@@ -147,7 +147,7 @@ async function instalar() {
 export function renderHome(root) {
   const n = app.samples.length, last = app.samples[0];
   const shortcut = (name, detail, icon, onclick) => h('button', { type: 'button', class: 'card shortcut', onclick },
-    h('span', { class: 'ico', 'aria-hidden': 'true' }, icon), h('b', {}, name), h('small', {}, detail));
+    h('div', { class: 'sc-top' }, h('span', { class: 'ico', 'aria-hidden': 'true' }, icon), h('b', {}, name)), h('small', {}, detail));
   const sesion = document.getElementById('sesion');
   mount(root, 
     h('div', { class: 'home-head' },
@@ -191,7 +191,7 @@ const tempoCard = rec => {
       muted('Si suena a la mitad o al doble de lo que tocas, usa ÷2 o ×2.', 'tiny')) : null]);
 };
 
-const recOpts = { open: false };      // los ajustes de captura recuerdan si estaban abiertos al volver a dibujar la pantalla
+const recOpts = { open: false, tuner: false };      // los ajustes de captura recuerdan si estaban abiertos al volver a dibujar la pantalla
 export function renderRecord(root) {
   const e = app.engine, m = app.metro, rec = e.state === 'recording', listening = e.state === 'listening';
   const pill = (text, onclick, aria) => h('button', { type: 'button', class: 'pill', onclick, 'aria-label': aria }, text);
@@ -200,10 +200,11 @@ export function renderRecord(root) {
   const wave = h('canvas', { class: 'wave', 'aria-label': 'Forma de onda en vivo' });
   const tunerOn = ls.get('tuner', true), tunerPreset = ls.get('tunerPreset', 'cromatico'), tSm = tunerSmoother();
   const tNote = h('b', { class: 'tn-note' }, '—'), tInfo = h('span', { class: 'muted small tn-info' }, 'Toca una nota'), tNeedle = h('i', { class: 'tn-needle' });
-  const tunerCard = !tunerOn ? null : card([
-    h('div', { class: 'tn-head' }, h('span', { class: 'muted small' }, 'Afinador'),
-      h('div', { class: 'tn-presets', role: 'group', 'aria-label': 'Afinación' }, Object.entries(TUNER_PRESETS).map(([k, v]) => h('button', { type: 'button', class: 'tn-chip' + (tunerPreset === k ? ' sel' : ''), 'aria-pressed': String(tunerPreset === k), onclick: () => { ls.set('tunerPreset', k); app.render(); } }, v.label)))),
-    h('div', { class: 'tn-row', 'data-tuner': '' }, tNote, h('div', { class: 'tn-gauge' }, h('i', { class: 'tn-mid' }), tNeedle), tInfo)]);
+  const tSum = h('span', { class: 'tn-sum' }, h('span', { class: 'muted small' }, 'Afinador'), tNote, tInfo);
+  const tunerCard = !tunerOn ? null : h('details', { class: 'card tn-card', open: recOpts.tuner ? '' : null, ontoggle: ev => { recOpts.tuner = ev.target.open; } },
+    h('summary', {}, tSum),
+    h('div', { class: 'tn-presets', role: 'group', 'aria-label': 'Afinación' }, Object.entries(TUNER_PRESETS).map(([k, v]) => h('button', { type: 'button', class: 'tn-chip' + (tunerPreset === k ? ' sel' : ''), 'aria-pressed': String(tunerPreset === k), onclick: () => { ls.set('tunerPreset', k); app.render(); } }, v.label))),
+    h('div', { class: 'tn-row', 'data-tuner': '' }, h('div', { class: 'tn-gauge' }, h('i', { class: 'tn-mid' }), tNeedle)));
   let tAt = 0;
   const paintTuner = () => {
     if (!tunerOn || performance.now() - tAt < 200) return; tAt = performance.now();

@@ -90,10 +90,10 @@ enum SampleSort: String, CaseIterable {
     case fecha, nombre, duracion, favoritos
     var title: String {
         switch self {
-        case .fecha: return "Fecha (recientes primero)"
-        case .nombre: return "Nombre (A–Z)"
-        case .duracion: return "Duración (largos primero)"
-        case .favoritos: return "Favoritos primero"
+        case .fecha: return "Recientes"
+        case .nombre: return "Nombre A–Z"
+        case .duracion: return "Más largos"
+        case .favoritos: return "Favoritos"
         }
     }
 }
