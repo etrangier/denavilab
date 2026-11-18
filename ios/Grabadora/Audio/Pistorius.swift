@@ -225,9 +225,21 @@ enum Pistorius {
         return c
     }
 
-    nonisolated static func run(goal id: String, _ x: [Float], rate: Int, source: String? = nil, base: String = "grabación", analysis: Analysis? = nil) -> Outcome {
-        let g = goals.first { $0.id == id } ?? goals[0], a = analysis ?? analyze(x, rate: rate)
+    /// Material viejo: quita zumbido de 50/60 Hz y crujidos de vinilo si los detecta (no en percusión ni voz: ahí los transitorios son música).
+    nonisolated private static func restoreOld(_ x: [Float], rate: Int, goal: String, notes: inout [String]) -> [Float] {
+        var y = x
+        if let hum = Restore.findHum(y, rate: rate) { y = Restore.dehum(y, rate: rate, hum: hum); notes.append("Detecté zumbido de \(hum.hz) Hz y lo quité (con sus armónicos)") }
+        if !["golpe", "loopRitmico", "frase"].contains(goal) {
+            let cr = Restore.clickRate(y, rate: rate)
+            if cr > 2 { let d = Restore.declick(y, rate: rate, strong: cr > 6); y = d.audio; notes.append("Detecté unos \(Int(cr.rounded())) crujidos por segundo y quité \(d.clicks)") }
+        }
+        return y
+    }
+
+    nonisolated static func run(goal id: String, _ x0: [Float], rate: Int, source: String? = nil, base: String = "grabación", analysis: Analysis? = nil) -> Outcome {
+        let g = goals.first { $0.id == id } ?? goals[0], a = analysis ?? analyze(x0, rate: rate)
         var notes: [String] = []
+        let x = restoreOld(x0, rate: rate, goal: id, notes: &notes)
         var gid = id
         if id == "cuerdaBucle" && !(a.tuning?.mode == "nota" && a.feat != nil) {
             notes.append("No encontré una nota sola y clara (¿un acorde?): hice un recorte simple con final natural"); gid = "acorde"

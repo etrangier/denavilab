@@ -2647,3 +2647,17 @@ test.describe('Pistorius: encendido de fábrica y memoria de lo que eliges', () 
     await expect(sh.locator('.fxtile.big').first()).toContainText('Bajo'); await expect(sh.locator('.fxtile.big').first()).toContainText('Lo que sueles hacer con esto');
   });
 });
+
+test.describe('Pistorius: limpia material viejo por sí solo', () => {
+  test('en un pad con zumbido y crujidos los quita y lo cuenta; en un golpe seco no toca los transitorios', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await page.evaluate(async () => { const P = await import('/sounds/pistorius.js'), rate = 46875, n = rate * 8; let sd = 3; const rnd = () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; };
+      const pad = Float32Array.from({ length: n }, (_, i) => { const t = i / rate; return 0.12 * (Math.sin(2 * Math.PI * 220 * t) + 0.6 * Math.sin(2 * Math.PI * 329.63 * t) + 0.4 * Math.sin(2 * Math.PI * 441 * t)) + 0.002 * (rnd() * 2 - 1); });
+      const sucio = Float32Array.from(pad); for (let i = 0; i < n; i++) { const t = i / rate; sucio[i] += 0.03 * Math.sin(2 * Math.PI * 60 * t) + 0.02 * Math.sin(2 * Math.PI * 120 * t) + 0.01 * Math.sin(2 * Math.PI * 180 * t); }
+      for (let i = 0; i < n - 2; i += Math.round(rate * (0.05 + rnd() * 0.2))) { const a = (rnd() < .5 ? -1 : 1) * (0.15 + rnd() * 0.4); sucio[i] += a; sucio[i + 1] += a * 0.5; }
+      const limpio = P.run('pad', pad, rate, { source: 'musica' }), r = P.run('pad', sucio, rate, { source: 'musica' }), g = P.run('golpe', sucio, rate, { source: 'musica' });
+      return { limpio: limpio.notes.filter(t => /Detecté (zumbido|unos)/.test(t)).length, r: r.notes.filter(t => /Detecté/.test(t)), g: g.notes.filter(t => /Detecté/.test(t)), fin: r.audio.every(Number.isFinite) }; });
+    expect(q.limpio).toBe(0); expect(q.r.some(t => t.includes('zumbido de 60 Hz'))).toBe(true); expect(q.r.some(t => t.includes('crujidos por segundo'))).toBe(true); expect(q.fin).toBe(true);
+    expect(q.g.some(t => t.includes('zumbido'))).toBe(true); expect(q.g.some(t => t.includes('crujidos'))).toBe(false);          // en percusión se quita el zumbido pero no los «crujidos»
+  });
+});
