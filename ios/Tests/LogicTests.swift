@@ -1460,4 +1460,51 @@ final class LogicTests: XCTestCase {
         XCTAssertNotNil(sm.push(nil))                      // se mantiene un momento al callar
         XCTAssertNil(sm.push(nil, now: Date().addingTimeInterval(2)))
     }
+
+    // MARK: restaurar (crujidos, zumbido, fade largo)
+    func testRestoreRemovesClicksAndHumButLeavesCleanAudioAlone() {
+        let rate = 46_875, n = rate * 8
+        var sd: UInt32 = 3
+        func rnd() -> Double { sd = sd &* 1664525 &+ 1013904223; return Double(sd) / 4294967296 }
+        let pad: [Float] = (0..<n).map { i in
+            let t = Double(i) / Double(rate)
+            return Float(0.12 * (sin(2 * .pi * 220 * t) + 0.6 * sin(2 * .pi * 329.63 * t) + 0.4 * sin(2 * .pi * 441 * t)) + 0.002 * (rnd() * 2 - 1))
+        }
+        func err(_ a: [Float], _ b: [Float]) -> Double {
+            var e = 0.0, s = 0.0
+            for i in 0..<a.count { e += Double((a[i] - b[i]) * (a[i] - b[i])); s += Double(b[i] * b[i]) }
+            return 10 * log10(e / s)
+        }
+        var d = pad
+        var i = 0
+        while i < n - 2 { let a = Float((rnd() < 0.5 ? -1 : 1) * (0.15 + rnd() * 0.5)); d[i] += a; d[i + 1] += a * 0.5; i += Int(Double(rate) * (0.05 + rnd() * 0.2)) }
+        let r = Restore.declick(d, rate: rate)
+        XCTAssertLessThan(err(r.audio, pad), err(d, pad) - 6)
+        XCTAssertGreaterThan(r.clicks, 30)
+        XCTAssertLessThan(Restore.clickRate(pad, rate: rate), 0.2)
+        XCTAssertEqual(Restore.declick(pad, rate: rate).audio, pad)
+
+        var h = pad
+        for k in 0..<n {
+            let t = Double(k) / Double(rate)
+            h[k] += Float(0.03 * sin(2 * .pi * 60 * t) + 0.02 * sin(2 * .pi * 120 * t) + 0.01 * sin(2 * .pi * 180 * t))
+        }
+        let found = Restore.findHum(h, rate: rate)
+        XCTAssertEqual(found?.hz, 60)
+        XCTAssertLessThan(err(Restore.dehum(h, rate: rate, hum: found), pad), err(h, pad) - 15)
+        XCTAssertNil(Restore.findHum(pad, rate: rate))
+        let bass: [Float] = (0..<n).map { k in
+            let t = Double(k) / Double(rate)
+            return Float(0.2 * (sin(2 * .pi * 61.74 * t) + 0.5 * sin(2 * .pi * 123.5 * t) + 0.3 * sin(2 * .pi * 185.2 * t)))
+        }
+        XCTAssertNil(Restore.findHum(bass, rate: rate))
+
+        let long = Materia.cut(pad, rate: rate, start: 0.1, end: 0.6, longFade: true)
+        let short = Materia.cut(pad, rate: rate, start: 0.1, end: 0.6)
+        func rms(_ a: [Float], _ s: Int, _ w: Int) -> Double { var e = 0.0; for k in s..<(s + w) { e += Double(a[k] * a[k]) }; return (e / Double(w)).squareRoot() }
+        let w = rate / 10
+        XCTAssertLessThan(rms(long, long.count - w, w), rms(long, rate, w) * 0.1)
+        XCTAssertGreaterThan(rms(short, short.count - rate * 3 / 10, w), rms(short, rate, w) * 0.8)
+        XCTAssertEqual(Materia.longFadeSec(2), 2.0 / 3, accuracy: 0.001)
+    }
 }

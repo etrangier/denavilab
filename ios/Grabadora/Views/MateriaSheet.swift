@@ -59,6 +59,11 @@ struct MateriaSheet: View {
     @State private var playing = false
     @State private var lastRestart = Date.distantPast
     @State private var playhead: Double?
+    @State private var longFade = true
+    @State private var declickOn = false
+    @State private var dehumOn = false
+    @State private var clickRate = 0.0
+    @State private var hum: Restore.Hum?
     private let tick = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
 
     private var total: Double { Double(take.audio.count) / Double(take.rate) }
@@ -86,12 +91,15 @@ struct MateriaSheet: View {
                         Text(a).font(Theme.font(13)).foregroundColor(duration > Materia.softLimit ? Theme.amber : Theme.muted).accessibilityAddTraits(.updatesFrequently)
                     }
                     Button(playing ? "■ Parar" : "▶ Escuchar en bucle") { toggle() }.buttonStyle(OutlineButton(selected: playing))
+                    ToggleRow(title: "Fade-out largo", subtitle: "La textura se apaga en vez de quedar cortada (hasta 1,5 s)", isOn: $longFade)
+                    ToggleRow(title: "Quitar crujidos de vinilo", subtitle: clickRate > 1 ? "Detecté unos \(Int(clickRate.rounded())) clics por segundo" : "No detecté crujidos; actívalo si los oyes", isOn: $declickOn)
+                    ToggleRow(title: "Quitar zumbido", subtitle: hum.map { "Detecté zumbido de \($0.hz) Hz (y \($0.harmonics.count - 1) armónicos)" } ?? "No detecté zumbido de 50 o 60 Hz", isOn: $dehumOn)
                     SectionLabel("Origen")
                     TextField("Artista, disco, minuto… o «mi balcón»", text: $origin).font(Theme.font(15)).foregroundColor(Theme.text).card()
                     SectionLabel("Nombre")
                     TextField(placeholder, text: $name).font(Theme.font(15)).foregroundColor(Theme.text).card()
                     Button("Guardar como crudo") { save() }.buttonStyle(AmberButton()).padding(.top, 6)
-                    Text("Se guarda solo el fragmento, sin tocar su volumen. Queda como «crudo» para trabajarlo después.")
+                    Text("Se guarda solo el fragmento (con lo que actives arriba) y su volumen se nivela. Queda como «crudo» para trabajarlo después.")
                         .font(Theme.font(12)).foregroundColor(Theme.muted)
                 }.padding(16)
             }
@@ -100,6 +108,11 @@ struct MateriaSheet: View {
             peaks = Editing.peaks(take.audio, buckets: 120)
             let w = Materia.bestWindow(take.audio, rate: take.rate, seconds: min(4, total))
             start = w.start; end = w.end
+            let take = self.take
+            DispatchQueue.global(qos: .userInitiated).async {
+                let c = Restore.clickRate(take.audio, rate: take.rate), h = Restore.findHum(take.audio, rate: take.rate)
+                DispatchQueue.main.async { clickRate = c; hum = h; declickOn = c > 1; dehumOn = h != nil }
+            }
         }
         .onDisappear { stop() }
         .onChange(of: start) { _ in restartIfPlaying() }
@@ -110,7 +123,7 @@ struct MateriaSheet: View {
         }
     }
 
-    private func fragment() -> [Float] { Materia.cut(take.audio, rate: take.rate, start: start, end: end) }
+    private func fragment() -> [Float] { Materia.cut(take.audio, rate: take.rate, start: start, end: end, longFade: longFade, declick: declickOn, strong: clickRate > 6, hum: dehumOn ? hum : nil) }
 
     private func toggle() { playing ? stop() : play() }
 

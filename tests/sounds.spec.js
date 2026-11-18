@@ -2573,3 +2573,40 @@ test.describe('afinador en vivo', () => {
     await expect(page.locator('.tn-info')).toContainText('cents');
   });
 });
+
+test.describe('restaurar: crujidos de vinilo, zumbido y fade-out largo', () => {
+  const PRE = `const R = await import('/sounds/restore.js'), M = await import('/sounds/materia.js'), rate = 46875; let sd = 3; const rnd = () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; };
+    const n = rate * 8, pad = new Float32Array(n); for (let i = 0; i < n; i++) { const t = i / rate; pad[i] = 0.12 * (Math.sin(2 * Math.PI * 220 * t) + 0.6 * Math.sin(2 * Math.PI * 329.63 * t) + 0.4 * Math.sin(2 * Math.PI * 441 * t)) + 0.002 * (rnd() * 2 - 1); }
+    const err = (a, b) => { let e = 0, s = 0; for (let i = 0; i < a.length; i++) { e += (a[i] - b[i]) ** 2; s += b[i] ** 2; } return 10 * Math.log10(e / s); };`;
+  const ev = (page, body) => page.evaluate(`(async () => { ${PRE} ${body} })()`);
+  test('quita clics sin tocar la música y los detecta; un audio limpio no cambia', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `const d = Float32Array.from(pad); for (let i = 0; i < n; i += Math.round(rate * (0.05 + rnd() * 0.2))) { const a = (rnd() < .5 ? -1 : 1) * (0.15 + rnd() * 0.5); d[i] += a; d[i + 1] += a * 0.5; }
+      const r = R.declick(d, rate), l = R.declick(pad, rate); return { antes: err(d, pad), despues: err(r.audio, pad), clics: r.clicks, tasa: R.clickRate(d, rate), tasaLimpio: R.clickRate(pad, rate), limpioIgual: l.audio.every((v, i) => v === pad[i]) };`);
+    expect(q.despues).toBeLessThan(q.antes - 6); expect(q.clics).toBeGreaterThan(30); expect(q.tasa).toBeGreaterThan(3); expect(q.tasaLimpio).toBeLessThan(0.2); expect(q.limpioIgual).toBe(true);
+  });
+  test('quita zumbido de 60 Hz con armónicos; no toma por zumbido ni una nota grave de 61,7 Hz ni un audio limpio', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `const h = Float32Array.from(pad); for (let i = 0; i < n; i++) { const t = i / rate; h[i] += 0.03 * Math.sin(2 * Math.PI * 60 * t) + 0.02 * Math.sin(2 * Math.PI * 120 * t) + 0.01 * Math.sin(2 * Math.PI * 180 * t); }
+      const bass = new Float32Array(n); for (let i = 0; i < n; i++) { const t = i / rate; bass[i] = 0.2 * (Math.sin(2 * Math.PI * 61.74 * t) + 0.5 * Math.sin(2 * Math.PI * 123.5 * t) + 0.3 * Math.sin(2 * Math.PI * 185.2 * t)); }
+      const f = R.findHum(h, rate), r = R.dehum(h, rate); return { hz: f && f.hz, antes: err(h, pad), despues: err(r.audio, pad), limpio: R.findHum(pad, rate), bajo: R.findHum(bass, rate) };`);
+    expect(q.hz).toBe(60); expect(q.despues).toBeLessThan(q.antes - 15); expect(q.limpio).toBeNull(); expect(q.bajo).toBeNull();
+  });
+  test('fade-out largo: el fragmento termina apagándose (1,5 s como máximo y un tercio del largo) y por defecto sigue corto', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `const l = M.cutFragment(pad, rate, 0.1, 0.6, { longFade: true }), c = M.cutFragment(pad, rate, 0.1, 0.6);
+      const rms = (a, s, w) => { let e = 0; for (let i = s; i < s + w; i++) e += a[i] ** 2; return Math.sqrt(e / w); }, w = Math.round(rate * 0.1);
+      return { len: l.length / rate, finalLargo: rms(l, l.length - w, w), mitadFade: rms(l, l.length - Math.round(rate * 0.75), w), cuerpo: rms(l, Math.round(rate * 1), w), finalCorto: rms(c, c.length - Math.round(rate * 0.3), w), sec: M.longFadeSec(2) };`);
+    expect(q.finalLargo).toBeLessThan(q.cuerpo * 0.1); expect(q.mitadFade).toBeLessThan(q.cuerpo * 0.8); expect(q.mitadFade).toBeGreaterThan(q.finalLargo); expect(q.finalCorto).toBeGreaterThan(q.cuerpo * 0.8); expect(q.sec).toBeCloseTo(2 / 3, 2);
+  });
+  test('en la hoja de materia aparecen las tres opciones y guardar con fade largo deja el final apagado', async ({ page }) => {
+    await abrir(page, 'rolando', { 'denavilab.sounds.captureMode': '"materia"' });
+    await page.evaluate(async () => { const m = await import('/sounds/materia.js'), rate = 48000; m.openMateria(new Float32Array(rate * 12).map((_, k) => 0.3 * Math.sin(k * 0.05)), rate); });
+    const sh = page.locator('dialog.sheet');
+    await expect(sh.getByText('Fade-out largo')).toBeVisible(); await expect(sh.getByText('Quitar crujidos de vinilo')).toBeVisible(); await expect(sh.getByText('Quitar zumbido')).toBeVisible();
+    await expect(sh.locator('[data-act="fade-largo"]')).toBeChecked();
+    await sh.getByRole('button', { name: 'Guardar como crudo' }).click(); await expect(page.locator('#toast')).toContainText('Guardada como crudo');
+    const fin = await page.evaluate(async () => { const st = await import('/sounds/store.js'), s = (await st.listSamples())[0], a = await st.getAudio(s.id); let e = 0; for (let i = a.length - 2400; i < a.length; i++) e += a[i] ** 2; let c = 0; for (let i = 24000; i < 26400; i++) c += a[i] ** 2; return Math.sqrt(e / c); });
+    expect(fin).toBeLessThan(0.1);
+  });
+});
