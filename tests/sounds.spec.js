@@ -221,14 +221,15 @@ test.describe('acceso abierto y créditos', () => {
     expect(await page.evaluate(() => localStorage.getItem('denavilab.sesion'))).toBe('invitado');
     expect(errores).toEqual([]);
   });
-  test('el botón Créditos nombra al autor, cuenta su proyecto y enlaza a SoundCloud y Spotify con iconos', async ({ page }) => {
+  test('el botón Créditos nombra al autor, cuenta su proyecto y enlaza a SoundCloud, Spotify y su blog con iconos', async ({ page }) => {
     await page.goto(URL);
     await page.getByRole('button', { name: 'Créditos' }).click();
     const sh = page.locator('dialog.sheet');
     await expect(sh).toContainText('Rolando Chaparro Gehren'); await expect(sh).toContainText('Denavi Records');
     const sc = sh.getByRole('link', { name: 'Denavi Records en SoundCloud' }), sp = sh.getByRole('link', { name: 'Denavi Records en Spotify' });
     await expect(sc).toHaveAttribute('href', 'https://soundcloud.com/denavi-records'); await expect(sp).toHaveAttribute('href', /^https:\/\/open\.spotify\.com\/intl-es\/artist\/20XBfjC875fSJ0HzqENuFu/);
-    for (const l of [sc, sp]) { await expect(l).toHaveAttribute('target', '_blank'); await expect(l).toHaveAttribute('rel', /noopener/); await expect(l.locator('svg')).toBeVisible(); }
+    const bl = sh.getByRole('link', { name: 'Cesante Ilustrado, el blog de Rolando' }); await expect(bl).toHaveAttribute('href', 'https://cesanteilustrado.wordpress.com'); await expect(sh).toContainText('samples que toma');
+    for (const l of [sc, sp, bl]) { await expect(l).toHaveAttribute('target', '_blank'); await expect(l).toHaveAttribute('rel', /noopener/); await expect(l.locator('svg')).toBeVisible(); }
   });
   test('la licencia de uso está a un toque, con el copyright y los puntos principales', async ({ page }) => {
     await page.goto(URL);

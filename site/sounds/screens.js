@@ -131,8 +131,10 @@ export function sampleRow(s, { onclick, trailing, listen = false } = {}) {
 export const SOUNDCLOUD = 'https://soundcloud.com/denavi-records', SPOTIFY = 'https://open.spotify.com/intl-es/artist/20XBfjC875fSJ0HzqENuFu?si=_tDSs5aeRTOXghriWRQJ8A';
 const ICON_SC = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="currentColor"><path d="M2 14.5v3M4.5 12.5v5M7 11v6.5M9.5 9.5v8h8.2a3.8 3.8 0 0 0 .6-7.55A5.5 5.5 0 0 0 9.5 9.5z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
 const ICON_SP = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor"/><g fill="none" stroke="var(--bg)" stroke-linecap="round"><path d="M6.6 9.2c3.6-1 7.5-.7 10.8 1.1" stroke-width="1.9"/><path d="M7.2 12.4c3-.8 6-.5 8.7 1" stroke-width="1.6"/><path d="M7.9 15.3c2.3-.6 4.5-.3 6.5.8" stroke-width="1.4"/></g></svg>';
+export const BLOG = 'https://cesanteilustrado.wordpress.com';
+const ICON_BLOG = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3z"/><path d="M13.5 8.5l3 3"/><path d="M12 20h8"/></svg>';
 const social = (href, label, svg) => { const a = h('a', { class: 'social', href, target: '_blank', rel: 'noopener noreferrer', 'aria-label': label, title: label }); a.innerHTML = svg; return a; };
-export const socialLinks = () => h('div', { class: 'social-row' }, social(SOUNDCLOUD, 'Denavi Records en SoundCloud', ICON_SC), social(SPOTIFY, 'Denavi Records en Spotify', ICON_SP));
+export const socialLinks = () => h('div', { class: 'social-row' }, social(SOUNDCLOUD, 'Denavi Records en SoundCloud', ICON_SC), social(SPOTIFY, 'Denavi Records en Spotify', ICON_SP), social(BLOG, 'Cesante Ilustrado, el blog de Rolando', ICON_BLOG));
 /** Licencia de uso: el texto breve, en una hoja. */
 export function openLicense() {
   sheet(close => h('div', { class: 'stack credits' },
@@ -146,8 +148,8 @@ export function openCredits() {
     h('div', { class: 'title-row' }, h('h2', {}, 'Créditos'), link('Cerrar', close)),
     h('div', { class: 'center' }, logo(72)),
     h('p', { class: 'center' }, 'DenaviLab: Sounds fue hecha por ', h('b', {}, 'Rolando Chaparro Gehren'), '.'),
-    muted('Denavi Records es su proyecto musical: ambient, jazz fusión japonés de los 70, electrónica experimental y soul, hecho con samplers y sonidos viejos. Esta app nació como la herramienta con la que captura y prepara esos sonidos, y está abierta para quien quiera usarla.'),
-    h('p', { class: 'center muted small' }, 'Escucha su música'),
+    muted('Denavi Records es su proyecto musical: ambient, jazz fusión japonés de los 70, electrónica experimental y soul, hecho con samplers y sonidos viejos. Esta app nació como la herramienta con la que captura y prepara esos sonidos, y está abierta para quien quiera usarla. En su blog, Cesante Ilustrado, va contando sobre los samples que toma.'),
+    h('p', { class: 'center muted small' }, 'Escucha su música y lee el blog'),
     socialLinks(),
     h('div', { class: 'center' }, link('Licencia de uso', () => { close(); setTimeout(openLicense, 250); })),
     app.user === 'invitado' ? h('div', { class: 'center' }, link('Entrar como autor', () => { close(); setTimeout(() => document.getElementById('btnLogin').click(), 250); })) : null));
