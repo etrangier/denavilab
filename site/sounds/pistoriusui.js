@@ -7,16 +7,17 @@ import { putSample, newSample } from './store.js';
 import { SOURCES, goalsFor, GOALS, analyze, advise, run } from './pistorius.js';
 import { pIcon } from './fxicons.js';
 import { openChop } from './chop.js';
+import * as mem from './pistoriusmem.js';
 
 const KEY = 'denavilab.sounds.pistorius';
-export const pistoriusOn = () => { try { return JSON.parse(localStorage.getItem(KEY)) === true; } catch (e) { return false; } };
+export const pistoriusOn = () => { try { return JSON.parse(localStorage.getItem(KEY)) !== false; } catch (e) { return true; } };       // encendido por defecto: solo se apaga si tú lo apagas
 export const setPistorius = v => { try { localStorage.setItem(KEY, JSON.stringify(!!v)); } catch (e) {} };
 
 /** Después de grabar: si el asistente está activo pregunta cómo seguir; si no, sigue con la edición convencional. */
 export function afterCapture(audio, rate, conventional, opts = {}) {
   if (!pistoriusOn()) return conventional();
   sheet(close => h('div', { class: 'stack' },
-    h('div', { class: 'title-row' }, h('div', {}, h('h2', {}, '¿Cómo seguimos?'), h('p', { class: 'muted small' }, 'Acabas de grabar ' + dsp.stamp(audio.length / rate))), link('Cerrar', close)),
+    h('div', { class: 'title-row' }, h('div', {}, h('h2', {}, '¿Cómo seguimos?'), h('p', { class: 'muted small' }, 'Acabas de grabar ' + dsp.stamp(audio.length / rate)), h('p', { class: 'muted tiny' }, mem.summary())), link('Cerrar', close)),
     h('div', { class: 'fxgrid two' },
       h('button', { type: 'button', class: 'fxtile big', 'data-act': 'convencional', onclick: () => { close(); setTimeout(conventional, 200); } }, pIcon('tijeras'), h('b', {}, 'Edición convencional'), h('span', { class: 'muted tiny' }, 'Nombre, carpeta y recorte, como siempre')),
       h('button', { type: 'button', class: 'fxtile big', 'data-act': 'asistente', onclick: () => { close(); setTimeout(() => openPistorius(audio, rate, opts), 200); } }, pIcon('asistente'), h('b', {}, 'Asistente Pistorius'), h('span', { class: 'muted tiny' }, 'Te pregunto qué grabaste y qué quieres hacer'))),
@@ -35,19 +36,19 @@ export function openPistorius(audio, rate, opts = {}) {
   const wave = (markers, region) => { const c = h('canvas', { class: 'wave small-wave', 'aria-label': 'Forma de onda con los cortes propuestos' }); setTimeout(() => drawBars(c, dsp.peaks(audio, 56), region && region.length === 2 ? region : [0, 1], null, null, markers || []), 30); return c; };
 
   const stepSource = () => [h('h2', {}, '¿Qué grabaste?'), muted('Con eso decido qué te sugiero primero.'),
-    h('div', { class: 'fxgrid two' }, SOURCES.map(s => tile(s.icon, s.label, null, () => { st.source = s.id; st.step = 'goal'; paint(); })))];
+    h('div', { class: 'fxgrid two' }, (rs => rs.list.map(s => tile(s.icon, s.label + (s.id === rs.top ? ' ★' : ''), s.id === rs.top ? 'Lo que sueles grabar' : null, () => { st.source = s.id; st.step = 'goal'; paint(); })))(mem.rankSources(SOURCES)))];
 
   const stepGoal = () => [h('div', { class: 'title-row' }, h('h2', {}, '¿Qué quieres hacer con ese sonido?'), link('‹ Atrás', () => { st.step = 'source'; paint(); })),
-    h('div', { class: 'fxgrid two' }, goalsFor(st.source).map((g, i) => tile(g.icon, g.label + (i === 0 ? ' ★' : ''), g.hint, () => { st.goal = g.id; st.step = 'guide'; st.an = null; paint(); setTimeout(() => { st.an = analyze(audio, rate); st.adv = advise(audio, rate, st.an, g.id); paint(); }, 40); })))];
+    h('div', { class: 'fxgrid two' }, (rg => rg.list.map((g, i) => tile(g.icon, g.label + (i === 0 ? ' ★' : ''), rg.top === g.id ? 'Lo que sueles hacer con esto' : g.hint, () => { st.goal = g.id; st.step = 'guide'; st.an = null; paint(); setTimeout(() => { st.an = analyze(audio, rate); st.adv = advise(audio, rate, st.an, g.id); paint(); }, 40); })))(mem.rankGoals(st.source, goalsFor(st.source))))];
 
   const apply = async (action, chopMode) => {
-    st.step = 'busy'; paint();
+    st.action = action; st.step = 'busy'; paint();
     setTimeout(async () => {
       try {
         if (action === 'chop') {
           const clean = run('limpiar', audio, rate, { source: st.source, base, analysis: st.an });
           const s = newSample(base + ' · para chop', clean.audio, rate, { folder: opts.folder || 'Sin clasificar', subfolder: opts.subfolder || null, status: 'procesado', origin: opts.origin || '', kind: 'libre', process: clean.process.concat('Pistorius: preparado para chopear'), bpm: st.an.bpm && st.an.bpm.confidence > 0.2 ? st.an.bpm.bpm : null });
-          await putSample(s, clean.audio); if (st.keepOrig && !opts.fromSample) await saveOriginal(); await refreshSamples(); stop(); close(); app.selectedId = s.id; toast('Guardado: abro Chop con el modo sugerido'); setTimeout(() => openChop(s, clean.audio, { mode: chopMode }), 250);
+          mem.record({ source: st.source, goal: st.goal, action: 'chop' }); await putSample(s, clean.audio); if (st.keepOrig && !opts.fromSample) await saveOriginal(); await refreshSamples(); stop(); close(); app.selectedId = s.id; toast('Guardado: abro Chop con el modo sugerido'); setTimeout(() => openChop(s, clean.audio, { mode: chopMode }), 250);
           return;
         }
         st.res = run(st.goal, audio, rate, { source: st.source, base, analysis: st.an }); st.name = st.res.name; st.step = 'result';
@@ -60,7 +61,7 @@ export function openPistorius(audio, rate, opts = {}) {
     const r = st.res; stop();
     try {
       const s = newSample(st.name.trim() || r.name, r.audio, rate, { folder: opts.folder || 'Sin clasificar', subfolder: opts.subfolder || null, status: 'procesado', origin: opts.origin || '', ...(r.kind !== 'libre' ? { kind: r.kind } : {}), tags: r.tags, process: r.process, bpm: r.bpm || null, key: r.note || null, comment: 'Hecho con el asistente Pistorius' });
-      await putSample(s, r.audio); if (st.keepOrig && !opts.fromSample) await saveOriginal(); await refreshSamples(); close(); app.selectedId = s.id; toast('Guardado: ' + s.name);
+      mem.record({ source: st.source, goal: st.goal, action: st.action || 'seguir' }); await putSample(s, r.audio); if (st.keepOrig && !opts.fromSample) await saveOriginal(); await refreshSamples(); close(); app.selectedId = s.id; toast('Guardado: ' + s.name);
       if (after === 'editar') go('editar'); else if (after === 'chop') setTimeout(() => openChop(s, r.audio, { mode: 0 }), 250); else app.render();
     } catch (e) { toast('No se pudo guardar (¿poco espacio?)'); }
   };
@@ -68,7 +69,7 @@ export function openPistorius(audio, rate, opts = {}) {
   const stepGuide = () => {
     const g = GOALS.find(x => x.id === st.goal), a = st.an, ad = st.adv;
     if (!ad) return [h('div', { class: 'title-row' }, h('h2', {}, g.label), link('‹ Atrás', () => { st.step = 'goal'; paint(); })), muted('Escuchando tu sonido…', 'center')];
-    const alt = [];
+    const alt = [], usual = mem.usualAction(st.goal);
     if (ad.action !== 'cortar') alt.push(btn('Cortar un solo fragmento', { small: true, act: 'p-cortar', onclick: () => apply('cortar') }));
     if (ad.action !== 'chop') { alt.push(btn('Chopear por golpes', { small: true, act: 'p-chop-golpes', onclick: () => apply('chop', 0) })); alt.push(btn('Chopear por notas', { small: true, act: 'p-chop-notas', onclick: () => apply('chop', -2) })); }
     return [h('div', { class: 'title-row' }, h('h2', {}, g.label), link('‹ Atrás', () => { st.step = 'goal'; paint(); })),
@@ -76,6 +77,7 @@ export function openPistorius(audio, rate, opts = {}) {
       card([label('Mi sugerencia'), h('b', {}, ad.title), ...ad.why.map(t => h('p', { class: 'small' }, t)),
         h('details', {}, h('summary', {}, 'En qué me baso'), ad.refs.map(t => h('p', { class: 'muted tiny' }, t)))], true),
       btn(ad.action === 'chop' ? 'Seguir: guardar y abrir Chop' : 'Seguir la sugerencia', { kind: 'amber', act: 'p-seguir', onclick: () => apply(ad.action === 'loop' ? 'cortar' : ad.action, ad.chopMode) }),
+      usual && usual !== (ad.action === 'loop' ? 'cortar' : ad.action) ? h('p', { class: 'muted small', 'data-act': 'p-habitual' }, 'Con esta meta sueles preferir ' + (usual === 'chop' ? 'chopear' : 'cortar un solo fragmento') + ': lo tienes en «Otra opción».') : null,
       alt.length ? h('div', { class: 'stack tight' }, label('Otra opción'), h('div', { class: 'wrap' }, alt)) : null];
   };
 

@@ -11,6 +11,7 @@ const abrir = async (page, quien = 'rolando', extra = {}) => {
     try {
       localStorage.setItem('denavilab.sesion', q);
       localStorage.setItem('denavilab.sounds.onboarded', '1');
+      localStorage.setItem('denavilab.sounds.pistorius', 'false');          // el asistente viene encendido de fábrica; las pruebas viejas parten sin él (las del asistente lo encienden o lo dejan de fábrica con '')
       localStorage.setItem('denavilab.sounds.captureMode', '"libre"');      // las pruebas viejas guardan la toma tal cual; el modo materia prima tiene las suyas
       for (const [k, v] of Object.entries(ex)) localStorage.setItem(k, v);
     } catch (e) {}
@@ -2487,7 +2488,7 @@ test.describe('asistente Pistorius: qué grabaste, qué quieres hacer y si corta
     expect(q.sola.action).toBe('cortar'); expect(q.varias.action).toBe('chop'); expect(q.varias.chopMode).toBe(-2); expect(q.acordes.chopMode).toBe(-2); expect(q.pad.action).toBe('cortar'); expect(q.pad.title).toContain('sin chop');
     expect(q.golpe.action).toBe('cortar'); expect(q.limpiar.action).toBe('cortar'); expect(q.varias.refs.join(' ')).toContain('Wang'); expect(q.sola.refs.join(' ')).toContain('Russ'); expect(q.varias.why.length).toBeGreaterThan(0);
   });
-  test('desactivado por defecto: grabar sigue como siempre; activado pregunta, y el asistente guía hasta guardar el resultado y la toma original', async ({ page }) => {
+  test('apagado: grabar sigue como siempre; encendido pregunta, y el asistente guía hasta guardar el resultado y la toma original', async ({ page }) => {
     await abrir(page, 'rolando');
     const toma = `Float32Array.from({ length: 48000 * 3 }, (_, i) => { const t = i / 48000; return 0.3 * Math.min(1, t / 0.005) * Math.exp(-t * 1.2) * (Math.sin(2 * Math.PI * 110 * t) + Math.sin(2 * Math.PI * 220 * t) / 2); })`;
     await page.evaluate(`(async () => { const s = await import('/sounds/screens.js'); window.__take = ${toma}; s.finishTake(window.__take); })()`);
@@ -2609,5 +2610,40 @@ test.describe('restaurar: crujidos de vinilo, zumbido y fade-out largo', () => {
     await sh.getByRole('button', { name: 'Guardar como crudo' }).click(); await expect(page.locator('#toast')).toContainText('Guardada como crudo');
     const fin = await page.evaluate(async () => { const st = await import('/sounds/store.js'), s = (await st.listSamples())[0], a = await st.getAudio(s.id); let e = 0; for (let i = a.length - 2400; i < a.length; i++) e += a[i] ** 2; let c = 0; for (let i = 24000; i < 26400; i++) c += a[i] ** 2; return Math.sqrt(e / c); });
     expect(fin).toBeLessThan(0.1);
+  });
+});
+
+test.describe('Pistorius: encendido de fábrica y memoria de lo que eliges', () => {
+  const toma = `Float32Array.from({ length: 48000 * 3 }, (_, i) => { const t = i / 48000; return 0.3 * Math.min(1, t / 0.005) * Math.exp(-t * 1.2) * (Math.sin(2 * Math.PI * 110 * t) + Math.sin(2 * Math.PI * 220 * t) / 2); })`;
+  const grabar = page => page.evaluate(`(async () => { const s = await import('/sounds/screens.js'); window.__take = window.__take || ${toma}; s.finishTake(window.__take); })()`);
+  test('de fábrica, al terminar de grabar pregunta convencional o asistente; si lo apagas, no vuelve a preguntar', async ({ page }) => {
+    await abrir(page, 'rolando', { 'denavilab.sounds.pistorius': '' });          // sin valor guardado = de fábrica
+    await grabar(page);
+    const sh = page.locator('dialog.sheet'); await expect(sh.getByRole('heading', { name: '¿Cómo seguimos?' })).toBeVisible();
+    await expect(sh.getByText('Pistorius aún no te conoce')).toBeVisible();
+    await sh.getByRole('button', { name: 'Apagar el asistente' }).click(); await expect(page.locator('dialog.sheet').getByRole('heading', { name: 'Guardar grabación' })).toBeVisible();
+    await page.keyboard.press('Escape'); await grabar(page); await expect(page.locator('dialog.sheet').getByRole('heading', { name: 'Guardar grabación' })).toBeVisible();
+  });
+  test('aprende: tras elegir lo mismo dos veces pone al frente el tipo de sonido y la meta que sueles usar, y recuerda la acción habitual', async ({ page }) => {
+    await abrir(page, 'rolando', { 'denavilab.sounds.pistorius': '' });
+    const q = await page.evaluate(async () => { const M = await import('/sounds/pistoriusmem.js'), P = await import('/sounds/pistorius.js'); M.forget();
+      const antes = [M.rankSources(P.SOURCES).top, M.rankGoals('instrumento', P.goalsFor('instrumento')).top, M.usualAction('pad')];
+      M.record({ source: 'ambiente', goal: 'pad', action: 'cortar' }); const uno = M.rankGoals('ambiente', P.goalsFor('ambiente')).top;
+      M.record({ source: 'ambiente', goal: 'pad', action: 'chop' }); M.record({ source: 'ambiente', goal: 'pad', action: 'chop' });
+      const g = P.goalsFor('naturaleza'); M.record({ source: 'naturaleza', goal: 'golpe', action: 'cortar' }); M.record({ source: 'naturaleza', goal: 'golpe', action: 'cortar' });
+      const rg = M.rankGoals('naturaleza', g);
+      return { antes, uno, src: M.rankSources(P.SOURCES).list[0].id, top: M.rankSources(P.SOURCES).top, goal1: rg.list[0].id, goalTop: rg.top, usual: M.usualAction('pad'), sum: M.summary(), n: M.load().n, olvidado: (M.forget(), M.load().n) }; });
+    expect(q.antes).toEqual([null, null, null]); expect(q.uno).toBeNull();                       // con un solo ejemplo todavía no reordena
+    expect(q.src).toBe('ambiente'); expect(q.top).toBe('ambiente'); expect(q.goal1).toBe('golpe'); expect(q.goalTop).toBe('golpe');
+    expect(q.usual).toBe('chop'); expect(q.sum).toContain('5 sonidos'); expect(q.olvidado).toBe(0);
+  });
+  test('en el asistente se ve lo aprendido: la meta habitual lleva ★ con «Lo que sueles hacer con esto»', async ({ page }) => {
+    await abrir(page, 'rolando', { 'denavilab.sounds.pistorius': '' });
+    await page.evaluate(async () => { const M = await import('/sounds/pistoriusmem.js'); M.forget(); for (let i = 0; i < 2; i++) M.record({ source: 'instrumento', goal: 'bajo', action: 'cortar' }); });
+    await grabar(page);
+    const sh = page.locator('dialog.sheet'); await sh.getByRole('button', { name: /Asistente Pistorius/ }).click();
+    await expect(sh.locator('.fxtile.big').first()).toContainText('Lo que sueles grabar');
+    await sh.getByRole('button', { name: /Un instrumento/ }).click();
+    await expect(sh.locator('.fxtile.big').first()).toContainText('Bajo'); await expect(sh.locator('.fxtile.big').first()).toContainText('Lo que sueles hacer con esto');
   });
 });

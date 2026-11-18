@@ -24,7 +24,7 @@ struct RecordView: View {
     @State private var showQuick = false
     @State private var showManual = false
     @State private var showOpts = false
-    @AppStorage("pistorius") private var pistorius = false         // asistente Pistorius: pregunta después de grabar
+    @AppStorage("pistorius") private var pistorius = true          // asistente Pistorius: pregunta después de grabar (encendido de fábrica)
     @State private var askTake: Take?
     @State private var assistTake: Take?
     @AppStorage("tuner") private var tuner = true                 // afinador en vivo
@@ -67,7 +67,8 @@ struct RecordView: View {
                     Text(koPrep ? "WAV · 16 bit · mono · 46 875 Hz · listo para el K.O. II" : "WAV · 16 bit · mono · \(rec.sampleRate) Hz").font(Theme.font(13)).foregroundColor(Theme.muted).frame(maxWidth: .infinity)
                     DisclosureGroup(isExpanded: $showOpts) {
                         VStack(spacing: 12) {
-                            ToggleRow(title: "Asistente Pistorius", subtitle: "Después de grabar te pregunta si sigues con la edición convencional o con el asistente", isOn: $pistorius)
+                            ToggleRow(title: "Asistente Pistorius", subtitle: "Después de grabar te pregunta si sigues con la edición convencional o con el asistente, y aprende de lo que eliges", isOn: $pistorius)
+                            HStack { Text(PistoriusMemory.summary(PistoriusMemory.load())).font(Theme.font(12)).foregroundColor(Theme.muted); Spacer(); TextLink(title: "Olvidar") { PistoriusMemory.forget() } }
                             ToggleRow(title: "Afinador en vivo", subtitle: "Muestra la nota que suena y cuántos cents le faltan, con modo ukelele y guitarra", isOn: $tuner)
                             ToggleRow(title: "Dejar listo para el K.O. II", subtitle: "46 875 Hz, mono, 16 bit y volumen nivelado al guardar", isOn: $koPrep)
                             Text("Entrada · Micrófono del iPhone").font(Theme.font(14, weight: .medium)).foregroundColor(Theme.text).card()
