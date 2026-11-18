@@ -13,6 +13,8 @@ struct RecordView: View {
     @EnvironmentObject var met: Metronome
     @EnvironmentObject var state: AppState
     @State private var take: Take?
+    @State private var pulse = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var materiaTake: Take?
     @State private var tempoBusy = false
     @State private var tempoLeft = 0
@@ -349,9 +351,16 @@ struct RecordView: View {
             } label: {
                 ZStack {
                     if firstTime { Circle().stroke(Theme.amber.opacity(0.25), lineWidth: 10).frame(width: 112, height: 112) }
-                    Circle().stroke(Theme.amber, lineWidth: 4).frame(width: 96, height: 96)
-                    if recording { RoundedRectangle(cornerRadius: 10).fill(Theme.amber).frame(width: 40, height: 40) }
+                    if recording && Theme.palette != .clasico {
+                        Circle().stroke(Theme.error.opacity(pulse ? 0.10 : 0.30), lineWidth: pulse ? 16 : 8).frame(width: 112, height: 112)
+                    }
+                    Circle().stroke(recording && Theme.palette != .clasico ? Theme.error : Theme.amber, lineWidth: 4).frame(width: 96, height: 96)
+                    if recording { RoundedRectangle(cornerRadius: 10).fill(Theme.palette != .clasico ? Theme.error : Theme.amber).frame(width: 40, height: 40) }
                     else { Circle().fill(Theme.amber).frame(width: 72, height: 72) }
+                }
+                .onChange(of: recording) { on in
+                    guard !reduceMotion else { pulse = false; return }
+                    if on { withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) { pulse = true } } else { withAnimation(.default) { pulse = false } }
                 }
             }
             .accessibilityLabel(recording ? "Parar grabación" : "Grabar")

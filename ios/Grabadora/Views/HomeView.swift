@@ -6,6 +6,7 @@ struct HomeView: View {
     @EnvironmentObject var state: AppState
     @EnvironmentObject var met: Metronome
     @State private var showManual = false
+    @AppStorage("theme") private var themeRaw = "atardecer"
 
     private var version: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0" }
     /// Número de compilación (el de la ejecución de GitHub que generó el .ipa): sirve para saber de un vistazo si la app instalada es la última.
@@ -25,6 +26,12 @@ struct HomeView: View {
                     shortcut("Manual", detail: "Glosario técnico", icon: "book.fill") { showManual = true }
                 }
                 if !lib.samples.isEmpty { recents }
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionLabel("Apariencia")
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 8)], alignment: .leading, spacing: 8) {
+                        ForEach(Palette.allCases) { p in Chip(title: p.label, selected: p.rawValue == themeRaw) { themeRaw = p.rawValue } }
+                    }
+                }.card()
                 Text("Beta \(version) · compilación \(build) · Desarrollado por: Rolando Chaparro Gehren")
                     .font(Theme.font(11)).foregroundColor(Theme.muted).multilineTextAlignment(.center).padding(.top, 6)
             }

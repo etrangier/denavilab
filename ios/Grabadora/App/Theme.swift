@@ -1,16 +1,38 @@
 import SwiftUI
 
-/// Negro con blanco y matices de gris. `amber` es el color de acento y ahora es blanco; se conserva el nombre para no tocar toda la app.
+/// Apariencias: Atardecer (de fábrica, sale del icono), Cinta y madera, Solo movimiento y Clásico (negro y gris). `amber` es el color de acento: se conserva el nombre para no tocar toda la app.
+enum Palette: String, CaseIterable, Identifiable {
+    case atardecer, cinta, movimiento, clasico
+    var id: String { rawValue }
+    nonisolated var label: String { switch self { case .atardecer: return "Atardecer"; case .cinta: return "Cinta y madera"; case .movimiento: return "Solo movimiento"; case .clasico: return "Clásico" } }
+}
+
 enum Theme {
-    static let bg = Color(hex: 0x000000)
-    static let surface = Color(hex: 0x0d0d0d)
-    static let surface2 = Color(hex: 0x1a1a1a)
-    static let line = Color(hex: 0x3a3a3a)
-    static let text = Color(hex: 0xf2f2f2)
-    static let muted = Color(hex: 0x9a9a9a)
-    static let amber = Color(hex: 0xffffff)
-    static let ink = Color(hex: 0x000000)
-    static let error = Color(hex: 0xff6b6b)
+    nonisolated static var palette: Palette { Palette(rawValue: UserDefaults.standard.string(forKey: "theme") ?? "") ?? .atardecer }
+    private static func pick(_ a: UInt32, _ c: UInt32, _ m: UInt32, _ k: UInt32) -> Color {
+        switch palette { case .atardecer: return Color(hex: a); case .cinta: return Color(hex: c); case .movimiento: return Color(hex: m); case .clasico: return Color(hex: k) }
+    }
+    static var bg: Color { pick(0x0d1311, 0x17100b, 0x000000, 0x000000) }
+    static var surface: Color { pick(0x141c19, 0x221810, 0x0d0d0d, 0x0d0d0d) }
+    static var surface2: Color { pick(0x1e2a26, 0x2e2116, 0x1a1a1a, 0x1a1a1a) }
+    static var line: Color { pick(0x31403a, 0x4a3628, 0x3a3a3a, 0x3a3a3a) }
+    static var text: Color { pick(0xf4ede1, 0xf1e3c8, 0xf2f2f2, 0xf2f2f2) }
+    static var muted: Color { pick(0x9aa89f, 0xa8927a, 0x9a9a9a, 0x9a9a9a) }
+    static var amber: Color { pick(0xf2a65a, 0xe3a43a, 0xffffff, 0xffffff) }
+    static var ink: Color { pick(0x1c1208, 0x1a1208, 0x000000, 0x000000) }
+    static var error: Color { pick(0xff7a6b, 0xef6a4f, 0xff6b6b, 0xff6b6b) }
+    /// Lo que está bien: «en tono» en el afinador.
+    static var ok: Color { pick(0x8fd8c3, 0xb9d27a, 0x5fe0a8, 0x9ad9a0) }
+    /// Franja de color por tipo de sonido (solo en los temas con color).
+    static func kindColor(_ kind: String?) -> Color {
+        if palette == .clasico || palette == .movimiento { return Color.clear }
+        switch kind ?? "libre" {
+        case "textura": return pick(0x7fb5ab, 0xb9d27a, 0, 0)
+        case "bajo": return pick(0xf2a65a, 0xe3a43a, 0, 0)
+        case "bateria": return pick(0xc98a9a, 0xef6a4f, 0, 0)
+        default: return pick(0xd8c26a, 0x8fb0c8, 0, 0)
+        }
+    }
 
     /// Ubuntu (incluida en Fonts/); si faltara, SwiftUI usa la del sistema.
     static func font(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
