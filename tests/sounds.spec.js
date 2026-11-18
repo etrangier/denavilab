@@ -2707,6 +2707,6 @@ test.describe('apariencia y Editar minimalista', () => {
     for (const n of ['Recortar', 'Fundido', 'Abrir la cadena de efectos', 'Abrir el asistente']) await expect(sc.getByRole('button', { name: n, exact: true })).toBeVisible();
     for (const n of ['Normalizar', 'Nivelar volumen', 'Scratchear', 'Hacer loop continuo', 'Abrir el laboratorio']) await expect(sc.getByRole('button', { name: n })).toBeHidden();
     await sc.getByText('Más herramientas').click(); await expect(sc.getByRole('button', { name: 'Normalizar' })).toBeVisible(); await expect(sc.getByRole('button', { name: 'Abrir el laboratorio' })).toBeVisible();
-    expect(await page.evaluate(() => localStorage.getItem('denavilab.sounds.editMore'))).toBe('true');
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('denavilab.sounds.editMore'))).toBe('true');       // el evento «toggle» llega un instante después
   });
 });
