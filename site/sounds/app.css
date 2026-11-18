@@ -298,3 +298,4 @@ details.more[open] { padding-bottom: 14px; } details.more[open] > summary { bord
 .credits-row { margin-top: 2px; }
 .social-row { display: flex; justify-content: center; gap: 14px; } .social { width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid var(--line); color: var(--text); display: grid; place-items: center; transition: border-color .2s, color .2s; } .social:hover, .social:focus-visible { border-color: var(--amber); color: var(--amber); }
 .credits h2 { font-size: 20px; }
+.center > .logo-img { margin: 0 auto; }
