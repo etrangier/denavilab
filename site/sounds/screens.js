@@ -13,6 +13,7 @@ import { openLab } from './lab.js';
 import { listenTempo, confidenceLabel, bpmAlternatives, LISTEN_SECONDS } from './tempo.js';
 import { openMateria, TAKE_SECONDS } from './materia.js';
 import { koPrepOn, setKoPrep, koPrepare, KO_RATE } from './koprep.js';
+import { detect as tunerDetect, smoother as tunerSmoother, PRESETS as TUNER_PRESETS } from './tuner.js';
 import { pistoriusOn, setPistorius, afterCapture } from './pistoriusui.js';
 import { KO_RATES, KO_DEFAULTS, koOpts, koPlan, buildKoBatch, LONG_FADE_MS } from './koexport.js';
 
@@ -197,6 +198,22 @@ export function renderRecord(root) {
 
   const levelFill = h('div', { class: 'meter-fill' }), db = h('span', { class: 'amber small' }, '—');
   const wave = h('canvas', { class: 'wave', 'aria-label': 'Forma de onda en vivo' });
+  const tunerOn = ls.get('tuner', true), tunerPreset = ls.get('tunerPreset', 'cromatico'), tSm = tunerSmoother();
+  const tNote = h('b', { class: 'tn-note' }, '—'), tInfo = h('span', { class: 'muted small tn-info' }, 'Toca una nota'), tNeedle = h('i', { class: 'tn-needle' });
+  const tunerCard = !tunerOn ? null : card([
+    h('div', { class: 'sr-head' }, h('span', { class: 'muted small' }, 'Afinador'),
+      h('span', { class: 'wrap tn-presets', role: 'group', 'aria-label': 'Afinación' }, Object.entries(TUNER_PRESETS).map(([k, v]) => chip(v.label, tunerPreset === k, () => { ls.set('tunerPreset', k); app.render(); })))),
+    h('div', { class: 'tn-row', 'data-tuner': '' }, tNote, h('div', { class: 'tn-gauge' }, h('i', { class: 'tn-mid' }), tNeedle), tInfo)]);
+  let tAt = 0;
+  const paintTuner = () => {
+    if (!tunerOn || performance.now() - tAt < 200) return; tAt = performance.now();
+    const r = tSm.push(e.state === 'idle' ? null : tunerDetect(e.lastSamples(Math.round(e.rate * 0.35)), e.rate, tunerPreset));
+    if (!r) { tNote.textContent = '—'; tInfo.textContent = 'Toca una nota'; tNeedle.style.left = '50%'; tNote.classList.remove('ok'); return; }
+    const c = r.stringCents != null ? r.stringCents : r.cents, ok = Math.abs(c) <= 5, sg = c > 0 ? '+' : '';
+    tNote.textContent = r.string || r.note; tNote.classList.toggle('ok', ok);
+    tInfo.textContent = (ok ? 'en tono · ' : '') + sg + Math.round(c) + ' cents' + (r.string ? ' · escucho ' + r.note : '') + ' · ' + r.f0.toFixed(1) + ' Hz';
+    tNeedle.style.left = (50 + Math.max(-50, Math.min(50, c)) ) + '%';
+  };
   const waveCard = h('div', { class: 'card wave-card' }, wave,
     h('p', { class: 'muted center wave-hint' }, 'Toca el botón para grabar tu primer sample'));
   const timer = h('div', { class: 'timer' }, '00:00.00');
@@ -227,7 +244,7 @@ export function renderRecord(root) {
     denied,
     denied ? null : [
       card([h('div', { class: 'sr-head' }, h('span', { class: 'muted small' }, 'Nivel'), db), h('div', { class: 'meter' }, levelFill)]),
-      waveCard, timer, dots, notice, buffer,
+      tunerCard, waveCard, timer, dots, notice, buffer,
       first ? h('div', { class: 'center' }, h('span', { class: 'pill static' }, '↓ Empieza aquí')) : null,
       h('div', { class: 'controls' },
         side('Escuchar', '🎧', e.monitoring, () => e.setMonitoring(!e.monitoring)),
@@ -237,6 +254,7 @@ export function renderRecord(root) {
       h('details', { class: 'rec-opts', open: recOpts.open ? '' : null, ontoggle: e => { recOpts.open = e.target.open; } }, h('summary', {}, 'Ajustes de captura · ', captureMode() === 'materia' ? 'materia prima' : 'captura libre', ' · ', dsp.SOUND_KINDS[kind].label.toLowerCase()),
         h('div', { class: 'stack tight' },
           toggleRow('Asistente Pistorius', 'Después de grabar te pregunta si sigues con la edición convencional o con el asistente', pistoriusOn(), v => { setPistorius(v); app.render(); }),
+          toggleRow('Afinador en vivo', 'Muestra la nota que suena y cuántos cents le faltan, con modo ukelele y guitarra', tunerOn, v => { ls.set('tuner', v); app.render(); }),
           app.ko2 ? toggleRow('Dejar listo para el K.O. II', '46 875 Hz, mono, 16 bit y volumen nivelado al guardar', koPrepOn(), v => { setKoPrep(v); app.render(); }) : null,
           card([h('b', {}, 'Entrada · Micrófono del dispositivo')]),
           card([h('b', {}, 'Modo de captura'),
@@ -267,6 +285,7 @@ export function renderRecord(root) {
 
   let raf = 0;
   const paint = () => {
+    paintTuner();
     levelFill.style.width = Math.round(Math.min(1, e.level) * 100) + '%';
     levelFill.classList.toggle('clip', e.clipped);
     db.textContent = e.state === 'idle' ? '—' : (e.level > 0.0001 ? Math.round(20 * Math.log10(e.level)) : -60) + ' dB';

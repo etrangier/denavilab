@@ -1438,4 +1438,26 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(FxChain.presets.count, 5)
         for p in FxChain.presets { XCTAssertTrue(FxChain.apply(p.chain, x, rate: rate).allSatisfy { $0.isFinite }, p.name) }
     }
+
+    // MARK: afinador en vivo
+    func testTunerReadsNoteCentsAndNearestString() {
+        let rate = 48_000
+        func tone(_ f: Double, _ cents: Double) -> [Float] {
+            (0..<Int(0.4 * Double(rate))).map { i in
+                var v = 0.0
+                for k in 1...4 { v += sin(2 * .pi * f * pow(2, cents / 1200) * Double(k) * Double(i) / Double(rate)) / Double(k) }
+                return Float(0.3 * v)
+            }
+        }
+        let a = Tuner.detect(tone(261.63, 20), rate: rate, preset: .ukelele)
+        XCTAssertEqual(a?.note, "Do4"); XCTAssertEqual(a?.string, "Do4")
+        XCTAssertEqual(a?.cents ?? 0, 20, accuracy: 3); XCTAssertEqual(a?.stringCents ?? 0, 20, accuracy: 3)
+        let g = Tuner.detect(tone(82.41, 10), rate: rate, preset: .guitarra)
+        XCTAssertEqual(g?.note, "Mi2"); XCTAssertEqual(g?.string, "Mi2")
+        XCTAssertNil(Tuner.detect([Float](repeating: 0, count: rate), rate: rate))
+        var sm = Tuner.Smoother()
+        XCTAssertEqual(sm.push(a)?.title, "Do4")
+        XCTAssertNotNil(sm.push(nil))                      // se mantiene un momento al callar
+        XCTAssertNil(sm.push(nil, now: Date().addingTimeInterval(2)))
+    }
 }

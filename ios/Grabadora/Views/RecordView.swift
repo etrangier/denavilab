@@ -27,6 +27,7 @@ struct RecordView: View {
     @AppStorage("pistorius") private var pistorius = false         // asistente Pistorius: pregunta después de grabar
     @State private var askTake: Take?
     @State private var assistTake: Take?
+    @AppStorage("tuner") private var tuner = true                 // afinador en vivo
     @AppStorage("koPrep") private var koPrep = true               // listo para el K.O. II: 46 875 Hz y volumen nivelado
     @AppStorage("firstTakeDismissed") private var firstTakeDismissed = false
     @Environment(\.scenePhase) private var scenePhase
@@ -53,6 +54,7 @@ struct RecordView: View {
                 }
                 if rec.micDenied { deniedCard } else {
                     levelCard
+                    if tuner { TunerCard() }
                     waveCard
                     Text(timerText).font(Theme.font(44, weight: .bold)).foregroundColor(recording ? Theme.text : Theme.muted)
                         .monospacedDigit()
@@ -66,6 +68,7 @@ struct RecordView: View {
                     DisclosureGroup(isExpanded: $showOpts) {
                         VStack(spacing: 12) {
                             ToggleRow(title: "Asistente Pistorius", subtitle: "Después de grabar te pregunta si sigues con la edición convencional o con el asistente", isOn: $pistorius)
+                            ToggleRow(title: "Afinador en vivo", subtitle: "Muestra la nota que suena y cuántos cents le faltan, con modo ukelele y guitarra", isOn: $tuner)
                             ToggleRow(title: "Dejar listo para el K.O. II", subtitle: "46 875 Hz, mono, 16 bit y volumen nivelado al guardar", isOn: $koPrep)
                             Text("Entrada · Micrófono del iPhone").font(Theme.font(14, weight: .medium)).foregroundColor(Theme.text).card()
                             modeCard

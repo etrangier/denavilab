@@ -234,3 +234,12 @@ details.rec-opts[open] > summary { color: var(--text); }
 .fxtile.big .muted { font-size: 11px; line-height: 1.25; }
 .fxi.big { width: 32px; }
 .steps { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+
+.tn-row{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:center;margin-top:8px}
+.tn-note{font-size:2rem;line-height:1;min-width:3.4ch}
+.tn-note.ok{color:var(--ok,#7bd88f)}
+.tn-gauge{position:relative;height:10px;border-radius:5px;background:var(--line,#2a2a2a)}
+.tn-mid{position:absolute;left:50%;top:-3px;bottom:-3px;width:2px;background:currentColor;opacity:.5}
+.tn-needle{position:absolute;top:-4px;width:4px;height:18px;margin-left:-2px;border-radius:2px;background:var(--amber,#e8a33d);left:50%;transition:left .15s}
+.tn-info{grid-column:1/-1}
+.tn-presets{gap:4px}
