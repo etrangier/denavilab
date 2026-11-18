@@ -7,7 +7,8 @@ struct ChopSheet: View {
     let audio: [Float]
     @EnvironmentObject var lib: LibraryStore
     @Environment(\.dismiss) private var dismiss
-    @State private var mode = 8            // 4, 8, 12 o 0 = automático
+    var initialMode: Int? = nil
+    @State private var mode = 8            // 4, 8, 12, 0 = golpes o -2 = notas
     @State private var sensitivity = 0.5
     @State private var selected: Set<Int> = []     // cortes elegidos (0 = el primero)
     @State private var player: AVAudioPlayer?
@@ -108,7 +109,7 @@ struct ChopSheet: View {
             }
         }
         .sheet(isPresented: $showShare) { ShareSheet(items: sharing) }
-        .onAppear { peaks = Editing.peaks(audio, buckets: 56); bpm = sample.bpm ?? Editing.estimateBPM(audio, rate: sample.sampleRate)?.bpm; recompute() }
+        .onAppear { if let m = initialMode { mode = m }; peaks = Editing.peaks(audio, buckets: 56); bpm = sample.bpm ?? Editing.estimateBPM(audio, rate: sample.sampleRate)?.bpm; recompute() }
         .onChange(of: grid) { _ in recompute() }
         .onChange(of: mode) { _ in recompute() }
         .onChange(of: sensitivity) { _ in recompute() }

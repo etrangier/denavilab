@@ -29,3 +29,31 @@ export function fxIcon(id) {
   return s;
 }
 export const FX_ICON_IDS = Object.keys(P);
+
+// Iconos del asistente Pistorius (mismo trazo de línea que los de los efectos).
+const Q = {
+  musica: '<path d="M9 18V6l10-2v12"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="16" r="2"/>',
+  instrumento: '<path d="M14 4l6 6M16 8l-8 8"/><circle cx="7" cy="17" r="3.5"/><path d="M19 3l2 2"/>',
+  cine: '<rect x="3" y="9" width="18" height="11" rx="1.5"/><path d="M3 9l3-5h4l-3 5M10 9l3-5h4l-3 5"/>',
+  voz: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+  naturaleza: '<path d="M5 19c0-9 5-14 15-14 0 10-5 15-14 15"/><path d="M5 19c3-5 6-8 10-10"/>',
+  ambiente: '<path d="M3 12c2-6 4-6 6 0s4 6 6 0 4-6 6 0"/>',
+  otro: '<circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/>',
+  teclado: '<rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M8 6v12M13 6v12M18 6v12"/><rect x="6.5" y="6" width="3" height="7" fill="currentColor"/><rect x="11.5" y="6" width="3" height="7" fill="currentColor"/>',
+  bateria: '<ellipse cx="12" cy="14" rx="8" ry="3.5"/><path d="M4 14v4c0 2 3.5 3.5 8 3.5s8-1.5 8-3.5v-4M5 4l6 7M19 4l-6 7"/>',
+  golpe: '<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>',
+  acorde: '<circle cx="8" cy="16" r="2"/><circle cx="14" cy="12" r="2"/><circle cx="19" cy="7" r="2"/><path d="M10 16V7M16 12V4"/>',
+  bajo: '<path d="M3 8c2 0 3 8 5 8s3-8 5-8 3 8 5 8"/><path d="M12 19v2M10 20l2 2 2-2"/>',
+  nota: '<path d="M10 17V5l8-2v12"/><circle cx="8" cy="17" r="2.2"/><circle cx="16" cy="15" r="2.2"/>',
+  frase: '<path d="M4 5h16v11H11l-4 4v-4H4z"/><path d="M8 9h8M8 12h5"/>',
+  limpiar: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/>',
+  cuerda: '<path d="M15 3l6 6-3 1-2 2-1-1-6 6a3 3 0 1 1-4-4l6-6-1-1 2-2z"/><circle cx="7.5" cy="16.5" r="1"/><path d="M16 8l-5 5"/>',
+  asistente: '<path d="M12 3l2.4 5 5.6.7-4.1 3.9 1 5.6L12 15.5 7.1 18.2l1-5.6L4 8.7 9.6 8z"/>',
+  tijeras: '<circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><path d="M8 8.5L20 18M8 15.5L20 6"/>',
+};
+/** Icono del asistente por nombre. */
+export function pIcon(name) {
+  const s = document.createElement('span'); s.className = 'fxi big'; s.setAttribute('aria-hidden', 'true');
+  s.innerHTML = `<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${Q[name] || Q.otro}</svg>`;
+  return s;
+}

@@ -24,6 +24,11 @@ struct RecordView: View {
     @State private var showQuick = false
     @State private var showManual = false
     @State private var showOpts = false
+    @AppStorage("pistorius") private var pistorius = false         // asistente Pistorius: pregunta después de grabar
+    @State private var askTake: Take?
+    @State private var assistTake: Take?
+    @AppStorage("tuner") private var tuner = true                 // afinador en vivo
+    @AppStorage("koPrep") private var koPrep = true               // listo para el K.O. II: 46 875 Hz y volumen nivelado
     @AppStorage("firstTakeDismissed") private var firstTakeDismissed = false
     @Environment(\.scenePhase) private var scenePhase
     @State private var savedNote: String?
@@ -49,6 +54,7 @@ struct RecordView: View {
                 }
                 if rec.micDenied { deniedCard } else {
                     levelCard
+                    if tuner { TunerCard() }
                     waveCard
                     Text(timerText).font(Theme.font(44, weight: .bold)).foregroundColor(recording ? Theme.text : Theme.muted)
                         .monospacedDigit()
@@ -58,9 +64,12 @@ struct RecordView: View {
                     if firstTime { Text("↓ Empieza aquí").font(Theme.font(13, weight: .bold)).foregroundColor(Theme.amber)
                         .padding(.horizontal, 14).frame(minHeight: 32).overlay(Capsule().stroke(Theme.amber, lineWidth: 1.5)) }
                     controls
-                    Text("WAV · 16 bit · mono · 46 875 Hz").font(Theme.font(13)).foregroundColor(Theme.muted).frame(maxWidth: .infinity)
+                    Text(koPrep ? "WAV · 16 bit · mono · 46 875 Hz · listo para el K.O. II" : "WAV · 16 bit · mono · \(rec.sampleRate) Hz").font(Theme.font(13)).foregroundColor(Theme.muted).frame(maxWidth: .infinity)
                     DisclosureGroup(isExpanded: $showOpts) {
                         VStack(spacing: 12) {
+                            ToggleRow(title: "Asistente Pistorius", subtitle: "Después de grabar te pregunta si sigues con la edición convencional o con el asistente", isOn: $pistorius)
+                            ToggleRow(title: "Afinador en vivo", subtitle: "Muestra la nota que suena y cuántos cents le faltan, con modo ukelele y guitarra", isOn: $tuner)
+                            ToggleRow(title: "Dejar listo para el K.O. II", subtitle: "46 875 Hz, mono, 16 bit y volumen nivelado al guardar", isOn: $koPrep)
                             Text("Entrada · Micrófono del iPhone").font(Theme.font(14, weight: .medium)).foregroundColor(Theme.text).card()
                             modeCard
                             kindCard
@@ -93,6 +102,13 @@ struct RecordView: View {
             finish(a)
         }
         .sheet(item: $take) { t in SaveSheet(take: t) }
+        .sheet(item: $askTake) { t in
+            PistoriusAskSheet(seconds: Double(t.audio.count) / Double(t.rate), onConventional: { proceed(t.audio, t.rate) }, onAssistant: { assistTake = t },
+                              onTurnOff: { pistorius = false; proceed(t.audio, t.rate) }).presentationDetents([.medium])
+        }
+        .sheet(item: $assistTake) { t in
+            PistoriusSheet(audio: t.audio, rate: t.rate, base: QuickSave.autoName(count: lib.samples.count, prefix: kind.prefix)).presentationDetents([.large])
+        }
         .sheet(item: $materiaTake) { t in
             MateriaSheet(take: t) { note in
                 savedNote = note
@@ -103,8 +119,9 @@ struct RecordView: View {
             RetroSheet { audio in
                 showRetro = false
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    let t = Take(audio: audio, rate: rec.sampleRate)
-                    if captureMode == "materia" { materiaTake = t } else { take = t }
+                    let prep = KoPrep.prepare(audio, rate: rec.sampleRate)
+                    let t = Take(audio: prep.audio, rate: prep.rate)
+                    if pistorius { askTake = t } else if captureMode == "materia" { materiaTake = t } else { take = t }
                 }
             }.presentationDetents([.large])
         }
@@ -114,14 +131,21 @@ struct RecordView: View {
     }
 
     /// Al parar: guardado rápido si está activo; si no, hoja para elegir nombre y carpeta.
-    private func finish(_ a: [Float]) {
-        guard !a.isEmpty else { return }
-        if captureMode == "materia" { materiaTake = Take(audio: a, rate: rec.sampleRate); return }
+    private func finish(_ a0: [Float]) {
+        guard !a0.isEmpty else { return }
+        let prep = KoPrep.prepare(a0, rate: rec.sampleRate)          // «listo para el K.O. II»: a 46 875 Hz
+        if pistorius { askTake = Take(audio: prep.audio, rate: prep.rate); return }          // asistente Pistorius: ¿edición convencional o asistente?
+        proceed(prep.audio, prep.rate)
+    }
+
+    /// Edición convencional: guardado rápido si está activo; si no, hoja para elegir nombre y carpeta.
+    private func proceed(_ a: [Float], _ rate: Int) {
+        if captureMode == "materia" { materiaTake = Take(audio: a, rate: rate); return }
         let s = QuickSave.Settings.load()
-        guard s.enabled else { take = Take(audio: a, rate: rec.sampleRate); return }
-        let out = QuickSave.process(a, rate: rec.sampleRate, s)
+        guard s.enabled else { take = Take(audio: a, rate: rate); return }
+        let out = QuickSave.process(a, rate: rate, s)
         let name = QuickSave.autoName(count: lib.samples.count, prefix: kind.prefix)
-        let rate = rec.sampleRate, kindTag: String? = kind == .libre ? nil : kind.rawValue
+        let kindTag: String? = kind == .libre ? nil : kind.rawValue
         let before = Double(a.count) / Double(rate), after = Double(out.count) / Double(rate)
         Task {
             var sug: Suggestion?

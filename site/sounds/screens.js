@@ -12,6 +12,9 @@ import { rateLabel, exportRates, KO_EXPORT } from './profile.js';
 import { openLab } from './lab.js';
 import { listenTempo, confidenceLabel, bpmAlternatives, LISTEN_SECONDS } from './tempo.js';
 import { openMateria, TAKE_SECONDS } from './materia.js';
+import { koPrepOn, setKoPrep, koPrepare, KO_RATE } from './koprep.js';
+import { detect as tunerDetect, smoother as tunerSmoother, PRESETS as TUNER_PRESETS } from './tuner.js';
+import { pistoriusOn, setPistorius, afterCapture } from './pistoriusui.js';
 import { KO_RATES, KO_DEFAULTS, koOpts, koPlan, buildKoBatch, LONG_FADE_MS } from './koexport.js';
 
 const ls = {
@@ -48,7 +51,7 @@ const listenBtn = s => h('button', { type: 'button', class: 'icon-btn' + (aud.id
   'aria-label': (aud.id === s.id ? 'Parar ' : 'Escuchar ') + s.name, onclick: () => toggleAudition(s) }, aud.id === s.id ? '■' : '▶');
 
 // ---------- favoritos, orden y filtro ----------
-export const SORTS = [['fecha', 'Fecha (recientes primero)'], ['nombre', 'Nombre (A–Z)'], ['duracion', 'Duración (largos primero)'], ['favoritos', 'Favoritos primero']];
+export const SORTS = [['fecha', 'Recientes'], ['nombre', 'Nombre A–Z'], ['duracion', 'Más largos'], ['favoritos', 'Favoritos']];
 /** «Listo para K.O.» sólo se nombra así para quien tiene el aparato; el resto ve «Listo». */
 export const stateName = k => k === 'listo' && !app.ko2 ? 'Listo' : (STATES.find(x => x[0] === k) || STATES[0])[1];
 const charTags = () => { const v = ls.get('charTags', null); return Array.isArray(v) && v.length ? v : CHAR_TAGS; };
@@ -99,7 +102,7 @@ export function viewBar(repaint) {
   const clear = link('Quitar filtros', () => { view.onlyFav = false; view.status = ''; view.tags = []; view.origin = ''; app.render(); });
   const det = h('details', { class: 'filters', open: view.status || view.tags.length || view.origin ? '' : null }, h('summary', {}, 'Filtros', view.active ? ' (activos)' : ''),
     h('div', { class: 'stack tight' }, st, origin, label('Etiquetas (deben estar todas)'), tagBox, view.active ? clear : null));
-  return h('div', { class: 'viewbar' }, onlyBtn, sel, det);
+  return h('div', { class: 'viewbar' }, onlyBtn, det, sel);
 }
 /** Atajo F: marca o desmarca el sonido con el foco en la lista, el abierto en Editar o, en modo selección, los elegidos. */
 document.addEventListener('keydown', e => {
@@ -115,7 +118,7 @@ document.addEventListener('keydown', e => {
 });
 
 export function sampleRow(s, { onclick, trailing, listen = false } = {}) {
-  const right = trailing !== undefined ? trailing : (app.ko2 ? (s.slot ? 'slot ' + s.slot : 'sin enviar') : '');
+  const right = trailing !== undefined ? trailing : (app.ko2 && s.slot ? 'slot ' + s.slot : '');
   const row = h('button', { type: 'button', class: 'card row-btn', onclick: onclick || (() => { stopAudition(); openSample(s); }) },
     h('span', { class: 'rb-text' }, h('b', {}, s.name), h('small', {}, pathOf(s) + ' · ' + dsp.stamp(s.duration) + (s.status !== 'crudo' ? ' · ' + stateName(s.status) : ''))),
     right ? h('span', { class: 'amber small' }, right) : null);
@@ -144,7 +147,7 @@ async function instalar() {
 export function renderHome(root) {
   const n = app.samples.length, last = app.samples[0];
   const shortcut = (name, detail, icon, onclick) => h('button', { type: 'button', class: 'card shortcut', onclick },
-    h('span', { class: 'ico', 'aria-hidden': 'true' }, icon), h('b', {}, name), h('small', {}, detail));
+    h('div', { class: 'sc-top' }, h('span', { class: 'ico', 'aria-hidden': 'true' }, icon), h('b', {}, name)), h('small', {}, detail));
   const sesion = document.getElementById('sesion');
   mount(root, 
     h('div', { class: 'home-head' },
@@ -188,13 +191,30 @@ const tempoCard = rec => {
       muted('Si suena a la mitad o al doble de lo que tocas, usa ÷2 o ×2.', 'tiny')) : null]);
 };
 
-const recOpts = { open: false };      // los ajustes de captura recuerdan si estaban abiertos al volver a dibujar la pantalla
+const recOpts = { open: false, tuner: false };      // los ajustes de captura recuerdan si estaban abiertos al volver a dibujar la pantalla
 export function renderRecord(root) {
   const e = app.engine, m = app.metro, rec = e.state === 'recording', listening = e.state === 'listening';
   const pill = (text, onclick, aria) => h('button', { type: 'button', class: 'pill', onclick, 'aria-label': aria }, text);
 
   const levelFill = h('div', { class: 'meter-fill' }), db = h('span', { class: 'amber small' }, '—');
   const wave = h('canvas', { class: 'wave', 'aria-label': 'Forma de onda en vivo' });
+  const tunerOn = ls.get('tuner', true), tunerPreset = ls.get('tunerPreset', 'cromatico'), tSm = tunerSmoother();
+  const tNote = h('b', { class: 'tn-note' }, '—'), tInfo = h('span', { class: 'muted small tn-info' }, 'Toca una nota'), tNeedle = h('i', { class: 'tn-needle' });
+  const tSum = h('span', { class: 'tn-sum' }, h('span', { class: 'muted small' }, 'Afinador'), tNote, tInfo);
+  const tunerCard = !tunerOn ? null : h('details', { class: 'card tn-card', open: recOpts.tuner ? '' : null, ontoggle: ev => { recOpts.tuner = ev.target.open; } },
+    h('summary', {}, tSum),
+    h('div', { class: 'tn-presets', role: 'group', 'aria-label': 'Afinación' }, Object.entries(TUNER_PRESETS).map(([k, v]) => h('button', { type: 'button', class: 'tn-chip' + (tunerPreset === k ? ' sel' : ''), 'aria-pressed': String(tunerPreset === k), onclick: () => { ls.set('tunerPreset', k); app.render(); } }, v.label))),
+    h('div', { class: 'tn-row', 'data-tuner': '' }, h('div', { class: 'tn-gauge' }, h('i', { class: 'tn-mid' }), tNeedle)));
+  let tAt = 0;
+  const paintTuner = () => {
+    if (!tunerOn || performance.now() - tAt < 200) return; tAt = performance.now();
+    const r = tSm.push(e.state === 'idle' ? null : tunerDetect(e.lastSamples(Math.round(e.rate * 0.35)), e.rate, tunerPreset));
+    if (!r) { tNote.textContent = '—'; tInfo.textContent = 'Toca una nota'; tNeedle.style.left = '50%'; tNote.classList.remove('ok'); return; }
+    const c = r.stringCents != null ? r.stringCents : r.cents, ok = Math.abs(c) <= 5, sg = c > 0 ? '+' : '';
+    tNote.textContent = r.string || r.note; tNote.classList.toggle('ok', ok);
+    tInfo.textContent = (ok ? 'en tono · ' : '') + sg + Math.round(c) + ' cents' + (r.string ? ' · escucho ' + r.note : '') + ' · ' + r.f0.toFixed(1) + ' Hz';
+    tNeedle.style.left = (50 + Math.max(-50, Math.min(50, c)) ) + '%';
+  };
   const waveCard = h('div', { class: 'card wave-card' }, wave,
     h('p', { class: 'muted center wave-hint' }, 'Toca el botón para grabar tu primer sample'));
   const timer = h('div', { class: 'timer' }, '00:00.00');
@@ -225,15 +245,18 @@ export function renderRecord(root) {
     denied,
     denied ? null : [
       card([h('div', { class: 'sr-head' }, h('span', { class: 'muted small' }, 'Nivel'), db), h('div', { class: 'meter' }, levelFill)]),
-      waveCard, timer, dots, notice, buffer,
+      tunerCard, waveCard, timer, dots, notice, buffer,
       first ? h('div', { class: 'center' }, h('span', { class: 'pill static' }, '↓ Empieza aquí')) : null,
       h('div', { class: 'controls' },
         side('Escuchar', '🎧', e.monitoring, () => e.setMonitoring(!e.monitoring)),
         recBtn,
         side('Retro', '↺', null, openRetro)),
-      h('div', { class: 'format' }, `WAV · 16 bit · mono · ${hz(exportRate())}`),
+      h('div', { class: 'format' }, `WAV · 16 bit · mono · ${hz(koPrepOn() ? KO_RATE : exportRate())}${koPrepOn() ? ' · listo para el K.O. II' : ''}`),
       h('details', { class: 'rec-opts', open: recOpts.open ? '' : null, ontoggle: e => { recOpts.open = e.target.open; } }, h('summary', {}, 'Ajustes de captura · ', captureMode() === 'materia' ? 'materia prima' : 'captura libre', ' · ', dsp.SOUND_KINDS[kind].label.toLowerCase()),
         h('div', { class: 'stack tight' },
+          toggleRow('Asistente Pistorius', 'Después de grabar te pregunta si sigues con la edición convencional o con el asistente', pistoriusOn(), v => { setPistorius(v); app.render(); }),
+          toggleRow('Afinador en vivo', 'Muestra la nota que suena y cuántos cents le faltan, con modo ukelele y guitarra', tunerOn, v => { ls.set('tuner', v); app.render(); }),
+          app.ko2 ? toggleRow('Dejar listo para el K.O. II', '46 875 Hz, mono, 16 bit y volumen nivelado al guardar', koPrepOn(), v => { setKoPrep(v); app.render(); }) : null,
           card([h('b', {}, 'Entrada · Micrófono del dispositivo')]),
           card([h('b', {}, 'Modo de captura'),
         h('div', { class: 'row2', role: 'group', 'aria-label': 'Modo de captura' }, btn('Materia prima', { small: true, sel: captureMode() === 'materia', act: 'modo-materia', onclick: () => { ls.set('captureMode', 'materia'); app.render(); } }),
@@ -263,6 +286,7 @@ export function renderRecord(root) {
 
   let raf = 0;
   const paint = () => {
+    paintTuner();
     levelFill.style.width = Math.round(Math.min(1, e.level) * 100) + '%';
     levelFill.classList.toggle('clip', e.clipped);
     db.textContent = e.state === 'idle' ? '—' : (e.level > 0.0001 ? Math.round(20 * Math.log10(e.level)) : -60) + ' dB';
@@ -291,9 +315,10 @@ const longNote = secs => secs > MAX_TEXTURE + 0.05 ? ` · dura más de ${MAX_TEX
 const storeError = err => err && (err.name === 'QuotaExceededError' || /quota/i.test(String(err.message))) ? 'No se pudo guardar: el dispositivo se quedó sin espacio. Libera espacio o borra sonidos viejos.' : 'No se pudo guardar el sonido (' + ((err && err.message) || 'error desconocido') + ').';
 
 /** Al terminar una toma: guardado rápido si está activo; si no, hoja para elegir nombre y carpeta. */
-export async function finishTake(audio) {
-  if (!audio || !audio.length) return;
-  const rate = app.engine.rate, q = loadQuick();
+export async function finishTake(audio0, { assist = true } = {}) {
+  if (!audio0 || !audio0.length) return;
+  const { audio, rate } = koPrepare(audio0, app.engine.rate), q = loadQuick();
+  if (assist && pistoriusOn()) return afterCapture(audio, rate, () => finishTake(audio0, { assist: false }));          // asistente Pistorius: ¿edición convencional o asistente?
   if (captureMode() === 'materia') return openMateria(audio, rate);
   if (!q.enabled) return showSave(audio, rate);
   const kind = ls.get('kind', 'libre'), kd = dsp.SOUND_KINDS[kind] || dsp.SOUND_KINDS.libre;
@@ -307,7 +332,8 @@ export async function finishTake(audio) {
 }
 
 // ---------- hoja: guardar grabación ----------
-function showSave(audio, rate) {
+function showSave(audio0, rate0) {
+  const { audio, rate } = koPrepare(audio0, rate0);         // «listo para el K.O. II»: a 46 875 Hz
   const st = { folder: UNSORTED, sub: null };
   const stampName = (() => { const d = new Date(); return 'Grabación ' + d.toLocaleDateString('es', { day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }); })();
   sheet(close => {
@@ -349,7 +375,7 @@ function openRetro() {
     timer = setInterval(refresh, 500); setTimeout(refresh, 30);
     const saveBtn = btn(`Guardar los últimos ${e.retroSeconds} s`, { kind: 'amber', disabled: e.state === 'idle', onclick: () => {
       const a = e.captureRetro(); if (!a.length) return toast('Todavía no hay nada en el búfer');
-      close(); setTimeout(() => captureMode() === 'materia' ? openMateria(a, e.rate) : showSave(a, e.rate), 250);
+      close(); setTimeout(() => { const conv = () => captureMode() === 'materia' ? openMateria(a, e.rate) : showSave(a, e.rate), pr = koPrepare(a, e.rate); afterCapture(pr.audio, pr.rate, conv); }, 250);
     } });
     return h('div', { class: 'stack' },
       h('div', { class: 'title-row' }, h('h2', {}, 'Captura retroactiva'), link('Cerrar', close)),

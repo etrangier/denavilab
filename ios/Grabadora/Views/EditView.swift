@@ -65,6 +65,8 @@ struct EditorBody: View {
     @State private var showDetails = false
     @State private var showLab = false
     @State private var showFx = false
+    @State private var showPistorius = false
+    @State private var chopMode: Int?
     @State private var showRecipe = false
     @State private var recipeSource: [Float] = []
     @State private var confirmDelete = false
@@ -126,6 +128,7 @@ struct EditorBody: View {
                 }.buttonStyle(OutlineButton()).font(Theme.font(13))
                 Button("Edición precisa (zoom)") { showPrecise = true }.buttonStyle(OutlineButton())
                 Button("Chop en pads") { showChop = true }.buttonStyle(OutlineButton())
+                Button("Asistente Pistorius") { showPistorius = true }.buttonStyle(OutlineButton())
                 Button("Cadena de efectos") { showFx = true }.buttonStyle(OutlineButton())
                 if let r = sample.recipe {
                     Text("Receta · de «\(r.fromName)»: " + FxChain.describe(r.chain).map { $0.components(separatedBy: " (").first ?? $0 }.joined(separator: " → ")).font(Theme.font(12)).foregroundColor(Theme.muted)
@@ -166,6 +169,10 @@ struct EditorBody: View {
         .onAppear {
             if let s = lib.samples.first(where: { $0.id == sample.id }) { sample = s }
             if undo.isEmpty { audio = lib.audio(for: sample); savedAudio = audio; refreshPeaks() }
+            if let p = state.pendingChop, p.id == sample.id {           // el asistente Pistorius pidió abrir Chop con este sonido
+                chopMode = p.mode; state.pendingChop = nil
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { showChop = true }
+            }
         }
         .onDisappear { player?.stop(); lib.update(sample) }
         .onReceive(tick) { _ in updatePlayhead() }
@@ -175,7 +182,8 @@ struct EditorBody: View {
                 start = 0; end = 1
             }.presentationDetents([.large])
         }
-        .sheet(isPresented: $showChop) { ChopSheet(sample: sample, audio: audio).presentationDetents([.large]) }
+        .sheet(isPresented: $showChop, onDismiss: { chopMode = nil }) { ChopSheet(sample: sample, audio: audio, initialMode: chopMode).presentationDetents([.large]) }
+        .sheet(isPresented: $showPistorius) { PistoriusSheet(audio: audio, rate: sample.sampleRate, base: sample.name, origin: sample.origin, folder: sample.folder, sub: sample.subfolder, fromSample: true).presentationDetents([.large]) }
         .sheet(isPresented: $showFx) {
             FxRackSheet(audio: audio, rate: sample.sampleRate, bpm: sample.bpm, name: sample.name,
                         others: lib.samples.filter { $0.id != sample.id }.map { FxRackSheet.Other(id: $0.id.uuidString, name: $0.name) },

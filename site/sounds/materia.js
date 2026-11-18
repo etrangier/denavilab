@@ -3,6 +3,8 @@ import { app, refreshSamples } from './state.js';
 import { h, mount, fill, btn, link, card, label, muted, sheet, toast, drawBars } from './ui.js';
 import * as dsp from './dsp.js';
 import { putSample, newSample } from './store.js';
+import { koPrepare, koLevel } from './koprep.js';
+import { declick, dehum, findHum, clickRate } from './restore.js';
 
 export const TAKE_SECONDS = 15, SOFT_LIMIT = 6, MIN_FRAGMENT = 0.1;
 
@@ -16,15 +18,23 @@ export function bestWindow(x, rate, sec) {
   for (let i = 0; i < e.length; i++) { cur += e[i]; if (i >= k) cur -= e[i - k]; if (i >= k - 1 && cur > best) { best = cur; at = i - k + 1; } }
   const a = at * blk; return [a / n, Math.min(1, (a + w) / n)];
 }
-/** Recorta [a,b] (fracciones), quita continua y suaviza los bordes para que el bucle y el corte no hagan clic. */
-export function cutFragment(x, rate, a, b) {
+/** Salida larga: hasta 1,5 s y como mucho un tercio del fragmento, para que una textura se apague en vez de quedar cortada. */
+export const longFadeSec = lenSec => Math.min(1.5, lenSec / 3);
+/** Recorta [a,b] (fracciones), quita continua y suaviza los bordes para que el bucle y el corte no hagan clic.
+ *  opts: {longFade, declick, dehum} (declick: 'soft'|'strong'|false; dehum: lo que devolvió findHum, o true para detectarlo). */
+export function cutFragment(x, rate, a, b, opts = {}) {
   const i = Math.max(0, Math.floor(a * x.length)), j = Math.min(x.length, Math.ceil(b * x.length));
-  return dsp.cosFade(dsp.removeDC(x.slice(i, j)), Math.round(0.005 * rate), Math.round(0.02 * rate));
+  let y = dsp.removeDC(x.slice(i, j));
+  if (opts.dehum) y = dehum(y, rate, opts.dehum === true ? undefined : opts.dehum).audio;
+  if (opts.declick) y = declick(y, rate, opts.declick === true ? 'soft' : opts.declick).audio;
+  const out = opts.longFade ? Math.round(longFadeSec(y.length / rate) * rate) : Math.round(0.02 * rate);
+  return dsp.cosFade(y, Math.round((opts.longFade ? 0.01 : 0.005) * rate), out);
 }
 const storeError = err => err && (err.name === 'QuotaExceededError' || /quota/i.test(String(err.message))) ? 'No se pudo guardar: el dispositivo se quedó sin espacio. Libera espacio o borra sonidos viejos.' : 'No se pudo guardar el sonido (' + ((err && err.message) || 'error desconocido') + ').';
 
 /** Hoja de recorte. `take` es la toma completa (Float32Array mono). */
-export function openMateria(take, rate) {
+export function openMateria(take0, rate0) {
+  const { audio: take, rate } = koPrepare(take0, rate0);         // «listo para el K.O. II»: a 46 875 Hz
   const total = take.length / rate, pk = dsp.peaks(take, 120);
   const [a0, b0] = bestWindow(take, rate, Math.min(4, total));
   const ed = { start: a0, end: b0 }; let src = null, ctx = null, raf = 0, t0 = 0;
@@ -66,12 +76,18 @@ export function openMateria(take, rate) {
         t0 = ctx.currentTime; src.start(0, ed.start * total); playBtn.textContent = '■ Parar'; playBtn.setAttribute('aria-pressed', 'true'); tick();
       } catch (e) { src = null; toast('No se pudo reproducir'); }
     };
+    const crk = clickRate(take, rate), hum = findHum(take, rate), prefs = { longFade: true, declick: crk > 1, dehum: !!hum };
+    const opt = (title, sub, key, act) => { const cb = h('input', { type: 'checkbox', 'data-act': act, checked: prefs[key] ? '' : null, onchange: () => { prefs[key] = cb.checked; } }); cb.checked = !!prefs[key]; return h('div', { class: 'card opt-row' }, h('span', {}, h('b', {}, title), h('br', {}), h('span', { class: 'muted small' }, sub)), cb); };
+    const restoreBox = h('div', { class: 'stack tight' },
+      opt('Fade-out largo', 'La textura se apaga en vez de quedar cortada (hasta 1,5 s)', 'longFade', 'fade-largo'),
+      opt('Quitar crujidos de vinilo', crk > 1 ? `Detecté unos ${Math.round(crk)} clics por segundo` : 'No detecté crujidos; actívalo si los oyes', 'declick', 'quitar-crujidos'),
+      opt('Quitar zumbido', hum ? `Detecté zumbido de ${hum.hz} Hz y sus armónicos` : 'No detecté zumbido de 50 o 60 Hz', 'dehum', 'quitar-zumbido'));
     const name = h('input', { type: 'text', class: 'field name', 'aria-label': 'Nombre', placeholder: dsp.autoName(app.samples.length, (dsp.SOUND_KINDS[kindKey] || dsp.SOUND_KINDS.libre).prefix) });
     const origin = h('input', { type: 'text', class: 'field', 'aria-label': 'Origen del sonido', maxlength: '200', placeholder: 'Artista, disco, minuto… o «mi balcón», «piano de casa»' });
     const save = btn('Guardar como crudo', { kind: 'amber', act: 'guardar-crudo', onclick: async () => {
       stop(); save.disabled = true;
       try {
-        const out = cutFragment(take, rate, ed.start, ed.end), kind = kindKey !== 'libre' && dsp.SOUND_KINDS[kindKey] ? { kind: kindKey } : {};
+        const out = koLevel(cutFragment(take, rate, ed.start, ed.end, { longFade: prefs.longFade, declick: prefs.declick && (crk > 6 ? 'strong' : 'soft'), dehum: prefs.dehum && (hum || false) }), rate), kind = kindKey !== 'libre' && dsp.SOUND_KINDS[kindKey] ? { kind: kindKey } : {};
         await putSample(newSample(name.value.trim() || name.placeholder, out, rate, { status: 'crudo', origin: origin.value.trim(), ...kind }), out);
         await refreshSamples(); toast(`Guardada como crudo · ${dsp.stamp(out.length / rate)}` + (origin.value.trim() ? '' : ' · falta el origen (Detalles)'));
       } catch (err) { toast(storeError(err)); save.disabled = false; return; }
@@ -80,8 +96,8 @@ export function openMateria(take, rate) {
     setTimeout(layout, 30);
     return h('div', { class: 'stack' },
       h('div', { class: 'title-row' }, h('div', {}, h('h2', {}, 'Elige el fragmento'), h('p', { class: 'muted small' }, `Toma de ${dsp.stamp(total)} · arrastra los marcadores (o usa ← →)`)), link('Descartar', close)),
-      wrap, info, warn, playBtn,
+      wrap, info, warn, playBtn, restoreBox,
       label('Origen'), origin, label('Nombre'), name, save,
-      muted('Se guarda solo el fragmento, sin tocar su volumen. Queda como «crudo» para trabajarlo después.', 'tiny'));
+      muted('Se guarda solo el fragmento (con lo que actives arriba) y su volumen se nivela. Queda como «crudo» para trabajarlo después.', 'tiny'));
   }, { onClose: () => { try { src && src.stop(); } catch (e) {} cancelAnimationFrame(raf); } });
 }

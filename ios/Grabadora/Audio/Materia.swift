@@ -26,11 +26,18 @@ enum Materia {
         return (Double(a) / Double(n), min(1, Double(a + w) / Double(n)))
     }
 
+    /// Salida larga: hasta 1,5 s y como mucho un tercio del fragmento, para que una textura se apague en vez de quedar cortada.
+    nonisolated static func longFadeSec(_ len: Double) -> Double { min(1.5, len / 3) }
+
     /// Recorta [a, b] (fracciones), quita la continua y suaviza los bordes para que ni el corte ni el bucle hagan clic.
-    nonisolated static func cut(_ x: [Float], rate: Int, start a: Double, end b: Double) -> [Float] {
+    /// Opcional: fade-out largo, quitar crujidos y quitar el zumbido detectado.
+    nonisolated static func cut(_ x: [Float], rate: Int, start a: Double, end b: Double, longFade: Bool = false, declick: Bool = false, strong: Bool = false, hum: Restore.Hum? = nil) -> [Float] {
         let i = max(0, min(x.count, Int(floor(a * Double(x.count))))), j = max(i, min(x.count, Int(ceil(b * Double(x.count)))))
-        let piece = Harmonize.removeDC(Array(x[i..<j]))
-        return Harmonize.cosFade(piece, inSamples: rate * 5 / 1000, outSamples: rate * 20 / 1000)
+        var piece = Harmonize.removeDC(Array(x[i..<j]))
+        if let h = hum { piece = Restore.dehum(piece, rate: rate, hum: h) }
+        if declick { piece = Restore.declick(piece, rate: rate, strong: strong).audio }
+        let out = longFade ? Int(longFadeSec(Double(piece.count) / Double(rate)) * Double(rate)) : rate * 20 / 1000
+        return Harmonize.cosFade(piece, inSamples: longFade ? rate * 10 / 1000 : rate * 5 / 1000, outSamples: out)
     }
 
     /// Aviso suave según la duración del fragmento (nil si está bien).
