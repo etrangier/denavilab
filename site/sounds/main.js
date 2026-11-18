@@ -73,6 +73,7 @@ async function boot() {
     if (app.tab === 'grabar') render();
   };
   buildTabs(); render();
+  document.documentElement.dataset.listo = '1';          // la red de seguridad de index.html sabe que la app abrió
   let seen = false; try { seen = localStorage.getItem('denavilab.sounds.onboarded') === '1'; } catch (e) {}
   if (!seen) welcome();
 }

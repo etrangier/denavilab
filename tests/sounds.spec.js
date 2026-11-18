@@ -2710,3 +2710,17 @@ test.describe('apariencia y Editar minimalista', () => {
     await expect.poll(() => page.evaluate(() => localStorage.getItem('denavilab.sounds.editMore'))).toBe('true');       // el evento «toggle» llega un instante después
   });
 });
+
+test.describe('red de seguridad si la app no abre', () => {
+  test('si el código principal no carga, a los 5 s se ve un aviso con el botón «Recargar limpio»', async ({ page }) => {
+    await page.route('**/sounds/main.js', r => r.abort());
+    await page.goto(URL);
+    await expect(page.getByText('No se pudo abrir la app')).toBeVisible({ timeout: 9000 });
+    await expect(page.getByRole('button', { name: 'Recargar limpio' })).toBeVisible();
+  });
+  test('si la app abre bien, el aviso no aparece', async ({ page }) => {
+    await abrir(page, 'rolando');
+    await page.waitForTimeout(5600);
+    await expect(page.getByText('No se pudo abrir la app')).toHaveCount(0);
+  });
+});
