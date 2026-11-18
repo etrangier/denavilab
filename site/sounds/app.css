@@ -245,3 +245,9 @@ details.rec-opts[open] > summary { color: var(--text); }
 .tn-presets{gap:4px}
 .card.opt-row{flex-direction:row;align-items:center;justify-content:space-between;gap:14px;text-align:left}.card.opt-row input{flex:none;width:22px;height:22px}
 .tn-presets{margin:6px 0 2px}
+.chip.folder.empty { display: inline-flex; flex-direction: row; align-items: center; gap: 0; padding: 0 16px; text-align: left; }
+.tn-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.tn-presets{display:flex;gap:4px;margin:0}
+.tn-chip{min-height:32px;padding:0 10px;border-radius:99px;border:1.5px solid var(--line);background:none;color:var(--text);font-size:12.5px;cursor:pointer}
+.tn-chip.sel{border-color:var(--amber);color:var(--amber);font-weight:700;background:var(--surface2)}
+.tn-note{font-size:1.6rem}
