@@ -18,6 +18,7 @@ const STR_NAMES = { G4: 'Sol4', C4: 'Do4', E4: 'Mi4', A4: 'La4', E2: 'Mi2', A2: 
 /** Tono del último tramo de audio, o null si es silencio o no hay un tono claro. {f0, midi, note, cents, string?, stringCents?}. */
 export function detect(x, rate, preset = 'cromatico') {
   if (!x || x.length < rate * 0.12) return null;
+  if (x.length > rate * 0.5) x = x.subarray(x.length - Math.round(rate * 0.4));       // solo el final importa
   let e = 0; for (let i = 0; i < x.length; i += 4) e += x[i] * x[i]; if (Math.sqrt(e / Math.ceil(x.length / 4)) < 0.004) return null;       // casi silencio
   const tp = trackPitch(x, rate, 55, 1100), v = tp.f0.filter(f => f > 0).sort((a, b) => a - b);
   if (v.length < 3 || v.length < tp.f0.length * 0.4) return null;
