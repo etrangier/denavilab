@@ -8,12 +8,13 @@ struct PistoriusAskSheet: View {
     let onAssistant: () -> Void
     let onTurnOff: () -> Void
     @Environment(\.dismiss) private var dismiss
+    private let memory = PistoriusMemory.summary(PistoriusMemory.load())
 
     var body: some View {
         ZStack {
             Theme.bg.ignoresSafeArea()
             VStack(alignment: .leading, spacing: 14) {
-                ScreenTitle(title: "¿Cómo seguimos?", subtitle: "Acabas de grabar \(stamp(seconds))")
+                ScreenTitle(title: "¿Cómo seguimos?", subtitle: "Acabas de grabar \(stamp(seconds)) · \(memory)")
                 tile("scissors", "Edición convencional", "Nombre, carpeta y recorte, como siempre") { dismiss(); DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { onConventional() } }
                 tile("star", "Asistente Pistorius", "Te pregunto qué grabaste y qué quieres hacer") { dismiss(); DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { onAssistant() } }
                 TextLink(title: "Apagar el asistente") { dismiss(); DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { onTurnOff() } }
@@ -59,6 +60,8 @@ struct PistoriusSheet: View {
     @State private var result: Pistorius.Outcome?
     @State private var name = ""
     @State private var keepOriginal = true
+    @State private var memory = PistoriusMemory.load()
+    @State private var chosenAction = "seguir"
     @State private var playing: String?
     @State private var player: AVAudioPlayer?
     @State private var message: String?
@@ -103,7 +106,8 @@ struct PistoriusSheet: View {
             Text("¿Qué grabaste?").font(Theme.font(22, weight: .bold)).foregroundColor(Theme.text)
             Text("Con eso decido qué te sugiero primero.").font(Theme.font(13)).foregroundColor(Theme.muted)
             LazyVGrid(columns: cols, spacing: 8) {
-                ForEach(Pistorius.sources) { s in tile(s.symbol, s.label, nil) { source = s.id; step = .goal } }
+                let rs = PistoriusMemory.rankSources(Pistorius.sources, memory)
+                ForEach(rs.list) { s in tile(s.symbol, s.label + (s.id == rs.top ? " ★" : ""), s.id == rs.top ? "Lo que sueles grabar" : nil) { source = s.id; step = .goal } }
             }
         }
     }
@@ -112,8 +116,9 @@ struct PistoriusSheet: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack { Text("¿Qué quieres hacer con ese sonido?").font(Theme.font(20, weight: .bold)).foregroundColor(Theme.text); Spacer(); TextLink(title: "‹ Atrás") { step = .source } }
             LazyVGrid(columns: cols, spacing: 8) {
-                ForEach(Array(Pistorius.goalsFor(source).enumerated()), id: \.element.id) { i, g in
-                    tile(g.symbol, g.label + (i == 0 ? " ★" : ""), g.hint) { choose(g.id) }
+                let rg = PistoriusMemory.rankGoals(source, Pistorius.goalsFor(source), memory)
+                ForEach(Array(rg.list.enumerated()), id: \.element.id) { i, g in
+                    tile(g.symbol, g.label + (i == 0 ? " ★" : ""), rg.top == g.id ? "Lo que sueles hacer con esto" : g.hint) { choose(g.id) }
                 }
             }
         }
@@ -149,6 +154,9 @@ struct PistoriusSheet: View {
                     }.font(Theme.font(13)).foregroundColor(Theme.amber).tint(Theme.amber)
                 }.card(highlight: true)
                 Button(ad.action == "chop" ? "Seguir: guardar y abrir Chop" : "Seguir la sugerencia") { apply(ad.action == "loop" ? "cortar" : ad.action, ad.chopMode) }.buttonStyle(AmberButton())
+                if let u = PistoriusMemory.usualAction(goal, memory), u != (ad.action == "loop" ? "cortar" : ad.action) {
+                    Text("Con esta meta sueles preferir " + (u == "chop" ? "chopear" : "cortar un solo fragmento") + ": lo tienes en «Otra opción».").font(Theme.font(12)).foregroundColor(Theme.muted)
+                }
                 SectionLabel("Otra opción")
                 VStack(spacing: 8) {
                     if ad.action != "cortar" { Button("Cortar un solo fragmento") { apply("cortar", nil) }.buttonStyle(OutlineButton()) }
@@ -164,6 +172,7 @@ struct PistoriusSheet: View {
     }
 
     private func apply(_ action: String, _ mode: Int?) {
+        chosenAction = action
         step = .busy
         let x = audio, r = rate, g = goal, src = source, b = base, a = analysis
         Task {
@@ -234,6 +243,7 @@ struct PistoriusSheet: View {
         let nm = name.trimmingCharacters(in: .whitespaces).isEmpty ? r.name : name.trimmingCharacters(in: .whitespaces)
         guard let s = store(r, name: nm, status: SampleStatus.procesado, extra: []) else { message = "No se pudo guardar (¿poco espacio?)"; return }
         if keepOriginal && !fromSample { storeOriginal() }
+        PistoriusMemory.record(source: source, goal: goal, action: chosenAction)
         if then == .chop { state.pendingChop = (s.id, 0) }
         if then != .library { state.open(s) }
         dismiss()
@@ -242,6 +252,7 @@ struct PistoriusSheet: View {
         let nm = base + " · para chop"
         guard let s = store(out, name: nm, status: SampleStatus.procesado, extra: ["Pistorius: preparado para chopear"]) else { message = "No se pudo guardar (¿poco espacio?)"; step = .guide; return }
         if keepOriginal && !fromSample { storeOriginal() }
+        PistoriusMemory.record(source: source, goal: goal, action: "chop")
         state.pendingChop = (s.id, mode); state.open(s); dismiss()
     }
 }

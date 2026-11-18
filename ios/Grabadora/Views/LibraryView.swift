@@ -201,6 +201,7 @@ struct SampleRow: View {
                 Text("slot \(slot)").font(Theme.font(12, weight: .medium)).foregroundColor(Theme.amber)
             }
         }.card()
+        .overlay(alignment: .leading) { Capsule().fill(Theme.kindColor(sample.kind)).frame(width: 4).padding(.vertical, 10) }
     }
 }
 

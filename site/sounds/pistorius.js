@@ -4,6 +4,7 @@ import * as dsp from './dsp.js';
 import * as learn from './learn.js';
 import { trackPitch } from './fx404.js';
 import { noteChanges, repetition } from './constellation.js';
+import { declick, dehum, findHum, clickRate } from './restore.js';
 
 // ---------------------------------------------------------------------------------------------------- catálogo
 export const SOURCES = [
@@ -252,10 +253,19 @@ const RECIPES = {
 };
 
 /** Aplica la receta de una meta. Devuelve {audio, rate, notes, name, kind, tags, bpm?, note?, openChop}. */
+const NO_DECLICK = new Set(['golpe', 'loopRitmico', 'frase']);        // en percusión y voz los transitorios agudos son música, no crujido
+/** Material viejo: quita zumbido de 50/60 Hz y crujidos de vinilo si los detecta. Devuelve {audio, notes}. */
+function restoreOld(x, rate, goalId) {
+  const notes = []; let y = x;
+  const hum = findHum(y, rate); if (hum) { y = dehum(y, rate, hum).audio; notes.push(`Detecté zumbido de ${hum.hz} Hz y lo quité (con sus armónicos)`); }
+  if (!NO_DECLICK.has(goalId)) { const cr = clickRate(y, rate); if (cr > 2) { const d = declick(y, rate, cr > 6 ? 'strong' : 'soft'); y = d.audio; notes.push(`Detecté unos ${Math.round(cr)} crujidos por segundo y quité ${d.clicks}`); } }
+  return { audio: y, notes };
+}
 export function run(goalId, x, rate, ctx = {}) {
   const goal = GOALS.find(g => g.id === goalId), fn = RECIPES[goalId]; if (!goal || !fn) throw new Error('meta desconocida: ' + goalId);
   const a = ctx.analysis || analyze(x, rate), notes = [], base = ctx.base || 'grabación', src = SOURCES.find(s => s.id === ctx.source);
-  const audio = fn(x, rate, a, ctx, notes), tun = a.tuning, tag = goal.label.toLowerCase();
+  const rs = restoreOld(x, rate, goalId); notes.push(...rs.notes);
+  const audio = fn(rs.audio, rate, a, ctx, notes), tun = a.tuning, tag = goal.label.toLowerCase();
   const nm = (goalId === 'bajo' || goalId === 'nota' || goalId === 'cuerdaBucle') && tun && tun.note ? `${base} · ${tun.note}${goalId === 'bajo' ? ' bajo' : goalId === 'cuerdaBucle' ? ' cuerda' : ''}` : `${base} · ${tag}`;
   return { audio, rate, notes, name: nm, kind: goal.kind, goal: goalId, tags: [], bpm: a.bpm && a.bpm.confidence > 0.2 ? a.bpm.bpm : null, note: tun && tun.note ? tun.note : null, openChop: goalId === 'loopRitmico', source: src ? src.id : null,
     process: [`Pistorius: ${goal.label}${src ? ' · ' + src.label.toLowerCase() : ''}`, ...notes] };

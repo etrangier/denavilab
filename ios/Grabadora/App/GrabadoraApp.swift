@@ -7,7 +7,10 @@ struct GrabadoraApp: App {
     @StateObject private var metronome = Metronome()
     @StateObject private var state = AppState()
 
-    init() {
+    init() { Self.applyTabBar() }
+
+    /// La barra de pestañas es de UIKit: hay que repintarla cuando cambia la apariencia.
+    static func applyTabBar() {
         let a = UITabBarAppearance()
         a.configureWithOpaqueBackground()
         a.backgroundColor = UIColor(Theme.bg)

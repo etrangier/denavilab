@@ -11,6 +11,8 @@ const abrir = async (page, quien = 'rolando', extra = {}) => {
     try {
       localStorage.setItem('denavilab.sesion', q);
       localStorage.setItem('denavilab.sounds.onboarded', '1');
+      localStorage.setItem('denavilab.sounds.editMore', 'true');             // «Más herramientas» de Editar viene plegado; las pruebas viejas lo parten abierto
+      localStorage.setItem('denavilab.sounds.pistorius', 'false');          // el asistente viene encendido de fábrica; las pruebas viejas parten sin él (las del asistente lo encienden o lo dejan de fábrica con '')
       localStorage.setItem('denavilab.sounds.captureMode', '"libre"');      // las pruebas viejas guardan la toma tal cual; el modo materia prima tiene las suyas
       for (const [k, v] of Object.entries(ex)) localStorage.setItem(k, v);
     } catch (e) {}
@@ -996,7 +998,7 @@ test.describe('etapas 1–5 · cadena de efectos, granular, destrucción, ritmo 
     await sh.getByRole('button', { name: '− Cerrar la lista' }).click(); await expect(sh.locator('.fxtile')).toHaveCount(0);
     await expect(sh.locator('.dock').getByRole('button', { name: '▶ Procesado' })).toBeVisible(); await expect(sh.locator('.dock').getByRole('button', { name: 'Guardar como sonido nuevo' })).toBeVisible();
     await sh.locator('.slot-name').first().click(); await sh.getByRole('button', { name: '▶ Solo este efecto' }).click(); await expect(sh).toContainText('Escuchando solo este efecto', { timeout: 15000 });
-    const col = await page.evaluate(() => getComputedStyle(document.body).backgroundColor); expect(col).toBe('rgb(0, 0, 0)');
+    const col = await page.evaluate(() => getComputedStyle(document.body).backgroundColor); expect(Math.max(...col.match(/\d+/g).slice(0, 3).map(Number))).toBeLessThan(30);       // fondo oscuro (el tema de fábrica es Atardecer: casi negro con verde)
   });
   test('rack: todo apagado avisa, y mezclar otro sonido aparece como casilla', async ({ page }) => {
     const sh = await abrirRack(page, ['pad base', 'otro']);
@@ -2487,7 +2489,7 @@ test.describe('asistente Pistorius: qué grabaste, qué quieres hacer y si corta
     expect(q.sola.action).toBe('cortar'); expect(q.varias.action).toBe('chop'); expect(q.varias.chopMode).toBe(-2); expect(q.acordes.chopMode).toBe(-2); expect(q.pad.action).toBe('cortar'); expect(q.pad.title).toContain('sin chop');
     expect(q.golpe.action).toBe('cortar'); expect(q.limpiar.action).toBe('cortar'); expect(q.varias.refs.join(' ')).toContain('Wang'); expect(q.sola.refs.join(' ')).toContain('Russ'); expect(q.varias.why.length).toBeGreaterThan(0);
   });
-  test('desactivado por defecto: grabar sigue como siempre; activado pregunta, y el asistente guía hasta guardar el resultado y la toma original', async ({ page }) => {
+  test('apagado: grabar sigue como siempre; encendido pregunta, y el asistente guía hasta guardar el resultado y la toma original', async ({ page }) => {
     await abrir(page, 'rolando');
     const toma = `Float32Array.from({ length: 48000 * 3 }, (_, i) => { const t = i / 48000; return 0.3 * Math.min(1, t / 0.005) * Math.exp(-t * 1.2) * (Math.sin(2 * Math.PI * 110 * t) + Math.sin(2 * Math.PI * 220 * t) / 2); })`;
     await page.evaluate(`(async () => { const s = await import('/sounds/screens.js'); window.__take = ${toma}; s.finishTake(window.__take); })()`);
@@ -2609,5 +2611,79 @@ test.describe('restaurar: crujidos de vinilo, zumbido y fade-out largo', () => {
     await sh.getByRole('button', { name: 'Guardar como crudo' }).click(); await expect(page.locator('#toast')).toContainText('Guardada como crudo');
     const fin = await page.evaluate(async () => { const st = await import('/sounds/store.js'), s = (await st.listSamples())[0], a = await st.getAudio(s.id); let e = 0; for (let i = a.length - 2400; i < a.length; i++) e += a[i] ** 2; let c = 0; for (let i = 24000; i < 26400; i++) c += a[i] ** 2; return Math.sqrt(e / c); });
     expect(fin).toBeLessThan(0.1);
+  });
+});
+
+test.describe('Pistorius: encendido de fábrica y memoria de lo que eliges', () => {
+  const toma = `Float32Array.from({ length: 48000 * 3 }, (_, i) => { const t = i / 48000; return 0.3 * Math.min(1, t / 0.005) * Math.exp(-t * 1.2) * (Math.sin(2 * Math.PI * 110 * t) + Math.sin(2 * Math.PI * 220 * t) / 2); })`;
+  const grabar = page => page.evaluate(`(async () => { const s = await import('/sounds/screens.js'); window.__take = window.__take || ${toma}; s.finishTake(window.__take); })()`);
+  test('de fábrica, al terminar de grabar pregunta convencional o asistente; si lo apagas, no vuelve a preguntar', async ({ page }) => {
+    await abrir(page, 'rolando', { 'denavilab.sounds.pistorius': '' });          // sin valor guardado = de fábrica
+    await grabar(page);
+    const sh = page.locator('dialog.sheet'); await expect(sh.getByRole('heading', { name: '¿Cómo seguimos?' })).toBeVisible();
+    await expect(sh.getByText('Pistorius aún no te conoce')).toBeVisible();
+    await sh.getByRole('button', { name: 'Apagar el asistente' }).click(); await expect(page.locator('dialog.sheet').getByRole('heading', { name: 'Guardar grabación' })).toBeVisible();
+    await page.keyboard.press('Escape'); await grabar(page); await expect(page.locator('dialog.sheet').getByRole('heading', { name: 'Guardar grabación' })).toBeVisible();
+  });
+  test('aprende: tras elegir lo mismo dos veces pone al frente el tipo de sonido y la meta que sueles usar, y recuerda la acción habitual', async ({ page }) => {
+    await abrir(page, 'rolando', { 'denavilab.sounds.pistorius': '' });
+    const q = await page.evaluate(async () => { const M = await import('/sounds/pistoriusmem.js'), P = await import('/sounds/pistorius.js'); M.forget();
+      const antes = [M.rankSources(P.SOURCES).top, M.rankGoals('instrumento', P.goalsFor('instrumento')).top, M.usualAction('pad')];
+      M.record({ source: 'ambiente', goal: 'pad', action: 'cortar' }); const uno = M.rankGoals('ambiente', P.goalsFor('ambiente')).top;
+      M.record({ source: 'ambiente', goal: 'pad', action: 'chop' }); M.record({ source: 'ambiente', goal: 'pad', action: 'chop' });
+      const g = P.goalsFor('naturaleza'); M.record({ source: 'naturaleza', goal: 'golpe', action: 'cortar' }); M.record({ source: 'naturaleza', goal: 'golpe', action: 'cortar' });
+      const rg = M.rankGoals('naturaleza', g);
+      return { antes, uno, src: M.rankSources(P.SOURCES).list[0].id, top: M.rankSources(P.SOURCES).top, goal1: rg.list[0].id, goalTop: rg.top, usual: M.usualAction('pad'), sum: M.summary(), n: M.load().n, olvidado: (M.forget(), M.load().n) }; });
+    expect(q.antes).toEqual([null, null, null]); expect(q.uno).toBeNull();                       // con un solo ejemplo todavía no reordena
+    expect(q.src).toBe('ambiente'); expect(q.top).toBe('ambiente'); expect(q.goal1).toBe('golpe'); expect(q.goalTop).toBe('golpe');
+    expect(q.usual).toBe('chop'); expect(q.sum).toContain('5 sonidos'); expect(q.olvidado).toBe(0);
+  });
+  test('en el asistente se ve lo aprendido: la meta habitual lleva ★ con «Lo que sueles hacer con esto»', async ({ page }) => {
+    await abrir(page, 'rolando', { 'denavilab.sounds.pistorius': '' });
+    await page.evaluate(async () => { const M = await import('/sounds/pistoriusmem.js'); M.forget(); for (let i = 0; i < 2; i++) M.record({ source: 'instrumento', goal: 'bajo', action: 'cortar' }); });
+    await grabar(page);
+    const sh = page.locator('dialog.sheet'); await sh.getByRole('button', { name: /Asistente Pistorius/ }).click();
+    await expect(sh.locator('.fxtile.big').first()).toContainText('Lo que sueles grabar');
+    await sh.getByRole('button', { name: /Un instrumento/ }).click();
+    await expect(sh.locator('.fxtile.big').first()).toContainText('Bajo'); await expect(sh.locator('.fxtile.big').first()).toContainText('Lo que sueles hacer con esto');
+  });
+});
+
+test.describe('Pistorius: limpia material viejo por sí solo', () => {
+  test('en un pad con zumbido y crujidos los quita y lo cuenta; en un golpe seco no toca los transitorios', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await page.evaluate(async () => { const P = await import('/sounds/pistorius.js'), rate = 46875, n = rate * 8; let sd = 3; const rnd = () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; };
+      const pad = Float32Array.from({ length: n }, (_, i) => { const t = i / rate; return 0.12 * (Math.sin(2 * Math.PI * 220 * t) + 0.6 * Math.sin(2 * Math.PI * 329.63 * t) + 0.4 * Math.sin(2 * Math.PI * 441 * t)) + 0.002 * (rnd() * 2 - 1); });
+      const sucio = Float32Array.from(pad); for (let i = 0; i < n; i++) { const t = i / rate; sucio[i] += 0.03 * Math.sin(2 * Math.PI * 60 * t) + 0.02 * Math.sin(2 * Math.PI * 120 * t) + 0.01 * Math.sin(2 * Math.PI * 180 * t); }
+      for (let i = 0; i < n - 2; i += Math.round(rate * (0.05 + rnd() * 0.2))) { const a = (rnd() < .5 ? -1 : 1) * (0.15 + rnd() * 0.4); sucio[i] += a; sucio[i + 1] += a * 0.5; }
+      const limpio = P.run('pad', pad, rate, { source: 'musica' }), r = P.run('pad', sucio, rate, { source: 'musica' }), g = P.run('golpe', sucio, rate, { source: 'musica' });
+      return { limpio: limpio.notes.filter(t => /Detecté (zumbido|unos)/.test(t)).length, r: r.notes.filter(t => /Detecté/.test(t)), g: g.notes.filter(t => /Detecté/.test(t)), fin: r.audio.every(Number.isFinite) }; });
+    expect(q.limpio).toBe(0); expect(q.r.some(t => t.includes('zumbido de 60 Hz'))).toBe(true); expect(q.r.some(t => t.includes('crujidos por segundo'))).toBe(true); expect(q.fin).toBe(true);
+    expect(q.g.some(t => t.includes('zumbido'))).toBe(true); expect(q.g.some(t => t.includes('crujidos'))).toBe(false);          // en percusión se quita el zumbido pero no los «crujidos»
+  });
+});
+
+test.describe('apariencia y Editar minimalista', () => {
+  test('hay una sola apariencia (Atardecer): sin selector de temas', async ({ page }) => {
+    await abrir(page, 'rolando');
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--amber').trim())).toBe('#f2a65a');
+    await expect(page.getByText('Apariencia')).toHaveCount(0); await expect(page.getByRole('button', { name: 'Cinta y madera' })).toHaveCount(0);
+  });
+  test('los sonidos llevan su franja por tipo y, con «reducir movimiento», no hay animaciones', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await abrir(page, 'rolando');
+    await page.evaluate(async () => { const st = await import('/sounds/store.js'), { refreshSamples } = await import('/sounds/state.js'), a = new Float32Array(4800).map((_, i) => 0.2 * Math.sin(i * 0.05)); await st.putSample(st.newSample('Pad', a, 48000, { kind: 'textura' }), a); await refreshSamples(); });
+    await tab(page, 'biblioteca');
+    expect(await page.locator('.row-btn[data-kind="textura"]').first().evaluate(e => getComputedStyle(e).borderLeftColor)).toBe('rgb(127, 181, 171)');
+    expect(await page.locator('#screen > *').first().evaluate(e => getComputedStyle(e).animationName)).toBe('none');
+  });
+  test('Editar muestra tres rutas (Recortar, Efectos y Pistorius) y el resto queda plegado en «Más herramientas», que recuerda si lo abriste', async ({ page }) => {
+    await abrir(page, 'rolando', { 'denavilab.sounds.editMore': 'false' });
+    await page.evaluate(async () => { const st = await import('/sounds/store.js'), { refreshSamples, openSample } = await import('/sounds/state.js'), a = new Float32Array(48000).map((_, i) => 0.3 * Math.sin(i * 0.05)); const s = st.newSample('Toma', a, 48000, {}); await st.putSample(s, a); await refreshSamples(); openSample(s); });
+    const sc = page.locator('#screen');
+    for (const n of ['Recortar', 'Fundido', 'Abrir la cadena de efectos', 'Abrir el asistente']) await expect(sc.getByRole('button', { name: n, exact: true })).toBeVisible();
+    for (const n of ['Normalizar', 'Nivelar volumen', 'Scratchear', 'Hacer loop continuo', 'Abrir el laboratorio']) await expect(sc.getByRole('button', { name: n })).toBeHidden();
+    await sc.getByText('Más herramientas').click(); await expect(sc.getByRole('button', { name: 'Normalizar' })).toBeVisible(); await expect(sc.getByRole('button', { name: 'Abrir el laboratorio' })).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem('denavilab.sounds.editMore'))).toBe('true');
   });
 });

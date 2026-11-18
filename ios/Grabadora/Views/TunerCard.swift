@@ -35,7 +35,7 @@ struct TunerCard: View {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text("Afinador").font(Theme.font(13)).foregroundColor(Theme.muted)
                 let ok = (reading.map { abs($0.shownCents) <= 5 } ?? false)
-                Text(reading?.title ?? "—").font(Theme.font(22, weight: .bold)).foregroundColor(ok ? Theme.amber : Theme.text)
+                Text(reading?.title ?? "—").font(Theme.font(22, weight: .bold)).foregroundColor(ok ? Theme.ok : Theme.text)
                 Spacer()
                 Text(infoText).font(Theme.font(12)).foregroundColor(Theme.muted).lineLimit(1)
             }

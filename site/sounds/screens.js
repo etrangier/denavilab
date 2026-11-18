@@ -15,6 +15,7 @@ import { openMateria, TAKE_SECONDS } from './materia.js';
 import { koPrepOn, setKoPrep, koPrepare, KO_RATE } from './koprep.js';
 import { detect as tunerDetect, smoother as tunerSmoother, PRESETS as TUNER_PRESETS } from './tuner.js';
 import { pistoriusOn, setPistorius, afterCapture } from './pistoriusui.js';
+import * as pmem from './pistoriusmem.js';
 import { KO_RATES, KO_DEFAULTS, koOpts, koPlan, buildKoBatch, LONG_FADE_MS } from './koexport.js';
 
 const ls = {
@@ -119,7 +120,7 @@ document.addEventListener('keydown', e => {
 
 export function sampleRow(s, { onclick, trailing, listen = false } = {}) {
   const right = trailing !== undefined ? trailing : (app.ko2 && s.slot ? 'slot ' + s.slot : '');
-  const row = h('button', { type: 'button', class: 'card row-btn', onclick: onclick || (() => { stopAudition(); openSample(s); }) },
+  const row = h('button', { type: 'button', class: 'card row-btn', 'data-kind': s.kind || 'libre', onclick: onclick || (() => { stopAudition(); openSample(s); }) },
     h('span', { class: 'rb-text' }, h('b', {}, s.name), h('small', {}, pathOf(s) + ' · ' + dsp.stamp(s.duration) + (s.status !== 'crudo' ? ' · ' + stateName(s.status) : ''))),
     right ? h('span', { class: 'amber small' }, right) : null);
   return listen ? h('div', { class: 'sel-row', 'data-id': s.id }, row, starBtn(s), listenBtn(s)) : row;
@@ -254,7 +255,8 @@ export function renderRecord(root) {
       h('div', { class: 'format' }, `WAV · 16 bit · mono · ${hz(koPrepOn() ? KO_RATE : exportRate())}${koPrepOn() ? ' · listo para el K.O. II' : ''}`),
       h('details', { class: 'rec-opts', open: recOpts.open ? '' : null, ontoggle: e => { recOpts.open = e.target.open; } }, h('summary', {}, 'Ajustes de captura · ', captureMode() === 'materia' ? 'materia prima' : 'captura libre', ' · ', dsp.SOUND_KINDS[kind].label.toLowerCase()),
         h('div', { class: 'stack tight' },
-          toggleRow('Asistente Pistorius', 'Después de grabar te pregunta si sigues con la edición convencional o con el asistente', pistoriusOn(), v => { setPistorius(v); app.render(); }),
+          toggleRow('Asistente Pistorius', 'Después de grabar te pregunta si sigues con la edición convencional o con el asistente, y aprende de lo que eliges', pistoriusOn(), v => { setPistorius(v); app.render(); }),
+          h('div', { class: 'between small' }, h('span', { class: 'muted' }, pmem.summary()), link('Olvidar', () => { pmem.forget(); toast('Pistorius olvidó lo aprendido'); app.render(); })),
           toggleRow('Afinador en vivo', 'Muestra la nota que suena y cuántos cents le faltan, con modo ukelele y guitarra', tunerOn, v => { ls.set('tuner', v); app.render(); }),
           app.ko2 ? toggleRow('Dejar listo para el K.O. II', '46 875 Hz, mono, 16 bit y volumen nivelado al guardar', koPrepOn(), v => { setKoPrep(v); app.render(); }) : null,
           card([h('b', {}, 'Entrada · Micrófono del dispositivo')]),

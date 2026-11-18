@@ -1507,4 +1507,22 @@ final class LogicTests: XCTestCase {
         XCTAssertGreaterThan(rms(short, short.count - rate * 3 / 10, w), rms(short, rate, w) * 0.8)
         XCTAssertEqual(Materia.longFadeSec(2), 2.0 / 3, accuracy: 0.001)
     }
+
+    // MARK: memoria de Pistorius
+    func testPistoriusMemoryLearnsWhatYouChoose() {
+        var m = PistoriusMemory.Model()
+        let srcs = Pistorius.sources, goals = Pistorius.goalsFor("naturaleza")
+        XCTAssertNil(PistoriusMemory.rankSources(srcs, m).top); XCTAssertNil(PistoriusMemory.rankGoals("naturaleza", goals, m).top); XCTAssertNil(PistoriusMemory.usualAction("pad", m))
+        m = PistoriusMemory.record(source: "ambiente", goal: "pad", action: "cortar", in: m, persist: false)
+        XCTAssertNil(PistoriusMemory.rankGoals("ambiente", Pistorius.goalsFor("ambiente"), m).top)          // con un solo ejemplo no reordena
+        m = PistoriusMemory.record(source: "ambiente", goal: "pad", action: "chop", in: m, persist: false)
+        m = PistoriusMemory.record(source: "ambiente", goal: "pad", action: "chop", in: m, persist: false)
+        m = PistoriusMemory.record(source: "naturaleza", goal: "golpe", action: "cortar", in: m, persist: false)
+        m = PistoriusMemory.record(source: "naturaleza", goal: "golpe", action: "cortar", in: m, persist: false)
+        let rs = PistoriusMemory.rankSources(srcs, m), rg = PistoriusMemory.rankGoals("naturaleza", goals, m)
+        XCTAssertEqual(rs.list.first?.id, "ambiente"); XCTAssertEqual(rs.top, "ambiente")
+        XCTAssertEqual(rg.list.first?.id, "golpe"); XCTAssertEqual(rg.top, "golpe"); XCTAssertEqual(rg.list.count, goals.count)
+        XCTAssertEqual(PistoriusMemory.usualAction("pad", m), "chop")
+        XCTAssertTrue(PistoriusMemory.summary(m).contains("5 sonidos"))
+    }
 }

@@ -61,6 +61,7 @@ struct EditorBody: View {
     @State private var loop = false
     @State private var showEffects = false
     @State private var showChop = false
+    @AppStorage("editMore") private var showMore = false
     @State private var showPrecise = false
     @State private var showDetails = false
     @State private var showLab = false
@@ -109,42 +110,47 @@ struct EditorBody: View {
                     Text(stamp(end * total)).foregroundColor(Theme.amber)
                 }.font(Theme.font(12, weight: .bold)).monospacedDigit()
                 transport
-                SectionLabel("Herramientas")
+                SectionLabel("Recortar")
                 HStack(spacing: 8) {
                     Button("Recortar") { let a = Int(start * Double(count)), b = Int(end * Double(count)), f = fadeSamples; learnTrim(a, b); run("recortar", done: "Listo: recortado") { Editing.fade(Editing.trim($0, from: a, to: b), inSamples: f, outSamples: f) }; start = 0; end = 1 }
                         .actionFX("recortar", busy: fxBusy, flash: fxFlash)
-                    Button("Normalizar") { run("normalizar", done: "Listo: normalizado a −1 dB") { Editing.normalize($0) } }
-                        .actionFX("normalizar", busy: fxBusy, flash: fxFlash)
                     Button("Fundido") { let f = fadeSamples; run("fundido", done: "Listo: fundido aplicado") { Editing.fade($0, inSamples: f, outSamples: f) } }
                         .actionFX("fundido", busy: fxBusy, flash: fxFlash)
-                    Button("Efectos") { showEffects = true }.buttonStyle(OutlineButton(selected: !sample.effects.isNeutral))
                 }.buttonStyle(OutlineButton()).font(Theme.font(13))
-                Button("Nivelar volumen (parejo)") { levelOut() }.buttonStyle(OutlineButton()).font(Theme.font(13))
-                    .actionFX("nivelar", busy: fxBusy, flash: fxFlash)
-                InfoTip("Lleva el volumen típico de la toma a \(Int(Level.target)) dB (no el pico): así un golpe seco y un pad suenan igual de fuertes. El nivel se cambia en Compartir. Puedes deshacer.")
-                HStack(spacing: 8) {
-                    Button(fxFlash == "recorte-ia" ? "✓ Recorte sugerido" : "✨ Recorte inteligente") { smartTrim() }.actionFX("recorte-ia", busy: fxBusy, flash: fxFlash)
-                    Button(fxFlash == "loop-ia" ? "✓ Loop sugerido" : "✨ Loop inteligente") { smartLoop() }.actionFX("loop-ia", busy: fxBusy, flash: fxFlash)
-                }.buttonStyle(OutlineButton()).font(Theme.font(13))
+                Button(fxFlash == "recorte-ia" ? "✓ Recorte sugerido" : "✨ Recorte inteligente") { smartTrim() }.actionFX("recorte-ia", busy: fxBusy, flash: fxFlash).buttonStyle(OutlineButton()).font(Theme.font(13))
+                SliderRow(title: "Fundido", valueText: "\(Int(fadeMs)) ms", value: $fadeMs, range: 0...200)
                 Button("Edición precisa (zoom)") { showPrecise = true }.buttonStyle(OutlineButton())
                 Button("Chop en pads") { showChop = true }.buttonStyle(OutlineButton())
-                Button("Asistente Pistorius") { showPistorius = true }.buttonStyle(OutlineButton())
+                SectionLabel("Efectos")
                 Button("Cadena de efectos") { showFx = true }.buttonStyle(OutlineButton())
                 if let r = sample.recipe {
                     Text("Receta · de «\(r.fromName)»: " + FxChain.describe(r.chain).map { $0.components(separatedBy: " (").first ?? $0 }.joined(separator: " → ")).font(Theme.font(12)).foregroundColor(Theme.muted)
                     Button("Re-editar la receta") { openRecipe() }.buttonStyle(OutlineButton())
                     Text("Se edita sobre el original y actualiza este sonido.").font(Theme.font(11)).foregroundColor(Theme.muted)
                 }
-                Button("Laboratorio de pads") { showLab = true }.buttonStyle(OutlineButton())
-                Text("Bucle sin clics, estirar, tono, filtros, reverb, capas y teclado (con MIDI).").font(Theme.font(12)).foregroundColor(Theme.muted)
+                SectionLabel("Pistorius")
+                Button("Asistente Pistorius") { showPistorius = true }.buttonStyle(OutlineButton())
+                DisclosureGroup(isExpanded: $showMore) {
+                    VStack(alignment: .leading, spacing: 10) {
+                    Button("Efectos") { showEffects = true }.buttonStyle(OutlineButton(selected: !sample.effects.isNeutral))
+                    Button("Normalizar") { run("normalizar", done: "Listo: normalizado a −1 dB") { Editing.normalize($0) } }
+                        .actionFX("normalizar", busy: fxBusy, flash: fxFlash)
+                Button("Nivelar volumen (parejo)") { levelOut() }.buttonStyle(OutlineButton()).font(Theme.font(13))
+                    .actionFX("nivelar", busy: fxBusy, flash: fxFlash)
+                InfoTip("Lleva el volumen típico de la toma a \(Int(Level.target)) dB (no el pico): así un golpe seco y un pad suenan igual de fuertes. El nivel se cambia en Compartir. Puedes deshacer.")
                 Button("Armonizar bordes (sin clics)") { let r = sample.sampleRate; run("armonizar", done: "Listo: bordes armonizados") { Harmonize.harmonize($0, rate: r) } }.buttonStyle(OutlineButton()).font(Theme.font(13))
                     .actionFX("armonizar", busy: fxBusy, flash: fxFlash)
                 InfoTip("Centra la onda y suaviza el inicio y el final a medida, para que un recorte no suene «cortado». Puedes deshacer.")
-                creativeTools
-                loopTools
-                noiseTools
-                SliderRow(title: "Fundido", valueText: "\(Int(fadeMs)) ms", value: $fadeMs, range: 0...200)
-                bpmCard
+                        Button(fxFlash == "loop-ia" ? "✓ Loop sugerido" : "✨ Loop inteligente") { smartLoop() }.actionFX("loop-ia", busy: fxBusy, flash: fxFlash).buttonStyle(OutlineButton()).font(Theme.font(13))
+                Button("Laboratorio de pads") { showLab = true }.buttonStyle(OutlineButton())
+                Text("Bucle sin clics, estirar, tono, filtros, reverb, capas y teclado (con MIDI).").font(Theme.font(12)).foregroundColor(Theme.muted)
+                        creativeTools
+                        loopTools
+                        noiseTools
+                        bpmCard
+                    }.padding(.top, 8)
+                } label: { Text("Más herramientas").font(Theme.font(15, weight: .bold)).foregroundColor(Theme.text) }
+                .tint(Theme.muted).card()
                 FolderPicker(
                     folder: Binding(get: { sample.folder }, set: { sample.folder = $0; lib.update(sample) }),
                     sub: Binding(get: { sample.subfolder }, set: { sample.subfolder = $0; lib.update(sample) }))

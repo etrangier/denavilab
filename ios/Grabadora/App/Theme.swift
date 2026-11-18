@@ -1,16 +1,28 @@
 import SwiftUI
 
-/// Negro con blanco y matices de gris. `amber` es el color de acento y ahora es blanco; se conserva el nombre para no tocar toda la app.
+/// Una sola apariencia, Atardecer (sale del icono): fondo verde casi negro, acento naranja y verde azulado para lo que está bien.
+/// `amber` es el color de acento: se conserva el nombre para no tocar toda la app.
 enum Theme {
-    static let bg = Color(hex: 0x000000)
-    static let surface = Color(hex: 0x0d0d0d)
-    static let surface2 = Color(hex: 0x1a1a1a)
-    static let line = Color(hex: 0x3a3a3a)
-    static let text = Color(hex: 0xf2f2f2)
-    static let muted = Color(hex: 0x9a9a9a)
-    static let amber = Color(hex: 0xffffff)
-    static let ink = Color(hex: 0x000000)
-    static let error = Color(hex: 0xff6b6b)
+    static let bg = Color(hex: 0x0d1311)
+    static let surface = Color(hex: 0x141c19)
+    static let surface2 = Color(hex: 0x1e2a26)
+    static let line = Color(hex: 0x31403a)
+    static let text = Color(hex: 0xf4ede1)
+    static let muted = Color(hex: 0x9aa89f)
+    static let amber = Color(hex: 0xf2a65a)
+    static let ink = Color(hex: 0x1c1208)
+    static let error = Color(hex: 0xff7a6b)
+    /// Lo que está bien: «en tono» en el afinador.
+    static let ok = Color(hex: 0x8fd8c3)
+    /// Franja de color por tipo de sonido.
+    static func kindColor(_ kind: String?) -> Color {
+        switch kind ?? "libre" {
+        case "textura": return Color(hex: 0x7fb5ab)
+        case "bajo": return Color(hex: 0xf2a65a)
+        case "bateria": return Color(hex: 0xc98a9a)
+        default: return Color(hex: 0xd8c26a)
+        }
+    }
 
     /// Ubuntu (incluida en Fonts/); si faltara, SwiftUI usa la del sistema.
     static func font(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {

@@ -3,7 +3,7 @@
 @font-face { font-family: Ubuntu; font-weight: 500; font-display: swap; src: url(fonts/Ubuntu-Medium.ttf) format('truetype'); }
 @font-face { font-family: Ubuntu; font-weight: 700; font-display: swap; src: url(fonts/Ubuntu-Bold.ttf) format('truetype'); }
 
-:root { --bg:#000000; --surface:#0d0d0d; --surface2:#1a1a1a; --line:#3a3a3a; --text:#f2f2f2; --muted:#9a9a9a; --amber:#ffffff; --ink:#000000; --err:#ff6b6b; --r:16px; }
+:root { --bg:#0d1311; --surface:#141c19; --surface2:#1e2a26; --line:#31403a; --text:#f4ede1; --muted:#9aa89f; --amber:#f2a65a; --ink:#1c1208; --ok:#8fd8c3; --err:#ff7a6b; --r:16px; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 400 16px/1.35 Ubuntu, system-ui, -apple-system, 'Segoe UI', sans-serif; overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 body { overflow: hidden; }
@@ -268,3 +268,24 @@ details.filters:not([open]){flex:0 0 auto}
 .tn-card .tn-presets{margin:8px 0}
 .tn-card[open] .tn-row{display:block}
 .tn-card .tn-note{font-size:1.3rem;min-width:0}
+
+/* ---- apariencia: una sola, Atardecer (sale del icono): fondo verde casi negro, acento naranja, verde azulado para lo que está bien ---- */
+:root { --k-libre:#d8c26a; --k-textura:#7fb5ab; --k-bajo:#f2a65a; --k-bateria:#c98a9a; }
+body { background: var(--bg) radial-gradient(120% 60% at 50% 0%, #1a2a25 0%, #0d1311 60%) fixed; }
+.meter-fill { background: linear-gradient(90deg, #5fb7a6, #f2c46d 70%, #f2a65a); }
+.row-btn[data-kind] { border-left: 4px solid var(--k-libre); } .row-btn[data-kind="textura"] { border-left-color: var(--k-textura); } .row-btn[data-kind="bajo"] { border-left-color: var(--k-bajo); } .row-btn[data-kind="bateria"] { border-left-color: var(--k-bateria); }
+/* grabando: el botón respira y se enciende; la aguja del afinador se asienta con un resorte */
+.rec-btn.on { border-color: var(--err); animation: recPulse 1.6s ease-in-out infinite; } .rec-btn.on .rec-in { background: var(--err); }
+.rec-btn:not(.on):not(.first) { animation: recBreath 3.2s ease-in-out infinite; }
+@keyframes recPulse { 0%,100% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--err) 18%, transparent), 0 0 18px color-mix(in srgb, var(--err) 25%, transparent); } 50% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--err) 10%, transparent), 0 0 38px color-mix(in srgb, var(--err) 50%, transparent); } }
+@keyframes recBreath { 0%,100% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--amber) 10%, transparent); } 50% { box-shadow: 0 0 0 9px color-mix(in srgb, var(--amber) 22%, transparent); } }
+.tn-needle { transition: left .35s cubic-bezier(.34, 1.56, .64, 1); } .tn-note { transition: color .2s, text-shadow .2s; }
+.tn-note.ok { color: var(--ok); }
+#screen > * { animation: enter .28s ease-out both; } #screen > *:nth-child(2) { animation-delay: .03s; } #screen > *:nth-child(3) { animation-delay: .06s; } #screen > *:nth-child(4) { animation-delay: .09s; } #screen > *:nth-child(5) { animation-delay: .12s; }
+@keyframes enter { from { opacity: 0; } to { opacity: 1; } }
+.meter-fill { transition: width .06s linear; }
+@media (prefers-reduced-motion: reduce) { #screen > *, .rec-btn, .rec-btn.on { animation: none !important; } .tn-needle, .tn-note, .meter-fill { transition: none; } }
+
+/* Editar: tres rutas (Recortar, Efectos, Pistorius) y el resto plegado en «Más herramientas» */
+details.more { border: 1px solid var(--line); border-radius: var(--r); padding: 0 14px; } details.more > summary { cursor: pointer; min-height: 48px; display: flex; align-items: center; font-weight: 700; color: var(--text); list-style: none; }
+details.more[open] { padding-bottom: 14px; } details.more[open] > summary { border-bottom: 1px solid var(--line); margin-bottom: 12px; }
