@@ -29,7 +29,7 @@ enum StyleMemory {
     }
     struct StyleGuess { let kind: String?; let group: String; let confidence: Double }
     struct TrimSuggestion { let a: Int; let b: Int; let fadeMs: Double; let group: String; let learned: Int; let why: String }
-    struct LoopSuggestion { let a: Int; let b: Int; let crossSec: Double; let refine: Bool; let group: String; let learned: Int; let seam: Double?; let periodo: Double?; let why: String }
+    struct LoopSuggestion { let a: Int; let b: Int; let crossSec: Double; let refine: Bool; let group: String; let learned: Int; let seam: Double?; let periodo: Double?; let why: String; var bars: Int? = nil; var bpm: Double? = nil; var meter: Int? = nil }
 
     // MARK: persistencia
     static func load() -> Model {
@@ -183,6 +183,22 @@ enum StyleMemory {
         let l = (stat?.n ?? 0) >= minSeen ? stat : nil
         let startMs = f.onsetMs + (st.group == "golpe" ? f.attackMs + 20 : min(300, f.attackMs + 40)), availMs = f.endMs - startMs
         guard availMs >= 500 else { return nil }
+        // con pulso claro y golpes marcados: el loop empieza en un primer tiempo y dura compases enteros
+        if x.count > rate * 3, let pulso = Beat.analyze(x, rate: rate), pulso.confidence >= 0.5, pulso.kurt >= 40 {
+            let prefBars = l.flatMap { mode($0.beats) }.flatMap { Int($0) }.map { max(1, Int((Double($0) / Double(pulso.meter)).rounded())) } ?? 0
+            let cands = Beat.barLoops(pulso, startSec: f.onsetMs / 1000, endSec: f.endMs / 1000, prefBars: prefBars)
+            if let c = cands.first {
+                let a = snap(x, Int(c.a * Double(rate)).clampedZero), b = min(x.count, a + Int(Double(c.bars) * pulso.barSec * Double(rate)))
+                let seam = Constellation.seamScore(Constellation.build(x, rate: rate), a, b)
+                var cross = l.flatMap { mode($0.cross) }.flatMap { Double($0) } ?? 0.5
+                cross = max(0.1, min(cross, Double(b - a) / Double(rate) / 4))
+                let snapped = min([0.5, 1.0, 2.0, 4.0].min { abs($0 - cross) < abs($1 - cross) } ?? 0.5, Double(b - a) / Double(rate) / 4)
+                let compases = c.bars == 1 ? "compás" : "compases"
+                let cont = (seam ?? 0) >= 0.3 ? ", continuidad \(Int(((seam ?? 0) * 100).rounded())) %" : ""
+                return LoopSuggestion(a: a, b: b, crossSec: snapped, refine: false, group: st.group, learned: l?.n ?? 0, seam: seam, periodo: nil,
+                                      why: "Loop de \(c.bars) \(compases) (\(pulso.meter) tiempos a \(Int(pulso.bpm.rounded())) BPM): empieza en el primer tiempo y dura compases enteros\(cont)", bars: c.bars, bpm: pulso.bpm, meter: pulso.meter)
+            }
+        }
         var lenMs = 0.0, how = ""
         if let bpm, bpm > 0, bpmConfidence >= 0.25 {
             let beatMs = 60000 / bpm, pref = l.flatMap { mode($0.beats) }.flatMap { Int($0) } ?? 0

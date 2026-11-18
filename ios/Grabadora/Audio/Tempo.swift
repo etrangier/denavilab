@@ -20,7 +20,7 @@ enum Tempo {
     nonisolated static func analyze(_ x: [Float], rate: Int) -> Outcome {
         guard x.count >= rate * 4 else { return .failed("Todavía no hay audio suficiente. Vuelve a intentarlo.") }
         guard Editing.peakDB(x) > -50 else { return .failed("No oigo nada. Acerca el micrófono al aparato o sube su volumen.") }
-        guard let r = Editing.estimateBPM(x, rate: rate) else {
+        guard let r = Beat.tempoPair(x, rate: rate) else {
             return .failed("No encuentro un pulso claro. Prueba con un patrón más marcado (bombo y caja) o escucha unos segundos más.")
         }
         return .bpm(r.bpm, confidence: r.confidence)

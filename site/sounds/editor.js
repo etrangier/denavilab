@@ -8,6 +8,8 @@ import { describeChain, cleanChain } from './fxall.js';
 import { h, mount, fill, btn, link, chip, card, label, muted, tip, title, toggleRow, sliderRow, logo, confirmSheet, toast, folderPicker, drawBars, fx, flash } from './ui.js';
 import { compute } from './work.js';
 import * as dsp from './dsp.js';
+import { estimateTempo } from './beat.js';
+import { buildDiagnostic, diagnosticText, copyText } from './diag.js';
 import * as learn from './learn.js';
 import { putSample, getAudio, deleteSamples, newSample } from './store.js';
 import { openChop } from './chop.js';
@@ -160,8 +162,8 @@ export function renderEdit(root) {
   const bpmCard = card([
     h('div', { class: 'between' }, h('b', {}, 'Tempo'), h('span', { class: s.bpm ? 'amber small' : 'muted small' }, s.bpm ? `≈ ${Math.round(s.bpm)} BPM` : 'sin detectar')),
     h('div', { class: 'row2' }, btn('Detectar BPM', { small: true, onclick: async () => {
-      const r = dsp.estimateBPM(ed.audio, s.rate); if (!r) return toast('No encuentro un pulso claro en esta toma');
-      await putSample({ ...s, bpm: r.bpm }); await refreshSamples(); toast(`≈ ${r.bpm.toFixed(0)} BPM · confianza ${Math.round(r.confidence * 100)} %`); app.render();
+      const r = estimateTempo(ed.audio, s.rate); if (!r) return toast('No encuentro un pulso claro en esta toma');
+      await putSample({ ...s, bpm: r.bpm }); await refreshSamples(); toast(`≈ ${r.bpm.toFixed(0)} BPM${r.meter ? ' · compás de ' + r.meter : ''} · confianza ${Math.round(r.confidence * 100)} %` + (r.half ? ` · si se siente más lento: ${r.half.toFixed(0)}` : ''), 7000); app.render();
     } }), s.bpm ? btn('Usar en el metrónomo', { small: true, sel: true, onclick: () => { app.metro.set('bpm', Math.min(300, Math.max(30, Math.round(s.bpm)))); toast('Metrónomo a ' + Math.round(s.bpm) + ' BPM'); } }) : null),
     muted('Funciona mejor con pulso claro y al menos 2 segundos.', 'tiny')]);
   const fp = { folder: s.folder, sub: s.subfolder || null };
@@ -196,10 +198,16 @@ export function renderEdit(root) {
     card([h('b', {}, 'Cadena de efectos'), h('p', { class: 'muted small' }, 'Cassette, vinilo, granular, delay, reverb y más.'), btn('Abrir la cadena de efectos', { act: 'efectos', onclick: () => openFxRack(s) })]),
     card([h('b', {}, 'Asistente Pistorius'), h('p', { class: 'muted small' }, 'Te guía para convertir este sonido en pad, nota, acorde, bajo, golpe o chop.'), btn('Abrir el asistente', { act: 'pistorius', onclick: () => openPistorius(ed.audio, s.rate, { base: s.name, origin: s.origin || '', folder: s.folder, subfolder: s.subfolder || null, fromSample: true }) })]),
     h('details', { class: 'more', open: (() => { try { return JSON.parse(localStorage.getItem('denavilab.sounds.editMore')) === true; } catch (x) { return false; } })() ? '' : null, ontoggle: e => { try { localStorage.setItem('denavilab.sounds.editMore', JSON.stringify(e.target.open)); } catch (x) {} } }, h('summary', {}, 'Más herramientas'), h('div', { class: 'stack' },
+      label('Diagnóstico'),
+      btn('Copiar diagnóstico', { small: true, act: 'diagnostico', onclick: async () => {
+        const [a, b] = sel(), d = buildDiagnostic({ audio: ed.audio, rate: s.rate, sample: s, selection: a > 0 || b < ed.audio.length ? { a, b } : null });
+        const ok = await copyText(diagnosticText(d)); toast(ok ? 'Diagnóstico copiado: pégalo en el chat (no lleva audio ni nombres)' : 'No pude copiarlo: tu navegador no deja usar el portapapeles', 6000);
+      } }),
+      tip('Copia un resumen en texto de lo que la app entendió de este sonido (tempo, compás, golpes) y de lo que sugirió, junto a tu selección actual. No incluye el audio ni el nombre.'),
       label('Volumen y bordes'),
       btn('Normalizar', { small: true, act: 'normalizar', onclick: () => run('normalizar', x => dsp.normalize(x), { done: 'Listo: normalizado a −1 dB' }) }),
       btn(fx.flash === 'loop-ia' ? '✓ Loop sugerido' : '✨ Loop inteligente', { small: true, act: 'loop-ia', onclick: () => {
-        const est = s.bpm ? { bpm: s.bpm, confidence: 1 } : dsp.estimateBPM(ed.audio, s.rate), r = learn.suggestLoop(ed.audio, s.rate, { bpm: est ? est.bpm : null, bpmConfidence: est ? est.confidence : 0 });
+        const est = s.bpm ? { bpm: s.bpm, confidence: 1 } : estimateTempo(ed.audio, s.rate), r = learn.suggestLoop(ed.audio, s.rate, { bpm: est ? est.bpm : null, bpmConfidence: est ? est.confidence : 0 });
         if (!r) return toast('No encuentro una zona estable de al menos 0,5 s para sugerir un loop');
         ed.start = r.a / ed.audio.length; ed.end = r.b / ed.audio.length; ed.cross = r.crossSec; ed.refine = r.refine; toast(r.why + ' · ajusta y pulsa Hacer loop continuo', 8000); flash('loop-ia'); app.render();
       } }),

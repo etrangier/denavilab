@@ -5,6 +5,7 @@ import * as learn from './learn.js';
 import { trackPitch } from './fx404.js';
 import { noteChanges, repetition } from './constellation.js';
 import { declick, dehum, findHum, clickRate } from './restore.js';
+import { estimateTempo } from './beat.js';
 
 // ---------------------------------------------------------------------------------------------------- catálogo
 export const SOURCES = [
@@ -116,7 +117,7 @@ export function applyTuning(x, cents) { return Math.abs(cents) < 0.5 ? x : dsp.r
 
 /** Lo que se sabe del sonido antes de elegir receta. */
 export function analyze(x, rate) {
-  const f = learn.features(x, rate), est = x.length > rate * 2 ? dsp.estimateBPM(x, rate) : null, tun = estimateTuning(x, rate);
+  const f = learn.features(x, rate), est = x.length > rate * 2 ? estimateTempo(x, rate) : null, tun = estimateTuning(x, rate);
   return { sec: x.length / rate, levelDB: dsp.levelDB(x, rate), noiseDB: x.length > rate * 0.3 ? dsp.noiseFloorDB(x, rate) : -120, feat: f, bpm: est, tuning: tun };
 }
 

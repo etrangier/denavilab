@@ -7,6 +7,7 @@
 //  4) Con eso sugiere un recorte o un loop (tú lo corriges y la memoria aprende de la corrección).
 import { fftInPlace, transients, nearestZeroCross } from './dsp.js';
 import { constellation, repetition, refineLoopEnd, seamScore } from './constellation.js';
+import { analyzeBeats, barLoops } from './beat.js';
 
 const KEY = 'denavilab.sounds.style';
 export const MIN_SEEN = 3;            // con menos ejemplos que esto se usan valores de fábrica
@@ -123,6 +124,20 @@ export function suggestLoop(x, rate, { bpm = null, bpmConfidence = 0 } = {}, mod
   const st = styleOf(f, model), l = model.on && model.loop[st.group] && model.loop[st.group].n >= MIN_SEEN ? model.loop[st.group] : null;
   const startMs = f.onsetMs + (st.group === 'golpe' ? f.attackMs + 20 : Math.min(300, f.attackMs + 40)), availMs = f.endMs - startMs;
   if (availMs < 500) return null;
+  // 1) con pulso claro: el loop empieza en un primer tiempo y dura compases enteros
+  let pulso = null; try { pulso = x.length > rate * 3 ? analyzeBeats(x, rate) : null; } catch (e) {}
+  if (pulso && pulso.confidence >= 0.5 && pulso.kurt >= 40) {       // solo con golpes marcados (percusión): una melodía suave sin pulso sigue por el periodo de repetición
+    const prefBars = l && mode(l.beats) ? Math.round(+mode(l.beats) / pulso.meter) : 0, cands = barLoops(pulso, { startSec: f.onsetMs / 1000, endSec: f.endMs / 1000, prefBars });
+    const c = cands[0];
+    if (c) {
+      const a = snap(x, Math.round(c.a * rate)), b = Math.min(x.length, a + Math.round(c.bars * pulso.barSec * rate));
+      let seam = null; try { seam = seamScore(constellation(x, rate), a, b); } catch (e) {}
+      let crossSec = l && mode(l.cross) ? +mode(l.cross) : 0.5; crossSec = Math.max(0.1, Math.min(crossSec, (b - a) / rate / 4));
+      const choices = [0.5, 1, 2, 4], cross = choices.reduce((p, q) => Math.abs(q - crossSec) < Math.abs(p - crossSec) ? q : p, 0.5);
+      return { a, b, crossSec: Math.min(cross, (b - a) / rate / 4), refine: false, group: st.group, kind: st.kind, learned: l ? l.n : 0, seam, periodo: null, bars: c.bars, bpm: pulso.bpm, meter: pulso.meter, alt: cands.slice(1, 4),
+        why: `Loop de ${c.bars} ${c.bars === 1 ? 'compás' : 'compases'} (${pulso.meter} tiempos a ${Math.round(pulso.bpm)} BPM): empieza en el primer tiempo y dura compases enteros${seam != null && seam >= 0.3 ? `, continuidad ${Math.round(seam * 100)} %` : ''}` };
+    }
+  }
   let lenMs, how;
   if (bpm && bpmConfidence >= 0.25) {
     const beatMs = 60000 / bpm, pref = l ? +mode(l.beats) : 0, fit = [1, 2, 4, 8, 16, 32].filter(b => b * beatMs <= availMs);

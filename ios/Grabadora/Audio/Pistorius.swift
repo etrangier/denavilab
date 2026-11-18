@@ -169,7 +169,7 @@ enum Pistorius {
     /// Lo que se sabe del sonido antes de elegir receta.
     nonisolated static func analyze(_ x: [Float], rate: Int) -> Analysis {
         Analysis(sec: Double(x.count) / Double(rate), levelDB: Level.levelDB(x, rate: rate), noiseDB: x.count > rate / 3 ? Double(NoiseReduction.noiseFloorDB(x, rate: rate)) : -120,
-                 feat: StyleMemory.features(x, rate: rate), bpm: x.count > rate * 2 ? Editing.estimateBPM(x, rate: rate) : nil, tuning: estimateTuning(x, rate: rate))
+                 feat: StyleMemory.features(x, rate: rate), bpm: x.count > rate * 2 ? Beat.tempoPair(x, rate: rate) : nil, tuning: estimateTuning(x, rate: rate))
     }
 
     // MARK: recetas

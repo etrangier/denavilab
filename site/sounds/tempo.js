@@ -1,5 +1,6 @@
 // Escuchar tempo: oye unos segundos por el micrófono (lo que toques en tu sampler, sin grabar) y estima el BPM.
-import { estimateBPM, peakDB } from './dsp.js';
+import { peakDB } from './dsp.js';
+import { estimateTempo } from './beat.js';
 
 export const LISTEN_SECONDS = 10, BPM_RANGE = [40, 240];
 
@@ -12,7 +13,7 @@ export const bpmAlternatives = bpm => [bpm / 2, bpm * 2].filter(v => v >= BPM_RA
 export function analyzeTempo(x, rate) {
   if (!x || x.length < rate * 4) return { error: 'Todavía no hay audio suficiente. Vuelve a intentarlo.' };
   if (peakDB(x) < -50) return { error: 'No oigo nada. Acerca el micrófono al aparato o sube su volumen.' };
-  const r = estimateBPM(x, rate);
+  const r = estimateTempo(x, rate);
   return r ? { bpm: r.bpm, confidence: r.confidence } : { error: 'No encuentro un pulso claro. Prueba con un patrón más marcado (bombo y caja) o escucha unos segundos más.' };
 }
 

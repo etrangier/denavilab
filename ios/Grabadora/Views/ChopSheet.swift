@@ -109,7 +109,7 @@ struct ChopSheet: View {
             }
         }
         .sheet(isPresented: $showShare) { ShareSheet(items: sharing) }
-        .onAppear { if let m = initialMode { mode = m }; peaks = Editing.peaks(audio, buckets: 56); bpm = sample.bpm ?? Editing.estimateBPM(audio, rate: sample.sampleRate)?.bpm; recompute() }
+        .onAppear { if let m = initialMode { mode = m }; peaks = Editing.peaks(audio, buckets: 56); bpm = sample.bpm ?? Beat.tempoPair(audio, rate: sample.sampleRate)?.bpm; recompute() }
         .onChange(of: grid) { _ in recompute() }
         .onChange(of: mode) { _ in recompute() }
         .onChange(of: sensitivity) { _ in recompute() }

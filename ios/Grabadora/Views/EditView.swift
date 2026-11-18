@@ -148,6 +148,9 @@ struct EditorBody: View {
                         loopTools
                         noiseTools
                         bpmCard
+                        SectionLabel("Diagnóstico")
+                        Button("Copiar diagnóstico") { copyDiagnostic() }.buttonStyle(OutlineButton()).font(Theme.font(13))
+                        InfoTip("Copia un resumen en texto de lo que la app entendió de este sonido (tempo, compás, golpes) y de lo que sugirió, junto a tu selección actual. No incluye el audio ni el nombre.")
                     }.padding(.top, 8)
                 } label: { Text("Más herramientas").font(Theme.font(15, weight: .bold)).foregroundColor(Theme.text) }
                 .tint(Theme.muted).card()
@@ -327,7 +330,7 @@ struct EditorBody: View {
     }
 
     private func smartLoop() {
-        let est: (bpm: Double, confidence: Double)? = sample.bpm.map { (bpm: $0, confidence: 1.0) } ?? Editing.estimateBPM(audio, rate: sample.sampleRate)
+        let est: (bpm: Double, confidence: Double)? = sample.bpm.map { (bpm: $0, confidence: 1.0) } ?? Beat.tempoPair(audio, rate: sample.sampleRate)
         guard let r = StyleMemory.suggestLoop(audio, rate: sample.sampleRate, bpm: est?.bpm, bpmConfidence: est?.confidence ?? 0) else {
             message = "No encuentro una zona estable de al menos 0,5 s para sugerir un loop"; return
         }
@@ -415,11 +418,20 @@ struct EditorBody: View {
     }
 
     private func detectBPM() {
-        guard let r = Editing.estimateBPM(audio, rate: sample.sampleRate) else {
+        guard let r = Beat.estimateTempo(audio, rate: sample.sampleRate) else {
             message = "No encuentro un pulso claro en esta toma"; return
         }
         sample.bpm = r.bpm; lib.update(sample)
-        message = String(format: "≈ %.0f BPM · confianza %.0f %%", r.bpm, r.confidence * 100)
+        let compas = r.meter.map { " · compás de \($0)" } ?? ""
+        let lento = r.half.map { String(format: " · si se siente más lento: %.0f", $0) } ?? ""
+        message = String(format: "≈ %.0f BPM", r.bpm) + compas + String(format: " · confianza %.0f %%", r.confidence * 100) + lento
+    }
+
+    private func copyDiagnostic() {
+        let a = Int(start * Double(count)), b = Int(end * Double(count))
+        let sel: (a: Int, b: Int)? = (a > 0 || b < count) ? (a: a, b: b) : nil
+        UIPasteboard.general.string = Diagnostic.build(audio, rate: sample.sampleRate, kind: sample.kind, status: sample.status, bpmSaved: sample.bpm, selection: sel)
+        message = "Diagnóstico copiado: pégalo en el chat (no lleva audio ni nombre)"
     }
 
     private func suggestFolder() {

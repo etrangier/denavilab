@@ -1525,4 +1525,62 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(PistoriusMemory.usualAction("pad", m), "chop")
         XCTAssertTrue(PistoriusMemory.summary(m).contains("5 sonidos"))
     }
+
+    // MARK: pulso, compás y tiempo fuerte
+    private func drumLoop(bpm: Double, bars: Int, beatsPerBar: Int = 4, pickup: Double = 0, rate: Int = 46_875) -> [Float] {
+        let beat = 60 / bpm
+        var x = [Float](repeating: 0, count: Int((pickup + Double(bars * beatsPerBar) * beat + 0.5) * Double(rate)))
+        var sd: UInt32 = 7
+        func rnd() -> Float { sd = sd &* 1664525 &+ 1013904223; return Float(sd) / 4294967296 }
+        func add(_ t: Double, _ kind: Int) {      // 0 bombo, 1 bombo suave, 2 caja, 3 platillo
+            let s0 = Int(t * Double(rate)), len = Int(0.12 * Double(rate))
+            var i = 0
+            while i < len && s0 + i < x.count {
+                let u = Double(i) / Double(rate)
+                var v = 0.0
+                if kind <= 1 { v = (kind == 0 ? 0.9 : 0.5) * sin(2 * .pi * (110 - 55 * min(1, u * 14)) * u) * exp(-u * 28) }
+                else if kind == 2 { v = 0.5 * Double(rnd() * 2 - 1) * exp(-u * 30) + 0.25 * sin(2 * .pi * 190 * u) * exp(-u * 25) }
+                else { v = 0.18 * Double(rnd() * 2 - 1) * exp(-u * 90) }
+                x[s0 + i] += Float(v)
+                i += 1
+            }
+        }
+        for b in 0..<bars {
+            for k in 0..<beatsPerBar {
+                let t0 = pickup + Double(b * beatsPerBar + k) * beat
+                if k == 0 { add(t0, 0) } else if beatsPerBar == 4 && k == 2 { add(t0, 1) }
+                if k == 1 || (beatsPerBar == 4 && k == 3) { add(t0, 2) }
+                add(t0, 3); add(t0 + beat / 2, 3)
+            }
+        }
+        for i in x.indices { x[i] += 0.002 * (rnd() * 2 - 1) }
+        return x
+    }
+    private func beatOffset(_ a: Beat.Analysis, pickup: Double) -> Double {
+        let o = (a.firstDownbeat - pickup).truncatingRemainder(dividingBy: a.barSec)
+        let m = o < 0 ? o + a.barSec : o
+        return min(m, a.barSec - m)
+    }
+
+    func testBeatTrackingFindsTempoMeterAndDownbeat() throws {
+        let rate = 46_875
+        let a4 = try XCTUnwrap(Beat.analyze(drumLoop(bpm: 120, bars: 5, pickup: 0.21), rate: rate))
+        XCTAssertEqual(a4.bpm / 120, 1, accuracy: 0.02); XCTAssertEqual(a4.meter, 4); XCTAssertLessThan(beatOffset(a4, pickup: 0.21), 0.045)
+        let a3 = try XCTUnwrap(Beat.analyze(drumLoop(bpm: 110, bars: 6, beatsPerBar: 3), rate: rate))
+        XCTAssertEqual(a3.bpm / 110, 1, accuracy: 0.02); XCTAssertEqual(a3.meter, 3); XCTAssertLessThan(beatOffset(a3, pickup: 0), 0.045)
+        let pad: [Float] = (0..<(rate * 8)).map { i in let t = Double(i) / Double(rate); return Float(0.2 * sin(2 * .pi * 220 * t) + 0.1 * sin(2 * .pi * 330 * t)) }
+        XCTAssertNil(Beat.analyze(pad, rate: rate))
+    }
+
+    func testSuggestedLoopStartsOnTheDownbeatAndLastsWholeBars() throws {
+        let rate = 46_875, pickup = 0.37, bpm = 100.0
+        let x = drumLoop(bpm: bpm, bars: 5, pickup: pickup)
+        let s = try XCTUnwrap(StyleMemory.suggestLoop(x, rate: rate, bpm: nil, bpmConfidence: 0, StyleMemory.Model()))
+        let bar = 4 * 60 / bpm, a = Double(s.a) / Double(rate)
+        let o = (a - pickup).truncatingRemainder(dividingBy: bar), off = min(o < 0 ? o + bar : o, bar - (o < 0 ? o + bar : o))
+        let bars = Double(s.b - s.a) / Double(rate) / bar
+        XCTAssertLessThan(off, 0.05); XCTAssertLessThan(abs(bars - bars.rounded()), 0.01); XCTAssertTrue(s.why.contains("primer tiempo"))
+        let d = Diagnostic.build(x, rate: rate, kind: "bateria", status: "crudo", bpmSaved: nil, selection: (a: 0, b: x.count))
+        XCTAssertTrue(d.contains("\"compas\"") && d.contains("\"golpes\""))
+    }
 }

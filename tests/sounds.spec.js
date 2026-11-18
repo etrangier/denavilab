@@ -2724,3 +2724,48 @@ test.describe('red de seguridad si la app no abre', () => {
     await expect(page.getByText('No se pudo abrir la app')).toHaveCount(0);
   });
 });
+
+test.describe('pulso, compás y tiempo fuerte (sonidos sintéticos)', () => {
+  const GEN = `const rate = 46875; let sd = 7; const rnd = () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; };
+    const drums = ({ bpm, bars, beatsPerBar = 4, pickup = 0, swing = 0 }) => { const beat = 60 / bpm, x = new Float32Array(Math.round((pickup + bars * beatsPerBar * beat + 0.5) * rate));
+      const add = (t, kind) => { const s0 = Math.round(t * rate), len = Math.round(0.12 * rate); for (let i = 0; i < len && s0 + i < x.length; i++) { const u = i / rate; let v;
+        if (kind === 'kick' || kind === 'kick2') v = (kind === 'kick' ? 0.9 : 0.5) * Math.sin(2 * Math.PI * (110 - 55 * Math.min(1, u * 14)) * u) * Math.exp(-u * 28);
+        else if (kind === 'snare') v = 0.5 * (rnd() * 2 - 1) * Math.exp(-u * 30) + 0.25 * Math.sin(2 * Math.PI * 190 * u) * Math.exp(-u * 25); else v = 0.18 * (rnd() * 2 - 1) * Math.exp(-u * 90); x[s0 + i] += v; } };
+      for (let b = 0; b < bars; b++) for (let k = 0; k < beatsPerBar; k++) { const t0 = pickup + (b * beatsPerBar + k) * beat;
+        if (k === 0) add(t0, 'kick'); else if (beatsPerBar === 4 && k === 2) add(t0, 'kick2'); if (k === 1 || (beatsPerBar === 4 && k === 3)) add(t0, 'snare'); add(t0, 'hat'); add(t0 + beat / 2 * (1 + swing), 'hat'); }
+      for (let i = 0; i < x.length; i++) x[i] += 0.002 * (rnd() * 2 - 1); return x; };
+    const desfase = (a, pickup, barSec) => { const o = (((a.firstDownbeat - pickup) % barSec) + barSec) % barSec; return Math.min(o, barSec - o); };`;
+  const ev = (page, body) => page.evaluate(`(async () => { const B = await import('/sounds/beat.js'); ${GEN} ${body} })()`);
+  test('el tempo sale con menos de 2 % de error, el compás es el que es y el primer tiempo fuerte cae en su sitio', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `const out = []; for (const c of [{ bpm: 90, bars: 8 }, { bpm: 100, bars: 8, pickup: 0.37 }, { bpm: 120, bars: 8, pickup: 0.21 }, { bpm: 75, bars: 6, pickup: 0.5 }, { bpm: 100, bars: 8, swing: 0.3 }, { bpm: 110, bars: 8, beatsPerBar: 3 }, { bpm: 120, bars: 8, beatsPerBar: 3, pickup: 0.3 }]) {
+      const a = B.analyzeBeats(drums(c), rate), bs = (c.beatsPerBar || 4) * 60 / c.bpm; out.push({ c, ok: !!a, err: a && Math.abs(a.bpm / c.bpm - 1), err2: a && (a.bpm / (2 * c.bpm) - 1), meter: a && a.meter, des: a && desfase(a, c.pickup || 0, bs), conf: a && a.confidence }); } return out;`);
+    for (const r of q) {
+      expect(r.ok, JSON.stringify(r.c)).toBe(true); expect(r.meter, JSON.stringify(r.c)).toBe(r.c.beatsPerBar || 4); expect(r.conf).toBeGreaterThan(0.6);
+      if (r.c.bpm === 75) { expect(Math.min(r.err, Math.abs(r.err2)), 'el doble (150) es la otra lectura válida de 75').toBeLessThan(0.02); continue; }      // 75 y 150 se sienten igual de bien: se ofrece el otro con ÷2 / ×2
+      expect(r.err, JSON.stringify(r.c)).toBeLessThan(0.02); expect(r.des, JSON.stringify(r.c)).toBeLessThan(0.045);
+    }
+  });
+  test('un pad sin golpes no tiene pulso (no se inventa uno)', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `const pad = Float32Array.from({ length: rate * 8 }, (_, i) => 0.2 * Math.sin(2 * Math.PI * 220 * i / rate) + 0.1 * Math.sin(2 * Math.PI * 330 * i / rate)); const r = B.estimateTempo(pad, rate); return { an: B.analyzeBeats(pad, rate), r: r && r.analysis ? 'pulso' : 'simple' };`);
+    expect(q.an).toBeNull(); expect(q.r).not.toBe('pulso');
+  });
+  test('el loop sugerido arranca en un primer tiempo y dura compases enteros', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `const L = await import('/sounds/learn.js'), c = { bpm: 100, bars: 8, pickup: 0.37 }, x = drums(c), bs = 4 * 60 / c.bpm, s = L.suggestLoop(x, rate, {}, { v: 1, on: false, seen: 0, kinds: {}, trim: {}, loop: {}, ids: {} });
+      if (!s) return { s: null }; const a = s.a / rate, o = (((a - c.pickup) % bs) + bs) % bs, barras = (s.b - s.a) / rate / bs; return { bars: s.bars, desfase: Math.min(o, bs - o), enteros: Math.abs(barras - Math.round(barras)), why: s.why, meter: s.meter };`);
+    expect(q.s).not.toBeNull(); expect([1, 2, 4, 8]).toContain(q.bars); expect(q.desfase).toBeLessThan(0.05); expect(q.enteros).toBeLessThan(0.01); expect(q.why).toContain('primer tiempo');
+  });
+  test('«Copiar diagnóstico» copia un resumen en texto con tempo, compás y sugerencias, sin audio ni nombre', async ({ page }) => {
+    await abrir(page, 'rolando', { 'denavilab.sounds.editMore': 'true' });
+    await page.evaluate(`(async () => { Object.defineProperty(navigator, 'clipboard', { value: { writeText: t => { window.__cp = t; return Promise.resolve(); } }, configurable: true });
+      const st = await import('/sounds/store.js'), { refreshSamples, openSample } = await import('/sounds/state.js'); ${GEN}
+      const x = drums({ bpm: 100, bars: 8, pickup: 0.37 }), s = st.newSample('Mi secreto', x, rate, { kind: 'bateria' }); await st.putSample(s, x); await refreshSamples(); openSample(s); })()`);
+    await page.getByRole('button', { name: 'Copiar diagnóstico' }).click();
+    await expect(page.locator('#toast')).toContainText('Diagnóstico copiado');
+    const d = JSON.parse(await page.evaluate(() => window.__cp));
+    expect(d.v).toBe(1); expect(d.tipo).toBe('bateria'); expect(d.tempo.ahora.compas).toBe(4); expect(Math.abs(d.tempo.ahora.bpm / 100 - 1)).toBeLessThan(0.02);
+    expect(d.sugerencia.loop.compases).toBeGreaterThan(0); expect(typeof d.golpes).toBe('string'); expect(JSON.stringify(d)).not.toContain('Mi secreto');
+  });
+});
