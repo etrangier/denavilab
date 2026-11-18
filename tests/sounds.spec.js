@@ -1,5 +1,5 @@
 // DenaviLab: Sounds (la PWA de site/sounds). Se prueba con el micrófono falso de Chromium:
-// puerta de acceso, grabar → guardar → biblioteca → editar → exportar, el perfil sin K.O. II, la selección múltiple y el móvil.
+// puerta de acceso, grabar → guardar → biblioteca → editar → exportar, el perfil sin sampler, la selección múltiple y el móvil.
 const fs = require('fs');
 const path = require('path');
 const { test, expect } = require('@playwright/test');
@@ -188,7 +188,7 @@ test.describe('chop con selección múltiple', () => {
     await expect(hoja).toContainText('12 cortes · 0 seleccionados');
   });
 
-  test('sin K.O. II (Schair): se llama «cortes» y no menciona pads ni el aparato', async ({ page }) => {
+  test('sin sampler (Schair): se llama «cortes» y no menciona pads ni el aparato', async ({ page }) => {
     await abrir(page, 'schair'); await sembrarGolpes(page); await page.reload();
     const hoja = await abrirChop(page, 'Chop');
     await expect(hoja.getByRole('heading', { name: 'Chop', exact: true })).toBeVisible();
@@ -209,21 +209,44 @@ test.describe('chop con selección múltiple', () => {
   });
 });
 
-test.describe('puerta de acceso', () => {
-  test('sin sesión pide entrar; como invitado se entra a Inicio', async ({ page }) => {
+test.describe('acceso abierto y créditos', () => {
+  test.beforeEach(async ({ page }) => { await page.addInitScript(() => { try { localStorage.setItem('denavilab.sounds.onboarded', '1'); } catch (e) {} }); });
+  test('sin sesión se entra directo como invitado: Inicio con su descripción breve, sin puerta', async ({ page }) => {
     const errores = vigilar(page);
     await page.goto(URL);
     await expect(page.getByRole('heading', { name: 'DenaviLab: Sounds' })).toBeVisible();
-    await expect(page.locator('#tabs')).toBeHidden();
-    await page.getByRole('button', { name: 'Entrar', exact: true }).first().click();
-    await expect(page.locator('#puerta')).toBeVisible();
-    await page.locator('#entrarInvitado').click();
     await expect(page.locator('#tabs')).toBeVisible();
+    await expect(page.locator('#screen')).toContainText('Graba un sonido, córtalo y déjalo listo para tu sampler');
+    await expect(page.locator('#puerta')).toBeHidden();
+    expect(await page.evaluate(() => localStorage.getItem('denavilab.sesion'))).toBe('invitado');
     expect(errores).toEqual([]);
   });
-  test('con la clave equivocada no entra', async ({ page }) => {
+  test('el botón Créditos nombra al autor, cuenta su proyecto y enlaza a SoundCloud, Spotify y su blog con iconos', async ({ page }) => {
     await page.goto(URL);
-    await page.getByRole('button', { name: 'Entrar', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Créditos' }).click();
+    const sh = page.locator('dialog.sheet');
+    await expect(sh).toContainText('Rolando Chaparro Gehren'); await expect(sh).toContainText('Denavi Records');
+    const sc = sh.getByRole('link', { name: 'Denavi Records en SoundCloud' }), sp = sh.getByRole('link', { name: 'Denavi Records en Spotify' });
+    await expect(sc).toHaveAttribute('href', 'https://soundcloud.com/denavi-records'); await expect(sp).toHaveAttribute('href', /^https:\/\/open\.spotify\.com\/intl-es\/artist\/20XBfjC875fSJ0HzqENuFu/);
+    const bl = sh.getByRole('link', { name: 'Cesante Ilustrado, el blog de Rolando' }); await expect(bl).toHaveAttribute('href', 'https://cesanteilustrado.wordpress.com'); await expect(sh).toContainText('samples que toma');
+    for (const l of [sc, sp, bl]) { await expect(l).toHaveAttribute('target', '_blank'); await expect(l).toHaveAttribute('rel', /noopener/); await expect(l.locator('svg')).toBeVisible(); }
+  });
+  test('la licencia de uso está a un toque, con el copyright y los puntos principales', async ({ page }) => {
+    await page.goto(URL);
+    await page.getByRole('button', { name: 'Licencia de uso' }).click();
+    const sh = page.locator('dialog.sheet');
+    await expect(sh).toContainText('© 2026 Rolando Chaparro Gehren'); await expect(sh).toContainText('Úsala libremente'); await expect(sh).toContainText('Qué no se puede hacer sin permiso escrito');
+    await expect(sh).toContainText('Todo se queda en tu dispositivo');
+  });
+  test('el logo es el icono de la app, en círculo', async ({ page }) => {
+    await page.goto(URL);
+    const img = page.locator('.home-head img.logo-img'); await expect(img).toBeVisible();
+    expect(await img.evaluate(e => getComputedStyle(e).borderRadius)).toBe('50%'); expect(await img.getAttribute('src')).toContain('icons/icon-192.png');
+  });
+  test('el autor puede entrar desde Créditos: con la clave equivocada no entra', async ({ page }) => {
+    await page.goto(URL);
+    await page.getByRole('button', { name: 'Créditos' }).click(); await page.getByRole('button', { name: 'Entrar como autor' }).click();
+    await expect(page.locator('#puerta')).toBeVisible();
     await page.locator('#usuario').fill('schair'); await page.locator('#clave').fill('mal');
     await page.locator('#formPuerta button[type=submit]').click();
     await expect(page.locator('#errorPuerta')).toContainText('no calzan');
@@ -231,7 +254,7 @@ test.describe('puerta de acceso', () => {
 });
 
 test.describe('de la grabación a la exportación (Rolando)', () => {
-  test('graba, guarda, edita y comparte un WAV (el formato K.O. II está en pausa)', async ({ page }) => {
+  test('graba, guarda, edita y comparte un WAV (el formato sampler está en pausa)', async ({ page }) => {
     const errores = vigilar(page);
     await abrir(page, 'rolando');
     await expect(page.getByRole('heading', { name: 'DenaviLab: Sounds' })).toBeVisible();
@@ -265,7 +288,7 @@ test.describe('de la grabación a la exportación (Rolando)', () => {
 
     await tab(page, 'exportar');
     await expect(page.getByRole('heading', { name: 'Compartir', exact: true })).toBeVisible();
-    await expect(page.locator('#screen')).not.toContainText(/K\.O\.|slot|46 875|Memoria|128 MB/i);          // el botón y el formato del K.O. II no se ven
+    await expect(page.locator('#screen')).not.toContainText(/slot|46 875|Memoria|128 MB/i);          // el botón y el formato del sampler no se ven
     await expect(page.getByRole('button', { name: 'Compartir WAV' })).toBeVisible();
     const { buf, nombre } = await descargar(page, () => page.getByRole('button', { name: 'Guardar WAV' }).click());
     const w = wavInfo(buf);
@@ -289,14 +312,14 @@ test.describe('de la grabación a la exportación (Rolando)', () => {
   });
 });
 
-test.describe('perfil sin K.O. II (Schair)', () => {
-  test('no aparece nada del K.O. II ni de slots', async ({ page }) => {
+test.describe('perfil sin sampler (Schair)', () => {
+  test('no aparece nada del sampler ni de slots', async ({ page }) => {
     await abrir(page, 'schair');
     await sembrar(page, ['Pájaros del río']);
     for (const t of ['inicio', 'grabar', 'biblioteca']) { await tab(page, t); await expect(page.locator('#screen')).not.toContainText(/K\.O\.|slot|46 875/i); }
     await tab(page, 'exportar');
     await expect(page.getByRole('heading', { name: 'Compartir', exact: true })).toBeVisible();
-    await expect(page.locator('#screen')).not.toContainText(/K\.O\.|slot|46 875|Memoria|128 MB/i);
+    await expect(page.locator('#screen')).not.toContainText(/slot|46 875|Memoria|128 MB/i);
     const { buf, nombre } = await descargar(page, () => page.getByRole('button', { name: 'Guardar WAV' }).click());
     expect(nombre).toBe('Pajaros_del_rio.wav');                                       // sin tildes ni prefijo de slot
     expect(wavInfo(buf)).toMatchObject({ canales: 1, rate: 48000, bits: 16 });        // frecuencia habitual
@@ -306,11 +329,11 @@ test.describe('perfil sin K.O. II (Schair)', () => {
     await page.locator('dialog.sheet').getByRole('button', { name: '1', exact: true }).click();
     await expect(page.locator('dialog.sheet')).not.toContainText('Slot');
   });
-  test('Rolando sí ve el K.O. II', async ({ page }) => {
+  test('Rolando sí ve el sampler', async ({ page }) => {
     await abrir(page, 'rolando'); await tab(page, 'grabar');
     await expect(page.locator('#screen')).toContainText('Grabar sample');
-    await expect(page.locator('#screen')).toContainText('listo para el K.O. II');            // lo grabado queda a 46 875 Hz y nivelado
-    await expect(page.locator('#screen')).not.toContainText(/slot|Memoria|128 MB/i);         // la exportación al K.O. II (slots, memoria) sigue en pausa
+    await expect(page.locator('#screen')).toContainText('listo para tu sampler');            // lo grabado queda a 46 875 Hz y nivelado
+    await expect(page.locator('#screen')).not.toContainText(/slot|Memoria|128 MB/i);         // la exportación al sampler (slots, memoria) sigue en pausa
   });
 });
 
@@ -472,11 +495,11 @@ test.describe('etapa 2 · favoritos', () => {
   });
 });
 
-test.describe('etapa 3 · exportación para el K.O. II', () => {
+test.describe('etapa 3 · exportación para el sampler', () => {
   test('procesado: pico −1 dBFS, silencio inicial fuera, fundidos y frecuencia', async ({ page }) => {
     await abrir(page, 'rolando');
     const r = await page.evaluate(async () => {
-      const k = await import('/sounds/koexport.js'), rate = 48000;
+      const k = await import('/sounds/lote.js'), rate = 48000;
       const x = new Float32Array(rate * 2); for (let i = 0; i < x.length; i++) x[i] = i < rate * 0.5 ? 0.0005 * Math.sin(i * 0.3) : 0.2 * Math.sin(i * 0.05);   // 0,5 s de casi silencio y luego señal
       const peak = a => a.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
       const a = k.processForKO(x, rate, {}), b = k.processForKO(x, rate, { longFade: true }), c = k.processForKO(x, rate, { rate: 44100 });
@@ -496,7 +519,7 @@ test.describe('etapa 3 · exportación para el K.O. II', () => {
   test('nombres seguros: NNN_nombre con tonalidad y BPM, sin tildes ni símbolos', async ({ page }) => {
     await abrir(page, 'rolando');
     const n = await page.evaluate(async () => {
-      const k = await import('/sounds/koexport.js');
+      const k = await import('/sounds/lote.js');
       return [k.koFileName({ name: 'Pad cálido ñandú!!', key: 'Am' }, 1), k.koFileName({ name: 'Pad', key: 'C#m', bpm: 92.4 }, 2), k.koFileName({ name: 'Textura de lluvia muy larga en el balcón' }, 12),
         k.koFileName({ name: '***', bpm: 500 }, 103), k.koFileName({ name: 'pad Am', key: 'Am' }, 5)];
     });
@@ -508,30 +531,30 @@ test.describe('etapa 3 · exportación para el K.O. II', () => {
     await abrir(page, 'rolando'); await sembrar(page, ['pad uno', 'golpe dos', 'sin favorito']);
     await page.evaluate(async () => { const st = await import('/sounds/store.js'); for (const s of await st.listSamples()) if (s.name !== 'sin favorito') await st.putSample({ ...s, favorite: true, key: s.name === 'pad uno' ? 'Am' : null }); });
     await page.reload(); await tab(page, 'biblioteca');
-    await page.getByRole('button', { name: /Exportar para el K.O. II/ }).click();
+    await page.getByRole('button', { name: /Exportar lote/ }).click();
     const sh = page.locator('dialog.sheet');
-    await expect(sh.locator('.ko-names li code')).toHaveText(['001_pad_uno_Am.wav', '002_golpe_dos.wav']);
+    await expect(sh.locator('.lote-names li code')).toHaveText(['001_pad_uno_Am.wav', '002_golpe_dos.wav']);
     await sh.getByLabel('Empezar a numerar en').fill('10'); await sh.getByLabel('Empezar a numerar en').press('Tab');
-    await expect(sh.locator('.ko-names li code').first()).toHaveText('010_pad_uno_Am.wav');
+    await expect(sh.locator('.lote-names li code').first()).toHaveText('010_pad_uno_Am.wav');
     await sh.getByRole('button', { name: 'Todo (3)' }).click();
-    await expect(sh.locator('.ko-names li')).toHaveCount(3);
+    await expect(sh.locator('.lote-names li')).toHaveCount(3);
     await sh.getByRole('button', { name: /Favoritos/ }).click();
     const { buf, nombre } = await descargar(page, () => sh.getByRole('button', { name: /Descargar .zip/ }).click());
-    expect(nombre).toMatch(/^ko2_favoritos_\d{8}\.zip$/);
+    expect(nombre).toMatch(/^lote_favoritos_\d{8}\.zip$/);
     const ent = await page.evaluate(async b => { const z = await import('/sounds/zip.js'); return z.readZip(new Uint8Array(b)).map(e => ({ name: e.name, head: [...e.data.slice(0, 44)] })); }, [...buf]);
     expect(ent.map(e => e.name)).toEqual(['010_pad_uno_Am.wav', '011_golpe_dos.wav', 'lista.txt']);
     const w = Buffer.from(ent[0].head); expect(wavInfo(w)).toMatchObject({ riff: 'RIFF', canales: 1, rate: 46875, bits: 16 });
   });
 
-  test('desde la biblioteca: exportar la selección; Schair no ve nada del K.O. II', async ({ page }) => {
+  test('desde la biblioteca: exportar la selección; Schair no ve nada del sampler', async ({ page }) => {
     await abrir(page, 'rolando'); await sembrar(page, ['uno', 'dos']); await tab(page, 'biblioteca');
     await page.getByText('Seleccionar').first().click();
     await page.locator('.row-btn').first().click();
-    await page.getByRole('button', { name: 'Exportar selección al K.O. II' }).click();
-    await expect(page.locator('dialog.sheet .ko-names li')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Exportar selección' }).click();
+    await expect(page.locator('dialog.sheet .lote-names li')).toHaveCount(1);
     await abrir(page, 'schair'); await sembrar(page, ['uno']); await tab(page, 'biblioteca');
-    await expect(page.locator('#screen')).not.toContainText('K.O.');
-    await expect(page.getByRole('button', { name: /K.O. II/ })).toHaveCount(0);
+    await expect(page.locator('#screen')).not.toContainText(/slot|46 875|128 MB/i);
+    await expect(page.getByRole('button', { name: /Exportar (lote|selección)/ })).toHaveCount(0);
   });
 });
 
@@ -699,17 +722,17 @@ test.describe('etapa 4 · laboratorio de pads', () => {
   });
 });
 
-test.describe('etapa 5 · exportación: listos para K.O. y lista con orígenes', () => {
-  test('solo «listos para K.O.» y lista.txt con origen y procesos', async ({ page }) => {
+test.describe('etapa 5 · exportación: listos y lista con orígenes', () => {
+  test('solo «listos» y lista.txt con origen y procesos', async ({ page }) => {
     await abrir(page, 'rolando'); await sembrar(page, ['pad uno', 'pad dos', 'pad tres']);
     await page.evaluate(async () => { const st = await import('/sounds/store.js'), l = await st.listSamples(), by = n => l.find(x => x.name === n);
       await st.putSample({ ...by('pad uno'), status: 'listo', origin: 'Sade, Love Deluxe, 1:20', process: ['bucle 200 ms', 'estirar ×4'], key: 'Am' });
       await st.putSample({ ...by('pad dos'), status: 'listo', favorite: true }); });
     await page.reload(); await tab(page, 'biblioteca');
-    await page.getByRole('button', { name: /Exportar para el K.O. II/ }).click();
+    await page.getByRole('button', { name: /Exportar lote/ }).click();
     const sh = page.locator('dialog.sheet');
-    await sh.getByRole('button', { name: /Todo \(3\)/ }).click(); await expect(sh.locator('.ko-names li')).toHaveCount(3);
-    await sh.getByLabel('Solo los «listos para K.O.»').check({ force: true }); await expect(sh.locator('.ko-names li')).toHaveCount(2);
+    await sh.getByRole('button', { name: /Todo \(3\)/ }).click(); await expect(sh.locator('.lote-names li')).toHaveCount(3);
+    await sh.getByLabel('Solo los «listos»').check({ force: true }); await expect(sh.locator('.lote-names li')).toHaveCount(2);
     const { buf } = await descargar(page, () => sh.getByRole('button', { name: /Descargar .zip/ }).click());
     const ent = await page.evaluate(async b => { const z = await import('/sounds/zip.js'); return z.readZip(new Uint8Array(b)).map(e => ({ name: e.name, txt: e.name.endsWith('.txt') ? new TextDecoder().decode(e.data) : '' })); }, [...buf]);
     expect(ent.map(e => e.name)).toEqual(['001_pad_uno_Am.wav', '002_pad_dos.wav', 'lista.txt']);
@@ -1305,10 +1328,10 @@ test.describe('historial siempre a la vista', () => {
 });
 
 test.describe('instalar como app', () => {
-  test('Chrome en Android: el botón dispara la instalación y no menciona el K.O. II', async ({ page }) => {
+  test('Chrome en Android: el botón dispara la instalación y no menciona el sampler', async ({ page }) => {
     await abrir(page, 'schair');
     await expect(page.getByRole('button', { name: 'Instalar la app en mi celular' })).toBeVisible();
-    await expect(page.locator('body')).not.toContainText('K.O. II');
+    await expect(page.locator('body')).not.toContainText(/slot|46 875|Memoria/i);
     await page.evaluate(() => {
       window.__prompted = false;
       const e = Object.assign(new Event('beforeinstallprompt', { cancelable: true }), { prompt: async () => { window.__prompted = true; }, userChoice: Promise.resolve({ outcome: 'accepted' }) });
@@ -1332,7 +1355,7 @@ test.describe('instalar como app', () => {
       await expect(hoja.getByRole('heading', { name: 'Instalar en mi celular' }), nombre).toBeVisible();
       await expect(hoja.locator('ol li'), nombre).not.toHaveCount(0);
       await expect(hoja, nombre).toContainText(esperado); await expect(hoja, nombre).not.toContainText(noEsperado);
-      await expect(hoja, nombre).not.toContainText('K.O. II');
+      await expect(hoja, nombre).not.toContainText(/slot|46 875|Memoria/i);
       await hoja.getByRole('button', { name: 'Entendido' }).click();
       await ctx.close();
     }
@@ -1470,7 +1493,7 @@ test.describe('acordes, compases y loop', () => {
     await expect(hoja.locator('[aria-label="Acordes detectados"]')).toContainText('Am · F · C · G · Am');
     await expect(hoja.getByRole('button', { name: 'Corte 1, Am', exact: true })).toBeVisible();
     await expect(hoja.getByRole('button', { name: 'Corte 4, G', exact: true })).toBeVisible();
-    await expect(hoja).not.toContainText('K.O. II');
+    await expect(hoja).not.toContainText(/slot|46 875|Memoria/i);
     // sin tocar nada ya hay un loop de 4 compases sugerido, con el BPM fijado
     const tarjeta = hoja.getByLabel('Loop sugerido');
     await expect(tarjeta.getByRole('button', { name: '4 compases', exact: true })).toHaveAttribute('aria-pressed', 'true');
@@ -2436,25 +2459,25 @@ test.describe('gestos de loop del estilo french house: barrido de filtro, tartam
 });
 
 
-test.describe('listo para el K.O. II: lo grabado queda a 46 875 Hz y nivelado por defecto', () => {
-  test('con el K.O. II: remuestrea, nivela, se puede apagar, y el formato de Grabar lo dice', async ({ page }) => {
+test.describe('listo para tu sampler: lo grabado queda a 46 875 Hz y nivelado por defecto', () => {
+  test('con el sampler: remuestrea, nivela, se puede apagar, y el formato de Grabar lo dice', async ({ page }) => {
     await abrir(page, 'rolando'); await tab(page, 'grabar');
-    await expect(page.locator('.format')).toContainText('46 875 Hz'); await expect(page.locator('.format')).toContainText('listo para el K.O. II');
+    await expect(page.locator('.format')).toContainText('46 875 Hz'); await expect(page.locator('.format')).toContainText('listo para tu sampler');
     const q = await page.evaluate(async () => {
-      const K = await import('/sounds/koprep.js'), d = await import('/sounds/dsp.js'), rate = 48000, x = Float32Array.from({ length: rate }, (_, i) => 0.005 * Math.sin(2 * Math.PI * 220 * i / rate));
-      const on = K.koPrepare(x, rate), igual = K.koPrepare(on.audio, on.rate), lv = K.koLevel(x, rate);
-      K.setKoPrep(false); const off = K.koPrepare(x, rate), offLv = K.koLevel(x, rate); K.setKoPrep(true);
-      return { on: K.koPrepOn(), rate: on.rate, len: on.audio.length, esperado: Math.floor(rate * 46875 / 48000), igual: igual.audio === on.audio, subio: d.levelDB(lv, rate) - d.levelDB(x, rate), offRate: off.rate, offSame: off.audio === x && offLv === x };
+      const K = await import('/sounds/prep.js'), d = await import('/sounds/dsp.js'), rate = 48000, x = Float32Array.from({ length: rate }, (_, i) => 0.005 * Math.sin(2 * Math.PI * 220 * i / rate));
+      const on = K.samplerPrepare(x, rate), igual = K.samplerPrepare(on.audio, on.rate), lv = K.samplerLevel(x, rate);
+      K.setSamplerPrep(false); const off = K.samplerPrepare(x, rate), offLv = K.samplerLevel(x, rate); K.setSamplerPrep(true);
+      return { on: K.samplerPrepOn(), rate: on.rate, len: on.audio.length, esperado: Math.floor(rate * 46875 / 48000), igual: igual.audio === on.audio, subio: d.levelDB(lv, rate) - d.levelDB(x, rate), offRate: off.rate, offSame: off.audio === x && offLv === x };
     });
     expect(q.rate).toBe(46875); expect(Math.abs(q.len - q.esperado)).toBeLessThan(3); expect(q.igual).toBe(true); expect(q.subio).toBeGreaterThan(6); expect(q.offRate).toBe(48000); expect(q.offSame).toBe(true);
     await page.locator('details.rec-opts > summary').click();
-    await expect(page.getByLabel('Dejar listo para el K.O. II')).toBeChecked();
-    await page.getByLabel('Dejar listo para el K.O. II').uncheck(); await expect(page.locator('.format')).not.toContainText('K.O. II');
+    await expect(page.getByLabel('Dejar listo para tu sampler')).toBeChecked();
+    await page.getByLabel('Dejar listo para tu sampler').uncheck(); await expect(page.locator('.format')).not.toContainText('tu sampler');
   });
-  test('sin el K.O. II (Schair) no aparece ni se aplica nada del aparato', async ({ page }) => {
+  test('sin el sampler (Schair) no aparece ni se aplica nada del aparato', async ({ page }) => {
     await abrir(page, 'schair'); await tab(page, 'grabar');
     await expect(page.locator('#screen')).not.toContainText(/K\.O\.|46 875/);
-    const on = await page.evaluate(async () => (await import('/sounds/koprep.js')).koPrepOn()); expect(on).toBe(false);
+    const on = await page.evaluate(async () => (await import('/sounds/prep.js')).samplerPrepOn()); expect(on).toBe(false);
   });
 });
 

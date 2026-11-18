@@ -1,12 +1,12 @@
 // Estado compartido de la app.
 import { Engine } from './audio.js';
 import { Metronome } from './metronome.js';
-import { who, hasKO2 } from './profile.js';
+import { who, hasSampler } from './profile.js';
 import { listSamples } from './store.js';
 
 export const app = {
   user: who(),
-  ko2: hasKO2(),
+  sampler: hasSampler(),
   engine: new Engine(),
   metro: new Metronome(),
   samples: [],            // metadatos, la más reciente primero
@@ -30,7 +30,7 @@ export const openSample = (s, tab = 'editar') => go(tab, s.id);
 
 export const VERSION = '0.1.0';
 /** Número de publicación: coincide con el de sw.js (sounds-vN). Se muestra en Inicio para saber de un vistazo si la PWA está al día. */
-export const BUILD = 35;
+export const BUILD = 36;
 
 // ---------- Instalar como app (acceso directo en la pantalla de inicio del celular) ----------
 export const inst = { evt: null, done: false };      // `evt`: aviso de instalación que ofrece Chrome en Android

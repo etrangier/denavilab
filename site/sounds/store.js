@@ -16,7 +16,7 @@ const done = tx => new Promise((res, rej) => { tx.oncomplete = () => res(); tx.o
 export const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now().toString(36) + Math.random().toString(36).slice(2));
 
 /** Campos de cada sonido y su valor por defecto; los guardados antes de tenerlos se completan al leerlos (sin migración de la base). */
-export const STATES = [['crudo', 'Crudo'], ['procesado', 'Procesado'], ['listo', 'Listo para K.O.']];
+export const STATES = [['crudo', 'Crudo'], ['procesado', 'Procesado'], ['listo', 'Listo']];
 export const CHAR_TAGS = ['cálido', 'oscuro', 'brillante', 'granular', 'metálico', 'etéreo', 'suave', 'áspero', 'cuerdas', 'teclas', 'ambiente'];
 export const META_DEFAULTS = { favorite: false, tags: [], key: null, bpm: null, comment: '', status: 'crudo', origin: '', replaced: false, process: [], recipe: null };
 export const normalizeSample = s => {

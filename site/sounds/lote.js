@@ -1,16 +1,16 @@
-// Exportación por lotes para el K.O. II: WAV mono de 16 bit, pico a −1 dBFS, silencio inicial fuera, fundidos cortos y nombres seguros.
+// Exportación por lotes: WAV mono de 16 bit, pico a −1 dBFS, silencio inicial fuera, fundidos cortos y nombres seguros.
 import * as dsp from './dsp.js';
 import { encodeWav } from './dsp.js';
 
-/** 46 875 Hz es la frecuencia que se cree nativa del K.O. II (por confirmar); 44,1 kHz es la alternativa segura. */
-export const KO_RATES = [46875, 44100];
-export const KO_DEFAULTS = { rate: 46875, thresholdDB: -48, fadeIn: 10, fadeOut: 30, longFade: false, hp: false, hpHz: 90, even: false };
+/** 46 875 Hz es la frecuencia que usan algunos samplers; 44,1 kHz es la alternativa segura. */
+export const SAMPLER_RATES = [46875, 44100];
+export const LOTE_DEFAULTS = { rate: 46875, thresholdDB: -48, fadeIn: 10, fadeOut: 30, longFade: false, hp: false, hpHz: 90, even: false };
 export const LONG_FADE_MS = 200;
 const NAME_MAX = 16;
 
-export const koOpts = o => {
-  const x = { ...KO_DEFAULTS, ...(o || {}) };
-  x.rate = KO_RATES.includes(x.rate) ? x.rate : KO_DEFAULTS.rate;
+export const loteOpts = o => {
+  const x = { ...LOTE_DEFAULTS, ...(o || {}) };
+  x.rate = SAMPLER_RATES.includes(x.rate) ? x.rate : LOTE_DEFAULTS.rate;
   x.thresholdDB = Math.max(-80, Math.min(-20, Number.isFinite(+x.thresholdDB) ? +x.thresholdDB : -48));
   x.fadeIn = Math.max(0, Math.min(100, Number.isFinite(+x.fadeIn) ? +x.fadeIn : 10));
   x.fadeOut = Math.max(0, Math.min(500, Number.isFinite(+x.fadeOut) ? +x.fadeOut : 30));
@@ -20,7 +20,7 @@ export const koOpts = o => {
 
 /** Procesa un sonido para el aparato. Devuelve {audio, rate, trimmedMs, silent}. */
 export function processForKO(x, rate, optsIn) {
-  const o = koOpts(optsIn);
+  const o = loteOpts(optsIn);
   let y = Float32Array.from(x);
   if (o.hp) y = dsp.highpass(y, rate, o.hpHz, 1);                     // suave: 12 dB por octava
   const th = Math.pow(10, o.thresholdDB / 20);
@@ -47,10 +47,10 @@ export function koFileName(s, n) {
   if (k && base.endsWith('_' + k.toLowerCase())) tags.shift();         // ya viene en el nombre
   return String(n).padStart(3, '0') + '_' + [base, ...tags].join('_') + '.wav';
 }
-export const koPlan = (samples, start = 1) => samples.map((s, i) => ({ sample: s, file: koFileName(s, start + i) }));
+export const lotePlan = (samples, start = 1) => samples.map((s, i) => ({ sample: s, file: koFileName(s, start + i) }));
 
 /** Procesa todo el lote y arma los archivos del zip (sin la lista de WAV: `samples` va en el orden de salida). `getAudio(id)` entrega el audio original. */
-export async function buildKoBatch(samples, getAudio, optsIn, onProgress, start = 1) {
+export async function buildLote(samples, getAudio, optsIn, onProgress, start = 1) {
   const files = [], skipped = [], lines = ['Lista de exportación · Archivo ← sonido | origen y datos', ''];
   for (let i = 0; i < samples.length; i++) {
     const s = samples[i], file = koFileName(s, start + files.length);      // los vacíos o en silencio no dejan huecos en la numeración

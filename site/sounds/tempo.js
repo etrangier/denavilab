@@ -1,4 +1,4 @@
-// Escuchar tempo: oye unos segundos por el micrófono (lo que toques en el K.O. II, sin grabar) y estima el BPM.
+// Escuchar tempo: oye unos segundos por el micrófono (lo que toques en tu sampler, sin grabar) y estima el BPM.
 import { estimateBPM, peakDB } from './dsp.js';
 
 export const LISTEN_SECONDS = 10, BPM_RANGE = [40, 240];

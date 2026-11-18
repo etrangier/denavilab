@@ -3,7 +3,7 @@ import { app, refreshSamples } from './state.js';
 import { h, mount, fill, btn, link, card, label, muted, sheet, toast, drawBars } from './ui.js';
 import * as dsp from './dsp.js';
 import { putSample, newSample } from './store.js';
-import { koPrepare, koLevel } from './koprep.js';
+import { samplerPrepare, samplerLevel } from './prep.js';
 import { declick, dehum, findHum, clickRate } from './restore.js';
 
 export const TAKE_SECONDS = 15, SOFT_LIMIT = 6, MIN_FRAGMENT = 0.1;
@@ -34,7 +34,7 @@ const storeError = err => err && (err.name === 'QuotaExceededError' || /quota/i.
 
 /** Hoja de recorte. `take` es la toma completa (Float32Array mono). */
 export function openMateria(take0, rate0) {
-  const { audio: take, rate } = koPrepare(take0, rate0);         // «listo para el K.O. II»: a 46 875 Hz
+  const { audio: take, rate } = samplerPrepare(take0, rate0);         // «listo para tu sampler»: a 46 875 Hz
   const total = take.length / rate, pk = dsp.peaks(take, 120);
   const [a0, b0] = bestWindow(take, rate, Math.min(4, total));
   const ed = { start: a0, end: b0 }; let src = null, ctx = null, raf = 0, t0 = 0;
@@ -50,7 +50,7 @@ export function openMateria(take0, rate0) {
       drawBars(canvas, pk, [ed.start, ed.end], playhead());
       fill(info, h('span', {}, dsp.stamp(ed.start * total)), h('span', { class: 'amber' }, 'Fragmento: ' + dsp.stamp(durOf())), h('span', {}, dsp.stamp(ed.end * total)));
       const d = durOf();
-      warn.textContent = d > SOFT_LIMIT ? `Dura ${d.toFixed(1).replace('.', ',')} s: más de ${SOFT_LIMIT} s. Puedes guardarla igual, pero para una textura del K.O. II conviene acortar.` : d < 2 ? 'Menos de 2 s: sirve para golpes; para un pad, mejor 2 a 5 s.' : '';
+      warn.textContent = d > SOFT_LIMIT ? `Dura ${d.toFixed(1).replace('.', ',')} s: más de ${SOFT_LIMIT} s. Puedes guardarla igual, pero para una textura conviene acortar.` : d < 2 ? 'Menos de 2 s: sirve para golpes; para un pad, mejor 2 a 5 s.' : '';
       warn.className = 'small ' + (d > SOFT_LIMIT ? 'warn-text' : 'muted');
     };
     const playhead = () => { if (!src || !ctx) return null; const len = ed.end - ed.start; if (len <= 0) return null; const t = ((ctx.currentTime - t0) % (len * total)); return ed.start + t / total; };
@@ -87,7 +87,7 @@ export function openMateria(take0, rate0) {
     const save = btn('Guardar como crudo', { kind: 'amber', act: 'guardar-crudo', onclick: async () => {
       stop(); save.disabled = true;
       try {
-        const out = koLevel(cutFragment(take, rate, ed.start, ed.end, { longFade: prefs.longFade, declick: prefs.declick && (crk > 6 ? 'strong' : 'soft'), dehum: prefs.dehum && (hum || false) }), rate), kind = kindKey !== 'libre' && dsp.SOUND_KINDS[kindKey] ? { kind: kindKey } : {};
+        const out = samplerLevel(cutFragment(take, rate, ed.start, ed.end, { longFade: prefs.longFade, declick: prefs.declick && (crk > 6 ? 'strong' : 'soft'), dehum: prefs.dehum && (hum || false) }), rate), kind = kindKey !== 'libre' && dsp.SOUND_KINDS[kindKey] ? { kind: kindKey } : {};
         await putSample(newSample(name.value.trim() || name.placeholder, out, rate, { status: 'crudo', origin: origin.value.trim(), ...kind }), out);
         await refreshSamples(); toast(`Guardada como crudo · ${dsp.stamp(out.length / rate)}` + (origin.value.trim() ? '' : ' · falta el origen (Detalles)'));
       } catch (err) { toast(storeError(err)); save.disabled = false; return; }

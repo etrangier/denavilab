@@ -62,16 +62,11 @@ export function sliderRow(name, { min = 0, max = 1, step = 0.01, value, fmt = v 
   return h('div', { class: 'card slider-row' }, h('div', { class: 'sr-head' }, h('b', {}, name), val), input);
 }
 
+/** El logo es el icono de la app, pequeño y en círculo. */
 export function logo(size = 64) {
-  const hs = [0.3, 0.6, 1, 0.7, 0.4, 0.8, 0.5];
-  const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
-  svg.setAttribute('viewBox', '0 0 70 64'); svg.setAttribute('width', size * 1.1); svg.setAttribute('height', size); svg.setAttribute('aria-hidden', 'true');
-  hs.forEach((v, i) => {
-    const r = document.createElementNS(ns, 'rect'), hh = 52 * v;
-    r.setAttribute('x', 4 + i * 9); r.setAttribute('y', 32 - hh / 2); r.setAttribute('width', 5.5); r.setAttribute('height', hh); r.setAttribute('rx', 2.75);
-    r.setAttribute('fill', '#ffffff'); svg.append(r);
-  });
-  return svg;
+  const i = document.createElement('img');
+  i.src = 'icons/icon-192.png'; i.alt = ''; i.width = size; i.height = size; i.className = 'logo-img'; i.setAttribute('aria-hidden', 'true'); i.decoding = 'async';
+  return i;
 }
 
 // ---------- hojas (diálogos desde abajo) ----------
