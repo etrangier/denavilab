@@ -13,9 +13,11 @@ export const SOURCES = [
   { id: 'voz', label: 'Voz o canto', icon: 'voz' },
   { id: 'naturaleza', label: 'Naturaleza', icon: 'naturaleza' },
   { id: 'ambiente', label: 'Sonido ambiente cualquiera', icon: 'ambiente' },
+  { id: 'cuerda', label: 'Guitarra o ukelele', icon: 'cuerda' },
   { id: 'otro', label: 'Otra cosa', icon: 'otro' },
 ];
 export const GOALS = [
+  { id: 'cuerdaBucle', label: 'Nota de cuerda con bucle', hint: 'Guitarra o ukelele: conserva el punteo y sostiene la nota en un bucle sin clics, afinada', icon: 'cuerda', kind: 'libre' },
   { id: 'pad', label: 'Pad para teclado', hint: 'Una textura que se sostiene: tramo parejo, colchón y loop sin clics', icon: 'teclado', kind: 'textura' },
   { id: 'loopRitmico', label: 'Loop rítmico', hint: 'Para percusión: detecta el tempo y abre Chop para armar el loop', icon: 'bateria', kind: 'bateria' },
   { id: 'golpe', label: 'Golpe suelto', hint: 'Un bombo, una caja o un hi-hat: ataque limpio y caída corta', icon: 'golpe', kind: 'bateria' },
@@ -28,8 +30,9 @@ export const GOALS = [
 ];
 /** Qué se sugiere primero según lo que se grabó (el resto sigue disponible). */
 export const SUGGEST = {
+  cuerda: ['cuerdaBucle', 'nota', 'acorde', 'bajo', 'golpe', 'pad', 'ambiente', 'frase', 'loopRitmico', 'limpiar'],
   musica: ['pad', 'loopRitmico', 'acorde', 'bajo', 'nota', 'golpe', 'ambiente', 'frase', 'limpiar'],
-  instrumento: ['nota', 'acorde', 'bajo', 'pad', 'golpe', 'loopRitmico', 'ambiente', 'frase', 'limpiar'],
+  instrumento: ['nota', 'cuerdaBucle', 'acorde', 'bajo', 'pad', 'golpe', 'loopRitmico', 'ambiente', 'frase', 'limpiar'],
   dialogo: ['frase', 'golpe', 'ambiente', 'pad', 'limpiar', 'nota', 'acorde', 'bajo', 'loopRitmico'],
   voz: ['frase', 'pad', 'nota', 'ambiente', 'limpiar', 'acorde', 'golpe', 'bajo', 'loopRitmico'],
   naturaleza: ['ambiente', 'pad', 'golpe', 'limpiar', 'frase', 'nota', 'acorde', 'bajo', 'loopRitmico'],
@@ -69,11 +72,23 @@ export function stableWindow(x, rate, sec) {
   return { a: dsp.nearestZeroCross(x, a, 256), b: Math.min(x.length, dsp.nearestZeroCross(x, a, 256) + W), score: best.score };
 }
 
+/** ¿Hay picos fuertes que no son armónicos del tono? Entonces suenan varias notas a la vez (un acorde) y el tono único no sirve. */
+function polyphonic(x, rate, f0) {
+  const N = 16384; if (x.length < N || !(f0 > 0)) return false;
+  const mag = new Float64Array(N / 2), frames = Math.min(4, Math.floor(x.length / N)), win = new Float32Array(N); for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1));
+  const re = new Float64Array(N), im = new Float64Array(N);
+  for (let f = 0; f < frames; f++) { const o = Math.floor((x.length - N) * (frames === 1 ? 0 : f / (frames - 1)) * 0.5); for (let i = 0; i < N; i++) { re[i] = x[o + i] * win[i]; im[i] = 0; } dsp.fftInPlace(re, im, false); for (let k = 0; k < N / 2; k++) mag[k] += Math.hypot(re[k], im[k]); }
+  const lo = Math.round(60 * N / rate), hi = Math.round(2500 * N / rate); let mx = 0; for (let k = lo; k <= hi; k++) if (mag[k] > mx) mx = mag[k];
+  for (let k = lo + 1; k < hi; k++) if (mag[k] > mx * 0.15 && mag[k] >= mag[k - 1] && mag[k] > mag[k + 1]) {
+    const f = k * rate / N, h = Math.max(1, Math.round(f / f0)); if (Math.abs(f - h * f0) / (h * f0) > 0.04 && Math.abs(f - f0 / 2) / f > 0.04) return true;
+  }
+  return false;
+}
 /** Afinación respecto a La = 440 Hz. Una nota sola se mide con su tono; un acorde, con sus picos graves. Devuelve {mode, cents, note?, confidence} o null. */
 export function estimateTuning(x, rate) {
   if (!x || x.length < rate * 0.3) return null;
   const tp = trackPitch(x, rate, 40, 1000), voiced = tp.f0.filter(f => f > 0);
-  if (voiced.length >= Math.max(5, tp.f0.length * 0.5)) {
+  if (voiced.length >= Math.max(5, tp.f0.length * 0.5) && !polyphonic(x, rate, voiced.slice().sort((a, b) => a - b)[voiced.length >> 1])) {
     voiced.sort((a, b) => a - b); const f = voiced[voiced.length >> 1], m = midiOf(f), r = Math.round(m);
     return { mode: 'nota', cents: (m - r) * 100, note: noteName(r), midi: r, f0: f, confidence: Math.min(1, voiced.length / tp.f0.length + 0.2) };
   }
@@ -89,6 +104,11 @@ export function estimateTuning(x, rate) {
   peaks.sort((p, q) => q.w - p.w); const top = peaks.slice(0, 6); if (top.length < 2) return null;
   let sx = 0, sy = 0, sw = 0; for (const p of top) { const dev = (midiOf(p.f) - Math.round(midiOf(p.f))), ang = dev * 2 * Math.PI; sx += p.w * Math.cos(ang); sy += p.w * Math.sin(ang); sw += p.w; }
   return { mode: 'acorde', cents: Math.atan2(sy, sx) / (2 * Math.PI) * 100, confidence: Math.hypot(sx, sy) / sw };
+}
+/** Tono medio (Hz) de la parte inicial de una nota (1 s desde el ataque), o 0 si no hay tono claro. */
+function f0Of(x, rate, from) {
+  const seg = x.slice(Math.max(0, from), Math.max(0, from) + Math.round(rate * 1.0)), tp = trackPitch(seg, rate, 50, 1000), v = tp.f0.filter(f => f > 0).sort((a, b) => a - b);
+  return v.length >= 4 ? v[v.length >> 1] : 0;
 }
 /** Corrige la afinación cambiando la velocidad de lectura (el largo cambia una fracción de %). */
 export function applyTuning(x, cents) { return Math.abs(cents) < 0.5 ? x : dsp.resample(x, 1000000, Math.round(1000000 * Math.pow(2, cents / 1200))); }
@@ -121,7 +141,56 @@ function oneShot(x, rate, a, { lead = 8, tail = 80, maxSec = 4 } = {}) {
   return clamp01(x, dsp.nearestZeroCross(x, s, 256), e);
 }
 
+
+/** Pasa un tramo a nivel constante: sube lo que se va apagando (hasta 12 dB), para que el bucle no «respire». El primer instante queda igual (sin escalón con lo anterior). */
+function flatten(seg, rate) {
+  const win = Math.round(rate * 0.04), hop = Math.round(rate * 0.01), n = Math.floor((seg.length - win) / hop) + 1; if (n < 3) return seg;
+  const env = new Float64Array(n); for (let k = 0; k < n; k++) { let q = 0; for (let i = 0; i < win; i++) q += seg[k * hop + i] ** 2; env[k] = Math.sqrt(q / win) + 1e-9; }
+  const ref = env[0], out = new Float32Array(seg.length);
+  for (let i = 0; i < seg.length; i++) { const f = Math.min(n - 1, Math.max(0, (i - win / 2) / hop)), k0 = Math.floor(f), k1 = Math.min(n - 1, k0 + 1), e = env[k0] + (env[k1] - env[k0]) * (f - k0); out[i] = seg[i] * Math.min(4, Math.max(0.5, ref / e)); }
+  return out;
+}
+/** Ciclo de bucle: el final se funde con el inicio (potencia constante) y encaja sin salto al repetirse. Largo b − a − F. */
+function loopCycle(x, a, b, F) {
+  const L = b - a - F, c = new Float32Array(L);
+  for (let i = 0; i < L; i++) c[i] = x[a + i];
+  for (let i = 0; i < F; i++) { const t = (i + 0.5) / F, wi = Math.sin(t * Math.PI / 2), wo = Math.cos(t * Math.PI / 2); c[i] = x[a + i] * wi + x[b - F + i] * wo; }
+  return c;
+}
+
 const RECIPES = {
+  cuerdaBucle(x, rate, a, ctx, notes) {
+    let y = denoiseIfNoisy(x, rate, a, notes);
+    const t0 = a.tuning;
+    if (!t0 || t0.mode !== 'nota' || !a.feat) { notes.push('No encontré una nota sola y clara (¿un acorde?): hice un recorte simple con final natural'); return RECIPES.acorde(x, rate, a, ctx, notes); }
+    y = tune(y, t0, notes);
+    const feat = learn.features(y, rate) || a.feat, onset0 = Math.round(feat.onsetMs / 1000 * rate), f0 = f0Of(y, rate, onset0 + Math.round(rate * 0.05)) || t0.f0 * Math.pow(2, -(Math.abs(t0.cents) >= 8 && t0.confidence >= 0.5 ? t0.cents : 0) / 1200), P = rate / f0;
+    notes.push(`Nota detectada: ${t0.note} (${f0.toFixed(1).replace('.', ',')} Hz); un ciclo dura ${r1(P / rate * 1000)} ms`);
+    const on = Math.max(0, Math.round(feat.onsetMs / 1000 * rate)), head0 = Math.max(0, on - Math.round(rate * 0.008)), start0 = on + Math.round(rate * 0.18), end0 = Math.min(y.length, Math.round(feat.endMs / 1000 * rate));
+    if (end0 - start0 < rate * 0.45) {      // se apaga demasiado rápido para un bucle: se deja natural, con un final largo
+      notes.push('La nota se apaga muy rápido para sostenerla: queda natural, con un fundido de salida largo');
+      const o = clamp01(y, head0, Math.min(y.length, end0 + Math.round(rate * 0.1))), z = dsp.cosFade(o, 0, Math.round(rate * 0.15));
+      return finish(leveled(z, rate, notes));
+    }
+    const flat = flatten(y.slice(start0, end0), rate); notes.push('Cuerpo de la nota a nivel constante (lo que se apaga se sube hasta 12 dB), sin escalón con el ataque');
+    // largo del bucle: un número ENTERO de ciclos (Russ: si no, el bucle cambia el tono), de al menos 0,4 s
+    let k = Math.max(2, Math.ceil(rate * 0.4 / P)), L = Math.round(k * P); while (L > flat.length * 0.6 && k > 1) { k--; L = Math.round(k * P); }
+    const F = Math.max(8, Math.min(Math.round(Math.min(3 * P, rate * 0.04)), L >> 2)), a0 = dsp.nearestZeroCross(flat, Math.round(rate * 0.03), 256);
+    let bBest = a0 + L, sBest = -2;
+    for (let b = a0 + L - Math.round(P); b <= a0 + L + Math.round(P); b++) {         // el final se ajusta ±1 ciclo donde más se parece al inicio
+      if (b + 1 > flat.length || b - F < a0) continue;
+      let num = 0, da = 0, db = 0; for (let i = 0; i < F; i++) { const u = flat[a0 + i], v = flat[b - F + i]; num += u * v; da += u * u; db += v * v; }
+      const sc = num / Math.sqrt(da * db + 1e-12); if (sc > sBest) { sBest = sc; bBest = b; }
+    }
+    const cycle = loopCycle(flat, a0, bBest, F), loopMs = (bBest - a0) / rate * 1000, cycles = (bBest - a0) / P;
+    notes.push(`Bucle de ${Math.round(loopMs)} ms = ${Math.round(cycles)} ciclos de la nota (parecido entre inicio y final: ${Math.round(Math.max(0, sBest) * 100)} %)`);
+    const head = y.slice(head0, start0), first = flat.slice(0, bBest - F), target = Math.min(6, 6) * rate, base = head.length + first.length;
+    const reps = Math.max(2, Math.ceil((target - base) / cycle.length)), out = new Float32Array(base + reps * cycle.length);
+    out.set(head, 0); out.set(first, head.length); for (let r = 0; r < reps; r++) out.set(cycle, base + r * cycle.length);
+    notes.push(`Ataque natural + cuerpo repetido hasta ${r1(out.length / rate)} s`);
+    const z = dsp.cosFade(out, 0, Math.round(rate * 0.4)); notes.push('Fundido de salida de 400 ms');
+    return finish(leveled(z, rate, notes));
+  },
   pad(x, rate, a, ctx, notes) {
     let y = denoiseIfNoisy(x, rate, a, notes);
     const total = y.length / rate, sec = total >= 3 ? 3 : total, w = stableWindow(y, rate, sec), seg = y.slice(w.a, w.b);
@@ -187,7 +256,7 @@ export function run(goalId, x, rate, ctx = {}) {
   const goal = GOALS.find(g => g.id === goalId), fn = RECIPES[goalId]; if (!goal || !fn) throw new Error('meta desconocida: ' + goalId);
   const a = ctx.analysis || analyze(x, rate), notes = [], base = ctx.base || 'grabación', src = SOURCES.find(s => s.id === ctx.source);
   const audio = fn(x, rate, a, ctx, notes), tun = a.tuning, tag = goal.label.toLowerCase();
-  const nm = (goalId === 'bajo' || goalId === 'nota') && tun && tun.note ? `${base} · ${tun.note} ${goalId === 'bajo' ? 'bajo' : ''}`.trim() : `${base} · ${tag}`;
+  const nm = (goalId === 'bajo' || goalId === 'nota' || goalId === 'cuerdaBucle') && tun && tun.note ? `${base} · ${tun.note}${goalId === 'bajo' ? ' bajo' : goalId === 'cuerdaBucle' ? ' cuerda' : ''}` : `${base} · ${tag}`;
   return { audio, rate, notes, name: nm, kind: goal.kind, goal: goalId, tags: [], bpm: a.bpm && a.bpm.confidence > 0.2 ? a.bpm.bpm : null, note: tun && tun.note ? tun.note : null, openChop: goalId === 'loopRitmico', source: src ? src.id : null,
     process: [`Pistorius: ${goal.label}${src ? ' · ' + src.label.toLowerCase() : ''}`, ...notes] };
 }
@@ -197,6 +266,7 @@ export function run(goalId, x, rate, ctx = {}) {
 // cero, loops sólo en la parte sostenida y con crossfade), Avery Wang (picos del espectrograma: aguantan el ruido; periodo de repetición) y lo reunido sobre Daft Punk
 // (trozos cortos y tartamudeados, loops con variación). Las reglas son nuestra interpretación de esas ideas.
 export const REFS = {
+  cuerda: 'Cuerda pulsada: se apaga sola, así que el bucle se hace con la parte sostenida y su largo es un número entero de ciclos de la nota (Russ: con el mismo ciclo, el bucle no cambia el tono); conviene grabar la nota dejándola sonar hasta el final y repetirla con distinta fuerza (guías de librerías de samples)',
   russ: 'Russ: el sonido debe empezar en el ataque, sin silencio antes; los cortes van en cruces por cero y los loops sólo en la parte sostenida, con crossfade',
   wang: 'Wang (Shazam): los picos del espectrograma aguantan el ruido, y el periodo de repetición sale del histograma de desfases',
   daft: 'Daft Punk: trozos cortos y tartamudeados, repetidos en loop, a veces con una variación al final',
@@ -224,6 +294,10 @@ export function advise(x, rate, a, goalId) {
     case 'loopRitmico':
       if (several || bpmOk) { Object.assign(out, { action: 'chop', chopMode: hits.length >= 3 ? 0 : 8, title: hits.length >= 3 ? 'Chopear por golpes' : 'Chopear en partes iguales', markers: mark(hits) }); out.why.push(`Para armar un loop rítmico conviene tener cada golpe por separado${bpmOk ? ', y ya tengo el tempo para ajustarlos a la cuadrícula' : ''}.`); out.refs.push(REFS.daft); }
       else { Object.assign(out, { action: 'cortar', title: 'Recortar y probar en Chop', markers: region() }); out.why.push('No encuentro golpes ni tempo claros: recorto los bordes y en Chop pruebas cortes iguales.'); out.refs.push(REFS.russ); }
+      break;
+    case 'cuerdaBucle':
+      if (notes.length >= 2 || hits.length >= 3) { Object.assign(out, { action: 'chop', chopMode: notes.length >= 2 ? -2 : 0, title: 'Hay varias notas: separa una por una', markers: mark(notes.length >= 2 ? notes : hits) }); out.why.push('Cada nota de la cuerda necesita su propio bucle: chopea por nota y repite el asistente con cada una.'); out.refs.push(REFS.wang, REFS.cuerda); }
+      else { Object.assign(out, { action: 'cortar', title: 'Conservar el punteo y sostener la nota en un bucle', markers: region() }); out.why.push('Una cuerda pulsada se apaga sola. Conservo el ataque natural, tomo la parte sostenida a nivel constante y la repito en un bucle de ciclos enteros de la nota.'); out.why.push('Consejo: toca la nota 2 o 3 veces con distinta fuerza y déjala sonar hasta que se apague; el micrófono siempre a la misma distancia.'); out.refs.push(REFS.cuerda, REFS.russ); }
       break;
     case 'acorde':
     case 'bajo':

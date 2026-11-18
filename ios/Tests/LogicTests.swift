@@ -1287,6 +1287,46 @@ final class LogicTests: XCTestCase {
         XCTAssertFalse(Pistorius.goalsFor("instrumento").isEmpty); XCTAssertEqual(Pistorius.goalsFor("instrumento").first?.id, "nota"); XCTAssertEqual(Pistorius.goalsFor("otro").count, Pistorius.goals.count)
     }
 
+    private func ksString(_ f: Double, _ dur: Double, decay: Double = 0.9985, seed: UInt32 = 5, rate: Int = 46_875) -> [Float] {
+        var s = seed
+        func rnd() -> Float { s = s &* 1664525 &+ 1013904223; return Float(Double(s) / 4294967296) }
+        let n = Int(dur * Double(rate)), N = Int((Double(rate) / f).rounded())
+        var buf = (0..<N).map { _ in rnd() * 2 - 1 }, out = [Float](repeating: 0, count: n), p = 0
+        for i in 0..<n { out[i] = buf[p] * 0.5; let q = (p + 1) % N; buf[p] = Float(decay) * 0.5 * (buf[p] + buf[q]); p = q }
+        var y = [Float](repeating: 0, count: Int(0.1 * Double(rate)) + n)
+        for i in 0..<n { y[Int(0.1 * Double(rate)) + i] = out[i] }
+        for i in y.indices { y[i] += 0.002 * (rnd() * 2 - 1) }
+        return y
+    }
+
+    func testPistoriusPluckedStringLoopHoldsTheNote() throws {
+        let rate = 46_875
+        let x = ksString(261.63 * pow(2, 22.0 / 1200), 3), r = Pistorius.run(goal: "cuerdaBucle", x, rate: rate, source: "cuerda", base: "ukelele")
+        XCTAssertTrue(r.name.contains("Do4")); XCTAssertTrue(r.name.contains("cuerda")); let len = Double(r.audio.count) / Double(rate)
+        XCTAssertGreaterThan(len, 5.5); XCTAssertLessThan(len, 6.6); XCTAssertTrue(r.audio.allSatisfy { $0.isFinite }); XCTAssertTrue(r.notes.contains { $0.hasPrefix("Afinado") })
+        let tail = Array(r.audio[(rate * 3)...]), t = try XCTUnwrap(Pistorius.estimateTuning(tail, rate: rate))
+        XCTAssertEqual(t.note, "Do4"); XCTAssertEqual(t.cents, 0, accuracy: 6)
+        var lv: [Double] = []
+        let w = Int(Double(rate) * 0.3)
+        var s0 = rate * 2
+        while s0 + w < r.audio.count - rate / 2 { var e = 0.0; for i in 0..<w { let v = Double(r.audio[s0 + i]); e += v * v }; lv.append(10 * log10(e / Double(w) + 1e-12)); s0 += w }
+        XCTAssertLessThan((lv.max() ?? 0) - (lv.min() ?? 0), 1.5)                                  // el nivel del bucle no «respira»
+        var jump: Float = 0
+        for i in (rate * 2)..<(rate * 4) { jump = max(jump, abs(r.audio[i + 1] - r.audio[i])) }
+        XCTAssertLessThan(jump, 0.06)                                                              // sin clics en el bucle
+        let cyc = r.notes.first { $0.hasPrefix("Bucle de") } ?? ""
+        XCTAssertTrue(cyc.contains("ciclos"))
+        let short = Pistorius.run(goal: "cuerdaBucle", ksString(261.63, 0.6, decay: 0.99), rate: rate, source: "cuerda", base: "corta")
+        XCTAssertTrue(short.notes.contains { $0.contains("se apaga muy rápido") }); XCTAssertLessThan(Double(short.audio.count) / Double(rate), 1.5)
+        var ac = [Float](repeating: 0, count: rate * 3)
+        for f in [220.0, 261.63, 329.63] { let sx = ksString(f, 3); for i in ac.indices { ac[i] += sx[i] * 0.4 } }
+        let rc = Pistorius.run(goal: "cuerdaBucle", ac, rate: rate, source: "cuerda", base: "acorde")
+        XCTAssertTrue(rc.notes.contains { $0.contains("No encontré una nota sola") })
+        let adv = Pistorius.advise(ksString(261.63, 3), rate: rate, Pistorius.analyze(ksString(261.63, 3), rate: rate), goal: "cuerdaBucle")
+        XCTAssertEqual(adv.action, "cortar"); XCTAssertTrue(adv.refs.joined().contains("número entero de ciclos"))
+        XCTAssertEqual(Pistorius.goalsFor("cuerda").first?.id, "cuerdaBucle"); XCTAssertEqual(Pistorius.goalsFor("instrumento").prefix(2).map(\.id), ["nota", "cuerdaBucle"])
+    }
+
     func testEveryFxHasADistinctIcon() {
         let symbols = Fx404.allOrder.map { Fx404.symbol($0) }
         XCTAssertEqual(symbols.count, 19); XCTAssertTrue(symbols.allSatisfy { !$0.isEmpty }); XCTAssertEqual(Set(symbols).count, symbols.count)

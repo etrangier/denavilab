@@ -2523,3 +2523,34 @@ test.describe('asistente Pistorius: qué grabaste, qué quieres hacer y si corta
     await expect(page.locator('dialog.sheet').getByRole('heading', { name: '¿Qué grabaste?' })).toBeVisible();
   });
 });
+
+test.describe('Pistorius: nota de cuerda (guitarra o ukelele) con bucle de ciclos enteros', () => {
+  const PRE = `const P = await import('/sounds/pistorius.js'), rate = 46875; let sd = 5; const rnd = () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; };
+    const ks = (f, dur, decay = 0.9985, cents = 0) => { const n = Math.round(dur * rate), N = Math.round(rate / (f * Math.pow(2, cents / 1200))), buf = Float32Array.from({ length: N }, () => rnd() * 2 - 1), out = new Float32Array(n); let p = 0;
+      for (let i = 0; i < n; i++) { out[i] = buf[p] * 0.5; const q = (p + 1) % N; buf[p] = decay * 0.5 * (buf[p] + buf[q]); p = q; }
+      const pre = Math.round(0.1 * rate), y = new Float32Array(pre + n); y.set(out, pre); for (let i = 0; i < y.length; i++) y[i] += 0.002 * (rnd() * 2 - 1); return y; };`;
+  const ev = (page, body) => page.evaluate(`(async () => { ${PRE} ${body} })()`);
+  test('Do en el ukelele: sale afinada, con el ataque natural, un bucle de ciclos enteros sin escalones ni clics, y 6 s de nota sostenida', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `const x = ks(261.63, 3, 0.9985, 22), r = P.run('cuerdaBucle', x, rate, { source: 'cuerda', base: 'ukelele' }), a = r.audio;
+      const t = P.estimateTuning(a.slice(Math.round(rate * 3)), rate), lv = []; const w = Math.round(rate * 0.3); for (let s = Math.round(rate * 2); s + w < a.length - rate * 0.5; s += w) { let e = 0; for (let i = 0; i < w; i++) e += a[s + i] ** 2; lv.push(10 * Math.log10(e / w + 1e-12)); }
+      let salto = 0; for (let i = Math.round(rate * 2); i < Math.round(rate * 4); i++) salto = Math.max(salto, Math.abs(a[i + 1] - a[i]));
+      const ciclos = Number((r.notes.find(n => n.startsWith('Bucle de')).match(/= (\\d+) ciclos/) || [])[1]);
+      return { name: r.name, len: a.length / rate, tono: [t.note, t.cents], dif: Math.max(...lv) - Math.min(...lv), salto, ciclos, fin: a.every(Number.isFinite), notas: r.notes.length, corr: r.notes.some(n => n.startsWith('Afinado')) };`);
+    expect(q.name).toContain('Do4'); expect(q.name).toContain('cuerda'); expect(q.len).toBeGreaterThan(5.5); expect(q.len).toBeLessThan(6.6); expect(q.tono[0]).toBe('Do4'); expect(Math.abs(q.tono[1])).toBeLessThan(6);
+    expect(q.dif).toBeLessThan(1.5); expect(q.salto).toBeLessThan(0.06); expect(q.ciclos).toBeGreaterThan(20); expect(q.fin).toBe(true); expect(q.corr).toBe(true);
+  });
+  test('otras cuerdas: guitarra grave y ukelele agudo se detectan y se sostienen; una nota que se apaga muy rápido queda natural; un acorde no se inventa un bucle', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const q = await ev(page, `const out = {}; for (const [nm, f, dur, dec] of [['gui', 82.41, 4, 0.9992], ['uku', 440, 2, 0.998], ['corta', 261.63, 0.6, 0.99]]) { const r = P.run('cuerdaBucle', ks(f, dur, dec), rate, { source: 'cuerda', base: nm }); out[nm] = { len: r.audio.length / rate, nota: r.name, natural: r.notes.some(n => n.includes('se apaga muy rápido')), fin: r.audio.every(Number.isFinite) }; }
+      const ac = new Float32Array(rate * 3); for (const f of [220, 261.63, 329.63]) { const s = ks(f, 3); for (let i = 0; i < ac.length; i++) ac[i] += s[i] * 0.4; }
+      const r2 = P.run('cuerdaBucle', ac, rate, { source: 'cuerda', base: 'acorde' }); out.acorde = { nota: r2.notes.some(n => n.includes('No encontré una nota sola')), fin: r2.audio.every(Number.isFinite) };
+      const adA = P.advise(ks(261.63, 3), rate, P.analyze(ks(261.63, 3), rate), 'cuerdaBucle'); const seq = new Float32Array(rate * 4); [[220, 0], [261.63, 1], [329.63, 2], [392, 3]].forEach(([f, t]) => seq.set(ks(f, 1, 0.998).slice(0, rate), Math.round(t * rate)));
+      const adB = P.advise(seq, rate, P.analyze(seq, rate), 'cuerdaBucle');
+      return { out, adA: [adA.action, adA.title, adA.refs.join(' ')], adB: [adB.action, adB.chopMode], goals: P.goalsFor('cuerda')[0].id, inst: P.goalsFor('instrumento').slice(0, 2).map(g => g.id) };`);
+    expect(q.out.gui.nota).toContain('Mi2'); expect(q.out.gui.len).toBeGreaterThan(5.5); expect(q.out.uku.nota).toContain('La4'); expect(q.out.uku.len).toBeGreaterThan(5.5);
+    expect(q.out.corta.natural).toBe(true); expect(q.out.corta.len).toBeLessThan(1.5); expect(q.out.acorde.nota).toBe(true);
+    for (const o of Object.values(q.out)) expect(o.fin).toBe(true);
+    expect(q.adA[0]).toBe('cortar'); expect(q.adA[2]).toContain('número entero de ciclos'); expect(q.adB).toEqual(['chop', -2]); expect(q.goals).toBe('cuerdaBucle'); expect(q.inst).toEqual(['nota', 'cuerdaBucle']);
+  });
+});

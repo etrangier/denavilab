@@ -47,6 +47,7 @@ const Q = {
   nota: '<path d="M10 17V5l8-2v12"/><circle cx="8" cy="17" r="2.2"/><circle cx="16" cy="15" r="2.2"/>',
   frase: '<path d="M4 5h16v11H11l-4 4v-4H4z"/><path d="M8 9h8M8 12h5"/>',
   limpiar: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/>',
+  cuerda: '<path d="M15 3l6 6-3 1-2 2-1-1-6 6a3 3 0 1 1-4-4l6-6-1-1 2-2z"/><circle cx="7.5" cy="16.5" r="1"/><path d="M16 8l-5 5"/>',
   asistente: '<path d="M12 3l2.4 5 5.6.7-4.1 3.9 1 5.6L12 15.5 7.1 18.2l1-5.6L4 8.7 9.6 8z"/>',
   tijeras: '<circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><path d="M8 8.5L20 18M8 15.5L20 6"/>',
 };

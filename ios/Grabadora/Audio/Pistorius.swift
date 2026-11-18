@@ -13,9 +13,11 @@ enum Pistorius {
         Source(id: "voz", label: "Voz o canto", symbol: "mic"),
         Source(id: "naturaleza", label: "Naturaleza", symbol: "leaf"),
         Source(id: "ambiente", label: "Sonido ambiente cualquiera", symbol: "waveform"),
+        Source(id: "cuerda", label: "Guitarra o ukelele", symbol: "guitars.fill"),
         Source(id: "otro", label: "Otra cosa", symbol: "ellipsis"),
     ]
     nonisolated static let goals: [Goal] = [
+        Goal(id: "cuerdaBucle", label: "Nota de cuerda con bucle", hint: "Guitarra o ukelele: conserva el punteo y sostiene la nota en un bucle sin clics, afinada", symbol: "guitars.fill", kind: "libre"),
         Goal(id: "pad", label: "Pad para teclado", hint: "Una textura que se sostiene: tramo parejo, colchón y loop sin clics", symbol: "pianokeys", kind: "textura"),
         Goal(id: "loopRitmico", label: "Loop rítmico", hint: "Para percusión: detecta el tempo y abre Chop para armar el loop", symbol: "metronome", kind: "bateria"),
         Goal(id: "golpe", label: "Golpe suelto", hint: "Un bombo, una caja o un hi-hat: ataque limpio y caída corta", symbol: "burst", kind: "bateria"),
@@ -28,8 +30,9 @@ enum Pistorius {
     ]
     /// Qué se sugiere primero según lo que se grabó (el resto sigue disponible).
     nonisolated static let suggest: [String: [String]] = [
+        "cuerda": ["cuerdaBucle", "nota", "acorde", "bajo", "golpe", "pad", "ambiente", "frase", "loopRitmico", "limpiar"],
         "musica": ["pad", "loopRitmico", "acorde", "bajo", "nota", "golpe", "ambiente", "frase", "limpiar"],
-        "instrumento": ["nota", "acorde", "bajo", "pad", "golpe", "loopRitmico", "ambiente", "frase", "limpiar"],
+        "instrumento": ["nota", "cuerdaBucle", "acorde", "bajo", "pad", "golpe", "loopRitmico", "ambiente", "frase", "limpiar"],
         "dialogo": ["frase", "golpe", "ambiente", "pad", "limpiar", "nota", "acorde", "bajo", "loopRitmico"],
         "voz": ["frase", "pad", "nota", "ambiente", "limpiar", "acorde", "golpe", "bajo", "loopRitmico"],
         "naturaleza": ["ambiente", "pad", "golpe", "limpiar", "frase", "nota", "acorde", "bajo", "loopRitmico"],
@@ -87,15 +90,46 @@ enum Pistorius {
         return Window(a: a, b: min(x.count, a + W), score: best.score)
     }
 
-    struct Tuning { var mode: String; var cents: Double; var note: String?; var confidence: Double }
+    /// ¿Hay picos fuertes que no son armónicos del tono? Entonces suenan varias notas a la vez (un acorde) y el tono único no sirve.
+    private nonisolated static func polyphonic(_ x: [Float], rate: Int, f0: Double) -> Bool {
+        let N = 16384
+        guard x.count >= N, f0 > 0 else { return false }
+        var mag = [Double](repeating: 0, count: N / 2)
+        let frames = min(4, x.count / N), win = (0..<N).map { 0.5 - 0.5 * cos(2 * Double.pi * Double($0) / Double(N - 1)) }
+        var re = [Double](repeating: 0, count: N), im = [Double](repeating: 0, count: N)
+        for f in 0..<frames {
+            let o = Int(Double(x.count - N) * (frames == 1 ? 0 : Double(f) / Double(frames - 1)) * 0.5)
+            for i in 0..<N { re[i] = Double(x[o + i]) * win[i]; im[i] = 0 }
+            NoiseReduction.fft(&re, &im, inverse: false)
+            for k in 0..<(N / 2) { mag[k] += (re[k] * re[k] + im[k] * im[k]).squareRoot() }
+        }
+        let lo = Int((60 * Double(N) / Double(rate)).rounded()), hi = Int((2500 * Double(N) / Double(rate)).rounded())
+        var mx = 0.0
+        for k in lo...hi where mag[k] > mx { mx = mag[k] }
+        for k in (lo + 1)..<hi where mag[k] > mx * 0.15 && mag[k] >= mag[k - 1] && mag[k] > mag[k + 1] {
+            let f = Double(k) * Double(rate) / Double(N), h = max(1, (f / f0).rounded())
+            if abs(f - h * f0) / (h * f0) > 0.04 && abs(f - f0 / 2) / f > 0.04 { return true }
+        }
+        return false
+    }
+
+    /// Tono medio (Hz) de la parte inicial de una nota (1 s desde el ataque), o 0 si no hay tono claro.
+    private nonisolated static func f0Of(_ x: [Float], rate: Int, from: Int) -> Double {
+        let a = max(0, from), seg = Array(x[min(a, x.count)..<min(x.count, a + rate)])
+        guard seg.count > rate / 10 else { return 0 }
+        let v = Fx404.trackPitch(seg, rate, fmin: 50, fmax: 1000).f0.filter { $0 > 0 }.sorted()
+        return v.count >= 4 ? v[v.count / 2] : 0
+    }
+
+    struct Tuning { var mode: String; var cents: Double; var note: String?; var confidence: Double; var f0 = 0.0 }
 
     /// Afinación respecto a La = 440 Hz. Una nota sola se mide con su tono; un acorde, con sus picos graves.
     nonisolated static func estimateTuning(_ x: [Float], rate: Int) -> Tuning? {
         guard x.count >= Int(Double(rate) * 0.3) else { return nil }
         let tp = Fx404.trackPitch(x, rate, fmin: 40, fmax: 1000), voiced = tp.f0.filter { $0 > 0 }.sorted()
-        if voiced.count >= max(5, Int(Double(tp.f0.count) * 0.5)) {
+        if voiced.count >= max(5, Int(Double(tp.f0.count) * 0.5)), !polyphonic(x, rate: rate, f0: voiced[voiced.count / 2]) {
             let f = voiced[voiced.count / 2], m = midiOf(f), r = Int(m.rounded())
-            return Tuning(mode: "nota", cents: (m - Double(r)) * 100, note: noteName(r), confidence: min(1, Double(voiced.count) / Double(tp.f0.count) + 0.2))
+            return Tuning(mode: "nota", cents: (m - Double(r)) * 100, note: noteName(r), confidence: min(1, Double(voiced.count) / Double(tp.f0.count) + 0.2), f0: f)
         }
         let N = 16384
         guard x.count >= N else { return nil }
@@ -163,12 +197,86 @@ enum Pistorius {
         return slice(x, Editing.nearestZeroCross(x, to: s, window: 256), e)
     }
 
+    /// Pasa un tramo a nivel constante: sube lo que se va apagando (hasta 12 dB), para que el bucle no «respire». El primer instante queda igual (sin escalón con lo anterior).
+    private nonisolated static func flatten(_ seg: [Float], rate: Int) -> [Float] {
+        let win = Int((Double(rate) * 0.04).rounded()), hop = Int((Double(rate) * 0.01).rounded()), n = (seg.count - win) / hop + 1
+        guard n >= 3 else { return seg }
+        var env = [Double](repeating: 0, count: n)
+        for k in 0..<n { var q = 0.0; for i in 0..<win { let v = Double(seg[k * hop + i]); q += v * v }; env[k] = (q / Double(win)).squareRoot() + 1e-9 }
+        let ref = env[0]
+        var out = seg
+        for i in seg.indices {
+            let f = min(Double(n - 1), max(0, (Double(i) - Double(win) / 2) / Double(hop))), k0 = Int(f), k1 = min(n - 1, k0 + 1)
+            let e = env[k0] + (env[k1] - env[k0]) * (f - Double(k0))
+            out[i] = seg[i] * Float(min(4, max(0.5, ref / e)))
+        }
+        return out
+    }
+    /// Ciclo de bucle: el final se funde con el inicio (potencia constante) y encaja sin salto al repetirse. Largo b − a − F.
+    private nonisolated static func loopCycle(_ x: [Float], _ a: Int, _ b: Int, _ F: Int) -> [Float] {
+        let L = b - a - F
+        var c = [Float](repeating: 0, count: L)
+        for i in 0..<L { c[i] = x[a + i] }
+        for i in 0..<F {
+            let t = (Double(i) + 0.5) / Double(F), wi = Float(sin(t * Double.pi / 2)), wo = Float(cos(t * Double.pi / 2))
+            c[i] = x[a + i] * wi + x[b - F + i] * wo
+        }
+        return c
+    }
+
     nonisolated static func run(goal id: String, _ x: [Float], rate: Int, source: String? = nil, base: String = "grabación", analysis: Analysis? = nil) -> Outcome {
         let g = goals.first { $0.id == id } ?? goals[0], a = analysis ?? analyze(x, rate: rate)
         var notes: [String] = []
+        var gid = id
+        if id == "cuerdaBucle" && !(a.tuning?.mode == "nota" && a.feat != nil) {
+            notes.append("No encontré una nota sola y clara (¿un acorde?): hice un recorte simple con final natural"); gid = "acorde"
+        }
         let ms = { (v: Double) in Int(v * Double(rate)) }
         var y = x
-        switch id {
+        switch gid {
+        case "cuerdaBucle":
+            y = denoiseIfNoisy(y, rate, a, &notes)
+            let t0 = a.tuning!
+            y = tune(y, t0, &notes)
+            let feat = StyleMemory.features(y, rate: rate) ?? a.feat!, onset0 = Int(feat.onsetMs / 1000 * Double(rate))
+            let corr = abs(t0.cents) >= 8 && t0.confidence >= 0.5 ? t0.cents : 0
+            var f0 = f0Of(y, rate: rate, from: onset0 + ms(0.05)); if f0 == 0 { f0 = max(50, t0.f0) * pow(2, -corr / 1200) }
+            let P = Double(rate) / f0
+            notes.append("Nota detectada: \(t0.note ?? "?") (\(r1(f0)) Hz); un ciclo dura \(r1(P / Double(rate) * 1000)) ms")
+            let on = max(0, onset0), head0 = max(0, on - ms(0.008)), start0 = on + ms(0.18), end0 = min(y.count, Int(feat.endMs / 1000 * Double(rate)))
+            if Double(end0 - start0) < Double(rate) * 0.45 {
+                notes.append("La nota se apaga muy rápido para sostenerla: queda natural, con un fundido de salida largo")
+                let o = slice(y, head0, min(y.count, end0 + ms(0.1))), z = Harmonize.cosFade(o, inSamples: 0, outSamples: ms(0.15))
+                y = Harmonize.removeDC(leveled(z, rate, &notes))
+                break
+            }
+            let flat = flatten(slice(y, start0, end0), rate: rate); notes.append("Cuerpo de la nota a nivel constante (lo que se apaga se sube hasta 12 dB), sin escalón con el ataque")
+            var k = max(2, Int((Double(rate) * 0.4 / P).rounded(.up))), L = Int((Double(k) * P).rounded())
+            while Double(L) > Double(flat.count) * 0.6 && k > 1 { k -= 1; L = Int((Double(k) * P).rounded()) }
+            let F = max(8, min(Int(min(3 * P, Double(rate) * 0.04).rounded()), L >> 2)), a0 = Editing.nearestZeroCross(flat, to: ms(0.03), window: 256)
+            var bBest = a0 + L, sBest = -2.0
+            let pr = Int(P.rounded())
+            var b = a0 + L - pr
+            while b <= a0 + L + pr {
+                if b + 1 <= flat.count && b - F >= a0 {
+                    var num = 0.0, da = 0.0, db = 0.0
+                    for i in 0..<F { let u = Double(flat[a0 + i]), v = Double(flat[b - F + i]); num += u * v; da += u * u; db += v * v }
+                    let sc = num / (da * db + 1e-12).squareRoot()
+                    if sc > sBest { sBest = sc; bBest = b }
+                }
+                b += 1
+            }
+            let cycle = loopCycle(flat, a0, bBest, F), loopMs = Double(bBest - a0) / Double(rate) * 1000, cycles = Double(bBest - a0) / P
+            notes.append("Bucle de \(Int(loopMs.rounded())) ms = \(Int(cycles.rounded())) ciclos de la nota (parecido entre inicio y final: \(Int((max(0, sBest) * 100).rounded())) %)")
+            let head = slice(y, head0, start0), first = Array(flat[0..<(bBest - F)]), target = 6 * rate, base = head.count + first.count
+            let reps = max(2, Int((Double(target - base) / Double(cycle.count)).rounded(.up)))
+            var out = [Float](repeating: 0, count: base + reps * cycle.count)
+            for (i, v) in head.enumerated() { out[i] = v }
+            for (i, v) in first.enumerated() { out[head.count + i] = v }
+            for r in 0..<reps { for (i, v) in cycle.enumerated() { out[base + r * cycle.count + i] = v } }
+            notes.append("Ataque natural + cuerpo repetido hasta \(r1(Double(out.count) / Double(rate))) s")
+            let z = Harmonize.cosFade(out, inSamples: 0, outSamples: ms(0.4)); notes.append("Fundido de salida de 400 ms")
+            y = Harmonize.removeDC(leveled(z, rate, &notes))
         case "pad":
             y = denoiseIfNoisy(y, rate, a, &notes)
             let total = Double(y.count) / Double(rate), sec = total >= 3 ? 3 : total, w = stableWindow(y, rate: rate, sec: sec), seg = slice(y, w.a, w.b)
@@ -224,7 +332,7 @@ enum Pistorius {
         }
         let src = sources.first { $0.id == source }, tun = a.tuning
         let name: String
-        if (id == "bajo" || id == "nota"), let n = tun?.note { name = (base + " · " + n + (id == "bajo" ? " bajo" : "")).trimmingCharacters(in: .whitespaces) }
+        if (id == "bajo" || id == "nota" || id == "cuerdaBucle"), let n = tun?.note { name = (base + " · " + n + (id == "bajo" ? " bajo" : (id == "cuerdaBucle" ? " cuerda" : ""))).trimmingCharacters(in: .whitespaces) }
         else { name = base + " · " + g.label.lowercased() }
         return Outcome(audio: y, rate: rate, notes: notes, name: name, kind: g.kind, goal: id, bpm: a.bpm.flatMap { $0.confidence > 0.2 ? $0.bpm : nil }, note: tun?.note, openChop: id == "loopRitmico",
                       source: src?.id, process: ["Pistorius: \(g.label)" + (src.map { " · " + $0.label.lowercased() } ?? "")] + notes)
@@ -235,6 +343,7 @@ enum Pistorius {
     /// y con crossfade), Avery Wang (picos del espectrograma: aguantan el ruido; periodo de repetición) y lo reunido sobre Daft Punk (trozos cortos y tartamudeados).
     nonisolated static let refRuss = "Russ: el sonido debe empezar en el ataque, sin silencio antes; los cortes van en cruces por cero y los loops sólo en la parte sostenida, con crossfade"
     nonisolated static let refWang = "Wang (Shazam): los picos del espectrograma aguantan el ruido, y el periodo de repetición sale del histograma de desfases"
+    nonisolated static let refCuerda = "Cuerda pulsada: se apaga sola, así que el bucle se hace con la parte sostenida y su largo es un número entero de ciclos de la nota (Russ: con el mismo ciclo, el bucle no cambia el tono); conviene grabar la nota dejándola sonar hasta el final y repetirla con distinta fuerza (guías de librerías de samples)"
     nonisolated static let refDaft = "Daft Punk: trozos cortos y tartamudeados, repetidos en loop, a veces con una variación al final"
 
     struct Advice {
@@ -284,6 +393,15 @@ enum Pistorius {
                 out.why.append("Para armar un loop rítmico conviene tener cada golpe por separado" + (bpmOk ? ", y ya tengo el tempo para ajustarlos a la cuadrícula" : "") + "."); out.refs.append(refDaft)
             } else {
                 out.title = "Recortar y probar en Chop"; out.markers = region(); out.why.append("No encuentro golpes ni tempo claros: recorto los bordes y en Chop pruebas cortes iguales."); out.refs.append(refRuss)
+            }
+        case "cuerdaBucle":
+            if notes.count >= 2 || hits.count >= 3 {
+                out.action = "chop"; out.chopMode = notes.count >= 2 ? -2 : 0; out.title = "Hay varias notas: separa una por una"; out.markers = (notes.count >= 2 ? notes : hits).map { Double($0) / n }
+                out.why.append("Cada nota de la cuerda necesita su propio bucle: chopea por nota y repite el asistente con cada una."); out.refs.append(contentsOf: [refWang, refCuerda])
+            } else {
+                out.title = "Conservar el punteo y sostener la nota en un bucle"; out.markers = region()
+                out.why.append("Una cuerda pulsada se apaga sola. Conservo el ataque natural, tomo la parte sostenida a nivel constante y la repito en un bucle de ciclos enteros de la nota.")
+                out.why.append("Consejo: toca la nota 2 o 3 veces con distinta fuerza y déjala sonar hasta que se apague; el micrófono siempre a la misma distancia."); out.refs.append(contentsOf: [refCuerda, refRuss])
             }
         case "acorde", "bajo", "nota":
             if notes.count >= 2 || hits.count >= 3 {
