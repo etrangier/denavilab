@@ -209,21 +209,43 @@ test.describe('chop con selección múltiple', () => {
   });
 });
 
-test.describe('puerta de acceso', () => {
-  test('sin sesión pide entrar; como invitado se entra a Inicio', async ({ page }) => {
+test.describe('acceso abierto y créditos', () => {
+  test.beforeEach(async ({ page }) => { await page.addInitScript(() => { try { localStorage.setItem('denavilab.sounds.onboarded', '1'); } catch (e) {} }); });
+  test('sin sesión se entra directo como invitado: Inicio con su descripción breve, sin puerta', async ({ page }) => {
     const errores = vigilar(page);
     await page.goto(URL);
     await expect(page.getByRole('heading', { name: 'DenaviLab: Sounds' })).toBeVisible();
-    await expect(page.locator('#tabs')).toBeHidden();
-    await page.getByRole('button', { name: 'Entrar', exact: true }).first().click();
-    await expect(page.locator('#puerta')).toBeVisible();
-    await page.locator('#entrarInvitado').click();
     await expect(page.locator('#tabs')).toBeVisible();
+    await expect(page.locator('#screen')).toContainText('Graba un sonido, córtalo y déjalo listo para tu sampler');
+    await expect(page.locator('#puerta')).toBeHidden();
+    expect(await page.evaluate(() => localStorage.getItem('denavilab.sesion'))).toBe('invitado');
     expect(errores).toEqual([]);
   });
-  test('con la clave equivocada no entra', async ({ page }) => {
+  test('el botón Créditos nombra al autor, cuenta su proyecto y enlaza a SoundCloud y Spotify con iconos', async ({ page }) => {
     await page.goto(URL);
-    await page.getByRole('button', { name: 'Entrar', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Créditos' }).click();
+    const sh = page.locator('dialog.sheet');
+    await expect(sh).toContainText('Rolando Chaparro Gehren'); await expect(sh).toContainText('Denavi Records');
+    const sc = sh.getByRole('link', { name: 'Denavi Records en SoundCloud' }), sp = sh.getByRole('link', { name: 'Denavi Records en Spotify' });
+    await expect(sc).toHaveAttribute('href', 'https://soundcloud.com/denavi-records'); await expect(sp).toHaveAttribute('href', /^https:\/\/open\.spotify\.com\/intl-es\/artist\/20XBfjC875fSJ0HzqENuFu/);
+    for (const l of [sc, sp]) { await expect(l).toHaveAttribute('target', '_blank'); await expect(l).toHaveAttribute('rel', /noopener/); await expect(l.locator('svg')).toBeVisible(); }
+  });
+  test('la licencia de uso está a un toque, con el copyright y los puntos principales', async ({ page }) => {
+    await page.goto(URL);
+    await page.getByRole('button', { name: 'Licencia de uso' }).click();
+    const sh = page.locator('dialog.sheet');
+    await expect(sh).toContainText('© 2026 Rolando Chaparro Gehren'); await expect(sh).toContainText('Úsala libremente'); await expect(sh).toContainText('Qué no se puede hacer sin permiso escrito');
+    await expect(sh).toContainText('Todo se queda en tu dispositivo');
+  });
+  test('el logo es el icono de la app, en círculo', async ({ page }) => {
+    await page.goto(URL);
+    const img = page.locator('.home-head img.logo-img'); await expect(img).toBeVisible();
+    expect(await img.evaluate(e => getComputedStyle(e).borderRadius)).toBe('50%'); expect(await img.getAttribute('src')).toContain('icons/icon-192.png');
+  });
+  test('el autor puede entrar desde Créditos: con la clave equivocada no entra', async ({ page }) => {
+    await page.goto(URL);
+    await page.getByRole('button', { name: 'Créditos' }).click(); await page.getByRole('button', { name: 'Entrar como autor' }).click();
+    await expect(page.locator('#puerta')).toBeVisible();
     await page.locator('#usuario').fill('schair'); await page.locator('#clave').fill('mal');
     await page.locator('#formPuerta button[type=submit]').click();
     await expect(page.locator('#errorPuerta')).toContainText('no calzan');

@@ -1,0 +1,14 @@
+// Licencia de uso de DenaviLab: Sounds. El mismo texto está en LICENSE (raíz del repositorio): si cambia uno, cambia el otro.
+export const LICENSE_TITLE = 'Licencia de uso · DenaviLab: Sounds';
+export const LICENSE_COPYRIGHT = '© 2026 Rolando Chaparro Gehren';
+export const TERMS = [
+  ['1. Úsala libremente', 'Puedes usar la aplicación gratis, para lo que quieras: grabar, editar y publicar tu música, también con fines comerciales. Los sonidos y las canciones que hagas con ella son tuyos.'],
+  ['2. Qué sigue siendo del autor', 'El código fuente, el nombre «DenaviLab», el logo, el icono, los textos y el diseño son de Rolando Chaparro Gehren. Puedes verlos y aprender de ellos.'],
+  ['3. Qué no se puede hacer sin permiso escrito', 'Copiar o redistribuir la aplicación o su código, venderla, publicar versiones modificadas (por ejemplo en una tienda de aplicaciones) o usar el nombre, el logo o el icono como si fueran tuyos.'],
+  ['4. Material ajeno', 'Eres responsable de los derechos de los sonidos que importes o grabes de terceros (discos, películas, canciones). La aplicación no te da permiso sobre ellos.'],
+  ['5. Privacidad', 'Todo se queda en tu dispositivo: los sonidos no se suben a ningún servidor ni se comparten por tu cuenta.'],
+  ['6. Sin garantía', 'La aplicación se ofrece «tal cual», sin garantía de ningún tipo. Haz copias de seguridad de lo que te importe (Compartir → respaldo).'],
+  ['7. Terceros', 'La tipografía Ubuntu se usa bajo la Ubuntu Font Licence 1.0 (Canonical Ltd).'],
+  ['8. Contacto', 'Para permisos o preguntas: soundcloud.com/denavi-records.'],
+];
+export const licenseText = () => `${LICENSE_TITLE}\n${LICENSE_COPYRIGHT}\n\n` + TERMS.map(([t, p]) => `${t}\n${p}`).join('\n\n') + '\n';

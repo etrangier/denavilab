@@ -27,17 +27,6 @@ function buildTabs() {
     h('button', { type: 'button', class: 'tab', role: 'tab', 'data-tab': id, onclick: () => go(id) }, h('span', { class: 'tab-ico', 'aria-hidden': 'true' }, icon), h('span', {}, name))));
 }
 
-/** Sin sesión: pantalla cerrada; el botón abre la misma puerta del resto del sitio (acceso.js). */
-function renderLock() {
-  tabsEl.hidden = true;
-  // el acceso como invitado no recarga la página por su cuenta: al cerrarse la puerta con sesión, se entra
-  document.getElementById('puerta').addEventListener('close', () => { if (who()) location.reload(); });
-  fill(screenEl, h('div', { class: 'home-head lock' },
-    h('div', { class: 'logo-box' }, logo(64)), h('h1', { class: 'big' }, 'DenaviLab: Sounds'), h('p', { class: 'muted small' }, 'capturador de sonidos para sampling'),
-    h('p', { class: 'muted' }, 'Entra con tu nombre y tu clave, o como invitado.'),
-    btn('Entrar', { kind: 'amber', onclick: () => document.getElementById('btnLogin').click() })));
-}
-
 /** Primera vez: bienvenida y permiso del micrófono (el permiso nace de un toque, como piden iOS y Safari). */
 function welcome() {
   const done = () => { try { localStorage.setItem('denavilab.sounds.onboarded', '1'); } catch (e) {} ov.remove(); render(); };
@@ -74,7 +63,7 @@ function registerWorker() {
 
 async function boot() {
   registerWorker();
-  if (!who()) return renderLock();
+  if (!who()) { try { localStorage.setItem('denavilab.sesion', 'invitado'); } catch (e) {} }       // acceso abierto: sin clave se entra como invitado
   app.user = who();
   try { await refreshSamples(); } catch (e) { toast('No se pudo abrir la biblioteca de este dispositivo'); }
   requestPersist();                                   // pide que el navegador no borre la biblioteca si falta espacio

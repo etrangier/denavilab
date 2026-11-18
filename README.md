@@ -83,3 +83,7 @@ Capturador de sonidos para sampling: graba con el micrófono, guarda por carpeta
 - **Pruebas**: `tests/sounds.spec.js` usa el micrófono falso de Chromium: login, grabar → guardar → editar → exportar, la toma que se corta sola en el compás exacto, el perfil sin K.O. II, la selección múltiple, la copia de seguridad, pantallas de 320 a 820 px y el manifiesto con el service worker.
 - **Chop**: desde Editar. Corta la toma en 4, 8, 12 o Auto (por golpes), con ajuste a la cuadrícula si hay BPM. Se pueden elegir los cortes que se quiera, juntos o no (el 1 y el 3), y guardar o exportar sólo ésos; conservan su número original. Sin K.O. II se llama «cortes» en vez de «pads».
 - **Pendiente respecto a la app de iPhone**: edición precisa con zoom, efectos (EQ, reverb, compresor, carácter), cambio de tono y sugerencia automática de carpeta.
+
+## Licencia
+
+DenaviLab: Sounds es de uso libre y gratuito (también para publicar música propia), pero el código, el nombre y el diseño son de Rolando Chaparro Gehren y no se pueden copiar, vender ni redistribuir sin permiso. El texto completo está en [LICENSE](LICENSE) y dentro de la app, en Inicio → Licencia de uso.

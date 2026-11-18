@@ -14,6 +14,7 @@ import { listenTempo, confidenceLabel, bpmAlternatives, LISTEN_SECONDS } from '.
 import { openMateria, TAKE_SECONDS } from './materia.js';
 import { koPrepOn, setKoPrep, koPrepare, KO_RATE } from './koprep.js';
 import { detect as tunerDetect, smoother as tunerSmoother, PRESETS as TUNER_PRESETS } from './tuner.js';
+import { TERMS, LICENSE_TITLE, LICENSE_COPYRIGHT } from './license.js';
 import { pistoriusOn, setPistorius, afterCapture } from './pistoriusui.js';
 import * as pmem from './pistoriusmem.js';
 import { KO_RATES, KO_DEFAULTS, koOpts, koPlan, buildKoBatch, LONG_FADE_MS } from './koexport.js';
@@ -126,6 +127,32 @@ export function sampleRow(s, { onclick, trailing, listen = false } = {}) {
   return listen ? h('div', { class: 'sel-row', 'data-id': s.id }, row, starBtn(s), listenBtn(s)) : row;
 }
 
+// ====================================================================== CRÉDITOS
+export const SOUNDCLOUD = 'https://soundcloud.com/denavi-records', SPOTIFY = 'https://open.spotify.com/intl-es/artist/20XBfjC875fSJ0HzqENuFu?si=_tDSs5aeRTOXghriWRQJ8A';
+const ICON_SC = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="currentColor"><path d="M2 14.5v3M4.5 12.5v5M7 11v6.5M9.5 9.5v8h8.2a3.8 3.8 0 0 0 .6-7.55A5.5 5.5 0 0 0 9.5 9.5z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
+const ICON_SP = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor"/><g fill="none" stroke="var(--bg)" stroke-linecap="round"><path d="M6.6 9.2c3.6-1 7.5-.7 10.8 1.1" stroke-width="1.9"/><path d="M7.2 12.4c3-.8 6-.5 8.7 1" stroke-width="1.6"/><path d="M7.9 15.3c2.3-.6 4.5-.3 6.5.8" stroke-width="1.4"/></g></svg>';
+const social = (href, label, svg) => { const a = h('a', { class: 'social', href, target: '_blank', rel: 'noopener noreferrer', 'aria-label': label, title: label }); a.innerHTML = svg; return a; };
+export const socialLinks = () => h('div', { class: 'social-row' }, social(SOUNDCLOUD, 'Denavi Records en SoundCloud', ICON_SC), social(SPOTIFY, 'Denavi Records en Spotify', ICON_SP));
+/** Licencia de uso: el texto breve, en una hoja. */
+export function openLicense() {
+  sheet(close => h('div', { class: 'stack credits' },
+    h('div', { class: 'title-row' }, h('h2', {}, 'Licencia de uso'), link('Cerrar', close)),
+    muted(LICENSE_COPYRIGHT, 'small'),
+    TERMS.map(([t, p]) => h('div', { class: 'stack tight' }, h('b', {}, t), h('p', { class: 'small' }, p)))));
+}
+/** Créditos: quién hizo la app, de dónde sale y dónde escuchar su música. */
+export function openCredits() {
+  sheet(close => h('div', { class: 'stack credits' },
+    h('div', { class: 'title-row' }, h('h2', {}, 'Créditos'), link('Cerrar', close)),
+    h('div', { class: 'center' }, logo(72)),
+    h('p', { class: 'center' }, 'DenaviLab: Sounds fue hecha por ', h('b', {}, 'Rolando Chaparro Gehren'), '.'),
+    muted('Denavi Records es su proyecto musical: ambient, jazz fusión japonés de los 70, electrónica experimental y soul, hecho con samplers y sonidos viejos. Esta app nació como la herramienta con la que captura y prepara esos sonidos, y está abierta para quien quiera usarla.'),
+    h('p', { class: 'center muted small' }, 'Escucha su música'),
+    socialLinks(),
+    h('div', { class: 'center' }, link('Licencia de uso', () => { close(); setTimeout(openLicense, 250); })),
+    app.user === 'invitado' ? h('div', { class: 'center' }, link('Entrar como autor', () => { close(); setTimeout(() => document.getElementById('btnLogin').click(), 250); })) : null));
+}
+
 // ====================================================================== INICIO
 /** Deja la app como acceso directo en la pantalla de inicio: con el aviso del navegador si existe; si no, con los pasos a mano. */
 async function instalar() {
@@ -154,7 +181,7 @@ export function renderHome(root) {
     h('div', { class: 'home-head' },
       h('div', { class: 'logo-box' }, logo(64)),
       h('h1', { class: 'big' }, 'DenaviLab: Sounds'),
-      h('p', { class: 'muted small' }, 'capturador de sonidos para sampling')),
+      h('p', { class: 'home-lead' }, 'Graba un sonido, córtalo y déjalo listo para tu sampler. Todo queda en tu teléfono, sin cuenta.')),
     btn('Grabar un sonido', { kind: 'amber', onclick: () => go('grabar') }),
     h('div', { class: 'grid2' },
       shortcut('Biblioteca', n + (n === 1 ? ' grabación' : ' grabaciones'), '▤', () => go('biblioteca')),
@@ -163,8 +190,9 @@ export function renderHome(root) {
       shortcut('Manual', 'Glosario técnico', '?', openManual)),
     isStandalone() || inst.done ? null : btn('📲 Instalar en mi celular', { sel: true, aria: 'Instalar la app en mi celular', onclick: instalar }),
     n ? h('div', { class: 'stack tight' }, label('Recientes'), app.samples.slice(0, 3).map(s => sampleRow(s))) : null,
+    h('div', { class: 'center credits-row' }, link('Créditos', openCredits), link('Licencia de uso', openLicense)),
     h('p', { class: 'muted tiny center' }, `Beta ${VERSION} · versión ${BUILD} · Desarrollado por: Rolando Chaparro Gehren`),
-    sesion ? (sesion.hidden = false, sesion) : null);
+    app.user && app.user !== 'invitado' && sesion ? (sesion.hidden = false, sesion) : null);
 }
 
 // ====================================================================== GRABAR

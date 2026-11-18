@@ -289,3 +289,12 @@ body { background: var(--bg) radial-gradient(120% 60% at 50% 0%, #1a2a25 0%, #0d
 /* Editar: tres rutas (Recortar, Efectos, Pistorius) y el resto plegado en «Más herramientas» */
 details.more { border: 1px solid var(--line); border-radius: var(--r); padding: 0 14px; } details.more > summary { cursor: pointer; min-height: 48px; display: flex; align-items: center; font-weight: 700; color: var(--text); list-style: none; }
 details.more[open] { padding-bottom: 14px; } details.more[open] > summary { border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+
+/* logo circular, descripción de Inicio y créditos */
+.logo-img { border-radius: 50%; object-fit: cover; display: block; }
+.logo-box { width: auto; height: auto; border: 0; border-radius: 50%; margin-bottom: 4px; } .logo-box.round { width: 112px; height: 112px; border: 3px solid var(--amber); }
+.brand .logo-img { flex: none; }
+.home-lead { color: var(--muted); font-size: 14px; max-width: 30ch; margin: 0 auto; text-align: center; line-height: 1.4; }
+.credits-row { margin-top: 2px; }
+.social-row { display: flex; justify-content: center; gap: 14px; } .social { width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid var(--line); color: var(--text); display: grid; place-items: center; transition: border-color .2s, color .2s; } .social:hover, .social:focus-visible { border-color: var(--amber); color: var(--amber); }
+.credits h2 { font-size: 20px; }
