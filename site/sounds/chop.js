@@ -17,7 +17,7 @@ function playSlice(audio, rate, [a, b]) {
 }
 
 export function openChop(sample, audio, opts = {}) {
-  const pads = app.ko2 ? 'pads' : 'cortes';
+  const pads = app.sampler ? 'pads' : 'cortes';
   const S = { mode: Number.isFinite(opts.mode) ? opts.mode : 8, sens: 0.5, grid: false, harm: true, hm: false, an: null, lay: null, shift: 0, per: 1, want: 4, pick: null, style: 'libre', pump: false, sweep: 0, stut: false, glue: false, auto: true, saved: new Map(), G: { on: false, bars: 2, steps: 8, cells: gd.emptyCells(2, 8), brush: null, tool: 'paint', sel: new Set(), clip: null }, fix: true, fixBpm: null, ranges: [], selected: new Set(), bpm: sample.bpm || (dsp.estimateBPM(audio, sample.rate) || {}).bpm || null };
   const peaks = dsp.peaks(audio, 56);
   const padEls = [];                       // botones de los pads, para iluminar el que está sonando
@@ -171,7 +171,7 @@ export function openChop(sample, audio, opts = {}) {
         S.mode === -1 && [1, 2, 4].some(p => p !== S.per) ? h('div', { class: 'wrap' }, [1, 2, 4].map(p => chip(p === 1 ? '1 compás por corte' : `${p} compases`, S.per === p, () => { S.per = p; recompute(); paint(); }))) : null,
         loopCard(L)]);
     };
-    /** Loop de N compases sugerido (4 por defecto) sobre toda la toma, con alternativas y BPM fijo para pasarlo al K.O. */
+    /** Loop de N compases sugerido (4 por defecto) sobre toda la toma, con alternativas y BPM fijo para pasarlo al sampler */
     /** Elige una sugerencia; con «Guardar al elegir» encendido queda guardada en la Biblioteca de inmediato. */
     const choose = c => {
       S.selected = new Set(); S.pick = c; stopPreview(); paint();
@@ -264,7 +264,7 @@ export function openChop(sample, audio, opts = {}) {
       const plan = dsp.previewSegments(S.ranges, S.selected, sample.rate), secs = plan.length ? plan[plan.length - 1].end / sample.rate : 0;
       padEls.length = 0;
       fill(box,
-        h('div', { class: 'title-row' }, h('div', {}, h('h2', {}, app.ko2 ? 'Chop en pads' : 'Chop'), h('p', { class: 'muted small' }, `${total} cortes · ${n} seleccionado${n === 1 ? '' : 's'}`)), link('Cerrar', close)),
+        h('div', { class: 'title-row' }, h('div', {}, h('h2', {}, app.sampler ? 'Chop en pads' : 'Chop'), h('p', { class: 'muted small' }, `${total} cortes · ${n} seleccionado${n === 1 ? '' : 's'}`)), link('Cerrar', close)),
         card([canvas]),
         h('div', { class: 'wrap' }, [[4, '4'], [8, '8'], [12, '12'], [0, 'Golpes'], [-2, 'Notas'], ...(S.lay ? [[-1, 'Compases']] : [])].map(([m, t]) => chip(t, S.mode === m, () => { S.mode = m; recompute(); paint(); }))),
         S.mode === 0 || S.mode === -2 ? sliderRow(S.mode === -2 ? 'Sensibilidad a cambios de nota' : 'Sensibilidad de golpes', { min: 0, max: 1, step: 0.01, value: S.sens, fmt: v => v < 0.34 ? 'Baja' : v < 0.67 ? 'Media' : 'Alta', onInput: v => { S.sens = v; }, onChange: () => { recompute(); paint(); } }) : null,
@@ -279,12 +279,12 @@ export function openChop(sample, audio, opts = {}) {
         h('div', { class: 'row2' }, btn('Todos', { small: true, disabled: n === total, onclick: () => { stopPreview(); S.selected = new Set(S.ranges.keys()); paint(); } }), btn('Ninguno', { small: true, disabled: !n, onclick: () => { stopPreview(); S.selected = new Set(); paint(); } })),
         h('div', { class: 'padgrid' }, Array.from({ length: 12 }, (_, i) => {
           const live = i < total, on = S.selected.has(i);
-          const el = h('button', { type: 'button', class: 'pad' + (on ? ' on' : ''), disabled: !live, 'aria-pressed': live ? String(on) : null, 'aria-label': (app.ko2 ? 'Pad ' : 'Corte ') + (i + 1) + (live && S.mode === -1 && S.lay ? ', ' + padChord(i) : '') + (on ? ', seleccionado' : ''),
+          const el = h('button', { type: 'button', class: 'pad' + (on ? ' on' : ''), disabled: !live, 'aria-pressed': live ? String(on) : null, 'aria-label': (app.sampler ? 'Pad ' : 'Corte ') + (i + 1) + (live && S.mode === -1 && S.lay ? ', ' + padChord(i) : '') + (on ? ', seleccionado' : ''),
             onclick: () => { stopPreview(); if (S.G.on) S.G.brush = i; on ? S.selected.delete(i) : S.selected.add(i); playSlice(audio, sample.rate, S.ranges[i]); paint(); } },
             String(i + 1), live && S.mode === -1 && S.lay ? h('small', { class: 'pad-chord' }, padChord(i)) : null);
           padEls[i] = el; return el;
         })),
-        app.ko2 && total < 12 ? muted(`Pads ${total + 1}–12 libres`, 'center tiny') : null,
+        app.sampler && total < 12 ? muted(`Pads ${total + 1}–12 libres`, 'center tiny') : null,
         gridCard(),
         btn(preview ? 'Parar' : (n ? `Escuchar selección · ${secs.toFixed(1).replace('.', ',')} s` : 'Escuchar selección'), { sel: !!preview, disabled: !n, aria: preview ? 'Parar la escucha de la selección' : null,
           onclick: () => { if (preview) { stopPreview(); paint(); } else { startPreview(); paint(); } } }),

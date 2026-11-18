@@ -49,7 +49,7 @@ export function decodeWav(bytes) {
   return { samples: out, rate };
 }
 
-/** Remuestreo lineal. Objetivo del K.O. II: 46 875 Hz (por confirmar). */
+/** Remuestreo lineal. Frecuencia que usan algunos samplers: 46 875 Hz. */
 export function resample(x, from, to) {
   if (from === to || x.length < 2) return x;
   const n = Math.floor(x.length * to / from), r = from / to, out = new Float32Array(n);

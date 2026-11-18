@@ -191,7 +191,7 @@ export function renderEdit(root) {
         ed.start = r.a / ed.audio.length; ed.end = r.b / ed.audio.length; ed.fadeMs = r.fadeMs; toast(r.why + ' · ajusta y pulsa Recortar', 8000); flash('recorte-ia'); app.render();
       } })),
     sliderRow('Fundido', { min: 0, max: 200, step: 1, value: ed.fadeMs, fmt: v => v + ' ms', onInput: v => { ed.fadeMs = v; } }),
-    btn(app.ko2 ? 'Chop en pads' : 'Chop', { onclick: () => openChop(s, ed.audio) }),
+    btn(app.sampler ? 'Chop en pads' : 'Chop', { onclick: () => openChop(s, ed.audio) }),
     s.recipe ? card([h('b', {}, 'Receta de efectos'), h('p', { class: 'muted small' }, `De «${s.recipe.fromName}»: ${describeChain(cleanChain(s.recipe.chain)).map(x => x.split(' (')[0]).join(' → ')}`), btn('Re-editar la receta', { act: 'receta', onclick: () => openFxRack(s, s.recipe) }), h('p', { class: 'muted tiny' }, 'Se edita sobre el original y actualiza este sonido.')]) : null,
     card([h('b', {}, 'Cadena de efectos'), h('p', { class: 'muted small' }, 'Cassette, vinilo, granular, delay, reverb y más.'), btn('Abrir la cadena de efectos', { act: 'efectos', onclick: () => openFxRack(s) })]),
     card([h('b', {}, 'Asistente Pistorius'), h('p', { class: 'muted small' }, 'Te guía para convertir este sonido en pad, nota, acorde, bajo, golpe o chop.'), btn('Abrir el asistente', { act: 'pistorius', onclick: () => openPistorius(ed.audio, s.rate, { base: s.name, origin: s.origin || '', folder: s.folder, subfolder: s.subfolder || null, fromSample: true }) })]),

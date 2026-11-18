@@ -1,12 +1,12 @@
 // Estado compartido de la app.
 import { Engine } from './audio.js';
 import { Metronome } from './metronome.js';
-import { who, hasKO2 } from './profile.js';
+import { who, hasSampler } from './profile.js';
 import { listSamples } from './store.js';
 
 export const app = {
   user: who(),
-  ko2: hasKO2(),
+  sampler: hasSampler(),
   engine: new Engine(),
   metro: new Metronome(),
   samples: [],            // metadatos, la más reciente primero

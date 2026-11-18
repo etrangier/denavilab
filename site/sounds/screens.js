@@ -8,16 +8,16 @@ import { getAudio, putSample, putMany, deleteSamples, newSample, normalizeSample
 import { manualFor } from './manual.js';
 import { makeZip, readZip } from './zip.js';
 import { decodeFile, baseName, MAX_SECONDS } from './importer.js';
-import { rateLabel, exportRates, KO_EXPORT } from './profile.js';
+import { rateLabel, exportRates, SAMPLER_EXPORT } from './profile.js';
 import { openLab } from './lab.js';
 import { listenTempo, confidenceLabel, bpmAlternatives, LISTEN_SECONDS } from './tempo.js';
 import { openMateria, TAKE_SECONDS } from './materia.js';
-import { koPrepOn, setKoPrep, koPrepare, KO_RATE } from './koprep.js';
+import { samplerPrepOn, setSamplerPrep, samplerPrepare, SAMPLER_RATE } from './prep.js';
 import { detect as tunerDetect, smoother as tunerSmoother, PRESETS as TUNER_PRESETS } from './tuner.js';
 import { TERMS, LICENSE_TITLE, LICENSE_COPYRIGHT } from './license.js';
 import { pistoriusOn, setPistorius, afterCapture } from './pistoriusui.js';
 import * as pmem from './pistoriusmem.js';
-import { KO_RATES, KO_DEFAULTS, koOpts, koPlan, buildKoBatch, LONG_FADE_MS } from './koexport.js';
+import { SAMPLER_RATES, LOTE_DEFAULTS, loteOpts, lotePlan, buildLote, LONG_FADE_MS } from './lote.js';
 
 const ls = {
   get(k, d) { try { const v = localStorage.getItem('denavilab.sounds.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -54,8 +54,8 @@ const listenBtn = s => h('button', { type: 'button', class: 'icon-btn' + (aud.id
 
 // ---------- favoritos, orden y filtro ----------
 export const SORTS = [['fecha', 'Recientes'], ['nombre', 'Nombre A–Z'], ['duracion', 'Más largos'], ['favoritos', 'Favoritos']];
-/** «Listo para K.O.» sólo se nombra así para quien tiene el aparato; el resto ve «Listo». */
-export const stateName = k => k === 'listo' && !app.ko2 ? 'Listo' : (STATES.find(x => x[0] === k) || STATES[0])[1];
+/** «Listo» sólo se nombra así para quien tiene el aparato; el resto ve «Listo». */
+export const stateName = k => k === 'listo' && !app.sampler ? 'Listo' : (STATES.find(x => x[0] === k) || STATES[0])[1];
 const charTags = () => { const v = ls.get('charTags', null); return Array.isArray(v) && v.length ? v : CHAR_TAGS; };
 export const view = {
   get onlyFav() { return ls.get('onlyFav', false) === true; }, set onlyFav(v) { ls.set('onlyFav', !!v); },
@@ -120,7 +120,7 @@ document.addEventListener('keydown', e => {
 });
 
 export function sampleRow(s, { onclick, trailing, listen = false } = {}) {
-  const right = trailing !== undefined ? trailing : (app.ko2 && s.slot ? 'slot ' + s.slot : '');
+  const right = trailing !== undefined ? trailing : (app.sampler && s.slot ? 'slot ' + s.slot : '');
   const row = h('button', { type: 'button', class: 'card row-btn', 'data-kind': s.kind || 'libre', onclick: onclick || (() => { stopAudition(); openSample(s); }) },
     h('span', { class: 'rb-text' }, h('b', {}, s.name), h('small', {}, pathOf(s) + ' · ' + dsp.stamp(s.duration) + (s.status !== 'crudo' ? ' · ' + stateName(s.status) : ''))),
     right ? h('span', { class: 'amber small' }, right) : null);
@@ -282,13 +282,13 @@ export function renderRecord(root) {
         side('Escuchar', '🎧', e.monitoring, () => e.setMonitoring(!e.monitoring)),
         recBtn,
         side('Retro', '↺', null, openRetro)),
-      h('div', { class: 'format' }, `WAV · 16 bit · mono · ${hz(koPrepOn() ? KO_RATE : exportRate())}${koPrepOn() ? ' · listo para el K.O. II' : ''}`),
+      h('div', { class: 'format' }, `WAV · 16 bit · mono · ${hz(samplerPrepOn() ? SAMPLER_RATE : exportRate())}${samplerPrepOn() ? ' · listo para tu sampler' : ''}`),
       h('details', { class: 'rec-opts', open: recOpts.open ? '' : null, ontoggle: e => { recOpts.open = e.target.open; } }, h('summary', {}, 'Ajustes de captura · ', captureMode() === 'materia' ? 'materia prima' : 'captura libre', ' · ', dsp.SOUND_KINDS[kind].label.toLowerCase()),
         h('div', { class: 'stack tight' },
           toggleRow('Asistente Pistorius', 'Después de grabar te pregunta si sigues con la edición convencional o con el asistente, y aprende de lo que eliges', pistoriusOn(), v => { setPistorius(v); app.render(); }),
           h('div', { class: 'between small' }, h('span', { class: 'muted' }, pmem.summary()), link('Olvidar', () => { pmem.forget(); toast('Pistorius olvidó lo aprendido'); app.render(); })),
           toggleRow('Afinador en vivo', 'Muestra la nota que suena y cuántos cents le faltan, con modo ukelele y guitarra', tunerOn, v => { ls.set('tuner', v); app.render(); }),
-          app.ko2 ? toggleRow('Dejar listo para el K.O. II', '46 875 Hz, mono, 16 bit y volumen nivelado al guardar', koPrepOn(), v => { setKoPrep(v); app.render(); }) : null,
+          app.sampler ? toggleRow('Dejar listo para tu sampler', '46 875 Hz, mono, 16 bit y volumen nivelado al guardar', samplerPrepOn(), v => { setSamplerPrep(v); app.render(); }) : null,
           card([h('b', {}, 'Entrada · Micrófono del dispositivo')]),
           card([h('b', {}, 'Modo de captura'),
         h('div', { class: 'row2', role: 'group', 'aria-label': 'Modo de captura' }, btn('Materia prima', { small: true, sel: captureMode() === 'materia', act: 'modo-materia', onclick: () => { ls.set('captureMode', 'materia'); app.render(); } }),
@@ -341,7 +341,7 @@ export function renderRecord(root) {
 
 /** Modo de captura: «materia» (por defecto: grabar 10–15 s y elegir un fragmento) o «libre» (guardar la toma como sale). */
 export const captureMode = () => ls.get('captureMode', 'materia') === 'libre' ? 'libre' : 'materia';
-/** Las texturas para el K.O. II se piensan de hasta 6 s: no se corta nada solo, pero se avisa. */
+/** Las texturas se piensan de hasta 6 s: no se corta nada solo, pero se avisa. */
 export const MAX_TEXTURE = 6;
 const longNote = secs => secs > MAX_TEXTURE + 0.05 ? ` · dura más de ${MAX_TEXTURE} s` : '';
 const storeError = err => err && (err.name === 'QuotaExceededError' || /quota/i.test(String(err.message))) ? 'No se pudo guardar: el dispositivo se quedó sin espacio. Libera espacio o borra sonidos viejos.' : 'No se pudo guardar el sonido (' + ((err && err.message) || 'error desconocido') + ').';
@@ -349,7 +349,7 @@ const storeError = err => err && (err.name === 'QuotaExceededError' || /quota/i.
 /** Al terminar una toma: guardado rápido si está activo; si no, hoja para elegir nombre y carpeta. */
 export async function finishTake(audio0, { assist = true } = {}) {
   if (!audio0 || !audio0.length) return;
-  const { audio, rate } = koPrepare(audio0, app.engine.rate), q = loadQuick();
+  const { audio, rate } = samplerPrepare(audio0, app.engine.rate), q = loadQuick();
   if (assist && pistoriusOn()) return afterCapture(audio, rate, () => finishTake(audio0, { assist: false }));          // asistente Pistorius: ¿edición convencional o asistente?
   if (captureMode() === 'materia') return openMateria(audio, rate);
   if (!q.enabled) return showSave(audio, rate);
@@ -365,7 +365,7 @@ export async function finishTake(audio0, { assist = true } = {}) {
 
 // ---------- hoja: guardar grabación ----------
 function showSave(audio0, rate0) {
-  const { audio, rate } = koPrepare(audio0, rate0);         // «listo para el K.O. II»: a 46 875 Hz
+  const { audio, rate } = samplerPrepare(audio0, rate0);         // «listo para tu sampler»: a 46 875 Hz
   const st = { folder: UNSORTED, sub: null };
   const stampName = (() => { const d = new Date(); return 'Grabación ' + d.toLocaleDateString('es', { day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }); })();
   sheet(close => {
@@ -374,7 +374,7 @@ function showSave(audio0, rate0) {
     const go2 = h('button', { type: 'button', class: 'btn amber' });
     const cut = { on: false }, tooLong = audio.length / rate > MAX_TEXTURE + 0.05;
     const longBox = tooLong ? h('div', { class: 'card warn', role: 'status' }, h('b', {}, `Dura ${dsp.stamp(audio.length / rate)}, más de ${MAX_TEXTURE} s`),
-      h('small', { class: 'muted' }, 'Para texturas del K.O. II conviene 6 s o menos. Puedes guardarla entera o quedarte con los primeros 6 s.'),
+      h('small', { class: 'muted' }, 'Para texturas conviene 6 s o menos. Puedes guardarla entera o quedarte con los primeros 6 s.'),
       toggleRow('Recortar a los primeros 6 s', 'Sin ajustes de guardado rápido', false, on => { cut.on = on; })) : null;
     const paintBtn = () => { go2.textContent = 'Guardar en ' + (st.sub ? st.folder + ' › ' + st.sub : st.folder); };
     paintBtn();
@@ -407,7 +407,7 @@ function openRetro() {
     timer = setInterval(refresh, 500); setTimeout(refresh, 30);
     const saveBtn = btn(`Guardar los últimos ${e.retroSeconds} s`, { kind: 'amber', disabled: e.state === 'idle', onclick: () => {
       const a = e.captureRetro(); if (!a.length) return toast('Todavía no hay nada en el búfer');
-      close(); setTimeout(() => { const conv = () => captureMode() === 'materia' ? openMateria(a, e.rate) : showSave(a, e.rate), pr = koPrepare(a, e.rate); afterCapture(pr.audio, pr.rate, conv); }, 250);
+      close(); setTimeout(() => { const conv = () => captureMode() === 'materia' ? openMateria(a, e.rate) : showSave(a, e.rate), pr = samplerPrepare(a, e.rate); afterCapture(pr.audio, pr.rate, conv); }, 250);
     } });
     return h('div', { class: 'stack' },
       h('div', { class: 'title-row' }, h('h2', {}, 'Captura retroactiva'), link('Cerrar', close)),
@@ -463,7 +463,7 @@ function openMetro() {
         muted(m.mode === 'bar' ? 'Con compás, el metrónomo marca el tiempo 1 y la grabación empieza ahí. Libre graba tal como suena.' : 'Libre graba tal como suena, sin metrónomo.', 'small'),
         card([h('div', { class: 'between' }, label('Tempo'), link('Marcar con toques', () => { m.tap(); paint(); })),
           h('div', { class: 'between' }, step('−', -1), bpmBig, step('+', 1)),
-          h('p', { class: 'muted small center' }, app.ko2 ? 'BPM · como en el K.O. II' : 'BPM')]),
+          h('p', { class: 'muted small center' }, app.sampler ? 'BPM' : 'BPM')]),
         m.mode === 'bar' ? card([label('Compás'),
           h('div', { class: 'wrap' }, [[2, '2/4'], [3, '3/4'], [4, '4/4'], [6, '6/8']].map(([v, t]) => chip(t, m.beats === v, () => { m.set('beats', v); paint(); }))),
           label('Cuántos compases'),
@@ -484,7 +484,7 @@ function openMetro() {
 // ---------- hoja: manual ----------
 export function openManual() {
   sheet(close => {
-    const pages = manualFor(app.ko2); let page = 0; const box = h('div', { class: 'stack' });
+    const pages = manualFor(app.sampler); let page = 0; const box = h('div', { class: 'stack' });
     const paint = () => fill(box, 
       h('div', { class: 'title-row' }, h('div', {}, h('h2', {}, pages[page].title), h('p', { class: 'muted small' }, `Manual técnico · ${page + 1} de ${pages.length}`)), link('Cerrar', close)),
       h('div', { class: 'wrap' }, pages.map((_, i) => chip(String(i + 1), page === i, () => { page = i; paint(); }))),
@@ -519,7 +519,7 @@ export function renderLibrary(root) {
         label('Sonidos'), arrange(app.samples).slice(0, 40).map(s => sampleRow(s, { listen: true })),
         btn('Importar sonidos', { small: true, act: 'importar', onclick: () => importInput.click() }),
         muted('Trae WAV (también MP3, M4A…) desde Archivos o Drive. Entran a Sin clasificar, a su frecuencia original y en mono.', 'tiny'),
-        app.ko2 ? btn('Exportar para el K.O. II', { small: true, act: 'ko-lote', 'aria-label': 'Exportar para el K.O. II: favoritos, selección o todo', onclick: openKoExport }) : null,
+        app.sampler ? btn('Exportar lote', { small: true, act: 'lote', 'aria-label': 'Exportar lote: favoritos, selección o todo', onclick: openLoteExport }) : null,
         stylePanel(),
         storagePanel(),
         h('div', { class: 'row2 backup' }, btn('Respaldo', { small: true, 'aria-label': 'Respaldo: guardar toda la colección en un .zip', onclick: backupAll }), btn('Restaurar', { small: true, onclick: () => fileInput.click() })));
@@ -583,7 +583,7 @@ function renderFolder(root) {
           onclick: () => { if (L.selecting) { on ? L.sel.delete(s.id) : L.sel.add(s.id); paint(); } else { stopAudition(); openSample(s); } } },
           L.selecting ? h('span', { class: 'check' + (on ? ' on' : ''), 'aria-hidden': 'true' }, on ? '✓' : '') : null,
           h('span', { class: 'rb-text' }, h('b', {}, s.name), h('small', {}, pathOf(s) + ' · ' + dsp.stamp(s.duration) + (s.status !== 'crudo' ? ' · ' + stateName(s.status) : ''))),
-          app.ko2 && s.slot ? h('span', { class: 'amber small' }, 'slot ' + s.slot) : null),
+          app.sampler && s.slot ? h('span', { class: 'amber small' }, 'slot ' + s.slot) : null),
         starBtn(s),
         L.selecting ? null : listenBtn(s),
         L.selecting ? null : h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Más acciones para ' + s.name, onclick: () => rowMenu(s) }, '⋯'));
@@ -592,7 +592,7 @@ function renderFolder(root) {
     fill(bar, h('p', { class: 'muted tiny center' }, L.sel.size ? `${L.sel.size} seleccionada${L.sel.size === 1 ? '' : 's'}` : 'Elige una o varias grabaciones'),
       h('div', { class: 'row3' }, btn('Cambiar nombre', { small: true, disabled: !L.sel.size, onclick: () => act.rename() }), btn('Mover', { small: true, disabled: !L.sel.size, onclick: () => act.move() }),
         btn('Borrar', { small: true, kind: 'danger', disabled: !L.sel.size, onclick: () => act.del() })),
-      app.ko2 ? btn('Exportar selección al K.O. II', { small: true, act: 'ko-seleccion', disabled: !L.sel.size, onclick: openKoExport }) : null);
+      app.sampler ? btn('Exportar selección', { small: true, act: 'lote-seleccion', disabled: !L.sel.size, onclick: openLoteExport }) : null);
   };
   const rowMenu = s => sheet(close => h('div', { class: 'stack' }, h('h2', {}, s.name),
     btn('Detalles (etiquetas, nota, BPM…)', { act: 'detalles', onclick: () => { close(); openDetails(s); } }),
@@ -732,47 +732,47 @@ async function restoreBackup(file) {
   } catch (err) { toast(err && (err.name === 'QuotaExceededError') ? 'No se pudo restaurar: el dispositivo se quedó sin espacio.' : 'No se pudo restaurar: ' + (err.message || err)); }
 }
 
-// ---------- exportación por lotes para el K.O. II ----------
-/** Hoja «Exportar para el K.O. II»: alcance (favoritos, selección o todo), ajustes, vista previa de nombres y .zip. Sólo para quien tiene el aparato. */
-export function openKoExport() {
+// ---------- exportación por lotes ----------
+/** Hoja «Exportar lote»: alcance (favoritos, selección o todo), ajustes, vista previa de nombres y .zip. Sólo para quien tiene el aparato. */
+export function openLoteExport() {
   const favs = () => app.samples.filter(s => s.favorite), chosen = () => app.samples.filter(s => L.sel.has(s.id));
-  const st = { scope: chosen().length ? 'seleccion' : favs().length ? 'favoritos' : 'todo', o: koOpts(ls.get('koExport', {})), start: 1, ready: ls.get('koReady', false) === true };
+  const st = { scope: chosen().length ? 'seleccion' : favs().length ? 'favoritos' : 'todo', o: loteOpts(ls.get('koExport', {})), start: 1, ready: ls.get('koReady', false) === true };
   const list = () => [...(st.scope === 'seleccion' ? chosen() : st.scope === 'favoritos' ? favs() : app.samples)].filter(s => !st.ready || s.status === 'listo').sort((a, b) => a.created - b.created);
   sheet(close => {
     const box = h('div', { class: 'stack' });
     const save = () => ls.set('koExport', st.o);
     const paint = () => {
-      const items = list(), plan = koPlan(items, st.start), o = st.o;
+      const items = list(), plan = lotePlan(items, st.start), o = st.o;
       const secs = items.reduce((t, x) => t + x.duration, 0), mbx = secs * o.rate * 2 / 1e6;
       const scopeBtn = (k, t, n) => btn(`${t} (${n})`, { small: true, sel: st.scope === k, disabled: k === 'seleccion' && !n, onclick: () => { st.scope = k; paint(); } });
       const num = (lab, key, min, max, unit) => h('label', { class: 'card between' }, h('span', {}, h('b', {}, lab)),
         h('span', { class: 'row-gap' }, h('input', { type: 'number', class: 'field num', min, max, value: key === 'start' ? st.start : o[key], 'aria-label': lab,
-          onchange: e => { if (key === 'start') st.start = Math.max(1, Math.min(900, parseInt(e.target.value, 10) || 1)); else { st.o = koOpts({ ...st.o, [key]: e.target.value }); save(); } paint(); } }), h('small', { class: 'muted' }, unit)));
+          onchange: e => { if (key === 'start') st.start = Math.max(1, Math.min(900, parseInt(e.target.value, 10) || 1)); else { st.o = loteOpts({ ...st.o, [key]: e.target.value }); save(); } paint(); } }), h('small', { class: 'muted' }, unit)));
       const go3 = btn(items.length ? `Descargar .zip (${items.length} ${items.length === 1 ? 'sonido' : 'sonidos'})` : 'No hay sonidos en esta opción', { kind: 'amber', act: 'descargar-ko', disabled: !items.length, onclick: async () => {
         go3.disabled = true;
         try {
-          const r = await buildKoBatch(items, id => getAudio(id), o, (i, n) => { go3.textContent = `Preparando ${i} de ${n}…`; }, st.start);
+          const r = await buildLote(items, id => getAudio(id), o, (i, n) => { go3.textContent = `Preparando ${i} de ${n}…`; }, st.start);
           if (!r.files.length) { toast('No quedó ningún sonido para exportar: ' + (r.skipped.join(', ') || 'lista vacía')); go3.disabled = false; paint(); return; }
           const d = new Date(), stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-          await deliver(new File([makeZip(r.files)], `ko2_${st.scope}_${stamp}.zip`, { type: 'application/zip' }));
-          toast(`${r.files.length - 1} sonidos listos para el K.O. II` + (r.skipped.length ? ` · omitidos: ${r.skipped.slice(0, 3).join(', ')}` : ''));
+          await deliver(new File([makeZip(r.files)], `lote_${st.scope}_${stamp}.zip`, { type: 'application/zip' }));
+          toast(`${r.files.length - 1} sonidos listos` + (r.skipped.length ? ` · omitidos: ${r.skipped.slice(0, 3).join(', ')}` : ''));
         } catch (err) { toast(err && err.name === 'QuotaExceededError' ? 'No hay espacio para preparar el archivo.' : 'No se pudo preparar la exportación: ' + ((err && err.message) || err)); }
         go3.disabled = false; paint();
       } });
       fill(box,
-        h('div', { class: 'title-row' }, h('div', {}, h('h2', {}, 'Exportar para el K.O. II'), h('p', { class: 'muted small' }, 'WAV mono 16 bit · pico a −1 dBFS · sin compresión')), link('Cerrar', close)),
+        h('div', { class: 'title-row' }, h('div', {}, h('h2', {}, 'Exportar lote'), h('p', { class: 'muted small' }, 'WAV mono 16 bit · pico a −1 dBFS · sin compresión')), link('Cerrar', close)),
         label('Qué exportar'), h('div', { class: 'row3' }, scopeBtn('favoritos', '★ Favoritos', favs().length), scopeBtn('seleccion', 'Selección', chosen().length), scopeBtn('todo', 'Todo', app.samples.length)),
-        toggleRow('Solo los «listos para K.O.»', `Entre lo elegido, deja fuera los que no tienen ese estado (${app.samples.filter(x => x.status === 'listo').length} en total)`, st.ready, v => { st.ready = v; ls.set('koReady', v); paint(); }),
-        label('Frecuencia de muestreo'), h('div', { class: 'row2' }, KO_RATES.map(r => btn(rateLabel(r), { small: true, sel: o.rate === r, onclick: () => { st.o = koOpts({ ...o, rate: r }); save(); paint(); } }))),
-        muted('46 875 Hz es la frecuencia que usa el K.O. II · por confirmar con el aparato. 44,1 kHz es la alternativa segura.', 'tiny'),
+        toggleRow('Solo los «listos»', `Entre lo elegido, deja fuera los que no tienen ese estado (${app.samples.filter(x => x.status === 'listo').length} en total)`, st.ready, v => { st.ready = v; ls.set('koReady', v); paint(); }),
+        label('Frecuencia de muestreo'), h('div', { class: 'row2' }, SAMPLER_RATES.map(r => btn(rateLabel(r), { small: true, sel: o.rate === r, onclick: () => { st.o = loteOpts({ ...o, rate: r }); save(); paint(); } }))),
+        muted('46 875 Hz es la frecuencia que usan algunos samplers; 44,1 kHz es la alternativa segura.', 'tiny'),
         num('Umbral de silencio inicial', 'thresholdDB', -80, -20, 'dB'),
         num('Fundido de entrada', 'fadeIn', 0, 100, 'ms'), num('Fundido de salida', 'fadeOut', 0, 500, 'ms'),
-        toggleRow('Fade-out largo para one-shots', `${LONG_FADE_MS} ms de salida en vez del fundido corto`, o.longFade, v => { st.o = koOpts({ ...o, longFade: v }); save(); paint(); }),
-        toggleRow('Filtro pasa-altos suave (90 Hz)', 'Quita rumor grave que el aparato no necesita', o.hp, v => { st.o = koOpts({ ...o, hp: v }); save(); paint(); }),
-        toggleRow('Nivel parejo en vez de pico', 'Nivela por volumen típico (como en Compartir) en lugar de llevar el pico a −1 dBFS', o.even, v => { st.o = koOpts({ ...o, even: v }); save(); paint(); }),
+        toggleRow('Fade-out largo para one-shots', `${LONG_FADE_MS} ms de salida en vez del fundido corto`, o.longFade, v => { st.o = loteOpts({ ...o, longFade: v }); save(); paint(); }),
+        toggleRow('Filtro pasa-altos suave (90 Hz)', 'Quita rumor grave que el aparato no necesita', o.hp, v => { st.o = loteOpts({ ...o, hp: v }); save(); paint(); }),
+        toggleRow('Nivel parejo en vez de pico', 'Nivela por volumen típico (como en Compartir) en lugar de llevar el pico a −1 dBFS', o.even, v => { st.o = loteOpts({ ...o, even: v }); save(); paint(); }),
         num('Empezar a numerar en', 'start', 1, 900, ''),
         label(`Vista previa de nombres (${plan.length})`),
-        h('ol', { class: 'ko-names', 'aria-label': 'Nombres finales de los archivos' }, plan.length ? plan.slice(0, 60).map(p => h('li', {}, h('code', {}, p.file), h('small', { class: 'muted' }, ' ← ' + p.sample.name))) : [h('li', { class: 'muted' }, st.ready ? 'Ningún sonido de esta opción está «listo para K.O.». Cambia su estado en Detalles o apaga el filtro.' : 'Nada que exportar. Marca favoritos con la ☆ o elige otra opción.')]),
+        h('ol', { class: 'lote-names', 'aria-label': 'Nombres finales de los archivos' }, plan.length ? plan.slice(0, 60).map(p => h('li', {}, h('code', {}, p.file), h('small', { class: 'muted' }, ' ← ' + p.sample.name))) : [h('li', { class: 'muted' }, st.ready ? 'Ningún sonido de esta opción está «listo». Cambia su estado en Detalles o apaga el filtro.' : 'Nada que exportar. Marca favoritos con la ☆ o elige otra opción.')]),
         plan.length > 60 ? muted(`… y ${plan.length - 60} más`, 'tiny') : null,
         muted(`≈ ${mbx.toFixed(1).replace('.', ',')} MB · lista.txt dentro del .zip dice qué sonido es cada archivo y de dónde salió.`, 'tiny'),
         go3);
@@ -783,11 +783,11 @@ export function openKoExport() {
 }
 
 // ====================================================================== EXPORTAR
-const koX = () => app.ko2 && KO_EXPORT;       // formato K.O. II en pausa
+const loteX = () => app.sampler && SAMPLER_EXPORT;       // formato de sampler en pausa
 const fileNameFor = s => {
-  // sin tildes: algunos navegadores descartan el nombre si no es ASCII, y el K.O. II y otros programas lo prefieren
+  // sin tildes: algunos navegadores descartan el nombre si no es ASCII, y otros programas lo prefieren
   const clean = s.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'sonido';
-  return koX() ? (s.slot ? String(s.slot).padStart(3, '0') + '_' : '') + clean.slice(0, 24) + '.wav' : clean.slice(0, 60) + '.wav';
+  return loteX() ? (s.slot ? String(s.slot).padStart(3, '0') + '_' : '') + clean.slice(0, 24) + '.wav' : clean.slice(0, 60) + '.wav';
 };
 /** WAV de un trozo de audio en memoria (nombre ya sin tildes), a la frecuencia de exportación actual. */
 export function wavFromAudio(name, audio, srcRate) {
@@ -831,7 +831,7 @@ async function wavReady(s, rate) {
 }
 
 export function renderExport(root) {
-  mount(root, title(koX() ? 'Formato K.O. II' : 'Compartir'));
+  mount(root, title(loteX() ? 'Formato sampler' : 'Compartir'));
   if (!app.samples.length) {
     mount(root, h('div', { class: 'empty' }, h('h2', {}, 'Aún no hay nada que compartir'), muted('Graba un sample y vuelve aquí.', 'center'), btn('Grabar', { kind: 'amber', onclick: () => go('grabar') })));
     return;
@@ -841,25 +841,25 @@ export function renderExport(root) {
     app.samples.map(x => h('option', { value: x.id, selected: x.id === s.id }, x.name)));
   const slotInput = h('input', { type: 'number', class: 'field num', min: 1, max: 999, value: s.slot || 600, 'aria-label': 'Slot de destino',
     onchange: async e => { const v = Math.min(999, Math.max(1, parseInt(e.target.value, 10) || 600)); await putSample({ ...s, slot: v }); await refreshSamples(); app.render(); } });
-  if (!koX()) wavReady(s, rate).catch(() => {});                       // deja el WAV listo: compartir necesita un toque reciente
+  if (!loteX()) wavReady(s, rate).catch(() => {});                       // deja el WAV listo: compartir necesita un toque reciente
   const bump = d => async () => { const v = Math.min(999, Math.max(1, (s.slot || 600) + d)); await putSample({ ...s, slot: v }); await refreshSamples(); app.render(); };
 
   mount(root, 
     app.samples.length > 1 ? h('div', { class: 'stack tight' }, label('Grabación'), pick) : card([h('b', {}, s.name)]),
     label('Frecuencia de muestreo'),
     h('div', { class: 'row3' }, exportRates().map(r => btn(rateLabel(r), { small: true, sel: r === rate, onclick: () => { ls.set('rate', r); app.render(); } }))),
-    koX() ? muted('46 875 Hz es lo que usa el K.O. II · por confirmar con el aparato', 'small') : null,
+    loteX() ? muted('46 875 Hz es la que usan algunos samplers', 'small') : null,
     muted('Formato: WAV mono · 16 bit', 'small'),
-    koX() ? card([h('div', { class: 'between' }, h('div', {}, h('b', {}, 'Slot de destino'), h('p', { class: 'muted small' }, 'Libres 600–999 · por confirmar')),
+    loteX() ? card([h('div', { class: 'between' }, h('div', {}, h('b', {}, 'Slot de destino'), h('p', { class: 'muted small' }, 'Libres 600–999 · por confirmar')),
       h('div', { class: 'stepper' }, h('button', { type: 'button', class: 'circle', 'aria-label': 'Slot anterior', onclick: bump(-1) }, '−'), slotInput, h('button', { type: 'button', class: 'circle', 'aria-label': 'Slot siguiente', onclick: bump(1) }, '+')))]) : null,
-    koX() ? card([h('b', {}, 'Memoria'), h('p', { class: 'muted small' }, `${mb.toFixed(1).replace('.', ',')} MB · quedan ${Math.max(0, 128 - mb).toFixed(0)} MB de 128 MB`),
+    loteX() ? card([h('b', {}, 'Memoria'), h('p', { class: 'muted small' }, `${mb.toFixed(1).replace('.', ',')} MB · quedan ${Math.max(0, 128 - mb).toFixed(0)} MB de 128 MB`),
       h('div', { class: 'meter' }, h('div', { class: 'meter-fill', style: { width: Math.max(2, Math.min(100, mb / 128 * 100)) + '%' } }))]) : null,
     card([h('div', { class: 'between' }, h('span', { class: 'muted small' }, 'Nombre'), h('span', { class: 'small file-name' }, fileNameFor(s)))]),
     toggleRow('Nivelar volumen', `Lleva el sonido al mismo nivel que los demás (${dsp.levelTarget()} dB de nivel típico) para que no suene muy fuerte ni muy bajo; el pico queda bajo ${dsp.LEVEL_CEILING_DB} dB`, levelOn(), v => { ls.set('levelExport', v); ready.key = ''; app.render(); }),
     levelOn() ? sliderRow('Nivel objetivo', { min: -36, max: -12, step: 1, value: dsp.levelTarget(), fmt: v => v + ' dB', onInput: v => { ls.set('levelTarget', v); ready.key = ''; } }) : null,
     levelOn() ? muted('Más a la izquierda, más bajo. Si en el aparato suenan más fuertes que sus sonidos de fábrica, baja este nivel hasta que igualen.', 'tiny') : null,
-    muted(koX() ? 'Otras frecuencias y 24 bit no están confirmadas para el K.O. II.' : 'Se envía un archivo .wav (mono, 16 bit): por correo, Bluetooth, Drive o la app que elijas.', 'small'),
-    ...(koX() ? koButtons(s, rate) : shareButtons(s, rate)));
+    muted(loteX() ? 'Otras frecuencias y 24 bit dependen de tu sampler.' : 'Se envía un archivo .wav (mono, 16 bit): por correo, Bluetooth, Drive o la app que elijas.', 'small'),
+    ...(loteX() ? koButtons(s, rate) : shareButtons(s, rate)));
 }
 const koButtons = (s, rate) => [
   btn('Guardar con este formato', { kind: 'amber', onclick: async () => { download(await wavFile(s, rate)); toast('Archivo preparado: ' + fileNameFor(s)); } }),
