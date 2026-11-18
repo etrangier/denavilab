@@ -55,6 +55,29 @@
 </dialog>
 
 <script src="../acceso.js?v=20260915f" defer></script>
+<script>
+/* Red de seguridad: si la app no llega a dibujar nada en 5 s (caché vieja, módulo que no carga, navegador sin soporte), muestra el motivo y un botón para recargar limpio. */
+(function () {
+  var errs = [];
+  function add(m) { try { errs.push(String(m)); } catch (e) {} }
+  addEventListener('error', function (e) { add((e.message || 'error') + (e.filename ? ' @' + e.filename.split('/').pop() + ':' + e.lineno : '')); }, true);
+  addEventListener('unhandledrejection', function (e) { add((e.reason && e.reason.message) || e.reason); });
+  setTimeout(function () {
+    var s = document.getElementById('screen'); if (document.documentElement.dataset.listo) return;
+    var d = document.createElement('div'); d.setAttribute('role', 'alert'); d.style.cssText = 'padding:24px;font:16px/1.4 system-ui,sans-serif;color:#f4ede1;max-width:520px;margin:0 auto';
+    var h = document.createElement('h2'); h.textContent = 'No se pudo abrir la app'; h.style.margin = '0 0 8px';
+    var p = document.createElement('p'); p.textContent = 'Prueba recargarla limpiando lo guardado de esta página. Tus sonidos no se borran.';
+    var b = document.createElement('button'); b.type = 'button'; b.textContent = 'Recargar limpio'; b.style.cssText = 'min-height:48px;padding:0 20px;border-radius:14px;border:0;background:#f2a65a;color:#1c1208;font:700 16px system-ui;cursor:pointer';
+    b.onclick = function () {
+      var done = function () { location.reload(); };
+      Promise.resolve().then(function () { return navigator.serviceWorker ? navigator.serviceWorker.getRegistrations().then(function (r) { return Promise.all(r.map(function (x) { return x.unregister(); })); }) : null; })
+        .then(function () { return window.caches ? caches.keys().then(function (k) { return Promise.all(k.map(function (n) { return caches.delete(n); })); }) : null; }).then(done, done);
+    };
+    var pre = document.createElement('pre'); pre.style.cssText = 'white-space:pre-wrap;font-size:12px;color:#9aa89f;margin-top:16px'; pre.textContent = errs.length ? errs.slice(0, 5).join('\n') : 'Sin detalles del navegador.';
+    d.append(h, p, b, pre); (s || document.body).appendChild(d);
+  }, 5000);
+})();
+</script>
 <script type="module" src="main.js"></script>
 </body>
 </html>
