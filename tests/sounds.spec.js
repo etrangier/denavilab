@@ -997,7 +997,7 @@ test.describe('etapas 1–5 · cadena de efectos, granular, destrucción, ritmo 
     await sh.getByRole('button', { name: '− Cerrar la lista' }).click(); await expect(sh.locator('.fxtile')).toHaveCount(0);
     await expect(sh.locator('.dock').getByRole('button', { name: '▶ Procesado' })).toBeVisible(); await expect(sh.locator('.dock').getByRole('button', { name: 'Guardar como sonido nuevo' })).toBeVisible();
     await sh.locator('.slot-name').first().click(); await sh.getByRole('button', { name: '▶ Solo este efecto' }).click(); await expect(sh).toContainText('Escuchando solo este efecto', { timeout: 15000 });
-    const col = await page.evaluate(() => getComputedStyle(document.body).backgroundColor); expect(col).toBe('rgb(0, 0, 0)');
+    const col = await page.evaluate(() => getComputedStyle(document.body).backgroundColor); expect(Math.max(...col.match(/\d+/g).slice(0, 3).map(Number))).toBeLessThan(30);       // fondo oscuro (el tema de fábrica es Atardecer: casi negro con verde)
   });
   test('rack: todo apagado avisa, y mezclar otro sonido aparece como casilla', async ({ page }) => {
     const sh = await abrirRack(page, ['pad base', 'otro']);
@@ -2659,5 +2659,26 @@ test.describe('Pistorius: limpia material viejo por sí solo', () => {
       return { limpio: limpio.notes.filter(t => /Detecté (zumbido|unos)/.test(t)).length, r: r.notes.filter(t => /Detecté/.test(t)), g: g.notes.filter(t => /Detecté/.test(t)), fin: r.audio.every(Number.isFinite) }; });
     expect(q.limpio).toBe(0); expect(q.r.some(t => t.includes('zumbido de 60 Hz'))).toBe(true); expect(q.r.some(t => t.includes('crujidos por segundo'))).toBe(true); expect(q.fin).toBe(true);
     expect(q.g.some(t => t.includes('zumbido'))).toBe(true); expect(q.g.some(t => t.includes('crujidos'))).toBe(false);          // en percusión se quita el zumbido pero no los «crujidos»
+  });
+});
+
+test.describe('apariencia: temas de color', () => {
+  test('de fábrica es Atardecer; en Inicio se cambia de tema, se recuerda al recargar y «Clásico» vuelve al negro y gris', async ({ page }) => {
+    await abrir(page, 'rolando');
+    const tema = () => page.evaluate(() => document.documentElement.dataset.theme), acento = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--amber').trim());
+    expect(await tema()).toBe('atardecer'); expect(await acento()).toBe('#f2a65a');
+    await page.getByRole('button', { name: 'Cinta y madera' }).click(); expect(await tema()).toBe('cinta'); expect(await acento()).toBe('#e3a43a');
+    await page.reload(); expect(await tema()).toBe('cinta');
+    await page.getByRole('button', { name: 'Clásico' }).click(); expect(await acento()).toBe('#ffffff');
+    await page.getByRole('button', { name: 'Solo movimiento' }).click(); expect(await tema()).toBe('movimiento');
+  });
+  test('los sonidos llevan su franja por tipo y, con «reducir movimiento», no hay animaciones', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await abrir(page, 'rolando');
+    await page.evaluate(async () => { const st = await import('/sounds/store.js'), { refreshSamples } = await import('/sounds/state.js'), a = new Float32Array(4800).map((_, i) => 0.2 * Math.sin(i * 0.05)); await st.putSample(st.newSample('Pad', a, 48000, { kind: 'textura' }), a); await refreshSamples(); });
+    await tab(page, 'biblioteca');
+    const f = await page.locator('.row-btn[data-kind="textura"]').first().evaluate(e => getComputedStyle(e).borderLeftColor);
+    expect(f).toBe('rgb(127, 181, 171)');
+    expect(await page.locator('#screen > *').first().evaluate(e => getComputedStyle(e).animationName)).toBe('none');
   });
 });

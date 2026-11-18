@@ -120,7 +120,7 @@ document.addEventListener('keydown', e => {
 
 export function sampleRow(s, { onclick, trailing, listen = false } = {}) {
   const right = trailing !== undefined ? trailing : (app.ko2 && s.slot ? 'slot ' + s.slot : '');
-  const row = h('button', { type: 'button', class: 'card row-btn', onclick: onclick || (() => { stopAudition(); openSample(s); }) },
+  const row = h('button', { type: 'button', class: 'card row-btn', 'data-kind': s.kind || 'libre', onclick: onclick || (() => { stopAudition(); openSample(s); }) },
     h('span', { class: 'rb-text' }, h('b', {}, s.name), h('small', {}, pathOf(s) + ' · ' + dsp.stamp(s.duration) + (s.status !== 'crudo' ? ' · ' + stateName(s.status) : ''))),
     right ? h('span', { class: 'amber small' }, right) : null);
   return listen ? h('div', { class: 'sel-row', 'data-id': s.id }, row, starBtn(s), listenBtn(s)) : row;
@@ -163,6 +163,7 @@ export function renderHome(root) {
       shortcut('Manual', 'Glosario técnico', '?', openManual)),
     isStandalone() || inst.done ? null : btn('📲 Instalar en mi celular', { sel: true, aria: 'Instalar la app en mi celular', onclick: instalar }),
     n ? h('div', { class: 'stack tight' }, label('Recientes'), app.samples.slice(0, 3).map(s => sampleRow(s))) : null,
+    card([label('Apariencia'), h('div', { class: 'theme-picker', role: 'group', 'aria-label': 'Apariencia' }, THEMES.map(([k, t]) => chip(t, currentTheme() === k, () => { setTheme(k); app.render(); })))]),
     h('p', { class: 'muted tiny center' }, `Beta ${VERSION} · versión ${BUILD} · Desarrollado por: Rolando Chaparro Gehren`),
     sesion ? (sesion.hidden = false, sesion) : null);
 }
@@ -192,6 +193,9 @@ const tempoCard = rec => {
       muted('Si suena a la mitad o al doble de lo que tocas, usa ÷2 o ×2.', 'tiny')) : null]);
 };
 
+export const THEMES = [['atardecer', 'Atardecer'], ['cinta', 'Cinta y madera'], ['movimiento', 'Solo movimiento'], ['clasico', 'Clásico']];
+export const currentTheme = () => document.documentElement.dataset.theme || 'atardecer';
+export function setTheme(k) { document.documentElement.dataset.theme = k; try { localStorage.setItem('denavilab.sounds.theme', JSON.stringify(k)); } catch (e) {} const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = { atardecer: '#0d1311', cinta: '#17100b' }[k] || '#000000'; }
 const recOpts = { open: false, tuner: false };      // los ajustes de captura recuerdan si estaban abiertos al volver a dibujar la pantalla
 export function renderRecord(root) {
   const e = app.engine, m = app.metro, rec = e.state === 'recording', listening = e.state === 'listening';
