@@ -40,7 +40,8 @@ enum Pistorius {
         "otro": ["pad", "nota", "golpe", "loopRitmico", "acorde", "bajo", "ambiente", "frase", "limpiar"],
     ]
     nonisolated static func goalsFor(_ source: String) -> [Goal] {
-        (suggest[source] ?? suggest["otro"]!).compactMap { id in goals.first { $0.id == id } }
+        let ids = suggest[source] ?? suggest["otro"]!
+        return (ids + goals.map { $0.id }.filter { !ids.contains($0) }).compactMap { id in goals.first { $0.id == id } }       // lo sugerido primero; el resto sigue disponible
     }
 
     // MARK: análisis

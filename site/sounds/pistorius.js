@@ -39,7 +39,7 @@ export const SUGGEST = {
   ambiente: ['pad', 'ambiente', 'golpe', 'limpiar', 'frase', 'nota', 'acorde', 'bajo', 'loopRitmico'],
   otro: ['pad', 'nota', 'golpe', 'loopRitmico', 'acorde', 'bajo', 'ambiente', 'frase', 'limpiar'],
 };
-export const goalsFor = source => (SUGGEST[source] || SUGGEST.otro).map(id => GOALS.find(g => g.id === id));
+export const goalsFor = source => { const ids = SUGGEST[source] || SUGGEST.otro; return [...ids, ...GOALS.map(g => g.id).filter(id => !ids.includes(id))].map(id => GOALS.find(g => g.id === id)); };       // lo sugerido primero; el resto sigue disponible
 
 // ---------------------------------------------------------------------------------------------------- análisis
 const NOTE_NAMES = ['Do', 'Do#', 'Re', 'Re#', 'Mi', 'Fa', 'Fa#', 'Sol', 'Sol#', 'La', 'La#', 'Si'];
